@@ -1,37 +1,39 @@
-// Database types for DYMMSA
-// Will be auto-generated with Supabase CLI in Phase 2
+// Database types for DYMMSA - matches Supabase schema
 
-export type UserRole = 'admin' | 'user'
-
-export interface Product {
+export interface EtmProduct {
+  id: string
   etm: string
   description: string
-  model: string
-  price: number
-  brand: string
-  createdAt: string
-  updatedAt: string
-  createdBy: string | null
+  descripcion: string
+  modelo: string
+  precio: number
+  marca: string
+  created_at: string
+  updated_at: string
+  created_by: string | null
 }
 
 export interface Quote {
   id: string
-  userId: string
+  user_id: string
   filename: string
-  totalRequested: number
-  totalFound: number
-  etmProducts: string[]
-  createdAt: string
-}
-
-export interface User {
-  id: string
-  email: string
-  role: UserRole
-  createdAt: string
-  updatedAt: string
+  total_requested: number
+  total_found: number
+  etm_products: string[]
+  created_at: string
 }
 
 // Insert types (without auto-generated fields)
-export type ProductInsert = Omit<Product, 'createdAt' | 'updatedAt'>
-export type QuoteInsert = Omit<Quote, 'id' | 'createdAt'>
+export type EtmProductInsert = Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>
+export type EtmProductUpdate = Partial<Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>>
+export type QuoteInsert = Omit<Quote, 'id' | 'created_at'>
+
+// Excel row type for import
+export interface ExcelProductRow {
+  ETM: string
+  DESCRIPTION: string
+  DESCRIPCION: string
+  MODELO: string
+  PRECIO: number | string
+  MARCA?: string
+}
