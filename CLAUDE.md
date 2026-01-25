@@ -122,7 +122,7 @@ Crear interfaz de administracion para gestionar catalogo de productos con todas 
 Implementar funcionalidad core: subir Excel, procesar, consultar BD, generar cotizacion descargable.
 
 ### Fase 5: Historial y Mejoras
-Pagina de historial de cotizaciones, mejoras UX/UI, optimizaciones de performance.
+Pagina de historial de cotizaciones.
 
 ### Fase 6: Expansion Catalogo (Futuro)
 Expandir catalogo de 384 a miles de productos mediante importacion masiva o scraping.
