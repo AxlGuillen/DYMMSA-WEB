@@ -4,12 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
-import { LogOut, Package, Home } from 'lucide-react'
+import { LogOut, Package, Home, FileText, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
-  { href: '/dashboard', label: 'Inicio', icon: Home },
-  { href: '/dashboard/db', label: 'Productos', icon: Package },
+  { href: '/dashboard', label: 'Inicio', icon: Home, exact: true },
+  { href: '/dashboard/quoter', label: 'Cotizar', icon: FileText, exact: true },
+  { href: '/dashboard/quoter/record', label: 'Historial', icon: History, exact: false },
+  { href: '/dashboard/db', label: 'Productos', icon: Package, exact: false },
 ]
 
 export function Navbar() {
@@ -26,7 +28,9 @@ export function Navbar() {
           <nav className="flex items-center gap-1">
             {navLinks.map((link) => {
               const Icon = link.icon
-              const isActive = pathname === link.href
+              const isActive = link.exact
+                ? pathname === link.href
+                : pathname.startsWith(link.href)
               return (
                 <Link
                   key={link.href}
