@@ -47,9 +47,9 @@ export default function ProductosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Catalogo de Productos</h2>
+          <h2 className="text-2xl font-bold tracking-tight">ETM - URREA</h2>
           <p className="text-muted-foreground">
-            Gestiona el catalogo ETM - URREA
+            Gestiona los productos ETM - URREA disponibles para cotizaciones.
           </p>
         </div>
         <div className="flex gap-2">
