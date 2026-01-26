@@ -26,3 +26,20 @@ export interface ExcelProductRow {
   PRICE: number | string
   BRAND?: string
 }
+
+// Store Inventory
+export interface StoreInventory {
+  id: string
+  model_code: string
+  quantity: number
+  updated_at: string
+}
+
+export type StoreInventoryInsert = Omit<StoreInventory, 'id' | 'updated_at'>
+export type StoreInventoryUpdate = Partial<Omit<StoreInventory, 'id' | 'updated_at'>>
+
+// Excel row type for inventory import
+export interface ExcelInventoryRow {
+  MODEL_CODE: string
+  QUANTITY: number | string
+}
