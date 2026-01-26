@@ -2,44 +2,44 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import type { EtmProduct, EtmProductInsert, EtmProductUpdate } from '@/types/database'
+import type { StoreInventory, StoreInventoryInsert, StoreInventoryUpdate } from '@/types/database'
 
-const PRODUCTS_KEY = ['products']
+const INVENTORY_KEY = ['inventory']
 
-interface ProductsParams {
+interface InventoryParams {
   page?: number
   pageSize?: number
   search?: string
 }
 
-interface ProductsResponse {
-  data: EtmProduct[]
+interface InventoryResponse {
+  data: StoreInventory[]
   count: number
   page: number
   pageSize: number
   totalPages: number
 }
 
-export function useProducts(params: ProductsParams = {}) {
+export function useInventory(params: InventoryParams = {}) {
   const { page = 1, pageSize = 20, search = '' } = params
   const supabase = createClient()
 
   return useQuery({
-    queryKey: [...PRODUCTS_KEY, { page, pageSize, search }],
-    queryFn: async (): Promise<ProductsResponse> => {
+    queryKey: [...INVENTORY_KEY, { page, pageSize, search }],
+    queryFn: async (): Promise<InventoryResponse> => {
       let query = supabase
-        .from('etm_products')
+        .from('store_inventory')
         .select('*', { count: 'exact' })
 
       if (search) {
-        query = query.or(`etm.ilike.%${search}%,model_code.ilike.%${search}%,description_es.ilike.%${search}%,description.ilike.%${search}%`)
+        query = query.ilike('model_code', `%${search}%`)
       }
 
       const from = (page - 1) * pageSize
       const to = from + pageSize - 1
 
       const { data, error, count } = await query
-        .order('etm', { ascending: true })
+        .order('model_code', { ascending: true })
         .range(from, to)
 
       if (error) throw error
@@ -55,15 +55,15 @@ export function useProducts(params: ProductsParams = {}) {
   })
 }
 
-export function useCreateProduct() {
+export function useCreateInventoryItem() {
   const queryClient = useQueryClient()
   const supabase = createClient()
 
   return useMutation({
-    mutationFn: async (product: EtmProductInsert) => {
+    mutationFn: async (item: StoreInventoryInsert) => {
       const { data, error } = await supabase
-        .from('etm_products')
-        .insert(product)
+        .from('store_inventory')
+        .insert(item)
         .select()
         .single()
 
@@ -71,20 +71,20 @@ export function useCreateProduct() {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY })
+      queryClient.invalidateQueries({ queryKey: INVENTORY_KEY })
     },
   })
 }
 
-export function useUpdateProduct() {
+export function useUpdateInventoryItem() {
   const queryClient = useQueryClient()
   const supabase = createClient()
 
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: EtmProductUpdate }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: StoreInventoryUpdate }) => {
       const { data, error } = await supabase
-        .from('etm_products')
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .from('store_inventory')
+        .update(updates)
         .eq('id', id)
         .select()
         .single()
@@ -93,36 +93,36 @@ export function useUpdateProduct() {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY })
+      queryClient.invalidateQueries({ queryKey: INVENTORY_KEY })
     },
   })
 }
 
-export function useDeleteProduct() {
+export function useDeleteInventoryItem() {
   const queryClient = useQueryClient()
   const supabase = createClient()
 
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('etm_products')
+        .from('store_inventory')
         .delete()
         .eq('id', id)
 
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY })
+      queryClient.invalidateQueries({ queryKey: INVENTORY_KEY })
     },
   })
 }
 
-export function useImportProducts() {
+export function useImportInventory() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (formData: FormData) => {
-      const response = await fetch('/api/products/import', {
+      const response = await fetch('/api/inventory/import', {
         method: 'POST',
         body: formData,
       })
@@ -135,7 +135,7 @@ export function useImportProducts() {
       return response.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY })
+      queryClient.invalidateQueries({ queryKey: INVENTORY_KEY })
     },
   })
 }

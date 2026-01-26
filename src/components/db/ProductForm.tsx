@@ -27,10 +27,10 @@ import type { EtmProduct } from '@/types/database'
 const productSchema = z.object({
   etm: z.string().min(1, 'ETM es requerido'),
   description: z.string(),
-  descripcion: z.string().min(1, 'Descripcion es requerida'),
-  modelo: z.string().min(1, 'Modelo es requerido'),
-  precio: z.number().min(0, 'Precio debe ser mayor o igual a 0'),
-  marca: z.string(),
+  description_es: z.string().min(1, 'Descripcion es requerida'),
+  model_code: z.string().min(1, 'Modelo es requerido'),
+  price: z.number().min(0, 'Precio debe ser mayor o igual a 0'),
+  brand: z.string(),
 })
 
 type ProductFormValues = z.infer<typeof productSchema>
@@ -51,10 +51,10 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
     defaultValues: {
       etm: '',
       description: '',
-      descripcion: '',
-      modelo: '',
-      precio: 0,
-      marca: 'URREA',
+      description_es: '',
+      model_code: '',
+      price: 0,
+      brand: 'URREA',
     },
   })
 
@@ -65,19 +65,19 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
         form.reset({
           etm: product.etm || '',
           description: product.description || '',
-          descripcion: product.descripcion || '',
-          modelo: product.modelo || '',
-          precio: product.precio || 0,
-          marca: product.marca || 'URREA',
+          description_es: product.description_es || '',
+          model_code: product.model_code || '',
+          price: product.price || 0,
+          brand: product.brand || 'URREA',
         })
       } else {
         form.reset({
           etm: '',
           description: '',
-          descripcion: '',
-          modelo: '',
-          precio: 0,
-          marca: 'URREA',
+          description_es: '',
+          model_code: '',
+          price: 0,
+          brand: 'URREA',
         })
       }
     }
@@ -136,7 +136,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
             />
             <FormField
               control={form.control}
-              name="descripcion"
+              name="description_es"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Descripcion (Espanol)</FormLabel>
@@ -163,7 +163,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="modelo"
+                name="model_code"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Modelo URREA</FormLabel>
@@ -176,7 +176,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
               />
               <FormField
                 control={form.control}
-                name="precio"
+                name="price"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Precio</FormLabel>
@@ -197,7 +197,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
             </div>
             <FormField
               control={form.control}
-              name="marca"
+              name="brand"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Marca</FormLabel>

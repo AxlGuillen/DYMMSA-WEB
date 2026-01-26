@@ -3,12 +3,8 @@ import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
 
 interface ExcelRow {
-  ETM?: string
-  DESCRIPTION?: string
-  DESCRIPTION_ES?: string
   MODEL_CODE?: string
-  PRICE?: number | string
-  BRAND?: string
+  QUANTITY?: number | string
 }
 
 export async function POST(request: NextRequest) {
@@ -26,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const mode = formData.get('mode') as string || 'upsert'
+    const mode = formData.get('mode') as string || 'upsert' // 'upsert' or 'replace'
 
     if (!file) {
       return NextResponse.json(
@@ -51,16 +47,27 @@ export async function POST(request: NextRequest) {
 
     // Validate required columns
     const firstRow = rows[0]
-    const requiredColumns = ['ETM', 'MODEL_CODE']
-    const missingColumns = requiredColumns.filter(
-      (col) => !(col in firstRow)
-    )
-
-    if (missingColumns.length > 0) {
+    if (!('MODEL_CODE' in firstRow)) {
       return NextResponse.json(
-        { message: `Columnas faltantes: ${missingColumns.join(', ')}` },
+        { message: 'Columna faltante: MODEL_CODE' },
         { status: 400 }
       )
+    }
+
+    // If replace mode, delete all existing inventory first
+    if (mode === 'replace') {
+      const { error: deleteError } = await supabase
+        .from('store_inventory')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
+
+      if (deleteError) {
+        console.error('Error deleting inventory:', deleteError)
+        return NextResponse.json(
+          { message: 'Error al limpiar inventario existente' },
+          { status: 500 }
+        )
+      }
     }
 
     let imported = 0
@@ -68,40 +75,45 @@ export async function POST(request: NextRequest) {
     let errors = 0
 
     for (const row of rows) {
-      if (!row.ETM) {
+      if (!row.MODEL_CODE) {
         errors++
         continue
       }
 
-      const product = {
-        etm: String(row.ETM).trim(),
-        description: String(row.DESCRIPTION || '').trim(),
-        description_es: String(row.DESCRIPTION_ES || '').trim(),
-        model_code: String(row.MODEL_CODE || '').trim(),
-        price: typeof row.PRICE === 'number'
-          ? row.PRICE
-          : parseFloat(String(row.PRICE || '0')) || 0,
-        brand: String(row.BRAND || 'URREA').trim(),
-        created_by: user.id,
-      }
+      const modelCode = String(row.MODEL_CODE).trim()
+      const quantity = typeof row.QUANTITY === 'number'
+        ? row.QUANTITY
+        : parseInt(String(row.QUANTITY || '0'), 10) || 0
 
-      if (mode === 'upsert') {
-        // Check if exists
+      // Ensure quantity is not negative
+      const safeQuantity = Math.max(0, quantity)
+
+      if (mode === 'replace') {
+        // In replace mode, just insert all
+        const { error } = await supabase
+          .from('store_inventory')
+          .insert({ model_code: modelCode, quantity: safeQuantity })
+
+        if (error) {
+          console.error(`Error inserting ${modelCode}:`, error.message)
+          errors++
+        } else {
+          imported++
+        }
+      } else {
+        // Upsert mode
         const { data: existing } = await supabase
-          .from('etm_products')
+          .from('store_inventory')
           .select('id')
-          .eq('etm', product.etm)
+          .eq('model_code', modelCode)
           .single()
 
         if (existing) {
           // Update
           const { error } = await supabase
-            .from('etm_products')
-            .update({
-              ...product,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('etm', product.etm)
+            .from('store_inventory')
+            .update({ quantity: safeQuantity })
+            .eq('model_code', modelCode)
 
           if (error) {
             errors++
@@ -111,30 +123,14 @@ export async function POST(request: NextRequest) {
         } else {
           // Insert
           const { error } = await supabase
-            .from('etm_products')
-            .insert(product)
+            .from('store_inventory')
+            .insert({ model_code: modelCode, quantity: safeQuantity })
 
           if (error) {
             errors++
           } else {
             imported++
           }
-        }
-      } else {
-        // Insert only mode
-        const { error } = await supabase
-          .from('etm_products')
-          .insert(product)
-
-        if (error) {
-          if (error.code === '23505') {
-            // Duplicate, skip
-            errors++
-          } else {
-            errors++
-          }
-        } else {
-          imported++
         }
       }
     }
@@ -144,6 +140,7 @@ export async function POST(request: NextRequest) {
       updated,
       errors,
       total: rows.length,
+      mode,
     })
   } catch (error) {
     console.error('Import error:', error)

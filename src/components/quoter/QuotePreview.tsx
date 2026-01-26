@@ -21,7 +21,6 @@ import { Badge } from '@/components/ui/badge'
 import {
   Download,
   RotateCcw,
-  Loader2,
   FileSpreadsheet,
   CheckCircle,
   XCircle,
@@ -40,7 +39,6 @@ interface QuotePreviewProps {
   unmatchedEtms: string[]
   onDownload: () => void
   onReset: () => void
-  isDownloading?: boolean
 }
 
 export function QuotePreview({
@@ -50,7 +48,6 @@ export function QuotePreview({
   unmatchedEtms,
   onDownload,
   onReset,
-  isDownloading,
 }: QuotePreviewProps) {
   const [showUnmatched, setShowUnmatched] = useState(false)
 
@@ -59,7 +56,7 @@ export function QuotePreview({
       ? Math.round((matchedProducts.length / totalRequested) * 100)
       : 0
 
-  const total = matchedProducts.reduce((sum, p) => sum + (p.precio || 0), 0)
+  const total = matchedProducts.reduce((sum, p) => sum + (p.price || 0), 0)
 
   const getMatchColor = (percentage: number) => {
     if (percentage >= 80) return 'text-green-600'
@@ -181,7 +178,8 @@ export function QuotePreview({
                 <TableHeader>
                   <TableRow>
                     <TableHead>ETM</TableHead>
-                    <TableHead className="min-w-[300px]">Descripcion</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="min-w-[250px]">Descripcion</TableHead>
                     <TableHead>Modelo</TableHead>
                     <TableHead className="text-right">Precio</TableHead>
                     <TableHead>Marca</TableHead>
@@ -191,17 +189,16 @@ export function QuotePreview({
                   {matchedProducts.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell className="font-mono">{product.etm}</TableCell>
-                      <TableCell>
-                        {product.descripcion || product.description}
-                      </TableCell>
-                      <TableCell>{product.modelo}</TableCell>
+                      <TableCell>{product.description}</TableCell>
+                      <TableCell>{product.description_es}</TableCell>
+                      <TableCell>{product.model_code}</TableCell>
                       <TableCell className="text-right">
                         $
-                        {product.precio.toLocaleString('es-MX', {
+                        {product.price.toLocaleString('es-MX', {
                           minimumFractionDigits: 2,
                         })}
                       </TableCell>
-                      <TableCell>{product.marca}</TableCell>
+                      <TableCell>{product.brand}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -213,26 +210,17 @@ export function QuotePreview({
 
       {/* Acciones */}
       <div className="flex justify-end gap-4">
-        <Button variant="outline" onClick={onReset} disabled={isDownloading}>
+        <Button variant="outline" onClick={onReset}>
           <RotateCcw className="mr-2 h-4 w-4" />
           Subir otro archivo
         </Button>
         <Button
           onClick={onDownload}
-          disabled={matchedProducts.length === 0 || isDownloading}
+          disabled={matchedProducts.length === 0}
           size="lg"
         >
-          {isDownloading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Guardando...
-            </>
-          ) : (
-            <>
-              <Download className="mr-2 h-4 w-4" />
-              Descargar Cotizacion
-            </>
-          )}
+          <Download className="mr-2 h-4 w-4" />
+          Descargar Cotizacion
         </Button>
       </div>
     </div>

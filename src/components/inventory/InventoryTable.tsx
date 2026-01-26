@@ -26,33 +26,44 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
-import { useDeleteProduct } from '@/hooks/useProducts'
+import { useDeleteInventoryItem } from '@/hooks/useInventory'
 import { toast } from 'sonner'
-import type { EtmProduct } from '@/types/database'
+import type { StoreInventory } from '@/types/database'
 
-interface ProductsTableProps {
-  products: EtmProduct[]
+interface InventoryTableProps {
+  items: StoreInventory[]
   isLoading: boolean
-  onEdit: (product: EtmProduct) => void
+  onEdit: (item: StoreInventory) => void
 }
 
-export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProps) {
+export function InventoryTable({ items, isLoading, onEdit }: InventoryTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const deleteProduct = useDeleteProduct()
+  const deleteItem = useDeleteInventoryItem()
 
   const handleDelete = async () => {
     if (!deleteId) return
 
     try {
-      await deleteProduct.mutateAsync(deleteId)
-      toast.success('Producto eliminado')
+      await deleteItem.mutateAsync(deleteId)
+      toast.success('Producto eliminado del inventario')
     } catch (error) {
       toast.error('Error al eliminar producto')
     } finally {
       setDeleteId(null)
     }
+  }
+
+  const getQuantityBadge = (quantity: number) => {
+    if (quantity === 0) {
+      return <Badge variant="destructive">Sin stock</Badge>
+    }
+    if (quantity <= 5) {
+      return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Bajo: {quantity}</Badge>
+    }
+    return <Badge variant="secondary" className="bg-green-100 text-green-800">{quantity}</Badge>
   }
 
   if (isLoading) {
@@ -65,10 +76,10 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
     )
   }
 
-  if (products.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-muted-foreground">No se encontraron productos</p>
+        <p className="text-muted-foreground">No hay productos en el inventario</p>
       </div>
     )
   }
@@ -79,27 +90,19 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">ETM</TableHead>
-              <TableHead>Descripcion</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-[150px]">Modelo</TableHead>
-              <TableHead className="w-[100px] text-right">Precio</TableHead>
+              <TableHead className="w-[200px]">Codigo Modelo</TableHead>
+              <TableHead className="w-[150px]">Cantidad</TableHead>
+              <TableHead>Ultima Actualizacion</TableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.map((product) => (
-              <TableRow key={product.id}>
-                <TableCell className="font-mono text-sm">{product.etm}</TableCell>
-                <TableCell className="max-w-[300px] truncate">
-                  {product.description_es}
-                </TableCell>
-                <TableCell className="max-w-[300px] truncate">
-                  {product.description}
-                </TableCell>
-                <TableCell className="font-mono text-sm">{product.model_code}</TableCell>
-                <TableCell className="text-right">
-                  ${product.price.toFixed(2)}
+            {items.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className="font-mono text-sm">{item.model_code}</TableCell>
+                <TableCell>{getQuantityBadge(item.quantity)}</TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {new Date(item.updated_at).toLocaleString('es-MX')}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
@@ -109,13 +112,13 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(product)}>
+                      <DropdownMenuItem onClick={() => onEdit(item)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Editar
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
-                        onClick={() => setDeleteId(product.id)}
+                        onClick={() => setDeleteId(item.id)}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Eliminar
@@ -132,9 +135,9 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar producto</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar del inventario</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta accion no se puede deshacer. El producto sera eliminado permanentemente.
+              Esta accion no se puede deshacer. El producto sera eliminado del inventario.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
