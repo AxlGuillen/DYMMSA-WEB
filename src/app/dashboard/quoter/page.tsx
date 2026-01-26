@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { FileUploader } from '@/components/quoter/FileUploader'
 import { QuotePreview } from '@/components/quoter/QuotePreview'
-import { useLookupEtms, useSaveQuote } from '@/hooks/useQuotes'
+import { useLookupEtms } from '@/hooks/useQuotes'
 import { extractEtmCodesFromExcel } from '@/lib/excel/parser'
 import { generateQuoteExcel, downloadExcel } from '@/lib/excel/generator'
 import type { EtmProduct } from '@/types/database'
@@ -19,7 +19,6 @@ export default function QuoterPage() {
   const [totalRequested, setTotalRequested] = useState(0)
 
   const lookupMutation = useLookupEtms()
-  const saveMutation = useSaveQuote()
 
   const handleFileSelected = async (file: File) => {
     setFilename(file.name)
@@ -66,26 +65,13 @@ export default function QuoterPage() {
     }
   }
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     try {
       // Generar y descargar Excel
       const blob = generateQuoteExcel(matchedProducts)
       downloadExcel(blob, filename)
 
       toast.success('Cotizacion descargada')
-
-      // Guardar en historial
-      try {
-        await saveMutation.mutateAsync({
-          filename,
-          total_requested: totalRequested,
-          total_found: matchedProducts.length,
-          etm_products: matchedProducts.map((p) => p.etm),
-        })
-        toast.success('Cotizacion guardada en historial')
-      } catch {
-        toast.warning('Cotizacion descargada pero no se guardo en historial')
-      }
     } catch (error) {
       console.error('Download error:', error)
       toast.error('Error al generar la cotizacion')
@@ -124,7 +110,6 @@ export default function QuoterPage() {
           unmatchedEtms={unmatchedEtms}
           onDownload={handleDownload}
           onReset={handleReset}
-          isDownloading={saveMutation.isPending}
         />
       )}
     </div>

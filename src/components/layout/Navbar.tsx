@@ -4,13 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
-import { LogOut, Package, Home, FileText, History } from 'lucide-react'
+import { LogOut, Package, Home, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
   { href: '/dashboard', label: 'Inicio', icon: Home, exact: true },
   { href: '/dashboard/quoter', label: 'Cotizar', icon: FileText, exact: true },
-  { href: '/dashboard/quoter/record', label: 'Historial', icon: History, exact: false },
   { href: '/dashboard/db', label: 'Productos', icon: Package, exact: false },
 ]
 
