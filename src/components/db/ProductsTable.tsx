@@ -81,6 +81,7 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
             <TableRow>
               <TableHead className="w-[120px]">ETM</TableHead>
               <TableHead>Descripcion</TableHead>
+              <TableHead>Description</TableHead>
               <TableHead className="w-[150px]">Modelo</TableHead>
               <TableHead className="w-[100px] text-right">Precio</TableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
@@ -91,7 +92,10 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
               <TableRow key={product.id}>
                 <TableCell className="font-mono text-sm">{product.etm}</TableCell>
                 <TableCell className="max-w-[300px] truncate">
-                  {product.descripcion || product.description}
+                  {product.descripcion}
+                </TableCell>
+                <TableCell className="max-w-[300px] truncate">
+                  {product.description}
                 </TableCell>
                 <TableCell className="font-mono text-sm">{product.modelo}</TableCell>
                 <TableCell className="text-right">
