@@ -89,9 +89,9 @@ export default function QuoterPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Cotizador</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Matcher ETM {"->"} URREA</h2>
         <p className="text-muted-foreground">
-          Sube un archivo Excel con codigos ETM para generar una cotizacion
+          Sube un archivo Excel con codigos ETM para obtener los codigos Urrea y agilizar tu cotizacion.
         </p>
       </div>
 

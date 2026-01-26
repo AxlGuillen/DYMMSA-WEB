@@ -4,18 +4,27 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
-import { LogOut, Package, Home, FileText } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { LogOut, Home, Database, GitCompare, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const navLinks = [
-  { href: '/dashboard', label: 'Inicio', icon: Home, exact: true },
-  { href: '/dashboard/quoter', label: 'Cotizar', icon: FileText, exact: true },
-  { href: '/dashboard/db', label: 'Productos', icon: Package, exact: false },
+const etmUrreaLinks = [
+  { href: '/dashboard/db', label: 'Base de datos', icon: Database },
+  { href: '/dashboard/quoter', label: 'Matcher', icon: GitCompare },
 ]
 
 export function Navbar() {
   const { user, signOut } = useAuth()
   const pathname = usePathname()
+
+  const isEtmUrreaActive = etmUrreaLinks.some((link) =>
+    pathname.startsWith(link.href)
+  )
 
   return (
     <header className="border-b bg-background">
@@ -25,31 +34,56 @@ export function Navbar() {
             <h1 className="text-xl font-bold">DYMMSA</h1>
           </Link>
           <nav className="flex items-center gap-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon
-              const isActive = link.exact
-                ? pathname === link.href
-                : pathname.startsWith(link.href)
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
+            {/* Inicio */}
+            <Link
+              href="/dashboard"
+              className={cn(
+                'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
+                pathname === '/dashboard' && 'bg-accent'
+              )}
+            >
+              <Home className="h-4 w-4" />
+              Inicio
+            </Link>
+
+            {/* ETM - URREA Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
                   className={cn(
                     'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
-                    isActive && 'bg-accent'
+                    isEtmUrreaActive && 'bg-accent'
                   )}
                 >
-                  <Icon className="h-4 w-4" />
-                  {link.label}
-                </Link>
-              )
-            })}
+                  ETM - URREA
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {etmUrreaLinks.map((link) => {
+                  const Icon = link.icon
+                  const isActive = pathname.startsWith(link.href)
+                  return (
+                    <DropdownMenuItem key={link.href} asChild>
+                      <Link
+                        href={link.href}
+                        className={cn(
+                          'flex items-center gap-2 cursor-pointer',
+                          isActive && 'bg-accent'
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {link.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">
-            {user?.email}
-          </span>
+          <span className="text-sm text-muted-foreground">{user?.email}</span>
           <Button variant="outline" size="sm" onClick={signOut}>
             <LogOut className="mr-2 h-4 w-4" />
             Cerrar sesion
