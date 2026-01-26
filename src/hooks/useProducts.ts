@@ -32,7 +32,7 @@ export function useProducts(params: ProductsParams = {}) {
         .select('*', { count: 'exact' })
 
       if (search) {
-        query = query.or(`etm.ilike.%${search}%,modelo.ilike.%${search}%,descripcion.ilike.%${search}%,description.ilike.%${search}%`)
+        query = query.or(`etm.ilike.%${search}%,model_code.ilike.%${search}%,description_es.ilike.%${search}%,description.ilike.%${search}%`)
       }
 
       const from = (page - 1) * pageSize

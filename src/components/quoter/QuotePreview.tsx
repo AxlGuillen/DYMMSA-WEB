@@ -56,7 +56,7 @@ export function QuotePreview({
       ? Math.round((matchedProducts.length / totalRequested) * 100)
       : 0
 
-  const total = matchedProducts.reduce((sum, p) => sum + (p.precio || 0), 0)
+  const total = matchedProducts.reduce((sum, p) => sum + (p.price || 0), 0)
 
   const getMatchColor = (percentage: number) => {
     if (percentage >= 80) return 'text-green-600'
@@ -178,7 +178,8 @@ export function QuotePreview({
                 <TableHeader>
                   <TableRow>
                     <TableHead>ETM</TableHead>
-                    <TableHead className="min-w-[300px]">Descripcion</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="min-w-[250px]">Descripcion</TableHead>
                     <TableHead>Modelo</TableHead>
                     <TableHead className="text-right">Precio</TableHead>
                     <TableHead>Marca</TableHead>
@@ -188,17 +189,16 @@ export function QuotePreview({
                   {matchedProducts.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell className="font-mono">{product.etm}</TableCell>
-                      <TableCell>
-                        {product.descripcion || product.description}
-                      </TableCell>
-                      <TableCell>{product.modelo}</TableCell>
+                      <TableCell>{product.description}</TableCell>
+                      <TableCell>{product.description_es}</TableCell>
+                      <TableCell>{product.model_code}</TableCell>
                       <TableCell className="text-right">
                         $
-                        {product.precio.toLocaleString('es-MX', {
+                        {product.price.toLocaleString('es-MX', {
                           minimumFractionDigits: 2,
                         })}
                       </TableCell>
-                      <TableCell>{product.marca}</TableCell>
+                      <TableCell>{product.brand}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

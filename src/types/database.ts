@@ -4,10 +4,10 @@ export interface EtmProduct {
   id: string
   etm: string
   description: string
-  descripcion: string
-  modelo: string
-  precio: number
-  marca: string
+  description_es: string
+  model_code: string
+  price: number
+  brand: string
   created_at: string
   updated_at: string
   created_by: string | null
@@ -21,8 +21,8 @@ export type EtmProductUpdate = Partial<Omit<EtmProduct, 'id' | 'created_at' | 'u
 export interface ExcelProductRow {
   ETM: string
   DESCRIPTION: string
-  DESCRIPCION: string
-  MODELO: string
-  PRECIO: number | string
-  MARCA?: string
+  DESCRIPTION_ES: string
+  MODEL_CODE: string
+  PRICE: number | string
+  BRAND?: string
 }

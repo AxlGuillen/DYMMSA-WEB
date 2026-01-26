@@ -92,14 +92,14 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
               <TableRow key={product.id}>
                 <TableCell className="font-mono text-sm">{product.etm}</TableCell>
                 <TableCell className="max-w-[300px] truncate">
-                  {product.descripcion}
+                  {product.description_es}
                 </TableCell>
                 <TableCell className="max-w-[300px] truncate">
                   {product.description}
                 </TableCell>
-                <TableCell className="font-mono text-sm">{product.modelo}</TableCell>
+                <TableCell className="font-mono text-sm">{product.model_code}</TableCell>
                 <TableCell className="text-right">
-                  ${product.precio.toFixed(2)}
+                  ${product.price.toFixed(2)}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>

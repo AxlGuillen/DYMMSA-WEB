@@ -9,32 +9,34 @@ export function generateQuoteExcel(products: EtmProduct[]): Blob {
 
   // Preparar datos con headers
   const data = [
-    ['ETM', 'Descripcion', 'Modelo', 'Precio', 'Marca'],
+    ['ETM', 'Description', 'Descripcion', 'Modelo', 'Precio', 'Marca'],
     ...products.map((p) => [
       p.etm,
-      p.descripcion || p.description,
-      p.modelo,
-      p.precio,
-      p.marca,
+      p.description,
+      p.description_es,
+      p.model_code,
+      p.price,
+      p.brand,
     ]),
   ]
 
   // Agregar fila de totales
-  const total = products.reduce((sum, p) => sum + (p.precio || 0), 0)
+  const total = products.reduce((sum, p) => sum + (p.price || 0), 0)
   data.push([])
-  data.push(['', '', 'TOTAL:', total, ''])
+  data.push(['', '', '', 'TOTAL:', total, ''])
 
   // Crear worksheet
   const worksheet = XLSX.utils.aoa_to_sheet(data)
 
   // Configurar anchos de columna
-  worksheet['!cols'] = [
+  worksheet["!cols"] = [
     { wch: 15 }, // ETM
-    { wch: 45 }, // Descripcion
-    { wch: 15 }, // Modelo
-    { wch: 12 }, // Precio
-    { wch: 10 }, // Marca
-  ]
+    { wch: 35 }, // Description
+    { wch: 35 }, // Description_es
+    { wch: 15 }, // Model_code
+    { wch: 12 }, // Price
+    { wch: 10 }, // Brand
+  ];
 
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Cotizacion')
 

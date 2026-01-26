@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/server'
 interface ExcelRow {
   ETM?: string
   DESCRIPTION?: string
-  DESCRIPCION?: string
-  MODELO?: string
-  PRECIO?: number | string
-  MARCA?: string
+  DESCRIPTION_ES?: string
+  MODEL_CODE?: string
+  PRICE?: number | string
+  BRAND?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -49,9 +49,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate columns
+    // Validate required columns
     const firstRow = rows[0]
-    const requiredColumns = ['ETM', 'MODELO']
+    const requiredColumns = ['ETM', 'MODEL_CODE']
     const missingColumns = requiredColumns.filter(
       (col) => !(col in firstRow)
     )
@@ -76,12 +76,12 @@ export async function POST(request: NextRequest) {
       const product = {
         etm: String(row.ETM).trim(),
         description: String(row.DESCRIPTION || '').trim(),
-        descripcion: String(row.DESCRIPCION || '').trim(),
-        modelo: String(row.MODELO || '').trim(),
-        precio: typeof row.PRECIO === 'number'
-          ? row.PRECIO
-          : parseFloat(String(row.PRECIO || '0')) || 0,
-        marca: String(row.MARCA || 'URREA').trim(),
+        description_es: String(row.DESCRIPTION_ES || '').trim(),
+        model_code: String(row.MODEL_CODE || '').trim(),
+        price: typeof row.PRICE === 'number'
+          ? row.PRICE
+          : parseFloat(String(row.PRICE || '0')) || 0,
+        brand: String(row.BRAND || 'URREA').trim(),
         created_by: user.id,
       }
 
