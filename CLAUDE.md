@@ -14,7 +14,7 @@ El sistema maneja desde la solicitud inicial del cliente hasta la entrega final,
 1. Cliente envía Excel con códigos ETM
 2. DYMMSA convierte ETM → URREA con macros manuales
 3. Genera cotización y sube a Drive
-4. Cliente marca productos aprobados en VERDE
+4. Cliente marca productos aprobados en VERDE (toda la fila)
 5. DYMMSA descarga Excel, revisa stock tienda manualmente
 6. Genera pedido a URREA manualmente (solo faltantes)
 7. URREA envía productos (algunos no surtidos)
@@ -33,8 +33,8 @@ El sistema maneja desde la solicitud inicial del cliente hasta la entrega final,
 
 Sistema automatizado que:
 - ✅ Convierte ETM → URREA automáticamente
-- ✅ Gestiona inventario de tienda DYMMSA
-- ✅ Detecta productos aprobados (verde) automáticamente
+- ✅ Gestiona inventario tienda DYMMSA (código URREA + cantidad)
+- ✅ Detecta productos aprobados (fila verde) automáticamente
 - ✅ Genera pedidos a URREA automáticamente
 - ✅ Tracking de órdenes con estados
 - ✅ Actualiza inventario automáticamente
@@ -46,6 +46,7 @@ Sistema automatizado que:
 - Primer proyecto profesional con Next.js + Supabase
 - Usa **Context7** para compartir contexto del proyecto con Claude
 - Prefiere arquitecturas modernas, mantenibles y escalables
+- **Convención:** TODO en inglés (código, BD, variables) para consistencia
 
 ## 🛠️ STACK TECNOLÓGICO
 
@@ -70,85 +71,98 @@ Sistema automatizado que:
 
 ## 🏗️ ARQUITECTURA DE DATOS
 
-### Tablas del Sistema
+### Tablas Implementadas
 
 **1. etm_products** (Catálogo ETM → URREA)
 ```sql
-id, etm (PK), description, descripcion, modelo, precio, marca,
-created_at, updated_at, created_by
+id UUID, etm TEXT (unique), description TEXT, description_es TEXT,
+model_code TEXT, price DECIMAL, brand TEXT,
+created_at, updated_at, created_by UUID
 ```
 
-**2. inventario_dymmsa** (Stock tienda)
+**2. store_inventory** (Stock tienda - SIMPLE)
 ```sql
-id (PK), producto_id (FK), cantidad_disponible, cantidad_minima,
-ubicacion, updated_at
+id UUID, model_code TEXT (unique), quantity INTEGER,
+updated_at TIMESTAMPTZ
 ```
 
-**3. ordenes** (Órdenes de venta)
+**3. orders** (Órdenes de venta)
 ```sql
-id (PK), cliente_nombre, estado, total, archivo_original,
-archivo_aprobado, created_at, updated_at, created_by
+id UUID, customer_name TEXT, status TEXT, total_amount DECIMAL,
+original_file_url TEXT, urrea_order_file_url TEXT, notes TEXT,
+created_at, updated_at, created_by UUID
 ```
 
-**4. orden_items** (Productos por orden)
+**Estados de orden:**
+- `pending_urrea_order` (inicial - esperando envío a URREA)
+- `received_from_urrea` (productos recibidos)
+- `pending_payment` (esperando pago cliente)
+- `paid` (cliente pagó)
+- `completed` (entrega completa)
+- `cancelled` (orden cancelada)
+
+**4. order_items** (Productos por orden)
 ```sql
-id (PK), orden_id (FK), producto_id (FK), cantidad_solicitada,
-en_stock_dymmsa, cantidad_pedir_urrea, estado_urrea, precio
+id UUID, order_id UUID (FK), 
+etm TEXT, model_code TEXT, description TEXT,
+quantity_approved INTEGER, quantity_in_stock INTEGER,
+quantity_to_order INTEGER, quantity_received INTEGER,
+urrea_status TEXT, unit_price DECIMAL,
+created_at TIMESTAMPTZ
 ```
 
-**5. recepciones_urrea** (Recepciones de URREA)
-```sql
-id (PK), orden_id (FK), productos_recibidos, productos_no_surtidos,
-fecha_recepcion, confirmado_por
-```
+**Estados URREA:** `pending`, `supplied`, `not_supplied`
 
-### Estados de Orden
-```
-cotizacion_generada → aprobada_cliente → pedido_urrea → 
-recibiendo_urrea → completada / cancelada
-```
+**Constraint:** `quantity_in_stock + quantity_to_order = quantity_approved`
 
 ## 🔄 FLUJO COMPLETO DEL SISTEMA
 
-### Flujo Automatizado
+### Flujo Automatizado Definitivo
 ```
-1. Cliente envía Excel con códigos ETM
+1. Usuario sube Excel cliente (códigos ETM) → genera cotización
    ↓
-2. Usuario sube Excel → SISTEMA genera cotización (consulta etm_products)
+2. Usuario sube Excel con filas VERDES (productos aprobados)
+   - Formato unificado (instrucción al personal)
+   - Puede tener múltiples hojas
+   - Verde: toda la fila (rango claro → fuerte)
    ↓
-3. Usuario sube cotización a Drive + envía email al cliente
+3. SISTEMA detecta productos con fila verde
+   - Extrae: ETM, description, description_es, model_code, quantity, price
    ↓
-4. Cliente marca productos aprobados en VERDE
+4. AUTO-APRENDIZAJE: Agregar nuevos ETM a etm_products
+   - Solo productos completos (todos los campos excepto quantity)
+   - Si ETM no existe → INSERT
    ↓
-5. Usuario sube Excel con marcas verdes
+5. SISTEMA verifica stock DYMMSA (por model_code)
+   - Stock completo → apartar todo, quantity_to_order = 0
+   - Stock parcial → apartar disponible, pedir faltante
+   - Sin stock → quantity_to_order = quantity_approved
+   - RESTAR inventario inmediatamente
    ↓
-6. SISTEMA detecta automáticamente productos verdes
+6. CREAR ORDEN en BD (estado: pending_urrea_order)
+   - Guardar Excel original
+   - Crear order_items con cantidades desglosadas
    ↓
-7. SISTEMA verifica inventario_dymmsa:
-   - En stock → Apartar para venta
-   - Faltantes → Agregar a lista pedido URREA
+7. GENERAR Excel formato URREA (.xlsx)
+   - Solo productos con quantity_to_order > 0
+   - Columnas: model_code | quantity
+   - Descargar automáticamente
    ↓
-8. SISTEMA genera Excel formato URREA (plantilla)
-   - Llena código y cantidad automáticamente
-   - Solo productos faltantes
+8. Usuario envía Excel a URREA (WhatsApp - fuera del sistema)
    ↓
-9. Usuario envía pedido a URREA
+9. URREA envía productos (días después)
    ↓
-10. URREA envía productos
-   ↓
-11. Usuario confirma recepción:
-    - Marca productos surtidos/no surtidos
+10. Usuario accede a Order Detail Page
+    - Edita manualmente: quantity_received y urrea_status
+    - Confirma recepción
     ↓
-12. SISTEMA actualiza inventario automáticamente:
-    - Suma productos recibidos de URREA
-    - Resta productos vendidos al cliente
+11. SISTEMA actualiza inventario automáticamente
+    - SUMAR quantity_received de URREA
     ↓
-13. SISTEMA genera cotización FINAL (solo productos confirmados)
+12. Usuario cambia estado orden manualmente
+    - pending_payment → paid → completed
     ↓
-14. Orden → COMPLETADA
-    ↓
-15. SISTEMA auto-aprende:
-    - Agrega nuevos ETM-URREA a catálogo automáticamente
+13. Orden completada ✅
 ```
 
 ## 📐 FASES DE DESARROLLO
@@ -157,7 +171,7 @@ recibiendo_urrea → completada / cancelada
 Proyecto Next.js 16, dependencias, shadcn/ui, estructura base.
 
 ### ✅ Fase 1: Autenticación - COMPLETADA
-Supabase Auth, login, protección de rutas, middleware.
+Supabase Auth, login, protección de rutas.
 
 ### ✅ Fase 2: Catálogo Productos - COMPLETADA
 Tabla etm_products, CRUD completo, importación masiva desde Excel.
@@ -165,95 +179,55 @@ Tabla etm_products, CRUD completo, importación masiva desde Excel.
 ### ✅ Fase 3: Cotizador Básico - COMPLETADA
 Subir Excel, detectar ETM multi-hoja, generar cotización descargable.
 
-### 🔄 Fase 4: Inventario Tienda (ACTUAL)
-**Objetivo:** Sistema de inventario DYMMSA con CRUD completo.
+### ✅ Fase 4: Inventario Tienda - COMPLETADA
+Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
 
-**Tareas:**
-- Crear tabla inventario_dymmsa en Supabase
-- CRUD de inventario (agregar, editar, eliminar, ver stock)
-- Importación/actualización masiva desde Excel
-- Vista de productos con bajo stock
-- Ajustes de inventario con historial
+### 🔄 Fase 5: Sistema de Órdenes y Auto-aprendizaje (ACTUAL)
 
-### Fase 5: Detección Productos Aprobados
-**Objetivo:** Detectar productos marcados en verde del cliente.
+**Objetivo:** Implementar flujo completo desde Excel aprobado hasta orden completada.
 
-**Tareas:**
-- Subir Excel con productos marcados en verde
-- Detectar celdas verdes con ExcelJS
-- Extraer productos aprobados automáticamente
-- Crear orden con estado "aprobada_cliente"
+**Tareas principales:**
+1. Subir Excel con filas verdes (multi-hoja)
+2. Detectar productos aprobados (color verde en fila)
+3. Auto-aprendizaje: agregar nuevos ETM a catálogo
+4. Verificar stock y crear orden
+5. Generar Excel URREA (solo faltantes)
+6. Order Detail Page con edición manual
+7. Confirmación recepción y actualización inventario
+8. Gestión de estados de orden
 
-### Fase 6: Verificación Stock y Pedido URREA
-**Objetivo:** Comparar vs inventario y generar pedido URREA.
+**Formato Excel aprobado (unificado):**
+- Columnas: `ETM`, `description`, `description_es`, `model_code`, `quantity`, `price`, `[image]`
+- Productos aprobados: TODA LA FILA en verde
+- Rango verde: #00FF00, #00B050, #92D050, #C6E0B4
+- Ignorar columna de imágenes
+- Múltiples hojas permitidas
 
-**Tareas:**
-- Comparar productos aprobados vs inventario_dymmsa
-- Separar: en stock vs a pedir
-- Llenar plantilla Excel URREA automáticamente (código + cantidad)
-- Generar archivo descargable para enviar a URREA
-
-### Fase 7: Sistema de Órdenes
-**Objetivo:** Tracking completo de órdenes con estados.
-
-**Tareas:**
-- Crear tablas ordenes y orden_items
-- Dashboard de órdenes con filtros por estado
-- Vista detallada de orden
-- Cambios de estado manual
-- Historial de cambios
-
-### Fase 8: Recepción y Confirmación URREA
-**Objetivo:** Confirmar productos recibidos y actualizar inventario.
-
-**Tareas:**
-- Módulo de recepción: marcar surtidos/no surtidos
-- Actualizar inventario automáticamente
-- Generar cotización final (solo productos disponibles)
-- Cerrar orden como completada
-
-### Fase 9: Auto-aprendizaje BD
-**Objetivo:** Enriquecer catálogo automáticamente.
-
-**Tareas:**
-- Leer Excel aprobado con productos nuevos
-- Detectar ETM no existentes en etm_products
-- Agregar automáticamente con datos del Excel
-- Log de productos agregados
-
-### Fase 10: Mejoras y Optimización
-**Objetivo:** Pulir UX/UI y optimizar performance.
-
-**Tareas:**
-- Reportes y estadísticas
-- Notificaciones
-- Exportar datos
-- Optimizaciones de performance
+### Fase 6: Mejoras y Optimización (FUTURO)
+Reportes, estadísticas, notificaciones, optimizaciones.
 
 ## 🔧 CONSIDERACIONES TÉCNICAS
 
 ### Excel Processing
 - Detectar columna "ETM" (case insensitive) en múltiples hojas
-- Detectar celdas con fondo verde (colores: #00FF00, #00B050, etc)
-- Llenar plantillas Excel existentes programáticamente
-- Generar Excel con formato profesional
+- Detectar filas con fondo verde (cualquier celda verde = fila aprobada)
+- Rango de verdes: #00FF00, #00B050, #92D050, #C6E0B4, etc
+- Ignorar columnas de imágenes
+- Formato URREA: skiprows=13 para imports de inventario
 
 ### Seguridad
-- RLS (Row Level Security) en todas las tablas
+- RLS en todas las tablas
 - Validación server-side
-- Sanitización de inputs
 - Middleware en rutas protegidas
 
 ### Performance
 - Cache con TanStack Query
 - Paginación en tablas grandes
 - Procesamiento Excel en memoria
-- Lazy loading de componentes
 
 ### UX/UI
-- Loading states en todas las operaciones
+- Loading states en operaciones
 - Mensajes de error claros
-- Confirmaciones en acciones destructivas
 - Diseño responsive
 
 ## 📝 VARIABLES DE ENTORNO
@@ -269,13 +243,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 - ✅ CRUD completo de productos
 - ✅ CRUD completo de inventario
 - ✅ Cotizador básico funcional
-- ✅ Detección de productos aprobados (verde)
-- ✅ Generación automática pedido URREA
+- ✅ Detección automática productos aprobados (verde)
+- ✅ Auto-aprendizaje catálogo
+- ✅ Verificación stock y generación pedido URREA
 - ✅ Sistema de órdenes con estados
-- ✅ Confirmación de recepción URREA
-- ✅ Actualización automática de inventario
-- ✅ Auto-aprendizaje de catálogo
-- ✅ App desplegada en Vercel
+- ✅ Order Detail Page con edición manual
+- ✅ Actualización automática inventario
+- ✅ Función cancelar orden
 
 ## 📚 RECURSOS DE REFERENCIA
 
@@ -291,118 +265,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 - Este proyecto usa **Context7** para compartir contexto
 - El desarrollador indicará manualmente la fase actual
 - Priorizar código limpio y TypeScript estricto
-- Incluir manejo de errores robusto
-- Sistema crece en complejidad: de cotizador simple a ERP ligero
+- TODO en inglés (código, BD, variables)
+- Sistema crece iterativamente: empezar simple, agregar complejidad
 
 ---
 
-**Última actualización:** 2026-01-24  
-**Fase actual:** Fase 4 - Inventario Tienda  
+**Última actualización:** 2026-01-26  
+**Fase actual:** Fase 5 - Sistema de Órdenes y Auto-aprendizaje  
 **Stack:** Next.js 16 + TypeScript + Supabase + shadcn/ui
 ```
 
 ---
-
-## 🚀 PROMPT PARA FASE 4: INVENTARIO
-
-Ahora que actualizaste el CLAUDE.md, aquí está el prompt para empezar con el inventario:
-```
-FASE 4: INVENTARIO TIENDA DYMMSA
-
-Lee CLAUDE.md actualizado para entender el flujo completo.
-
-Vamos a crear el sistema de inventario de la tienda DYMMSA. Este es crucial porque necesitamos saber qué productos hay en stock para no pedir todo a URREA.
-
-TAREAS:
-
-1. **Crear tabla en Supabase (SQL):**
-
-Genera el SQL para crear tabla inventario_dymmsa:
-- id (UUID, PK)
-- producto_id (FK a etm_products, UNIQUE)
-- cantidad_disponible (INTEGER, default 0)
-- cantidad_minima (INTEGER, default 5) - punto de reorden
-- ubicacion (TEXT) - ubicación física en tienda
-- notas (TEXT, opcional)
-- updated_at (TIMESTAMPTZ)
-
-Índices y RLS:
-- Índice en producto_id
-- Políticas RLS para usuarios autenticados
-
-2. **Hook para inventario:**
-
-hooks/useInventory.ts:
-- useQuery para listar inventario con joins a etm_products
-- Mostrar: ETM, Descripción, Modelo, Stock, Ubicación
-- useMutation para crear/actualizar/eliminar
-- useMutation para ajustar cantidad (suma/resta)
-- useMutation para importar desde Excel
-
-3. **Página admin inventario:**
-
-app/(dashboard)/admin/inventario/page.tsx:
-- Tabla con productos del inventario
-- Columnas: ETM, Descripción, Modelo, Stock, Mínimo, Ubicación, Acciones
-- Badge de color según stock:
-  - Verde: stock > mínimo
-  - Amarillo: stock <= mínimo
-  - Rojo: stock = 0
-- Búsqueda por ETM o descripción
-- Filtro: Todos / Solo bajo stock / Sin stock
-- Botones: "Agregar Producto", "Importar Excel", "Ajustar Stock"
-
-4. **Componentes de inventario:**
-
-components/inventario/InventoryTable.tsx:
-- Tabla shadcn/ui con paginación
-- Loading y empty states
-
-components/inventario/InventoryForm.tsx:
-- Form para agregar producto al inventario
-- Select de productos de etm_products
-- Campos: cantidad inicial, cantidad mínima, ubicación
-- Validación con zod
-
-components/inventario/StockAdjustment.tsx:
-- Dialog para ajustar stock
-- Opciones: Agregar (+) o Restar (-)
-- Input cantidad
-- Textarea para razón del ajuste
-- Botón "Confirmar Ajuste"
-
-components/inventario/ExcelImporterInventory.tsx:
-- Subir Excel con columnas: ETM, CANTIDAD, UBICACION
-- Preview antes de importar
-- Opciones: "Actualizar existentes" o "Solo agregar nuevos"
-- Progress bar
-- Resumen: X actualizados, Y agregados, Z errores
-
-5. **API Routes:**
-
-app/api/inventario/route.ts:
-- GET: listar inventario con joins
-- POST: agregar producto al inventario
-
-app/api/inventario/[id]/route.ts:
-- PUT: actualizar stock
-- DELETE: eliminar del inventario
-
-app/api/inventario/import/route.ts:
-- POST: importar desde Excel
-- Validar estructura
-- Actualizar/insertar en inventario_dymmsa
-
-app/api/inventario/adjust/route.ts:
-- POST: ajustar stock (suma/resta)
-- Registrar ajuste en log (opcional tabla de movimientos)
-
-6. **Actualizar Navbar:**
-Agregar link "Inventario" en navbar a /dashboard/admin/inventario
-
-IMPORTANTE:
-- Relación 1:1 con etm_products (un producto puede estar o no en inventario)
-- Si producto no está en inventario → stock = 0
-- Excel de importación debe tener: ETM, CANTIDAD, UBICACION (opcional)
-- Validar que ETM exista en etm_products antes de agregarlo al inventario
-- Stock nunca puede ser negativo (validación)
