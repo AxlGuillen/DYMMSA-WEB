@@ -43,7 +43,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
     <div className="space-y-6">
       {/* Back Button */}
       <Link href="/dashboard/orders">
-        <Button variant="ghost" size="sm">
+        <Button className='mb-6' variant="ghost" size="sm">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Volver a órdenes
         </Button>
