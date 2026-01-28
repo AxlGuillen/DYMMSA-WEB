@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { LogOut, Home, Database, GitCompare, ChevronDown, Warehouse } from 'lucide-react'
+import { LogOut, Home, Database, GitCompare, ChevronDown, Warehouse, ShoppingCart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const etmUrreaLinks = [
@@ -56,6 +56,18 @@ export function Navbar() {
             >
               <Warehouse className="h-4 w-4" />
               Inventario
+            </Link>
+
+            {/* Órdenes */}
+            <Link
+              href="/dashboard/orders"
+              className={cn(
+                'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
+                pathname.startsWith('/dashboard/orders') && 'bg-accent'
+              )}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Órdenes
             </Link>
 
             {/* ETM - URREA Dropdown */}
