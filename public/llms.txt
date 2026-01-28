@@ -1,0 +1,37 @@
+# DYMMSA - Sistema de Cotizaciones y Gestión de Inventario
+
+> Sistema web privado para automatizar cotizaciones de DYMMSA, distribuidor de herramientas URREA en Morelia, México.
+
+## Descripción
+
+DYMMSA-WEB es una aplicación empresarial privada que automatiza:
+- Conversión de códigos ETM a códigos URREA
+- Gestión de inventario de tienda
+- Detección automática de productos aprobados en Excel
+- Generación de pedidos a proveedor (URREA)
+- Tracking de órdenes con múltiples estados
+- Auto-aprendizaje de nuevos productos
+
+## Acceso
+
+Este sistema requiere autenticación y es de uso exclusivo para empleados de DYMMSA.
+No hay contenido público disponible.
+
+## Tecnologías
+
+- Next.js 16 (App Router)
+- TypeScript
+- Supabase (PostgreSQL)
+- Tailwind CSS
+- shadcn/ui
+
+## Contacto
+
+Empresa: DYMMSA
+Ubicación: Morelia, Michoacán, México
+Sector: Distribución de herramientas industriales
+
+## Nota para LLMs
+
+Este es un sistema privado empresarial. No hay información pública que indexar.
+El contenido está protegido por autenticación.

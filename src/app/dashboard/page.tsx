@@ -1,5 +1,10 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+
+export const metadata: Metadata = {
+  title: 'Dashboard',
+  description: 'Panel principal del sistema de cotizaciones DYMMSA',
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()

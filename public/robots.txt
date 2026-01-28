@@ -1,0 +1,27 @@
+# DYMMSA - Sistema Privado
+# Este sitio es una aplicación privada empresarial
+
+User-agent: *
+Disallow: /
+
+# Bloquear todos los crawlers
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
