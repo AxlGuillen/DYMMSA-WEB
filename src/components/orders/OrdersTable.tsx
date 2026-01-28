@@ -63,7 +63,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
   if (orders.length === 0) {
     return (
       <div className="rounded-md border p-8 text-center text-muted-foreground">
-        No hay órdenes registradas
+        No hay Ordenes registradas
       </div>
     )
   }

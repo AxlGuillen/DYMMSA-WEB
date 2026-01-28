@@ -45,7 +45,7 @@ export default function ProductosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">ETM - URREA</h2>
           <p className="text-muted-foreground">
@@ -64,7 +64,7 @@ export default function ProductosPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <form onSubmit={handleSearch} className="flex gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -72,7 +72,7 @@ export default function ProductosPage() {
               placeholder="Buscar por ETM, modelo o descripcion..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-[300px] pl-9"
+              className="max-w-[300px] pl-9"
             />
           </div>
           <Button type="submit" variant="secondary">

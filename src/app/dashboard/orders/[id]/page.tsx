@@ -29,7 +29,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
         <Link href="/dashboard/orders">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver a órdenes
+            Volver a Ordenes
           </Button>
         </Link>
         <div className="rounded-md border p-8 text-center">
@@ -45,7 +45,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
       <Link href="/dashboard/orders">
         <Button className='mb-6' variant="ghost" size="sm">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Volver a órdenes
+          Volver a Ordenes
         </Button>
       </Link>
 

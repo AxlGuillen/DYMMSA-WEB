@@ -4,7 +4,7 @@
 
 Aplicación web integral para automatizar el proceso completo de cotizaciones de DYMMSA, un distribuidor de herramientas URREA en Morelia, México. 
 
-El sistema maneja desde la solicitud inicial del cliente hasta la entrega final, incluyendo gestión de inventario, pedidos a URREA, y seguimiento de órdenes.
+El sistema maneja desde la solicitud inicial del cliente hasta la entrega final, incluyendo gestión de inventario, pedidos a URREA, y seguimiento de Ordenes.
 
 ## 🎯 PROBLEMA QUE RESUELVE
 
@@ -25,7 +25,7 @@ El sistema maneja desde la solicitud inicial del cliente hasta la entrega final,
 **Problemas:**
 - Múltiples pasos manuales propensos a error
 - No hay sistema de inventario integrado
-- No hay tracking de órdenes
+- No hay tracking de Ordenes
 - Base de datos ETM-URREA desactualizada (~384 de miles)
 - Proceso lento (días)
 
@@ -36,7 +36,7 @@ Sistema automatizado que:
 - ✅ Gestiona inventario tienda DYMMSA (código URREA + cantidad)
 - ✅ Detecta productos aprobados (fila verde) automáticamente
 - ✅ Genera pedidos a URREA automáticamente
-- ✅ Tracking de órdenes con estados
+- ✅ Tracking de Ordenes con estados
 - ✅ Actualiza inventario automáticamente
 - ✅ Auto-aprende: crece BD con cada cotización
 
@@ -86,7 +86,7 @@ id UUID, model_code TEXT (unique), quantity INTEGER,
 updated_at TIMESTAMPTZ
 ```
 
-**3. orders** (Órdenes de venta)
+**3. orders** (Ordenes de venta)
 ```sql
 id UUID, customer_name TEXT, status TEXT, total_amount DECIMAL,
 original_file_url TEXT, urrea_order_file_url TEXT, notes TEXT,
@@ -182,7 +182,7 @@ Subir Excel, detectar ETM multi-hoja, generar cotización descargable.
 ### ✅ Fase 4: Inventario Tienda - COMPLETADA
 Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
 
-### 🔄 Fase 5: Sistema de Órdenes y Auto-aprendizaje (ACTUAL)
+### 🔄 Fase 5: Sistema de Ordenes y Auto-aprendizaje (ACTUAL)
 
 **Objetivo:** Implementar flujo completo desde Excel aprobado hasta orden completada.
 
@@ -246,7 +246,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 - ✅ Detección automática productos aprobados (verde)
 - ✅ Auto-aprendizaje catálogo
 - ✅ Verificación stock y generación pedido URREA
-- ✅ Sistema de órdenes con estados
+- ✅ Sistema de Ordenes con estados
 - ✅ Order Detail Page con edición manual
 - ✅ Actualización automática inventario
 - ✅ Función cancelar orden
@@ -271,7 +271,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ---
 
 **Última actualización:** 2026-01-26  
-**Fase actual:** Fase 5 - Sistema de Órdenes y Auto-aprendizaje  
+**Fase actual:** Fase 5 - Sistema de Ordenes y Auto-aprendizaje  
 **Stack:** Next.js 16 + TypeScript + Supabase + shadcn/ui
 ```
 

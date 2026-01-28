@@ -41,11 +41,11 @@ export default function OrdersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Órdenes</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Ordenes</h1>
           <p className="text-muted-foreground">
-            Gestiona las órdenes de venta y pedidos a URREA
+            Gestiona las Ordenes de venta y pedidos a URREA
           </p>
         </div>
         <Link href="/dashboard/orders/new">
@@ -98,7 +98,7 @@ export default function OrdersPage() {
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Mostrando {(page - 1) * data.pageSize + 1} -{' '}
-            {Math.min(page * data.pageSize, data.count)} de {data.count} órdenes
+            {Math.min(page * data.pageSize, data.count)} de {data.count} Ordenes
           </p>
           <div className="flex gap-2">
             <Button
