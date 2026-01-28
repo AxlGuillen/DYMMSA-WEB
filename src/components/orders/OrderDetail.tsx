@@ -152,15 +152,13 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
-  const totalAmount = order.order_items.reduce(
-    (sum, item) => sum + item.quantity_approved * item.unit_price,
-    0
-  )
-
   const itemsToOrder = order.order_items.filter((item) => item.quantity_to_order > 0)
   const hasChanges = Object.keys(itemEdits).length > 0
   const isCancelled = order.status === 'cancelled'
   const isCompleted = order.status === 'completed'
+
+  // Use total_amount from database (updated when confirming reception)
+  const totalAmount = order.total_amount
 
   return (
     <div className="space-y-6">
@@ -299,13 +297,13 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 <Package className="h-5 w-5" />
                 Productos
               </CardTitle>
-              {order.status === 'pending_urrea_order' && (
+              {!isCompleted && !isCancelled && itemsToOrder.length > 0 && (
                 <CardDescription>
                   Edita las cantidades recibidas y el estado de URREA
                 </CardDescription>
               )}
             </div>
-            {order.status === 'pending_urrea_order' && hasChanges && (
+            {!isCompleted && !isCancelled && hasChanges && (
               <Button onClick={handleConfirmReception} disabled={confirmReception.isPending}>
                 {confirmReception.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -337,7 +335,12 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <TableBody>
                 {order.order_items.map((item) => {
                   const edit = itemEdits[item.id]
-                  const canEdit = order.status === 'pending_urrea_order' && item.quantity_to_order > 0
+                  const isOrderOpen = !isCompleted && !isCancelled
+                  const hasUrreaOrder = item.quantity_to_order > 0
+                  // Can edit quantity received only if there's something to order from URREA
+                  const canEditQuantity = isOrderOpen && hasUrreaOrder
+                  // Can edit URREA status while order is open (even after receiving)
+                  const canEditUrreaStatus = isOrderOpen && hasUrreaOrder
 
                   return (
                     <TableRow key={item.id}>
@@ -354,7 +357,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         {item.quantity_to_order}
                       </TableCell>
                       <TableCell className="text-right">
-                        {canEdit ? (
+                        {canEditQuantity ? (
                           <Input
                             type="number"
                             min="0"
@@ -374,7 +377,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         )}
                       </TableCell>
                       <TableCell>
-                        {canEdit ? (
+                        {canEditUrreaStatus ? (
                           <Select
                             value={edit?.urrea_status ?? item.urrea_status}
                             onValueChange={(value) =>
@@ -393,18 +396,22 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         ) : (
                           <span
                             className={
-                              item.urrea_status === 'supplied'
+                              !hasUrreaOrder
                                 ? 'text-green-600'
-                                : item.urrea_status === 'not_supplied'
-                                  ? 'text-red-600'
-                                  : 'text-yellow-600'
+                                : item.urrea_status === 'supplied'
+                                  ? 'text-green-600'
+                                  : item.urrea_status === 'not_supplied'
+                                    ? 'text-red-600'
+                                    : 'text-yellow-600'
                             }
                           >
-                            {item.urrea_status === 'supplied'
-                              ? 'Surtido'
-                              : item.urrea_status === 'not_supplied'
-                                ? 'No surtido'
-                                : 'Pendiente'}
+                            {!hasUrreaOrder
+                              ? 'En stock'
+                              : item.urrea_status === 'supplied'
+                                ? 'Surtido'
+                                : item.urrea_status === 'not_supplied'
+                                  ? 'No surtido'
+                                  : 'Pendiente'}
                           </span>
                         )}
                       </TableCell>
@@ -412,7 +419,14 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         ${item.unit_price.toLocaleString('es-MX')}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        ${(item.quantity_approved * item.unit_price).toLocaleString('es-MX')}
+                        ${(() => {
+                          // Total per row: stock + received (if not marked as not_supplied)
+                          let qty = item.quantity_in_stock
+                          if (item.urrea_status !== 'not_supplied') {
+                            qty += item.quantity_received
+                          }
+                          return qty * item.unit_price
+                        })().toLocaleString('es-MX')}
                       </TableCell>
                     </TableRow>
                   )

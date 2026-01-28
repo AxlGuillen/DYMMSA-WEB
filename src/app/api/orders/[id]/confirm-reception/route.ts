@@ -41,9 +41,9 @@ export async function POST(
       )
     }
 
-    if (order.status !== 'pending_urrea_order') {
+    if (order.status === 'completed' || order.status === 'cancelled') {
       return NextResponse.json(
-        { message: 'Orden no está en estado válido para confirmar recepción' },
+        { message: 'No se puede modificar una orden completada o cancelada' },
         { status: 400 }
       )
     }
@@ -98,11 +98,28 @@ export async function POST(
       }
     }
 
-    // Update order status
-    await supabase
-      .from('orders')
-      .update({ status: 'received_from_urrea' })
-      .eq('id', orderId)
+    // Recalculate total amount based on what will actually be delivered
+    // - quantity_in_stock: always counts (already reserved)
+    // - quantity_received: only if not marked as not_supplied
+    const { data: allItems } = await supabase
+      .from('order_items')
+      .select('quantity_in_stock, quantity_received, urrea_status, unit_price')
+      .eq('order_id', orderId)
+
+    if (allItems) {
+      const newTotal = allItems.reduce((sum, item) => {
+        let quantityDelivered = item.quantity_in_stock
+        if (item.urrea_status !== 'not_supplied') {
+          quantityDelivered += item.quantity_received
+        }
+        return sum + quantityDelivered * item.unit_price
+      }, 0)
+
+      await supabase
+        .from('orders')
+        .update({ total_amount: newTotal })
+        .eq('id', orderId)
+    }
 
     return NextResponse.json({
       success: true,
