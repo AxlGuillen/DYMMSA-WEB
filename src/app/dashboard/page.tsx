@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics'
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -20,6 +21,8 @@ export default async function DashboardPage() {
           Sistema de Cotizaciones DYMMSA
         </p>
       </div>
+
+      <DashboardMetrics />
     </div>
   )
 }
