@@ -28,6 +28,7 @@ import {
   ShoppingCart,
   Menu,
 } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { cn } from '@/lib/utils'
 
 const mainLinks = [
@@ -122,8 +123,8 @@ export function Navbar() {
         </div>
 
         {/* Desktop User Menu */}
-        <div className="hidden md:flex items-center gap-4">
-          <span className="text-sm text-muted-foreground hidden lg:inline">{user?.email}</span>
+        <div className="hidden md:flex items-center gap-2">
+          <ThemeToggle />
           <Button variant="outline" size="sm" onClick={signOut}>
             <LogOut className="mr-2 h-4 w-4" />
             Cerrar sesion
@@ -187,10 +188,11 @@ export function Navbar() {
               </div>
 
               {/* User Section */}
-              <div className="mt-4 pt-4 border-t">
-                <p className="px-3 text-xs text-muted-foreground truncate mb-3">
-                  {user?.email}
-                </p>
+              <div className="mt-4 pt-4 border-t flex flex-col gap-3">
+                <div className="flex items-center justify-between px-3">
+                  <span className="text-sm text-muted-foreground">Tema</span>
+                  <ThemeToggle />
+                </div>
                 <Button
                   variant="outline"
                   className="w-full justify-start"
