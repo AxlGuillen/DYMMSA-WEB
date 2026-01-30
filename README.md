@@ -178,7 +178,7 @@ bun lint         # Ejecutar linter
     ↓
 13. Usuario gestiona estados hasta completar
 ```
-
+ 
 ## Deploy
 
 El proyecto está configurado para deploy en Vercel:
