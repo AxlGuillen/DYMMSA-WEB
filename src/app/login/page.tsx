@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Eye, EyeOff } from 'lucide-react'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -43,12 +44,19 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">DYMMSA</CardTitle>
-          <CardDescription>Sistema de Cotizaciones</CardDescription>
+        <CardHeader className="text-center gap-0">
+          <Image
+            src="/dymmsa-logo.webp"
+            alt="DYMMSA Logo"
+            width={320}
+            height={160}
+            className="mx-auto h-auto w-40"
+            priority
+          />
+          <CardDescription className="-mt-10">Sistema de Cotizaciones</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="-mt-5 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Correo electronico</Label>
               <Input

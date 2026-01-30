@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -63,7 +64,14 @@ export function Navbar() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">DYMMSA</h1>
+            <Image
+              src="/dymmsa.webp"
+              alt="DYMMSA"
+              width={320}
+              height={160}
+              className="h-12 w-auto"
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}
