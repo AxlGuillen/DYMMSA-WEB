@@ -90,7 +90,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
-  const handleDownloadUrreaOrder = () => {
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  const handleDownloadUrreaOrder = async () => {
     const itemsToOrder = order.order_items.filter((item) => item.quantity_to_order > 0)
 
     if (itemsToOrder.length === 0) {
@@ -98,9 +100,16 @@ export function OrderDetail({ order }: OrderDetailProps) {
       return
     }
 
-    const blob = generateUrreaOrderExcel(order.order_items)
-    downloadUrreaOrder(blob, order.customer_name)
-    toast.success('Excel de pedido URREA descargado')
+    setIsDownloading(true)
+    try {
+      const blob = await generateUrreaOrderExcel(order.order_items)
+      downloadUrreaOrder(blob, order.customer_name)
+      toast.success('Excel de pedido URREA descargado')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al generar pedido URREA')
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   const handleItemEdit = (itemId: string, field: keyof ItemEdit, value: number | UrreaStatus) => {
@@ -207,8 +216,12 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
             {/* Download URREA Order */}
             {itemsToOrder.length > 0 && (
-              <Button variant="outline" onClick={handleDownloadUrreaOrder}>
-                <Download className="mr-2 h-4 w-4" />
+              <Button variant="outline" onClick={handleDownloadUrreaOrder} disabled={isDownloading}>
+                {isDownloading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
                 Descargar Pedido URREA ({itemsToOrder.length})
               </Button>
             )}
