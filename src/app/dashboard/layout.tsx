@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/Navbar'
 
@@ -31,6 +32,13 @@ export default async function DashboardLayout({
           >
             Axl
           </a>
+          {' | '}
+          <Link
+            href="/dashboard/docs"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            Documentacion
+          </Link>
         </p>
       </footer>
     </div>

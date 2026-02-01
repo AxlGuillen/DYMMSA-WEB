@@ -28,6 +28,7 @@ import {
   Warehouse,
   ShoppingCart,
   Menu,
+  CircleHelp,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { cn } from '@/lib/utils'
@@ -133,6 +134,12 @@ export function Navbar() {
         {/* Desktop User Menu */}
         <div className="hidden md:flex items-center gap-2">
           <ThemeToggle />
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/dashboard/docs">
+              <CircleHelp className="h-5 w-5" />
+              <span className="sr-only">Documentacion</span>
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" onClick={signOut}>
             <LogOut className="mr-2 h-4 w-4" />
             Cerrar sesion
@@ -170,6 +177,18 @@ export function Navbar() {
                   </Link>
                 )
               })}
+
+              <Link
+                href="/dashboard/docs"
+                onClick={closeMobileMenu}
+                className={cn(
+                  'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors hover:bg-accent',
+                  pathname.startsWith('/dashboard/docs') && 'bg-accent'
+                )}
+              >
+                <CircleHelp className="h-5 w-5" />
+                Documentacion
+              </Link>
 
               {/* ETM - URREA Section */}
               <div className="mt-4 pt-4 border-t">
