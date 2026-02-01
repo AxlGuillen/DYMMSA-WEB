@@ -124,6 +124,50 @@
   }
 }
 
+/* Button shine sweep hover effect */
+[data-slot="button"]:not([data-variant="link"]) {
+  overflow: hidden;
+}
+
+[data-slot="button"]:not([data-variant="link"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
+  pointer-events: none;
+}
+
+/* Ghost & outline: dark sweep in light mode */
+[data-slot="button"]:is([data-variant="ghost"], [data-variant="outline"], [data-variant="secondary"])::after {
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(0, 0, 0, 0.08) 50%,
+    transparent 70%
+  );
+}
+
+/* Ghost & outline: white sweep in dark mode */
+.dark [data-slot="button"]:is([data-variant="ghost"], [data-variant="outline"], [data-variant="secondary"])::after {
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 70%
+  );
+}
+
+[data-slot="button"]:not([data-variant="link"]):not(:disabled):hover::after {
+  transform: translateX(100%);
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
