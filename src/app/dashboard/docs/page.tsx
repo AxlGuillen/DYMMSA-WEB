@@ -223,6 +223,12 @@ export default function DocsPage() {
                 <code className="rounded bg-muted px-1">price</code> &mdash;
                 Precio unitario
               </li>
+              <li>
+                <code className="rounded bg-muted px-1">brand</code> &mdash;
+                Marca del producto (ej. <strong>URREA</strong>, Stanley, Truper).
+                Solo los productos con marca <strong>URREA</strong> se incluyen
+                en el pedido al proveedor.
+              </li>
             </ul>
           </div>
 
@@ -259,46 +265,55 @@ export default function DocsPage() {
 
           <div>
             <p className="mb-2 text-sm font-medium">Ejemplo:</p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ETM</TableHead>
-                  <TableHead>description</TableHead>
-                  <TableHead>description_es</TableHead>
-                  <TableHead>model_code</TableHead>
-                  <TableHead>quantity</TableHead>
-                  <TableHead>price</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow className="bg-green-100 dark:bg-green-950/40">
-                  <TableCell className="font-mono">ETM-12345</TableCell>
-                  <TableCell>Combination wrench 1/2&quot;</TableCell>
-                  <TableCell>Llave combinada 1/2&quot;</TableCell>
-                  <TableCell className="font-mono">1234A</TableCell>
-                  <TableCell>10</TableCell>
-                  <TableCell>$150.00</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-mono">ETM-67890</TableCell>
-                  <TableCell>Flat screwdriver</TableCell>
-                  <TableCell>Desarmador plano</TableCell>
-                  <TableCell className="font-mono">5678B</TableCell>
-                  <TableCell>5</TableCell>
-                  <TableCell>$85.00</TableCell>
-                </TableRow>
-                <TableRow className="bg-green-100 dark:bg-green-950/40">
-                  <TableCell className="font-mono">ETM-11111</TableCell>
-                  <TableCell>Cutting pliers</TableCell>
-                  <TableCell>Pinza de corte</TableCell>
-                  <TableCell className="font-mono">9012C</TableCell>
-                  <TableCell>3</TableCell>
-                  <TableCell>$220.00</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ETM</TableHead>
+                    <TableHead>description</TableHead>
+                    <TableHead>description_es</TableHead>
+                    <TableHead>model_code</TableHead>
+                    <TableHead>quantity</TableHead>
+                    <TableHead>price</TableHead>
+                    <TableHead>brand</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="bg-green-100 dark:bg-green-950/40">
+                    <TableCell className="font-mono">ETM-12345</TableCell>
+                    <TableCell>Combination wrench 1/2&quot;</TableCell>
+                    <TableCell>Llave combinada 1/2&quot;</TableCell>
+                    <TableCell className="font-mono">1234A</TableCell>
+                    <TableCell>10</TableCell>
+                    <TableCell>$150.00</TableCell>
+                    <TableCell>URREA</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-mono">ETM-67890</TableCell>
+                    <TableCell>Flat screwdriver</TableCell>
+                    <TableCell>Desarmador plano</TableCell>
+                    <TableCell className="font-mono">5678B</TableCell>
+                    <TableCell>5</TableCell>
+                    <TableCell>$85.00</TableCell>
+                    <TableCell>Stanley</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-green-100 dark:bg-green-950/40">
+                    <TableCell className="font-mono">ETM-11111</TableCell>
+                    <TableCell>Cutting pliers</TableCell>
+                    <TableCell>Pinza de corte</TableCell>
+                    <TableCell className="font-mono">9012C</TableCell>
+                    <TableCell>3</TableCell>
+                    <TableCell>$220.00</TableCell>
+                    <TableCell>URREA</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
             <p className="mt-2 text-xs text-muted-foreground">
               Las filas en verde son los productos aprobados. La fila sin color se ignora.
+              Al descargar el pedido URREA, solo se incluyen los productos con{' '}
+              <strong>brand = URREA</strong> (en el ejemplo, ETM-67890 de Stanley se
+              excluye del pedido al proveedor).
             </p>
           </div>
         </CardContent>
