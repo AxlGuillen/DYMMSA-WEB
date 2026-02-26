@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
         etm: product.etm,
         model_code: product.model_code,
         description: product.description || product.description_es || '',
+        brand: product.brand || '',
         quantity_approved: quantityApproved,
         quantity_in_stock: quantityInStock,
         quantity_to_order: quantityToOrder,

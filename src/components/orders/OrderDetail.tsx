@@ -100,11 +100,25 @@ export function OrderDetail({ order }: OrderDetailProps) {
       return
     }
 
+    const urreaItems = itemsToOrder.filter((item) => item.brand.toUpperCase() === 'URREA')
+    const nonUrreaCount = itemsToOrder.length - urreaItems.length
+
+    if (nonUrreaCount > 0) {
+      toast.warning(
+        `${nonUrreaCount} producto${nonUrreaCount > 1 ? 's' : ''} no son de marca URREA y fueron excluidos del pedido`
+      )
+    }
+
+    if (urreaItems.length === 0) {
+      toast.info('Ningún producto a pedir es de marca URREA')
+      return
+    }
+
     setIsDownloading(true)
     try {
-      const blob = await generateUrreaOrderExcel(order.order_items)
+      const blob = await generateUrreaOrderExcel(urreaItems)
       downloadUrreaOrder(blob, order.customer_name)
-      toast.success('Excel de pedido URREA descargado')
+      toast.success(`Excel de pedido URREA descargado (${urreaItems.length} productos)`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al generar pedido URREA')
     } finally {
@@ -335,6 +349,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 <TableRow>
                   <TableHead>ETM</TableHead>
                   <TableHead>Model Code</TableHead>
+                  <TableHead>Marca</TableHead>
                   <TableHead className="max-w-[200px]">Descripción</TableHead>
                   <TableHead className="text-right">Aprobados</TableHead>
                   <TableHead className="text-right">En Stock</TableHead>
@@ -359,6 +374,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                     <TableRow key={item.id}>
                       <TableCell className="font-mono text-sm">{item.etm}</TableCell>
                       <TableCell>{item.model_code}</TableCell>
+                      <TableCell>{item.brand || '—'}</TableCell>
                       <TableCell className="max-w-[200px] truncate">
                         {item.description}
                       </TableCell>
@@ -447,7 +463,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell colSpan={9} className="text-right font-bold">
+                  <TableCell colSpan={10} className="text-right font-bold">
                     Total:
                   </TableCell>
                   <TableCell className="text-right font-bold">

@@ -80,6 +80,7 @@ export interface OrderItem {
   etm: string
   model_code: string
   description: string
+  brand: string
   quantity_approved: number
   quantity_in_stock: number
   quantity_to_order: number
@@ -105,6 +106,7 @@ export interface ApprovedProduct {
   model_code: string
   quantity: number
   price: number
+  brand: string
 }
 
 // Create order input
