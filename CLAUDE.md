@@ -103,8 +103,8 @@ created_at, updated_at, created_by UUID
 
 **4. order_items** (Productos por orden)
 ```sql
-id UUID, order_id UUID (FK), 
-etm TEXT, model_code TEXT, description TEXT,
+id UUID, order_id UUID (FK),
+etm TEXT, model_code TEXT, description TEXT, brand TEXT,
 quantity_approved INTEGER, quantity_in_stock INTEGER,
 quantity_to_order INTEGER, quantity_received INTEGER,
 urrea_status TEXT, unit_price DECIMAL,
@@ -127,7 +127,7 @@ created_at TIMESTAMPTZ
    - Verde: toda la fila (rango claro → fuerte)
    ↓
 3. SISTEMA detecta productos con fila verde
-   - Extrae: ETM, description, description_es, model_code, quantity, price
+   - Extrae: ETM, description, description_es, model_code, quantity, price, brand
    ↓
 4. AUTO-APRENDIZAJE: Agregar nuevos ETM a etm_products
    - Solo productos completos (todos los campos excepto quantity)
@@ -143,8 +143,9 @@ created_at TIMESTAMPTZ
    - Guardar Excel original
    - Crear order_items con cantidades desglosadas
    ↓
-7. GENERAR Excel formato URREA (.xlsx)
-   - Solo productos con quantity_to_order > 0
+7. GENERAR Excel formato URREA (.xlsm)
+   - Solo productos con quantity_to_order > 0 Y brand = URREA
+   - Productos de otras marcas se excluyen (notificación al usuario)
    - Columnas: model_code | quantity
    - Descargar automáticamente
    ↓
@@ -197,9 +198,12 @@ Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
 8. Gestión de estados de orden
 
 **Formato Excel aprobado (unificado):**
-- Columnas: `ETM`, `description`, `description_es`, `model_code`, `quantity`, `price`, `[image]`
+- Columnas: `ETM`, `description`, `description_es`, `model_code`, `quantity`, `price`, `brand`, `[image]`
 - Productos aprobados: TODA LA FILA en verde
-- Rango verde: #00FF00, #00B050, #92D050, #C6E0B4
+- Detección de verde por rango HSL (hue 80°–165°, no lista fija de colores)
+- `brand` indica la marca del producto (ej. URREA, Stanley, Truper)
+- Solo productos con `brand = URREA` se incluyen en el pedido al proveedor
+- Todos los productos (cualquier marca) se guardan en `order_items`
 - Ignorar columna de imágenes
 - Múltiples hojas permitidas
 
@@ -211,7 +215,8 @@ Reportes, estadísticas, notificaciones, optimizaciones.
 ### Excel Processing
 - Detectar columna "ETM" (case insensitive) en múltiples hojas
 - Detectar filas con fondo verde (cualquier celda verde = fila aprobada)
-- Rango de verdes: #00FF00, #00B050, #92D050, #C6E0B4, etc
+- Detección de verde por rango HSL: canal verde dominante, hue 80°–165°, saturación >15%
+- Leer columna `brand` del Excel aprobado para filtrar pedido URREA
 - Ignorar columnas de imágenes
 - Formato URREA: skiprows=13 para imports de inventario
 
@@ -270,7 +275,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 ---
 
-**Última actualización:** 2026-01-26  
+**Última actualización:** 2026-02-26
 **Fase actual:** Fase 5 - Sistema de Ordenes y Auto-aprendizaje  
 **Stack:** Next.js 16 + TypeScript + Supabase + shadcn/ui
 ```
