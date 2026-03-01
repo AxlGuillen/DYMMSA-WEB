@@ -130,3 +130,73 @@ export interface AutoLearnResult {
   skipped: number
   existing: number
 }
+
+// ============================================
+// QUOTATIONS SYSTEM
+// ============================================
+
+export type QuotationStatus =
+  | 'draft'
+  | 'sent_for_approval'
+  | 'approved'
+  | 'rejected'
+  | 'converted_to_order'
+
+export interface Quotation {
+  id: string
+  customer_name: string
+  status: QuotationStatus
+  approval_token: string
+  total_amount: number
+  notes: string | null
+  original_file_url: string | null
+  created_at: string
+  updated_at: string
+  created_by: string | null
+}
+
+export type QuotationInsert = Omit<Quotation, 'id' | 'created_at' | 'updated_at' | 'approval_token'>
+export type QuotationUpdate = Partial<Omit<Quotation, 'id' | 'created_at' | 'updated_at'>>
+
+export interface QuotationItem {
+  id: string
+  quotation_id: string
+  etm: string | null
+  description: string | null
+  description_es: string | null
+  model_code: string | null
+  brand: string | null
+  unit_price: number | null
+  quantity: number | null
+  is_approved: boolean | null
+  notes: string | null
+  created_at: string
+}
+
+export interface QuotationWithItems extends Quotation {
+  quotation_items: QuotationItem[]
+}
+
+// Row in the editable quotation table (local/draft state, not saved to DB yet)
+export interface QuotationItemRow {
+  _id: string        // local UUID used as React key
+  etm: string        // required, read-only in edit mode
+  description: string
+  description_es: string
+  model_code: string
+  brand: string
+  unit_price: number | null
+  quantity: number | null
+  _inDb: boolean     // true if ETM was matched in etm_products
+}
+
+// Raw row extracted from Excel before DB lookup
+export interface ExcelExtractedRow {
+  etm: string
+  description: string
+  description_es: string
+  model_code: string
+  quantity: number | null
+  price: number | null
+  brand: string
+}
