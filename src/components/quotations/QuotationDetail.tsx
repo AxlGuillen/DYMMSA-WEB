@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  ShoppingCart,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -50,7 +51,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal } from '@/components/quoter/ProductModal'
-import { useSendForApproval, useUpdateQuotation } from '@/hooks/useQuotations'
+import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow } from '@/types/database'
 
 // ------------------------------------------------------------------ //
@@ -104,8 +105,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   // Copy-link state
   const [copied, setCopied] = useState(false)
 
-  const sendForApproval = useSendForApproval()
-  const updateQuotation = useUpdateQuotation()
+  const sendForApproval        = useSendForApproval()
+  const updateQuotation        = useUpdateQuotation()
+  const createOrderMutation    = useCreateOrderFromQuotation()
 
   const isDraft            = quotation.status === 'draft'
   const isSentForApproval  = quotation.status === 'sent_for_approval'
@@ -194,6 +196,17 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     setCopied(true)
     toast.success('Link copiado al portapapeles')
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  // ── Create order from approved quotation ────────────────────────
+  const handleCreateOrder = async () => {
+    try {
+      const result = await createOrderMutation.mutateAsync(quotation.id)
+      toast.success(`Orden creada con ${result.items_count} producto(s)`)
+      router.push(`/dashboard/orders/${result.order_id}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al generar la orden')
+    }
   }
 
   // ── Stats ───────────────────────────────────────────────────────
@@ -286,6 +299,42 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 : <Copy className="mr-2 h-4 w-4" />}
               {copied ? 'Copiado' : 'Copiar link de aprobación'}
             </Button>
+          )}
+
+          {isApproved && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={createOrderMutation.isPending}
+                >
+                  {createOrderMutation.isPending
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <ShoppingCart className="mr-2 h-4 w-4" />}
+                  Generar Orden
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Generar orden de venta?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se creará una orden con los{' '}
+                    {quotation.quotation_items.filter((i) => i.is_approved === true).length}{' '}
+                    productos aprobados. Se verificará el stock disponible y se descontará
+                    automáticamente del inventario. Esta acción no se puede deshacer.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={handleCreateOrder}
+                  >
+                    Sí, generar orden
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </div>
