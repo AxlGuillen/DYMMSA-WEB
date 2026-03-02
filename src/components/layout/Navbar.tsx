@@ -27,6 +27,7 @@ import {
   ChevronDown,
   Warehouse,
   ShoppingCart,
+  FileText,
   Menu,
   CircleHelp,
 } from 'lucide-react'
@@ -34,9 +35,10 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { cn } from '@/lib/utils'
 
 const mainLinks = [
-  { href: '/dashboard', label: 'Inicio', icon: Home, exact: true },
-  { href: '/dashboard/inventory', label: 'Inventario', icon: Warehouse },
-  { href: '/dashboard/orders', label: 'Ordenes', icon: ShoppingCart },
+  { href: '/dashboard',             label: 'Inicio',        icon: Home,         exact: true },
+  { href: '/dashboard/inventory',   label: 'Inventario',    icon: Warehouse },
+  { href: '/dashboard/quotations',  label: 'Cotizaciones',  icon: FileText },
+  { href: '/dashboard/orders',      label: 'Ordenes',       icon: ShoppingCart },
 ]
 
 const etmUrreaLinks = [
