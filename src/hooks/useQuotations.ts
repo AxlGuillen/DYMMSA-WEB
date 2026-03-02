@@ -202,3 +202,34 @@ export function useSaveQuotation() {
     },
   })
 }
+
+// ------------------------------------------------------------------ //
+// Create order from approved quotation                              //
+// ------------------------------------------------------------------ //
+
+export interface CreateOrderFromQuotationResponse {
+  order_id: string
+  items_count: number
+  total_amount: number
+}
+
+export function useCreateOrderFromQuotation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (quotationId: string): Promise<CreateOrderFromQuotationResponse> => {
+      const response = await fetch(`/api/quotations/${quotationId}/create-order`, {
+        method: 'POST',
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al generar la orden')
+      }
+      return response.json()
+    },
+    onSuccess: (_, quotationId) => {
+      queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
+      queryClient.invalidateQueries({ queryKey: [...QUOTATIONS_KEY, quotationId] })
+    },
+  })
+}
