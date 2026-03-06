@@ -235,32 +235,53 @@ Subir Excel, detectar ETM multi-hoja, generar cotización descargable.
 ### ✅ Fase 4: Inventario Tienda - COMPLETADA
 Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
 
-### 🔄 Fase 5: Cotizador, Aprobación y Sistema de Ordenes (ACTUAL)
+### ✅ Fase 5: Cotizador, Aprobación y Sistema de Ordenes - COMPLETADA
 
 **Objetivo:** Implementar flujo completo: cotizador con tabla editable → aprobación por link → orden automática.
 
-#### 5A: Cotizador (tabla editable)
-1. Subir Excel cliente multi-hoja → extraer ETMs y columnas disponibles
-2. Tabla editable pre-rellena con datos del Excel + BD (etm_products)
-3. Modal por producto para edición ordenada
-4. Zustand store + localStorage para persistir estado draft
-5. Agregar filas manualmente
-6. Guardar cotización en BD (quotations + quotation_items)
-7. Auto-aprendizaje al guardar: INSERT/UPDATE en etm_products
+#### 5A: Cotizador (tabla editable) ✅
+1. ✅ Subir Excel cliente multi-hoja → extraer ETMs y columnas disponibles (`FileUploader` + `extractProductRowsFromExcel`)
+2. ✅ Tabla editable pre-rellena con datos del Excel + BD (`QuotationEditor` + lookup `/api/quotes/lookup`)
+3. ✅ Modal por producto para edición ordenada (`ProductModal` con modos create/edit)
+4. ✅ Zustand store + localStorage para persistir estado draft (`quotationStore.ts`, key: `dymmsa-quotation-draft`)
+5. ✅ Agregar filas manualmente (botón en `QuotationEditor` abre `ProductModal` en modo create)
+6. ✅ Guardar cotización en BD (`POST /api/quotations/save` → crea `quotations` + `quotation_items`)
+7. ✅ Auto-aprendizaje al guardar: ETM nuevo → INSERT, existente con cambios → UPDATE en `etm_products`
 
-#### 5B: Aprobación por link
-8. Generar approval_token y link semi-privado `/approve/[token]`
-9. Página de aprobación: preview cotización + aprobar/rechazar por ítem
-10. Actualizar is_approved en quotation_items + estado quotation
+#### 5B: Aprobación por link ✅
+8. ✅ Generar approval_token UUID y link semi-privado (`POST /api/quotations/[id]/send-for-approval`)
+9. ✅ Página pública `/approve/[token]` — server component + `ApprovalClient` (sin auth)
+10. ✅ Aprobación parcial: cada ítem tiene botón ✅/❌/? independiente; botón "Aprobar todo"
+11. ✅ Submit → actualiza `quotation_items.is_approved` + status quotation (`approved`/`rejected`)
+12. ✅ Banner informativo si la cotización ya fue procesada (no permite re-aprobar)
 
-#### 5C: Orden desde cotización
-11. Dashboard cotizaciones con estados
-12. Generar orden desde cotización aprobada (solo ítems aprobados)
-13. Verificar stock, crear order + order_items, restar inventario
-14. Generar Excel URREA (.xlsm) con faltantes brand=URREA
-15. Order Detail Page: editar quantity_received y urrea_status
-16. Confirmar recepción → sumar al store_inventory
-17. Gestión de estados de orden
+#### 5C: Orden desde cotización ✅
+13. ✅ Dashboard cotizaciones con filtros por estado y búsqueda (`/dashboard/quotations`)
+14. ✅ `QuotationDetail` — vista completa con stats, edición draft, envío a aprobación, creación de orden
+15. ✅ Generar orden desde cotización aprobada (`POST /api/quotations/[id]/create-order`)
+    - Solo `quotation_items` con `is_approved = true`
+    - Verifica stock en `store_inventory` por `model_code`
+    - Crea `order_items` con desglose: `quantity_in_stock` + `quantity_to_order`
+    - Resta inventario inmediatamente; status quotation → `converted_to_order`
+16. ✅ Generar Excel URREA (`.xlsx`) descargable desde `OrderDetail`
+    - Solo ítems con `quantity_to_order > 0` Y `brand = URREA`
+    - Notificación al usuario sobre productos de otras marcas excluidos
+17. ✅ `OrderDetail` — edición manual de `quantity_received` y `urrea_status` por ítem
+18. ✅ Confirmar recepción → suma `quantity_received` a `store_inventory` (`POST /api/orders/[id]/confirm-reception`)
+19. ✅ Gestión de estados de orden via dropdown (5 transiciones posibles)
+20. ✅ Cancelar orden → restaura inventario (`POST /api/orders/[id]/cancel`)
+
+**Rutas implementadas:**
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/api/quotations/save` | ✅ | Crear cotización + auto-learn |
+| POST | `/api/quotations/[id]/send-for-approval` | ✅ | Generar token + cambiar status |
+| PATCH | `/api/quotations/[id]/update` | ✅ | Editar cotización draft |
+| POST | `/api/quotations/[id]/create-order` | ✅ | Generar orden desde cotización aprobada |
+| GET | `/api/approve/[token]` | ❌ público | Obtener cotización por token |
+| POST | `/api/approve/[token]` | ❌ público | Enviar decisiones de aprobación |
+| POST | `/api/orders/[id]/confirm-reception` | ✅ | Confirmar recepción + actualizar inventario |
+| POST | `/api/orders/[id]/cancel` | ✅ | Cancelar orden + restaurar inventario |
 
 **Excel de entrada (cliente):**
 - Solo ETM es obligatorio; demás columnas opcionales
@@ -268,7 +289,7 @@ Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
 - Multi-hoja permitido, columna ETM detectada case-insensitive
 - Ignorar columnas de imágenes
 
-### Fase 6: Mejoras y Optimización (FUTURO)
+### 🔄 Fase 6: Mejoras y Optimización (ACTUAL)
 Reportes, estadísticas, notificaciones, optimizaciones.
 
 ## 🔧 CONSIDERACIONES TÉCNICAS
@@ -319,18 +340,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 - ✅ Login funcional
 - ✅ CRUD completo de productos
 - ✅ CRUD completo de inventario
-- ⬜ Cotizador: subir Excel → tabla editable pre-rellena
-- ⬜ Tabla editable: modal por producto, agregar filas manualmente
-- ⬜ Guardar cotización en BD + auto-aprendizaje etm_products
-- ⬜ Link de aprobación por token (página pública `/approve/[token]`)
-- ⬜ Aprobación parcial por ítem desde página de aprobación
-- ⬜ Generar orden desde cotización aprobada
-- ⬜ Verificación stock y desglose order_items
-- ⬜ Generación Excel URREA (faltantes brand=URREA)
-- ⬜ Order Detail Page con edición manual
-- ⬜ Confirmación recepción → actualizar inventario
-- ⬜ Gestión de estados orden y cotización
-- ⬜ Función cancelar orden
+- ✅ Cotizador: subir Excel → tabla editable pre-rellena
+- ✅ Tabla editable: modal por producto, agregar filas manualmente
+- ✅ Guardar cotización en BD + auto-aprendizaje etm_products
+- ✅ Link de aprobación por token (página pública `/approve/[token]`)
+- ✅ Aprobación parcial por ítem desde página de aprobación
+- ✅ Generar orden desde cotización aprobada
+- ✅ Verificación stock y desglose order_items
+- ✅ Generación Excel URREA (faltantes brand=URREA)
+- ✅ Order Detail Page con edición manual
+- ✅ Confirmación recepción → actualizar inventario
+- ✅ Gestión de estados orden y cotización
+- ✅ Función cancelar orden
 
 ## 📚 RECURSOS DE REFERENCIA
 
@@ -351,8 +372,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 ---
 
-**Última actualización:** 2026-02-27
-**Fase actual:** Fase 5 - Cotizador, Aprobación por Link y Sistema de Ordenes
+**Última actualización:** 2026-03-01
+**Fase actual:** Fase 6 - Mejoras y Optimización
 **Stack:** Next.js 16 + TypeScript + Supabase + shadcn/ui
 ```
 
