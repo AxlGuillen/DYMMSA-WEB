@@ -78,9 +78,9 @@ export async function PATCH(
       return NextResponse.json({ message: 'Cotización no encontrada' }, { status: 404 })
     }
 
-    if (quotation.status !== 'draft') {
+    if (quotation.status !== 'draft' && quotation.status !== 'approved') {
       return NextResponse.json(
-        { message: 'Solo se pueden editar cotizaciones en borrador' },
+        { message: 'Solo se pueden editar cotizaciones en borrador o aprobadas' },
         { status: 400 }
       )
     }
@@ -101,6 +101,19 @@ export async function PATCH(
       return sum
     }, 0)
 
+    // For approved quotations, preserve existing is_approved values per item
+    const approvalMap = new Map<string, boolean | null>()
+    if (quotation.status === 'approved') {
+      const { data: existingItems } = await supabase
+        .from('quotation_items')
+        .select('id, is_approved')
+        .eq('quotation_id', id)
+
+      for (const ei of existingItems ?? []) {
+        approvalMap.set(ei.id, ei.is_approved)
+      }
+    }
+
     // Delete existing items and re-insert
     const { error: deleteError } = await supabase
       .from('quotation_items')
@@ -111,17 +124,24 @@ export async function PATCH(
       return NextResponse.json({ message: 'Error al actualizar productos' }, { status: 500 })
     }
 
-    const newItems = items.map((item) => ({
-      quotation_id:   id,
-      etm:            item.etm            || null,
-      description:    item.description    || null,
-      description_es: item.description_es || null,
-      model_code:     item.model_code     || null,
-      brand:          item.brand          || null,
-      unit_price:     item.unit_price,
-      quantity:       item.quantity,
-      is_approved:    null,
-    }))
+    const newItems = items.map((item) => {
+      let is_approved: boolean | null = null
+      if (quotation.status === 'approved') {
+        // Existing items: preserve their approval; new items: auto-approve (DYMMSA internal)
+        is_approved = approvalMap.has(item._id) ? (approvalMap.get(item._id) ?? null) : true
+      }
+      return {
+        quotation_id:   id,
+        etm:            item.etm            || null,
+        description:    item.description    || null,
+        description_es: item.description_es || null,
+        model_code:     item.model_code     || null,
+        brand:          item.brand          || null,
+        unit_price:     item.unit_price,
+        quantity:       item.quantity,
+        is_approved,
+      }
+    })
 
     const { error: insertError } = await supabase.from('quotation_items').insert(newItems)
 
