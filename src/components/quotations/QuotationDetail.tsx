@@ -114,6 +114,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const isApproved         = quotation.status === 'approved'
   const isConvertedToOrder = quotation.status === 'converted_to_order'
 
+  // DYMMSA can edit both draft and approved quotations (internal approval for new items)
+  const canEdit = isDraft || isApproved
+
   // Keep local state in sync if quotation data reloads
   useEffect(() => {
     setLocalName(quotation.customer_name)
@@ -210,7 +213,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   }
 
   // ── Stats ───────────────────────────────────────────────────────
-  const items     = isDraft ? localItems : quotation.quotation_items.map(toItemRow)
+  const items     = canEdit ? localItems : quotation.quotation_items.map(toItemRow)
   const partialTotal = items.reduce((sum, item) => {
     if (item.unit_price != null && item.quantity != null) {
       return sum + item.unit_price * item.quantity
@@ -251,45 +254,44 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
+          {canEdit && isDirty && (
+            <Button
+              variant="outline"
+              onClick={handleSave}
+              disabled={updateQuotation.isPending}
+            >
+              {updateQuotation.isPending
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : null}
+              Guardar cambios
+            </Button>
+          )}
+
           {isDraft && (
-            <>
-              {isDirty && (
-                <Button
-                  variant="outline"
-                  onClick={handleSave}
-                  disabled={updateQuotation.isPending}
-                >
-                  {updateQuotation.isPending
-                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    : null}
-                  Guardar cambios
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button disabled={!canSendForApproval || sendForApproval.isPending || updateQuotation.isPending}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Enviar a aprobación
                 </Button>
-              )}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button disabled={!canSendForApproval || sendForApproval.isPending || updateQuotation.isPending}>
-                    <Send className="mr-2 h-4 w-4" />
-                    Enviar a aprobación
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Enviar a aprobación?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {isDirty
-                        ? 'Se guardarán los cambios pendientes y se enviará la cotización al aprobador. Una vez enviada no podrás editar los productos.'
-                        : 'Se enviará la cotización al aprobador. Una vez enviada no podrás editar los productos.'}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleSendForApproval}>
-                      Sí, enviar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Enviar a aprobación?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {isDirty
+                      ? 'Se guardarán los cambios pendientes y se enviará la cotización al aprobador.'
+                      : 'Se enviará la cotización al aprobador. Una vez aprobada podrás seguir agregando o editando productos si es necesario.'}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleSendForApproval}>
+                    Sí, enviar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
 
           {isSentForApproval && (
@@ -370,7 +372,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </Card>
 
         {/* Draft: show completeness stats */}
-        {isDraft && (
+        {canEdit && isDraft && (
           <>
             <Card className={noQuantityCount > 0 ? 'border-yellow-300 dark:border-yellow-700' : ''}>
               <CardContent className="pt-4 pb-4">
@@ -426,7 +428,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       </div>
 
       {/* Customer name input (draft only) */}
-      {isDraft && (
+      {canEdit && isDraft && (
         <div className="max-w-sm space-y-1.5">
           <Label htmlFor="customer_name">Nombre del cliente <span className="text-destructive">*</span></Label>
           <Input
@@ -447,13 +449,15 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 <Package className="h-5 w-5" />
                 Productos
               </CardTitle>
-              {isDraft && (
+              {canEdit && (
                 <CardDescription>
-                  Agrega, edita o elimina productos antes de enviar a aprobación
+                  {isDraft
+                    ? 'Agrega, edita o elimina productos antes de enviar a aprobación'
+                    : 'Agrega o edita productos — los nuevos quedan aprobados automáticamente'}
                 </CardDescription>
               )}
             </div>
-            {isDraft && (
+            {canEdit && (
               <Button size="sm" onClick={handleCreate}>
                 <Plus className="h-4 w-4 mr-1.5" />
                 Agregar
@@ -476,7 +480,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   {(isApproved || isSentForApproval) && (
                     <TableHead className="text-center">Aprobación</TableHead>
                   )}
-                  {isDraft && (
+                  {canEdit && (
                     <TableHead className="text-center">Acciones</TableHead>
                   )}
                 </TableRow>
@@ -525,8 +529,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                       </TableCell>
                     )}
 
-                    {/* Edit/Delete (draft only) */}
-                    {isDraft && (
+                    {/* Edit/Delete (draft or approved) */}
+                    {canEdit && (
                       <TableCell>
                         <div className="flex items-center justify-center gap-1">
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(item)}>
@@ -549,13 +553,19 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               {partialTotal > 0 && (
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={isDraft ? 6 : (isApproved || isSentForApproval) ? 7 : 6} className="text-right font-bold">
-                      Total{partialTotal < items.reduce((s, i) => s + (i.unit_price ?? 0) * (i.quantity ?? 0), 0) ? ' parcial' : ''}:
+                    <TableCell
+                      colSpan={
+                        6 +
+                        ((isApproved || isSentForApproval) ? 1 : 0) +
+                        (canEdit ? 1 : 0)
+                      }
+                      className="text-right font-bold"
+                    >
+                      Total:
                     </TableCell>
                     <TableCell className="text-right font-bold">
                       ${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </TableCell>
-                    {(isDraft || isApproved || isSentForApproval) && <TableCell />}
                   </TableRow>
                 </TableFooter>
               )}
@@ -564,8 +574,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </CardContent>
       </Card>
 
-      {/* Product modal (draft editing) */}
-      {isDraft && (
+      {/* Product modal (draft and approved editing) */}
+      {canEdit && (
         <ProductModal
           mode={modalMode}
           item={selectedItem}
