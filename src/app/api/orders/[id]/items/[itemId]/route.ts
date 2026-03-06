@@ -50,7 +50,9 @@ async function recalculateTotal(
   return newTotal
 }
 
-// PATCH — Edit unit_price of an order item
+const VALID_DELIVERY_TIMES = ['immediate', '2_3_days', '3_5_days', '1_week', '2_weeks', 'indefinite']
+
+// PATCH — Edit unit_price or delivery_time of an order item
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
     const { id, itemId } = await params
@@ -64,15 +66,35 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return NextResponse.json({ message: result.error }, { status: result.status })
     }
 
-    const { unit_price } = await request.json()
-    if (unit_price == null || unit_price < 0) {
-      return NextResponse.json({ message: 'Precio inválido' }, { status: 400 })
+    const body = await request.json()
+    const updates: Record<string, unknown> = {}
+
+    if (body.unit_price != null) {
+      if (body.unit_price < 0) {
+        return NextResponse.json({ message: 'Precio inválido' }, { status: 400 })
+      }
+      updates.unit_price = body.unit_price
     }
 
-    await supabase.from('order_items').update({ unit_price }).eq('id', itemId)
+    if (body.delivery_time != null) {
+      if (!VALID_DELIVERY_TIMES.includes(body.delivery_time)) {
+        return NextResponse.json({ message: 'Tiempo de entrega inválido' }, { status: 400 })
+      }
+      updates.delivery_time = body.delivery_time
+    }
 
-    const newTotal = await recalculateTotal(supabase, id)
-    return NextResponse.json({ total_amount: newTotal })
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ message: 'Sin cambios' }, { status: 400 })
+    }
+
+    await supabase.from('order_items').update(updates).eq('id', itemId)
+
+    if (updates.unit_price != null) {
+      const newTotal = await recalculateTotal(supabase, id)
+      return NextResponse.json({ total_amount: newTotal })
+    }
+
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Edit order item error:', error)
     return NextResponse.json({ message: 'Error interno' }, { status: 500 })

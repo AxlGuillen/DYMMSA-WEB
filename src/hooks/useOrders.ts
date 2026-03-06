@@ -6,6 +6,7 @@ import type {
   Order,
   OrderWithItems,
   OrderStatus,
+  DeliveryTime,
   CreateOrderInput,
   ConfirmReceptionInput,
 } from '@/types/database'
@@ -246,6 +247,37 @@ export function useEditOrderItem() {
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.message || 'Error al editar el producto')
+      }
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
+      queryClient.invalidateQueries({ queryKey: [...ORDERS_KEY, variables.orderId] })
+    },
+  })
+}
+
+export function useEditDeliveryTime() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      itemId,
+      delivery_time,
+    }: {
+      orderId: string
+      itemId: string
+      delivery_time: DeliveryTime
+    }) => {
+      const response = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delivery_time }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al actualizar tiempo de entrega')
       }
       return response.json()
     },

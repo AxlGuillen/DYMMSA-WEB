@@ -67,9 +67,10 @@ import {
   useCancelOrder,
   useAddOrderItem,
   useEditOrderItem,
+  useEditDeliveryTime,
   useRemoveOrderItem,
 } from '@/hooks/useOrders'
-import type { OrderWithItems, OrderStatus, UrreaStatus } from '@/types/database'
+import type { OrderWithItems, OrderStatus, UrreaStatus, DeliveryTime } from '@/types/database'
 
 const EMPTY_ADD_FORM = {
   etm: '',
@@ -79,6 +80,15 @@ const EMPTY_ADD_FORM = {
   unit_price: '',
   quantity_approved: '',
 }
+
+const DELIVERY_TIME_OPTIONS: { value: DeliveryTime; label: string }[] = [
+  { value: 'immediate', label: 'Inmediato' },
+  { value: '2_3_days', label: '2-3 días' },
+  { value: '3_5_days', label: '3-5 días' },
+  { value: '1_week', label: '1 semana' },
+  { value: '2_weeks', label: '2 semanas' },
+  { value: 'indefinite', label: 'Indefinido' },
+]
 
 const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'pending_urrea_order', label: 'Pendiente URREA' },
@@ -118,6 +128,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const cancelOrder = useCancelOrder()
   const addOrderItem = useAddOrderItem()
   const editOrderItem = useEditOrderItem()
+  const editDeliveryTime = useEditDeliveryTime()
   const removeOrderItem = useRemoveOrderItem()
 
   const handleStatusChange = async (status: OrderStatus) => {
@@ -260,6 +271,14 @@ export function OrderDetail({ order }: OrderDetailProps) {
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al eliminar el producto')
+    }
+  }
+
+  const handleDeliveryTimeChange = async (itemId: string, delivery_time: DeliveryTime) => {
+    try {
+      await editDeliveryTime.mutateAsync({ orderId: order.id, itemId, delivery_time })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al actualizar tiempo de entrega')
     }
   }
 
@@ -462,6 +481,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   <TableHead className="text-right">A Pedir</TableHead>
                   <TableHead className="text-right">Recibidos</TableHead>
                   <TableHead>Estado URREA</TableHead>
+                  <TableHead>Tiempo Entrega</TableHead>
                   <TableHead className="text-right">Precio</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   {!isCompleted && !isCancelled && (
@@ -553,6 +573,32 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           </span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {isOrderOpen ? (
+                          <Select
+                            value={item.delivery_time}
+                            onValueChange={(value) =>
+                              handleDeliveryTimeChange(item.id, value as DeliveryTime)
+                            }
+                            disabled={editDeliveryTime.isPending}
+                          >
+                            <SelectTrigger className="w-32 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DELIVERY_TIME_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span>
+                            {DELIVERY_TIME_OPTIONS.find((o) => o.value === item.delivery_time)?.label ?? 'Inmediato'}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         {isOrderOpen && editingPriceId === item.id ? (
                           <div className="flex items-center justify-end gap-1">
@@ -624,7 +670,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <TableFooter>
                 <TableRow>
                   <TableCell
-                    colSpan={!isCompleted && !isCancelled ? 11 : 10}
+                    colSpan={!isCompleted && !isCancelled ? 12 : 11}
                     className="text-right font-bold"
                   >
                     Total:

@@ -58,6 +58,14 @@ export type OrderStatus =
 
 export type UrreaStatus = 'pending' | 'supplied' | 'not_supplied'
 
+export type DeliveryTime =
+  | 'immediate'
+  | '2_3_days'
+  | '3_5_days'
+  | '1_week'
+  | '2_weeks'
+  | 'indefinite'
+
 export interface Order {
   id: string
   customer_name: string
@@ -86,6 +94,7 @@ export interface OrderItem {
   quantity_to_order: number
   quantity_received: number
   urrea_status: UrreaStatus
+  delivery_time: DeliveryTime
   unit_price: number
   created_at: string
 }
