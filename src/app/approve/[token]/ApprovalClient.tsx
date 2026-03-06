@@ -4,7 +4,6 @@ import { useState } from 'react'
 import {
   CheckCircle,
   XCircle,
-  Clock,
   Package,
   CheckSquare,
   Send,
@@ -30,13 +29,9 @@ import {
 } from '@/components/ui/table'
 import type { QuotationWithItems } from '@/types/database'
 
-// ------------------------------------------------------------------ //
-// Types                                                               //
-// ------------------------------------------------------------------ //
-
 interface ItemDecision {
   item_id: string
-  is_approved: boolean | null
+  is_approved: boolean
 }
 
 interface Props {
@@ -44,25 +39,21 @@ interface Props {
   token: string
 }
 
-// ------------------------------------------------------------------ //
-// Component                                                           //
-// ------------------------------------------------------------------ //
-
 export function ApprovalClient({ quotation, token }: Props) {
   const isEditable = quotation.status === 'sent_for_approval'
 
+  // Default: everything starts as NOT approved — client only clicks what they want
   const [decisions, setDecisions] = useState<ItemDecision[]>(
     quotation.quotation_items.map((item) => ({
       item_id:     item.id,
-      is_approved: item.is_approved,
+      is_approved: item.is_approved === true, // preserve if re-visiting
     }))
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted]       = useState(false)
 
-  const approvedCount = decisions.filter((d) => d.is_approved === true).length
-  const rejectedCount = decisions.filter((d) => d.is_approved === false).length
-  const pendingCount  = decisions.filter((d) => d.is_approved === null).length
+  const approvedCount    = decisions.filter((d) => d.is_approved).length
+  const notApprovedCount = decisions.length - approvedCount
 
   const approvedTotal = quotation.quotation_items.reduce((sum, item) => {
     const dec = decisions.find((d) => d.item_id === item.id)
@@ -72,9 +63,11 @@ export function ApprovalClient({ quotation, token }: Props) {
     return sum
   }, 0)
 
-  const setDecision = (item_id: string, value: boolean | null) => {
+  const toggleDecision = (item_id: string) => {
     setDecisions((prev) =>
-      prev.map((d) => (d.item_id === item_id ? { ...d, is_approved: value } : d))
+      prev.map((d) =>
+        d.item_id === item_id ? { ...d, is_approved: !d.is_approved } : d
+      )
     )
   }
 
@@ -83,11 +76,6 @@ export function ApprovalClient({ quotation, token }: Props) {
   }
 
   const handleSubmit = async () => {
-    if (pendingCount > 0) {
-      toast.warning(`Faltan ${pendingCount} producto(s) por decidir`)
-      return
-    }
-
     setIsSubmitting(true)
     try {
       const res = await fetch(`/api/approve/${token}`, {
@@ -96,7 +84,7 @@ export function ApprovalClient({ quotation, token }: Props) {
         body: JSON.stringify({
           decisions: decisions.map((d) => ({
             item_id:     d.item_id,
-            is_approved: d.is_approved!,
+            is_approved: d.is_approved,
           })),
         }),
       })
@@ -114,7 +102,7 @@ export function ApprovalClient({ quotation, token }: Props) {
     }
   }
 
-  // ── Success screen ────────────────────────────────────────────────
+  // ── Success screen ──────────────────────────────────────────────────
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
@@ -125,7 +113,7 @@ export function ApprovalClient({ quotation, token }: Props) {
             </div>
             <h2 className="text-2xl font-bold">¡Gracias!</h2>
             <p className="text-muted-foreground text-sm">
-              Tu decisión ha sido registrada. El equipo de DYMMSA la recibirá de inmediato.
+              Tu selección ha sido registrada. El equipo de DYMMSA la recibirá de inmediato.
             </p>
             <div className="flex justify-center gap-6 pt-2">
               <div className="text-center">
@@ -133,8 +121,8 @@ export function ApprovalClient({ quotation, token }: Props) {
                 <p className="text-xs text-muted-foreground">Aprobados</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-red-500">{rejectedCount}</p>
-                <p className="text-xs text-muted-foreground">Rechazados</p>
+                <p className="text-2xl font-bold text-muted-foreground">{notApprovedCount}</p>
+                <p className="text-xs text-muted-foreground">No aprobados</p>
               </div>
             </div>
           </CardContent>
@@ -209,9 +197,9 @@ export function ApprovalClient({ quotation, token }: Props) {
           </Card>
         )}
 
-        {/* Decision counters (only while editing) */}
+        {/* Approved counter (only while editing) */}
         {isEditable && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Card>
               <CardContent className="pt-3 pb-3 text-center">
                 <p className="text-xs text-muted-foreground">Aprobados</p>
@@ -220,20 +208,8 @@ export function ApprovalClient({ quotation, token }: Props) {
             </Card>
             <Card>
               <CardContent className="pt-3 pb-3 text-center">
-                <p className="text-xs text-muted-foreground">Rechazados</p>
-                <p className="text-2xl font-bold text-red-500">{rejectedCount}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-3 pb-3 text-center">
-                <p className="text-xs text-muted-foreground">Pendientes</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    pendingCount > 0 ? 'text-amber-500' : 'text-muted-foreground'
-                  }`}
-                >
-                  {pendingCount}
-                </p>
+                <p className="text-xs text-muted-foreground">No aprobados</p>
+                <p className="text-2xl font-bold text-muted-foreground">{notApprovedCount}</p>
               </CardContent>
             </Card>
           </div>
@@ -267,25 +243,21 @@ export function ApprovalClient({ quotation, token }: Props) {
                     <TableHead className="text-right">Precio unit.</TableHead>
                     <TableHead className="text-right">Cant.</TableHead>
                     <TableHead className="text-right">Subtotal</TableHead>
-                    <TableHead className="text-center min-w-[180px]">Decisión</TableHead>
+                    <TableHead className="text-center min-w-[140px]">Aprobación</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {quotation.quotation_items.map((item) => {
-                    const dec       = decisions.find((d) => d.item_id === item.id)
-                    const decision  = dec?.is_approved ?? null
-                    const subtotal  =
+                    const dec      = decisions.find((d) => d.item_id === item.id)
+                    const approved = dec?.is_approved ?? false
+                    const subtotal =
                       item.unit_price != null && item.quantity != null
                         ? item.unit_price * item.quantity
                         : null
 
-                    const rowClass = !isEditable
-                      ? ''
-                      : decision === true
-                        ? 'bg-green-50 dark:bg-green-950/20'
-                        : decision === false
-                          ? 'bg-red-50 dark:bg-red-950/20'
-                          : ''
+                    const rowClass = isEditable && approved
+                      ? 'bg-green-50 dark:bg-green-950/20'
+                      : ''
 
                     return (
                       <TableRow key={item.id} className={`border-b border-border/60 ${rowClass}`}>
@@ -325,62 +297,32 @@ export function ApprovalClient({ quotation, token }: Props) {
                             : <span className="text-muted-foreground">—</span>}
                         </TableCell>
 
-                        {/* Decision cell */}
+                        {/* Approval cell */}
                         <TableCell className="text-center">
                           {isEditable ? (
-                            <div className="flex items-center justify-center gap-1.5">
-                              <Button
-                                size="sm"
-                                variant={decision === true ? 'default' : 'outline'}
-                                className={`h-7 px-2.5 text-xs ${
-                                  decision === true
-                                    ? 'bg-green-600 hover:bg-green-700 border-green-600'
-                                    : 'hover:border-green-500 hover:text-green-700'
-                                }`}
-                                onClick={() =>
-                                  setDecision(item.id, decision === true ? null : true)
-                                }
-                              >
-                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                                Aprobar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={decision === false ? 'default' : 'outline'}
-                                className={`h-7 px-2.5 text-xs ${
-                                  decision === false
-                                    ? 'bg-red-600 hover:bg-red-700 border-red-600'
-                                    : 'hover:border-red-400 hover:text-red-600'
-                                }`}
-                                onClick={() =>
-                                  setDecision(item.id, decision === false ? null : false)
-                                }
-                              >
-                                <XCircle className="h-3.5 w-3.5 mr-1" />
-                                Rechazar
-                              </Button>
-                            </div>
+                            <Button
+                              size="sm"
+                              variant={approved ? 'default' : 'outline'}
+                              className={`h-7 px-3 text-xs ${
+                                approved
+                                  ? 'bg-green-600 hover:bg-green-700 border-green-600'
+                                  : 'hover:border-green-500 hover:text-green-700'
+                              }`}
+                              onClick={() => toggleDecision(item.id)}
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                              {approved ? 'Aprobado' : 'Aprobar'}
+                            </Button>
                           ) : (
-                            // Read-only
-                            (() => {
-                              if (item.is_approved === true)
-                                return (
-                                  <Badge className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400">
-                                    <CheckCircle className="h-3 w-3 mr-1" /> Aprobado
-                                  </Badge>
-                                )
-                              if (item.is_approved === false)
-                                return (
-                                  <Badge className="bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-400">
-                                    <XCircle className="h-3 w-3 mr-1" /> Rechazado
-                                  </Badge>
-                                )
-                              return (
-                                <Badge variant="outline" className="text-muted-foreground">
-                                  <Clock className="h-3 w-3 mr-1" /> Pendiente
-                                </Badge>
-                              )
-                            })()
+                            item.is_approved === true ? (
+                              <Badge className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400">
+                                <CheckCircle className="h-3 w-3 mr-1" /> Aprobado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                <XCircle className="h-3 w-3 mr-1" /> No aprobado
+                              </Badge>
+                            )
                           )}
                         </TableCell>
                       </TableRow>
@@ -410,15 +352,15 @@ export function ApprovalClient({ quotation, token }: Props) {
         {/* Submit */}
         {isEditable && (
           <div className="flex items-center justify-end gap-4 pb-8">
-            {pendingCount > 0 && (
-              <p className="text-sm text-amber-600">
-                {pendingCount} producto{pendingCount !== 1 ? 's' : ''} sin decidir
-              </p>
-            )}
+            <p className="text-sm text-muted-foreground">
+              {approvedCount === 0
+                ? 'Selecciona al menos un producto para aprobar'
+                : `${approvedCount} producto${approvedCount !== 1 ? 's' : ''} seleccionado${approvedCount !== 1 ? 's' : ''}`}
+            </p>
             <Button
               size="lg"
               onClick={handleSubmit}
-              disabled={isSubmitting || pendingCount > 0}
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>
@@ -428,7 +370,7 @@ export function ApprovalClient({ quotation, token }: Props) {
               ) : (
                 <>
                   <Send className="mr-2 h-4 w-4" />
-                  Enviar decisión
+                  Enviar aprobación
                 </>
               )}
             </Button>

@@ -193,6 +193,90 @@ export function useCancelOrder() {
   })
 }
 
+export interface AddOrderItemInput {
+  etm: string
+  description: string
+  model_code: string
+  brand: string
+  unit_price: number
+  quantity_approved: number
+}
+
+export function useAddOrderItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orderId, item }: { orderId: string; item: AddOrderItemInput }) => {
+      const response = await fetch(`/api/orders/${orderId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al agregar el producto')
+      }
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
+      queryClient.invalidateQueries({ queryKey: [...ORDERS_KEY, variables.orderId] })
+    },
+  })
+}
+
+export function useEditOrderItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      itemId,
+      unit_price,
+    }: {
+      orderId: string
+      itemId: string
+      unit_price: number
+    }) => {
+      const response = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unit_price }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al editar el producto')
+      }
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
+      queryClient.invalidateQueries({ queryKey: [...ORDERS_KEY, variables.orderId] })
+    },
+  })
+}
+
+export function useRemoveOrderItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orderId, itemId }: { orderId: string; itemId: string }) => {
+      const response = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al eliminar el producto')
+      }
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
+      queryClient.invalidateQueries({ queryKey: [...ORDERS_KEY, variables.orderId] })
+    },
+  })
+}
+
 export function useAutoLearn() {
   return useMutation({
     mutationFn: async (products: CreateOrderInput['products']) => {
