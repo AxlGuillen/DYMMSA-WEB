@@ -9,6 +9,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   Package,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,6 +40,7 @@ import {
   TableFooter,
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,14 +52,33 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { generateUrreaOrderExcel, downloadUrreaOrder } from '@/lib/excel/generator'
 import {
   useUpdateOrderStatus,
   useConfirmReception,
   useCancelOrder,
+  useAddOrderItem,
+  useEditOrderItem,
+  useRemoveOrderItem,
 } from '@/hooks/useOrders'
 import type { OrderWithItems, OrderStatus, UrreaStatus } from '@/types/database'
+
+const EMPTY_ADD_FORM = {
+  etm: '',
+  description: '',
+  model_code: '',
+  brand: '',
+  unit_price: '',
+  quantity_approved: '',
+}
 
 const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'pending_urrea_order', label: 'Pendiente URREA' },
@@ -77,9 +102,23 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const router = useRouter()
   const [itemEdits, setItemEdits] = useState<Record<string, ItemEdit>>({})
 
+  // Add item dialog
+  const [addItemOpen, setAddItemOpen] = useState(false)
+  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM)
+
+  // Edit price per row
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
+  const [editingPrice, setEditingPrice] = useState('')
+
+  // Delete confirmation
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null)
+
   const updateStatus = useUpdateOrderStatus()
   const confirmReception = useConfirmReception()
   const cancelOrder = useCancelOrder()
+  const addOrderItem = useAddOrderItem()
+  const editOrderItem = useEditOrderItem()
+  const removeOrderItem = useRemoveOrderItem()
 
   const handleStatusChange = async (status: OrderStatus) => {
     try {
@@ -162,6 +201,65 @@ export function OrderDetail({ order }: OrderDetailProps) {
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al confirmar recepción')
+    }
+  }
+
+  const handleAddItem = async () => {
+    const qty = parseInt(addForm.quantity_approved)
+    const price = parseFloat(addForm.unit_price)
+
+    if (!qty || qty < 1) { toast.error('La cantidad debe ser mayor a 0'); return }
+    if (isNaN(price) || price < 0) { toast.error('El precio no puede ser negativo'); return }
+
+    try {
+      await addOrderItem.mutateAsync({
+        orderId: order.id,
+        item: {
+          etm:               addForm.etm.trim(),
+          description:       addForm.description.trim(),
+          model_code:        addForm.model_code.trim(),
+          brand:             addForm.brand.trim(),
+          unit_price:        price,
+          quantity_approved: qty,
+        },
+      })
+      toast.success('Producto agregado')
+      setAddForm(EMPTY_ADD_FORM)
+      setAddItemOpen(false)
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al agregar el producto')
+    }
+  }
+
+  const handleStartEditPrice = (itemId: string, currentPrice: number) => {
+    setEditingPriceId(itemId)
+    setEditingPrice(String(currentPrice))
+  }
+
+  const handleSavePrice = async (itemId: string) => {
+    const price = parseFloat(editingPrice)
+    if (isNaN(price) || price < 0) { toast.error('Precio inválido'); return }
+
+    try {
+      await editOrderItem.mutateAsync({ orderId: order.id, itemId, unit_price: price })
+      toast.success('Precio actualizado')
+      setEditingPriceId(null)
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al actualizar el precio')
+    }
+  }
+
+  const handleRemoveItem = async () => {
+    if (!deletingItemId) return
+    try {
+      await removeOrderItem.mutateAsync({ orderId: order.id, itemId: deletingItemId })
+      toast.success('Producto eliminado')
+      setDeletingItemId(null)
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar el producto')
     }
   }
 
@@ -324,22 +422,30 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 <Package className="h-5 w-5" />
                 Productos
               </CardTitle>
-              {!isCompleted && !isCancelled && itemsToOrder.length > 0 && (
+              {!isCompleted && !isCancelled && (
                 <CardDescription>
-                  Edita las cantidades recibidas y el estado de URREA
+                  Edita precios, agrega o elimina productos, y registra las cantidades recibidas
                 </CardDescription>
               )}
             </div>
-            {!isCompleted && !isCancelled && hasChanges && (
-              <Button onClick={handleConfirmReception} disabled={confirmReception.isPending}>
-                {confirmReception.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                )}
-                Confirmar Recepción
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {!isCompleted && !isCancelled && (
+                <Button size="sm" variant="outline" onClick={() => setAddItemOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Agregar
+                </Button>
+              )}
+              {!isCompleted && !isCancelled && hasChanges && (
+                <Button onClick={handleConfirmReception} disabled={confirmReception.isPending}>
+                  {confirmReception.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                  )}
+                  Confirmar Recepción
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -358,6 +464,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   <TableHead>Estado URREA</TableHead>
                   <TableHead className="text-right">Precio</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  {!isCompleted && !isCancelled && (
+                    <TableHead className="text-center">Acciones</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -445,11 +554,41 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        ${item.unit_price.toLocaleString('es-MX')}
+                        {isOrderOpen && editingPriceId === item.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-24 h-8 text-right"
+                              value={editingPrice}
+                              onChange={(e) => setEditingPrice(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSavePrice(item.id)
+                                if (e.key === 'Escape') setEditingPriceId(null)
+                              }}
+                              autoFocus
+                            />
+                            <Button
+                              size="icon" variant="ghost" className="h-7 w-7 text-green-600"
+                              onClick={() => handleSavePrice(item.id)}
+                              disabled={editOrderItem.isPending}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon" variant="ghost" className="h-7 w-7"
+                              onClick={() => setEditingPriceId(null)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <span>${item.unit_price.toLocaleString('es-MX')}</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         ${(() => {
-                          // Total per row: stock + received (if not marked as not_supplied)
                           let qty = item.quantity_in_stock
                           if (item.urrea_status !== 'not_supplied') {
                             qty += item.quantity_received
@@ -457,13 +596,37 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           return qty * item.unit_price
                         })().toLocaleString('es-MX')}
                       </TableCell>
+                      {isOrderOpen && (
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              size="icon" variant="ghost" className="h-7 w-7"
+                              onClick={() => handleStartEditPrice(item.id, item.unit_price)}
+                              title="Editar precio"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon" variant="ghost"
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeletingItemId(item.id)}
+                              title="Eliminar producto"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   )
                 })}
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell colSpan={10} className="text-right font-bold">
+                  <TableCell
+                    colSpan={!isCompleted && !isCancelled ? 11 : 10}
+                    className="text-right font-bold"
+                  >
                     Total:
                   </TableCell>
                   <TableCell className="text-right font-bold">
@@ -475,6 +638,115 @@ export function OrderDetail({ order }: OrderDetailProps) {
           </div>
         </CardContent>
       </Card>
+      {/* Add item dialog */}
+      <Dialog open={addItemOpen} onOpenChange={(o) => { setAddItemOpen(o); if (!o) setAddForm(EMPTY_ADD_FORM) }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Agregar producto a la orden</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="add-etm">ETM</Label>
+                <Input
+                  id="add-etm"
+                  placeholder="Ej: H7-ET400"
+                  value={addForm.etm}
+                  onChange={(e) => setAddForm((f) => ({ ...f, etm: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-model">Código Modelo</Label>
+                <Input
+                  id="add-model"
+                  placeholder="Ej: 95040"
+                  value={addForm.model_code}
+                  onChange={(e) => setAddForm((f) => ({ ...f, model_code: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="add-desc">Descripción</Label>
+              <Input
+                id="add-desc"
+                placeholder="Descripción del producto"
+                value={addForm.description}
+                onChange={(e) => setAddForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="add-brand">Marca</Label>
+                <Input
+                  id="add-brand"
+                  placeholder="URREA"
+                  value={addForm.brand}
+                  onChange={(e) => setAddForm((f) => ({ ...f, brand: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-price">Precio <span className="text-destructive">*</span></Label>
+                <Input
+                  id="add-price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={addForm.unit_price}
+                  onChange={(e) => setAddForm((f) => ({ ...f, unit_price: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-qty">Cantidad <span className="text-destructive">*</span></Label>
+                <Input
+                  id="add-qty"
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="0"
+                  value={addForm.quantity_approved}
+                  onChange={(e) => setAddForm((f) => ({ ...f, quantity_approved: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddItemOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAddItem} disabled={addOrderItem.isPending}>
+              {addOrderItem.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Agregar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deletingItemId} onOpenChange={(o) => { if (!o) setDeletingItemId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar este producto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará el producto de la orden y se restaurará el inventario apartado.
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletingItemId(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={handleRemoveItem}
+              disabled={removeOrderItem.isPending}
+            >
+              {removeOrderItem.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
