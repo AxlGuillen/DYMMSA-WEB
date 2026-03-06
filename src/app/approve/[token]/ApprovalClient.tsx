@@ -167,7 +167,7 @@ export function ApprovalClient({ quotation, token }: Props) {
                 </div>
                 {quotation.total_amount > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground">Total est.</p>
+                    <p className="text-xs text-muted-foreground">SubTotal est.</p>
                     <p className="text-xl font-bold">
                       ${quotation.total_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </p>
