@@ -183,6 +183,8 @@ export interface SaveQuotationResponse {
 // ------------------------------------------------------------------ //
 
 export function useSaveQuotation() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: async (
       input: SaveQuotationInput
@@ -200,6 +202,9 @@ export function useSaveQuotation() {
 
       return response.json()
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
+    },
   })
 }
 
@@ -211,6 +216,24 @@ export interface CreateOrderFromQuotationResponse {
   order_id: string
   items_count: number
   total_amount: number
+}
+
+export function useDeleteQuotation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/quotations/${id}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al eliminar la cotización')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
+    },
+  })
 }
 
 export function useCreateOrderFromQuotation() {
