@@ -56,7 +56,11 @@ DYMMSA-WEB automatiza el flujo de trabajo desde la solicitud inicial del cliente
 ### Sistema de Cotizaciones
 - Dashboard con lista, filtros por estado y búsqueda
 - Vista detalle con stats: ítems aprobados/rechazados/pendientes, total
-- Edición de cotizaciones en estado `draft`
+- Edición de cotizaciones en estado `draft` **y** `approved`:
+  - DYMMSA puede agregar productos extra a una cotización ya aprobada
+  - Los nuevos ítems quedan auto-aprobados (aprobación interna)
+  - Los ítems existentes conservan su estado de aprobación original
+  - Se puede editar cantidad y precio de ítems ya aprobados
 - Estados: `draft` → `sent_for_approval` → `approved` / `rejected` → `converted_to_order`
 
 ### Sistema de Órdenes
@@ -68,6 +72,10 @@ DYMMSA-WEB automatiza el flujo de trabajo desde la solicitud inicial del cliente
 - Descuenta inventario en el momento de crear la orden
 - Genera Excel de pedido URREA (`.xlsx`): solo `brand = URREA` y `quantity_to_order > 0`
 - Order Detail Page: editar `quantity_received` y `urrea_status` por ítem
+- **Gestión flexible de ítems en órdenes activas:**
+  - Agregar productos de último momento (con check de stock automático)
+  - Editar precio por ítem directamente en la tabla
+  - Eliminar productos (restaura inventario apartado automáticamente)
 - Confirmar recepción → suma al inventario (`store_inventory`)
 - Cancelar orden → restaura inventario
 - Estados: `pending_urrea_order` → `received_from_urrea` → `pending_payment` → `paid` → `completed`
@@ -98,6 +106,7 @@ DYMMSA-WEB automatiza el flujo de trabajo desde la solicitud inicial del cliente
    → status: approved / rejected
    ↓
 6. DYMMSA ve cotización aprobada en el dashboard
+   → Puede agregar ítems extra o editar datos (auto-aprobados internamente)
    → Genera orden desde la cotización
    ↓
 7. Sistema crea la orden
@@ -111,10 +120,13 @@ DYMMSA-WEB automatiza el flujo de trabajo desde la solicitud inicial del cliente
    ↓
 9. URREA envía productos (días después)
    ↓
-10. Usuario edita quantity_received + urrea_status por ítem
+10. Si es necesario, agregar/quitar productos a la orden de último momento
+    → Stock se ajusta automáticamente al agregar o eliminar
+    ↓
+11. Usuario edita quantity_received + urrea_status por ítem
     → Confirmar recepción → suma al store_inventory
     ↓
-11. Gestión de estados hasta completar la orden ✅
+12. Gestión de estados hasta completar la orden ✅
 ```
 
 ## Estructura del Proyecto
@@ -127,13 +139,15 @@ src/
 │   │   ├── inventory/              # Import inventario Excel
 │   │   ├── orders/
 │   │   │   ├── [id]/cancel/        # Cancelar orden + restaurar inventario
-│   │   │   └── [id]/confirm-reception/  # Confirmar recepción + actualizar inventario
+│   │   │   ├── [id]/confirm-reception/  # Confirmar recepción + actualizar inventario
+│   │   │   ├── [id]/items/         # POST: agregar ítem a orden
+│   │   │   └── [id]/items/[itemId]/# PATCH: editar precio | DELETE: eliminar + restaurar inv.
 │   │   ├── products/               # Import catálogo Excel
 │   │   ├── quotations/
 │   │   │   ├── save/               # Crear cotización + auto-learn
 │   │   │   └── [id]/
 │   │   │       ├── send-for-approval/   # Generar token + cambiar status
-│   │   │       ├── update/              # Editar cotización draft
+│   │   │       ├── update/              # Editar cotización draft o approved
 │   │   │       └── create-order/        # Generar orden desde cotización aprobada
 │   │   └── quotes/lookup/          # Lookup ETMs contra etm_products
 │   ├── approve/[token]/            # Página pública de aprobación (sin auth)
@@ -158,7 +172,8 @@ src/
 │   │                               # useSendForApproval, useUpdateQuotation,
 │   │                               # useCreateOrderFromQuotation
 │   ├── useOrders.ts                # useOrders, useOrder, useUpdateOrderStatus,
-│   │                               # useConfirmReception, useCancelOrder
+│   │                               # useConfirmReception, useCancelOrder,
+│   │                               # useAddOrderItem, useEditOrderItem, useRemoveOrderItem
 │   └── useQuotes.ts                # useLookupEtms
 ├── lib/
 │   ├── excel/                      # extractProductRowsFromExcel, generateUrreaOrderExcel

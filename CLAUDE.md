@@ -235,6 +235,37 @@ Subir Excel, detectar ETM multi-hoja, generar cotización descargable.
 ### ✅ Fase 4: Inventario Tienda - COMPLETADA
 Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
 
+### ✅ Fase 5.5: Flexibilidad en Cotizaciones y Órdenes - COMPLETADA
+
+**Objetivo:** Permitir edición post-aprobación para adaptarse al flujo informal de DYMMSA.
+
+#### Cotizaciones aprobadas editables ✅
+- `PATCH /api/quotations/[id]/update` acepta `status = 'approved'` además de `draft`
+- Ítems existentes preservan su `is_approved` original al re-insertar
+- Ítems nuevos agregados por DYMMSA entran con `is_approved = true` (aprobación interna)
+- `QuotationDetail`: `canEdit = isDraft || isApproved` controla todos los controles de edición
+- Botón "Agregar" y editar/eliminar por fila disponibles en cotizaciones aprobadas
+- "Enviar a aprobación" solo aparece en `draft`
+
+#### Ítems de orden editables ✅
+- `POST /api/orders/[id]/items` — agrega producto con check de stock y deducción de inventario
+- `PATCH /api/orders/[id]/items/[itemId]` — edita `unit_price`, recalcula `total_amount`
+- `DELETE /api/orders/[id]/items/[itemId]` — elimina ítem y restaura `quantity_in_stock` al inventario
+- `OrderDetail`: botón "Agregar" con dialog, edición de precio inline por fila, eliminación con confirmación
+- Solo disponible cuando orden no está `completed` ni `cancelled`
+
+**Nuevas rutas:**
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/api/orders/[id]/items` | ✅ | Agregar ítem a orden (stock check + inventario) |
+| PATCH | `/api/orders/[id]/items/[itemId]` | ✅ | Editar precio de ítem |
+| DELETE | `/api/orders/[id]/items/[itemId]` | ✅ | Eliminar ítem + restaurar inventario |
+
+**Nuevos hooks:**
+- `useAddOrderItem` — POST agregar ítem
+- `useEditOrderItem` — PATCH editar precio
+- `useRemoveOrderItem` — DELETE eliminar ítem
+
 ### ✅ Fase 5: Cotizador, Aprobación y Sistema de Ordenes - COMPLETADA
 
 **Objetivo:** Implementar flujo completo: cotizador con tabla editable → aprobación por link → orden automática.
@@ -290,7 +321,7 @@ Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
 - Ignorar columnas de imágenes
 
 ### 🔄 Fase 6: Mejoras y Optimización (ACTUAL)
-Reportes, estadísticas, notificaciones, optimizaciones.
+Reportes, estadísticas, notificaciones, optimizaciones, historial de cambios en cotizaciones/órdenes.
 
 ## 🔧 CONSIDERACIONES TÉCNICAS
 
@@ -372,7 +403,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 ---
 
-**Última actualización:** 2026-03-01
+**Última actualización:** 2026-03-06
 **Fase actual:** Fase 6 - Mejoras y Optimización
 **Stack:** Next.js 16 + TypeScript + Supabase + shadcn/ui
 ```
