@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
         quantity_to_order: quantityToOrder,
         quantity_received: 0,
         urrea_status: 'pending',
+        delivery_time: 'immediate',
         unit_price: product.price,
       })
     }
