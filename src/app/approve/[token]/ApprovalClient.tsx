@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import {
   CheckCircle,
   XCircle,
@@ -8,6 +9,7 @@ import {
   CheckSquare,
   Send,
   Loader2,
+  ShieldCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -105,28 +107,52 @@ export function ApprovalClient({ quotation, token }: Props) {
   // ── Success screen ──────────────────────────────────────────────────
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
-        <Card className="max-w-md w-full text-center shadow-lg">
-          <CardContent className="pt-10 pb-10 space-y-4">
+      <div
+        className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-100"
+        style={{
+          backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)',
+          backgroundSize: '22px 22px',
+        }}
+      >
+        <div className="mb-8">
+          <Image
+            src="/dymmsa-logo.webp"
+            alt="DYMMSA"
+            width={210}
+            height={84}
+            className="object-contain"
+            priority
+          />
+        </div>
+        <Card className="max-w-md w-full text-center shadow-xl border border-slate-200">
+          <CardContent className="pt-10 pb-10 space-y-5">
             <div className="flex justify-center">
-              <CheckCircle className="h-16 w-16 text-green-500" />
-            </div>
-            <h2 className="text-2xl font-bold">¡Gracias!</h2>
-            <p className="text-muted-foreground text-sm">
-              Tu selección ha sido registrada. El equipo de DYMMSA la recibirá de inmediato.
-            </p>
-            <div className="flex justify-center gap-6 pt-2">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
-                <p className="text-xs text-muted-foreground">Aprobados</p>
+              <div className="rounded-full bg-green-100 p-4">
+                <ShieldCheck className="h-14 w-14 text-green-600" />
               </div>
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-bold tracking-tight">¡Aprobación enviada!</h2>
+              <p className="text-muted-foreground text-sm">
+                Tu selección ha sido registrada. El equipo de DYMMSA la recibirá de inmediato.
+              </p>
+            </div>
+            <div className="flex justify-center gap-8 pt-2">
               <div className="text-center">
-                <p className="text-2xl font-bold text-muted-foreground">{notApprovedCount}</p>
-                <p className="text-xs text-muted-foreground">No aprobados</p>
+                <p className="text-3xl font-bold text-green-600">{approvedCount}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Aprobados</p>
+              </div>
+              <div className="w-px bg-border" />
+              <div className="text-center">
+                <p className="text-3xl font-bold text-slate-400">{notApprovedCount}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">No aprobados</p>
               </div>
             </div>
           </CardContent>
         </Card>
+        <p className="mt-8 text-xs text-slate-400">
+          DYMMSA · Distribuidor autorizado URREA · Morelia, Mich.
+        </p>
       </div>
     )
   }
@@ -137,41 +163,70 @@ export function ApprovalClient({ quotation, token }: Props) {
     quotation.status === 'converted_to_order'
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-
-        {/* Branding */}
-        <div className="text-center space-y-1 pt-4">
-          <h1 className="text-3xl font-bold tracking-tight">DYMMSA</h1>
-          <p className="text-sm text-muted-foreground">Cotización para aprobación</p>
+    <div
+      className="min-h-screen bg-slate-100"
+      style={{
+        backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)',
+        backgroundSize: '22px 22px',
+      }}
+    >
+      {/* Top header bar */}
+      <header className="bg-white border-b border-slate-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Image
+              src="/dymmsa-logo.webp"
+              alt="DYMMSA"
+              width={120}
+              height={48}
+              className="object-contain"
+              priority
+            />
+            <div className="hidden sm:block w-px h-8 bg-slate-200" />
+            <div className="hidden sm:block">
+              <p className="text-slate-700 text-sm font-medium leading-tight">Cotización para aprobación</p>
+              <p className="text-slate-400 text-xs">Distribuidor autorizado URREA · Morelia, Mich.</p>
+            </div>
+          </div>
+          <Badge variant="outline" className="border-slate-300 text-slate-500 text-xs">
+            Documento seguro
+          </Badge>
         </div>
+      </header>
 
-        {/* Quotation summary */}
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex-1">
-                <p className="text-xs text-muted-foreground">Cliente</p>
-                <p className="text-xl font-semibold">{quotation.customer_name}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Enviada el{' '}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+        {/* Quotation summary card */}
+        <Card className="shadow-lg border border-slate-200 overflow-hidden border-t-4 border-t-[#A30305]">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
+                  Cliente
+                </p>
+                <p className="text-2xl font-bold tracking-tight truncate">{quotation.customer_name}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Emitida el{' '}
                   {new Date(quotation.created_at).toLocaleDateString('es-MX', {
                     day: '2-digit', month: 'long', year: 'numeric',
                   })}
                 </p>
               </div>
-              <div className="flex gap-8 text-center">
+              <div className="flex gap-8 text-center shrink-0">
                 <div>
-                  <p className="text-xs text-muted-foreground">Productos</p>
-                  <p className="text-2xl font-bold">{quotation.quotation_items.length}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</p>
+                  <p className="text-3xl font-bold tabular-nums">{quotation.quotation_items.length}</p>
                 </div>
                 {quotation.total_amount > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">SubTotal est.</p>
-                    <p className="text-xl font-bold">
-                      ${quotation.total_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
+                  <>
+                    <div className="w-px bg-border" />
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Subtotal est.</p>
+                      <p className="text-2xl font-bold tabular-nums">
+                        ${quotation.total_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -181,14 +236,18 @@ export function ApprovalClient({ quotation, token }: Props) {
         {/* Already-processed banner */}
         {alreadyProcessed && (
           <Card
-            className={
+            className={`shadow-md border-2 ${
               quotation.status === 'approved' || quotation.status === 'converted_to_order'
-                ? 'border-green-300 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
-                : 'border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-800'
-            }
+                ? 'border-green-400 bg-green-50 dark:bg-green-950/20 dark:border-green-700'
+                : 'border-red-400 bg-red-50 dark:bg-red-950/20 dark:border-red-700'
+            }`}
           >
             <CardContent className="pt-4 pb-4 text-center">
-              <p className="font-medium text-sm">
+              <p className={`font-semibold text-sm ${
+                quotation.status === 'approved' || quotation.status === 'converted_to_order'
+                  ? 'text-green-700 dark:text-green-400'
+                  : 'text-red-700 dark:text-red-400'
+              }`}>
                 {quotation.status === 'approved' || quotation.status === 'converted_to_order'
                   ? '✓ Esta cotización ya fue aprobada'
                   : '✗ Esta cotización fue rechazada'}
@@ -197,57 +256,64 @@ export function ApprovalClient({ quotation, token }: Props) {
           </Card>
         )}
 
-        {/* Approved counter (only while editing) */}
+        {/* Approved counter */}
         {isEditable && (
-          <div className="grid grid-cols-2 gap-3">
-            <Card>
-              <CardContent className="pt-3 pb-3 text-center">
-                <p className="text-xs text-muted-foreground">Aprobados</p>
-                <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="shadow-md border border-slate-200">
+              <CardContent className="pt-4 pb-4 text-center">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                  Aprobados
+                </p>
+                <p className="text-3xl font-bold text-green-600 tabular-nums">{approvedCount}</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-3 pb-3 text-center">
-                <p className="text-xs text-muted-foreground">No aprobados</p>
-                <p className="text-2xl font-bold text-muted-foreground">{notApprovedCount}</p>
+            <Card className="shadow-md border border-slate-200">
+              <CardContent className="pt-4 pb-4 text-center">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                  No aprobados
+                </p>
+                <p className="text-3xl font-bold text-slate-400 tabular-nums">{notApprovedCount}</p>
               </CardContent>
             </Card>
           </div>
         )}
 
         {/* Products table */}
-        <Card>
-          <CardHeader>
+        <Card className="shadow-lg border border-slate-200 overflow-hidden">
+          <CardHeader className="border-b border-slate-100">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Productos
+              <CardTitle className="flex items-center gap-2 text-slate-800">
+                <Package className="h-5 w-5 text-slate-600" />
+                Productos de la cotización
               </CardTitle>
               {isEditable && (
-                <Button size="sm" variant="outline" onClick={handleApproveAll}>
+                <Button size="sm" variant="outline" onClick={handleApproveAll}
+                  className="border-slate-300 hover:bg-slate-100">
                   <CheckSquare className="h-4 w-4 mr-1.5" />
                   Aprobar todos
                 </Button>
               )}
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-md border">
+          <CardContent className="p-4">
+            <div className="overflow-x-auto rounded-md border border-slate-100">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>ETM</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Marca</TableHead>
-                    <TableHead className="text-right">Precio unit.</TableHead>
-                    <TableHead className="text-right">Cant.</TableHead>
-                    <TableHead className="text-right">Subtotal</TableHead>
-                    <TableHead className="text-center min-w-[140px]">Aprobación</TableHead>
+                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableHead className="font-semibold text-slate-600">ETM</TableHead>
+                    <TableHead className="font-semibold text-slate-600">Descripción</TableHead>
+                    <TableHead className="font-semibold text-slate-600">Código</TableHead>
+                    <TableHead className="font-semibold text-slate-600">Marca</TableHead>
+                    <TableHead className="text-right font-semibold text-slate-600">Precio unit.</TableHead>
+                    <TableHead className="text-right font-semibold text-slate-600">Cant.</TableHead>
+                    <TableHead className="text-right font-semibold text-slate-600">Subtotal</TableHead>
+                    <TableHead className="text-center font-semibold text-slate-600 min-w-[140px]">
+                      Aprobación
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {quotation.quotation_items.map((item) => {
+                  {quotation.quotation_items.map((item, index) => {
                     const dec      = decisions.find((d) => d.item_id === item.id)
                     const approved = dec?.is_approved ?? false
                     const subtotal =
@@ -255,18 +321,21 @@ export function ApprovalClient({ quotation, token }: Props) {
                         ? item.unit_price * item.quantity
                         : null
 
-                    const rowClass = isEditable && approved
-                      ? 'bg-green-50 dark:bg-green-950/20'
-                      : ''
-
                     return (
-                      <TableRow key={item.id} className={`border-b border-border/60 ${rowClass}`}>
-                        <TableCell className="font-mono text-xs font-medium">
+                      <TableRow
+                        key={item.id}
+                        className={`transition-colors border-b border-slate-100 ${
+                          isEditable && approved
+                            ? 'bg-green-50/70 hover:bg-green-50 dark:bg-green-950/20'
+                            : index % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-50/80'
+                        }`}
+                      >
+                        <TableCell className="font-mono text-xs font-semibold text-slate-600">
                           {item.etm || '—'}
                         </TableCell>
                         <TableCell className="max-w-52">
                           {item.description ? (
-                            <span className="truncate block" title={item.description}>
+                            <span className="truncate block font-medium" title={item.description}>
                               {item.description}
                             </span>
                           ) : item.description_es ? (
@@ -277,24 +346,26 @@ export function ApprovalClient({ quotation, token }: Props) {
                             <span className="text-muted-foreground text-xs italic">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="font-mono text-xs">
+                        <TableCell className="font-mono text-xs text-slate-500">
                           {item.model_code || <span className="text-muted-foreground">—</span>}
                         </TableCell>
-                        <TableCell>
-                          {item.brand || <span className="text-muted-foreground">—</span>}
+                        <TableCell className="text-sm">
+                          {item.brand
+                            ? <span className="font-medium">{item.brand}</span>
+                            : <span className="text-muted-foreground">—</span>}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-right tabular-nums text-sm">
                           {item.unit_price != null
                             ? `$${item.unit_price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
                             : <span className="text-muted-foreground">—</span>}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-right tabular-nums text-sm font-medium">
                           {item.quantity ?? <span className="text-muted-foreground">—</span>}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">
+                        <TableCell className="text-right tabular-nums font-semibold text-sm">
                           {subtotal != null
                             ? `$${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
-                            : <span className="text-muted-foreground">—</span>}
+                            : <span className="text-muted-foreground font-normal">—</span>}
                         </TableCell>
 
                         {/* Approval cell */}
@@ -303,23 +374,23 @@ export function ApprovalClient({ quotation, token }: Props) {
                             <Button
                               size="sm"
                               variant={approved ? 'default' : 'outline'}
-                              className={`h-7 px-3 text-xs ${
+                              className={`h-8 px-3 text-xs font-semibold transition-all ${
                                 approved
-                                  ? 'bg-green-600 hover:bg-green-700 border-green-600'
-                                  : 'hover:border-green-500 hover:text-green-700'
+                                  ? 'bg-green-600 hover:bg-green-700 border-green-600 shadow-sm'
+                                  : 'border-slate-300 hover:border-green-500 hover:text-green-700 hover:bg-green-50'
                               }`}
                               onClick={() => toggleDecision(item.id)}
                             >
-                              <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                              <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                               {approved ? 'Aprobado' : 'Aprobar'}
                             </Button>
                           ) : (
                             item.is_approved === true ? (
-                              <Badge className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400">
+                              <Badge className="bg-green-100 text-green-800 border border-green-300 dark:bg-green-900/30 dark:text-green-400">
                                 <CheckCircle className="h-3 w-3 mr-1" /> Aprobado
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-muted-foreground">
+                              <Badge variant="outline" className="text-muted-foreground border-slate-300">
                                 <XCircle className="h-3 w-3 mr-1" /> No aprobado
                               </Badge>
                             )
@@ -333,14 +404,14 @@ export function ApprovalClient({ quotation, token }: Props) {
                 {/* Approved subtotal footer */}
                 {isEditable && approvedTotal > 0 && (
                   <TableFooter>
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-right font-bold">
+                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                      <TableCell colSpan={6} className="text-right font-bold text-slate-600">
                         Total aprobado:
                       </TableCell>
-                      <TableCell className="text-right font-bold">
+                      <TableCell className="text-right font-bold text-slate-800 tabular-nums">
                         ${approvedTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                       </TableCell>
-                      <TableCell />
+                      <TableCell className="bg-slate-50" />
                     </TableRow>
                   </TableFooter>
                 )}
@@ -351,7 +422,7 @@ export function ApprovalClient({ quotation, token }: Props) {
 
         {/* Submit */}
         {isEditable && (
-          <div className="flex items-center justify-end gap-4 pb-8">
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-4 pb-4">
             <p className="text-sm text-muted-foreground">
               {approvedCount === 0
                 ? 'Selecciona al menos un producto para aprobar'
@@ -360,7 +431,8 @@ export function ApprovalClient({ quotation, token }: Props) {
             <Button
               size="lg"
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || approvedCount === 0}
+              className="shadow-md px-8"
             >
               {isSubmitting ? (
                 <>
@@ -376,6 +448,13 @@ export function ApprovalClient({ quotation, token }: Props) {
             </Button>
           </div>
         )}
+
+        {/* Footer */}
+        <div className="text-center pb-8 pt-2">
+          <p className="text-xs text-slate-400">
+            DYMMSA · Distribuidor autorizado URREA · Morelia, Michoacán · México
+          </p>
+        </div>
 
       </div>
     </div>
