@@ -179,6 +179,7 @@ export interface QuotationItem {
   quantity: number | null
   is_approved: boolean | null
   notes: string | null
+  delivery_time: DeliveryTime | null
   created_at: string
 }
 
@@ -196,6 +197,7 @@ export interface QuotationItemRow {
   brand: string
   unit_price: number | null
   quantity: number | null
+  delivery_time: DeliveryTime
   _inDb: boolean     // true if ETM was matched in etm_products
 }
 
