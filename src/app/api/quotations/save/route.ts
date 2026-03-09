@@ -174,6 +174,7 @@ export async function POST(request: NextRequest) {
       brand:          item.brand          || null,
       unit_price:     item.unit_price,
       quantity:       item.quantity,
+      delivery_time:  item.delivery_time  ?? 'immediate',
       is_approved:    null,
     }))
 
