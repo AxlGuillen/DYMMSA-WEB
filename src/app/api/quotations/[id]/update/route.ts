@@ -78,9 +78,13 @@ export async function PATCH(
       return NextResponse.json({ message: 'Cotización no encontrada' }, { status: 404 })
     }
 
-    if (quotation.status !== 'draft' && quotation.status !== 'approved') {
+    if (
+      quotation.status !== 'draft' &&
+      quotation.status !== 'sent_for_approval' &&
+      quotation.status !== 'approved'
+    ) {
       return NextResponse.json(
-        { message: 'Solo se pueden editar cotizaciones en borrador o aprobadas' },
+        { message: 'Solo se pueden editar cotizaciones en borrador, en aprobación o aprobadas' },
         { status: 400 }
       )
     }
