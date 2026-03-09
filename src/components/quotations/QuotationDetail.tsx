@@ -50,7 +50,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { QuotationStatusBadge } from './QuotationStatusBadge'
-import { ProductModal } from '@/components/quoter/ProductModal'
+import { ProductModal, DELIVERY_TIME_LABELS } from '@/components/quoter/ProductModal'
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow } from '@/types/database'
 
@@ -67,6 +67,7 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   brand:          item.brand          ?? '',
   unit_price:     item.unit_price,
   quantity:       item.quantity,
+  delivery_time:  item.delivery_time ?? 'immediate',
   _inDb:          !!(item.model_code || item.description),
 })
 
@@ -114,8 +115,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const isApproved         = quotation.status === 'approved'
   const isConvertedToOrder = quotation.status === 'converted_to_order'
 
-  // DYMMSA can edit both draft and approved quotations (internal approval for new items)
-  const canEdit = isDraft || isApproved
+  // DYMMSA can edit draft, in-approval and approved quotations
+  const canEdit = isDraft || isSentForApproval || isApproved
 
   // Keep local state in sync if quotation data reloads
   useEffect(() => {
@@ -453,7 +454,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 <CardDescription>
                   {isDraft
                     ? 'Agrega, edita o elimina productos antes de enviar a aprobación'
-                    : 'Agrega o edita productos — los nuevos quedan aprobados automáticamente'}
+                    : isSentForApproval
+                      ? 'Puedes editar precio, cantidad y entrega mientras el cliente revisa'
+                      : 'Agrega o edita productos — los nuevos quedan aprobados automáticamente'}
                 </CardDescription>
               )}
             </div>
@@ -477,6 +480,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   <TableHead className="text-right">Precio unit.</TableHead>
                   <TableHead className="text-right">Cant.</TableHead>
                   <TableHead className="text-right">Subtotal</TableHead>
+                  <TableHead>Entrega</TableHead>
                   {(isApproved || isSentForApproval) && (
                     <TableHead className="text-center">Aprobación</TableHead>
                   )}
@@ -511,6 +515,11 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                     <TableCell className="text-right tabular-nums font-medium">
                       {item.unit_price != null && item.quantity != null
                         ? `$${(item.unit_price * item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                        : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {item.delivery_time
+                        ? DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'
                         : <span className="text-muted-foreground">—</span>}
                     </TableCell>
 
@@ -553,19 +562,13 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               {partialTotal > 0 && (
                 <TableFooter>
                   <TableRow>
-                    <TableCell
-                      colSpan={
-                        6 +
-                        ((isApproved || isSentForApproval) ? 1 : 0) +
-                        (canEdit ? 1 : 0)
-                      }
-                      className="text-right font-bold"
-                    >
-                      Total:
-                    </TableCell>
+                    <TableCell colSpan={6} className="text-right font-bold">Total:</TableCell>
                     <TableCell className="text-right font-bold">
                       ${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </TableCell>
+                    <TableCell /> {/* Entrega */}
+                    {(isApproved || isSentForApproval) && <TableCell />}
+                    {canEdit && <TableCell />}
                   </TableRow>
                 </TableFooter>
               )}
