@@ -13,7 +13,23 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import type { QuotationItemRow } from '@/types/database'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import type { QuotationItemRow, DeliveryTime } from '@/types/database'
+
+export const DELIVERY_TIME_LABELS: Record<DeliveryTime, string> = {
+  immediate: 'Inmediato',
+  '2_3_days': '2 a 3 días',
+  '3_5_days': '3 a 5 días',
+  '1_week':   '1 semana',
+  '2_weeks':  '2 semanas',
+  indefinite: 'Indefinido',
+}
 
 interface ProductModalProps {
   mode: 'edit' | 'create'
@@ -31,6 +47,7 @@ interface FormValues {
   brand: string
   unit_price: string
   quantity: string
+  delivery_time: DeliveryTime
 }
 
 export function ProductModal({
@@ -44,8 +61,12 @@ export function ProductModal({
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>()
+
+  const deliveryTimeValue = watch('delivery_time')
 
   useEffect(() => {
     if (open) {
@@ -57,6 +78,7 @@ export function ProductModal({
         brand:          item?.brand          ?? '',
         unit_price:     item?.unit_price != null ? String(item.unit_price) : '',
         quantity:       item?.quantity    != null ? String(item.quantity)   : '',
+        delivery_time:  item?.delivery_time  ?? 'immediate',
       })
     }
   }, [open, item, reset])
@@ -71,6 +93,7 @@ export function ProductModal({
         brand:          data.brand.trim(),
         unit_price:     data.unit_price ? parseFloat(data.unit_price) : null,
         quantity:       data.quantity   ? parseInt(data.quantity, 10) : null,
+        delivery_time:  data.delivery_time,
         _inDb:          item?._inDb ?? false,
       },
       item?._id
@@ -175,6 +198,27 @@ export function ProductModal({
                 {...register('quantity')}
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Tiempo de entrega</Label>
+            <Select
+              value={deliveryTimeValue ?? 'immediate'}
+              onValueChange={(val) => setValue('delivery_time', val as DeliveryTime)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar..." />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(DELIVERY_TIME_LABELS) as [DeliveryTime, string][]).map(
+                  ([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
           </div>
 
           <DialogFooter>
