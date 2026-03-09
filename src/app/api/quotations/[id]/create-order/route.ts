@@ -97,6 +97,7 @@ export async function POST(
         quantity_to_order: quantityToOrder,
         quantity_received: 0,
         urrea_status:      'pending',
+        delivery_time:     item.delivery_time  || 'immediate',
         unit_price:        unitPrice,
       })
     }
