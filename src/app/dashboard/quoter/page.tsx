@@ -70,6 +70,7 @@ export default function QuoterPage() {
           brand:          db?.brand          || row.brand,
           unit_price:     row.price          ?? (db?.price ?? null),
           quantity:       row.quantity,
+          delivery_time:  'immediate',
           _inDb:          !!db,
         }
       })
