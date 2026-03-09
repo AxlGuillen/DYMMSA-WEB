@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Plus, Pencil, Trash2, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ProductModal } from './ProductModal'
+import { ProductModal, DELIVERY_TIME_LABELS } from './ProductModal'
 import { useQuotationStore } from '@/stores/quotationStore'
 import type { QuotationItemRow } from '@/types/database'
 
@@ -190,6 +190,7 @@ export function QuotationEditor() {
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">Precio unit.</th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">Cant.</th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">Subtotal</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Entrega</th>
                   <th className="px-4 py-3 text-center font-medium text-muted-foreground">Origen</th>
                   <th className="px-4 py-3 text-center font-medium text-muted-foreground">Acciones</th>
                 </tr>
@@ -237,6 +238,9 @@ export function QuotationEditor() {
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                      {DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {item._inDb ? (
