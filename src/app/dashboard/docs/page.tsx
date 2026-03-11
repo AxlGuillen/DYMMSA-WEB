@@ -15,6 +15,8 @@ import {
   Plus,
   Trash2,
   ExternalLink,
+  Package,
+  Download,
 } from 'lucide-react'
 import {
   Card,
@@ -37,6 +39,7 @@ const sections = [
   { id: 'cotizaciones', label: 'Cotizaciones y Flujo', icon: ClipboardList },
   { id: 'aprobado', label: 'Excel Aprobado (Verdes)', icon: CheckCircle2 },
   { id: 'inventario', label: 'Excel de Inventario', icon: Warehouse },
+  { id: 'ordenes', label: 'Detalle de Orden', icon: Package },
   { id: 'flujo', label: 'Flujo del Sistema', icon: ArrowRight },
 ]
 
@@ -764,7 +767,278 @@ export default function DocsPage() {
         </CardContent>
       </Card>
 
-      {/* Section 5: Flujo del Sistema */}
+      {/* Section 5: Detalle de Orden */}
+      <Card id="ordenes">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Detalle de Orden
+          </CardTitle>
+          <CardDescription>
+            Todo lo que puedes ver y hacer desde la pagina de detalle de una orden de venta.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+
+          {/* Overview */}
+          <div className="space-y-2 text-sm">
+            <p className="text-muted-foreground">
+              La pagina de detalle agrupa toda la informacion y acciones de una orden desde que se genera
+              hasta su cierre. El nivel de edicion disponible depende del estado actual de la orden.
+            </p>
+          </div>
+
+          {/* Encabezado y acciones globales */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base">Encabezado y acciones globales</p>
+            <p className="text-muted-foreground">El encabezado muestra el nombre del cliente, ID de orden, fecha de creacion y el estado actual. Desde ahi puedes:</p>
+            <ul className="ml-4 list-disc space-y-1.5 text-muted-foreground">
+              <li>
+                <strong className="text-foreground">Cambiar estado</strong> — dropdown con los 5 estados activos.
+                Disponible en cualquier estado excepto <em>Cancelado</em>.
+              </li>
+              <li>
+                <strong className="text-foreground">Descargar Pedido URREA</strong>{' '}
+                <span className="inline-flex items-center gap-1">(<Download className="h-3 w-3" /></span>) — aparece unicamente cuando
+                hay productos con cantidad a pedir &gt; 0. Genera un Excel con{' '}
+                <code className="rounded bg-muted px-1">model_code</code> +{' '}
+                <code className="rounded bg-muted px-1">quantity</code> solo para items de marca{' '}
+                <strong>URREA</strong>. Los de otras marcas se excluyen con una notificacion.
+              </li>
+              <li>
+                <strong className="text-foreground">Cancelar Orden</strong> — disponible mientras la orden no este
+                Completada ni Cancelada. Al confirmar, <strong>restaura automaticamente el inventario</strong> apartado
+                al cancelar.
+              </li>
+            </ul>
+          </div>
+
+          {/* Resumen */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base">Resumen (4 tarjetas)</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tarjeta</TableHead>
+                  <TableHead>Que muestra</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="font-medium">Productos</TableCell>
+                  <TableCell className="text-muted-foreground">Total de items distintos en la orden.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium text-blue-600 dark:text-blue-400">En Stock</TableCell>
+                  <TableCell className="text-muted-foreground">Suma de <code className="rounded bg-muted px-1">quantity_in_stock</code> — unidades apartadas del inventario de tienda al crear la orden.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium text-orange-600 dark:text-orange-400">A Pedir URREA</TableCell>
+                  <TableCell className="text-muted-foreground">Suma de <code className="rounded bg-muted px-1">quantity_to_order</code> — unidades que hay que pedir al proveedor.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium text-green-600 dark:text-green-400">Total</TableCell>
+                  <TableCell className="text-muted-foreground">Monto total de la orden. Se recalcula al confirmar recepcion (excluye items no surtidos).</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Tabla de productos */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base">Columnas de la tabla de productos</p>
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Columna</TableHead>
+                    <TableHead>Editable</TableHead>
+                    <TableHead>Notas</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[
+                    { col: 'ETM', editable: 'No', note: 'Codigo ETM del producto.' },
+                    { col: 'Model Code', editable: 'No', note: 'Codigo URREA.' },
+                    { col: 'Marca', editable: 'No', note: 'Brand del producto.' },
+                    { col: 'Descripcion', editable: 'No', note: 'Descripcion del producto.' },
+                    { col: 'Aprobados', editable: 'No', note: 'Cantidad que el cliente aprobo. Fijo desde la cotizacion.' },
+                    { col: 'En Stock (azul)', editable: 'No', note: 'Unidades apartadas del inventario de tienda al crear la orden.' },
+                    { col: 'A Pedir (naranja)', editable: 'No', note: 'Unidades a solicitar a URREA. En Stock + A Pedir = Aprobados.' },
+                    { col: 'Recibidos', editable: 'Si*', note: 'Editable solo si el item tiene A Pedir > 0 y la orden esta abierta. Se ingresa cuanto llego de URREA.' },
+                    { col: 'Estado URREA', editable: 'Si*', note: 'Editable en las mismas condiciones que Recibidos. Opciones: Pendiente / Surtido / No surtido. Si A Pedir = 0, muestra "En stock" (fijo).' },
+                    { col: 'Tiempo de Entrega', editable: 'Si**', note: 'Editable en cualquier item mientras la orden este abierta. Opciones: Inmediato / 2-3 dias / 3-5 dias / 1 semana / 2 semanas / Indefinido.' },
+                    { col: 'Precio', editable: 'Si**', note: 'Editable inline con el icono lapiz. Guardar con Enter o con el boton de confirmacion. Recalcula el total de la orden.' },
+                    { col: 'Total fila', editable: 'No', note: 'Calculado: (En Stock + Recibidos si no es No surtido) × Precio.' },
+                  ].map((row) => (
+                    <TableRow key={row.col}>
+                      <TableCell className="font-medium whitespace-nowrap">{row.col}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {row.editable === 'No'
+                          ? <span className="text-muted-foreground/60">—</span>
+                          : <span className="text-green-600 dark:text-green-400 font-medium">{row.editable}</span>
+                        }
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{row.note}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <strong>*</strong> Solo cuando la orden no esta Completada ni Cancelada, y el item tiene{' '}
+              <code className="rounded bg-muted px-1">quantity_to_order &gt; 0</code>.{' '}
+              <strong>**</strong> Solo cuando la orden no esta Completada ni Cancelada.
+            </p>
+          </div>
+
+          {/* Acciones por producto */}
+          <div className="space-y-3 text-sm">
+            <p className="font-medium text-base">Acciones sobre productos individuales</p>
+            <p className="text-muted-foreground text-xs mb-1">Disponibles solo cuando la orden no esta Completada ni Cancelada.</p>
+            <div className="space-y-3">
+              <div className="rounded-md border px-4 py-3 space-y-1">
+                <p className="font-medium flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> Agregar producto</p>
+                <p className="text-xs text-muted-foreground">
+                  Abre un dialogo para ingresar ETM, codigo de modelo, descripcion, marca, precio y cantidad.
+                  El sistema verifica el inventario de tienda y calcula automaticamente cuanto va a stock y cuanto
+                  hay que pedir a URREA. El inventario se deduce de inmediato.
+                </p>
+              </div>
+              <div className="rounded-md border px-4 py-3 space-y-1">
+                <p className="font-medium flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" /> Editar precio</p>
+                <p className="text-xs text-muted-foreground">
+                  Icono lapiz en la columna Acciones de cada fila. Abre un input inline; confirmar con Enter
+                  o el boton de check, cancelar con Escape o la X. Al guardar, el{' '}
+                  <code className="rounded bg-muted px-1">total_amount</code> de la orden se recalcula automaticamente.
+                </p>
+              </div>
+              <div className="rounded-md border px-4 py-3 space-y-1">
+                <p className="font-medium flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" /> Eliminar producto</p>
+                <p className="text-xs text-muted-foreground">
+                  Icono papelera con dialogo de confirmacion. Al eliminar, la cantidad que estaba apartada en stock
+                  (<code className="rounded bg-muted px-1">quantity_in_stock</code> del item) se devuelve automaticamente
+                  al inventario de la tienda.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Confirmar recepcion */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              Confirmar Recepcion
+            </p>
+            <p className="text-muted-foreground">
+              El boton <strong>&ldquo;Confirmar Recepcion&rdquo;</strong> aparece automaticamente en cuanto editas
+              la cantidad recibida o el estado URREA de cualquier item. Al confirmar ocurre lo siguiente:
+            </p>
+            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+              <li>La <strong>cantidad recibida</strong> de cada item se suma al inventario de tienda.</li>
+              <li>El <strong>estado URREA</strong> de cada item se actualiza (Surtido / No surtido / Pendiente).</li>
+              <li>El <strong>total de la orden</strong> se recalcula excluyendo los items marcados como No surtido.</li>
+            </ul>
+          </div>
+
+          {/* Estados */}
+          <div className="space-y-3 text-sm">
+            <p className="font-medium text-base">Estados de la orden</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-full border px-2.5 py-0.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 font-medium">Pendiente URREA</span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="rounded-full border px-2.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium">Recibido URREA</span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="rounded-full border px-2.5 py-0.5 bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300 font-medium">Pendiente Pago</span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="rounded-full border px-2.5 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 font-medium">Pagado</span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="rounded-full border px-2.5 py-0.5 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 font-medium">Completado</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Desde cualquier estado activo (excepto Completado) tambien se puede pasar a{' '}
+              <span className="rounded-full border px-2 py-0.5 bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-medium text-xs">Cancelado</span>{' '}
+              usando el boton de cancelar, lo que restaura el inventario apartado.
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Que indica</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[
+                  { status: 'Pendiente URREA', color: 'text-yellow-700 dark:text-yellow-300', desc: 'Orden creada. Se genero el Excel de pedido pero aun no se han recibido productos de URREA.' },
+                  { status: 'Recibido URREA', color: 'text-blue-700 dark:text-blue-300', desc: 'Los productos de URREA llegaron. Se registro la recepcion y el inventario ya fue actualizado.' },
+                  { status: 'Pendiente Pago', color: 'text-orange-700 dark:text-orange-300', desc: 'Los productos estan listos para entrega. Se espera el pago del cliente.' },
+                  { status: 'Pagado', color: 'text-emerald-700 dark:text-emerald-300', desc: 'El cliente realizo el pago. Pendiente de confirmar la entrega fisica.' },
+                  { status: 'Completado', color: 'text-green-700 dark:text-green-300', desc: 'Entrega confirmada. La orden esta cerrada y ya no permite modificaciones.' },
+                  { status: 'Cancelado', color: 'text-red-700 dark:text-red-300', desc: 'Orden cancelada. El inventario apartado fue restaurado automaticamente.' },
+                ].map((row) => (
+                  <TableRow key={row.status}>
+                    <TableCell className={`font-medium whitespace-nowrap ${row.color}`}>{row.status}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs">{row.desc}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Capacidades por estado */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base">Que puedes hacer en cada estado</p>
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Accion</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Pend. URREA</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Recibido URREA</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Pend. Pago</TableHead>
+                    <TableHead className="text-center">Pagado</TableHead>
+                    <TableHead className="text-center">Completado</TableHead>
+                    <TableHead className="text-center">Cancelado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[
+                    { action: 'Ver detalle de la orden', vals: [true, true, true, true, true, true] },
+                    { action: 'Cambiar estado', vals: [true, true, true, true, false, false] },
+                    { action: 'Descargar Excel URREA', vals: [true, true, true, true, true, true] },
+                    { action: 'Cancelar orden', vals: [true, true, true, true, false, false] },
+                    { action: 'Agregar producto', vals: [true, true, true, true, false, false] },
+                    { action: 'Editar precio', vals: [true, true, true, true, false, false] },
+                    { action: 'Eliminar producto', vals: [true, true, true, true, false, false] },
+                    { action: 'Editar cantidad recibida / estado URREA', vals: [true, true, true, true, false, false] },
+                    { action: 'Confirmar recepcion', vals: [true, true, true, true, false, false] },
+                    { action: 'Editar tiempo de entrega', vals: [true, true, true, true, false, false] },
+                  ].map((row) => (
+                    <TableRow key={row.action}>
+                      <TableCell className="text-sm whitespace-nowrap">{row.action}</TableCell>
+                      {row.vals.map((v, i) => (
+                        <TableCell key={i} className="text-center">
+                          {v
+                            ? <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
+                            : <span className="text-muted-foreground/40">—</span>
+                          }
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              La descarga del Excel URREA siempre esta disponible, pero el boton solo aparece si hay
+              items con cantidad a pedir &gt; 0.
+            </p>
+          </div>
+
+        </CardContent>
+      </Card>
+
+      {/* Section 6: Flujo del Sistema */}
       <Card id="flujo">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
