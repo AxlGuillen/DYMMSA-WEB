@@ -8,6 +8,13 @@ import {
   ArrowRight,
   ArrowDown,
   BookOpen,
+  ClipboardList,
+  Send,
+  Brain,
+  Pencil,
+  Plus,
+  Trash2,
+  ExternalLink,
 } from 'lucide-react'
 import {
   Card,
@@ -27,6 +34,7 @@ import {
 
 const sections = [
   { id: 'cotizar', label: 'Excel para Cotizar', icon: FileSpreadsheet },
+  { id: 'cotizaciones', label: 'Cotizaciones y Flujo', icon: ClipboardList },
   { id: 'aprobado', label: 'Excel Aprobado (Verdes)', icon: CheckCircle2 },
   { id: 'inventario', label: 'Excel de Inventario', icon: Warehouse },
   { id: 'flujo', label: 'Flujo del Sistema', icon: ArrowRight },
@@ -258,7 +266,188 @@ export default function DocsPage() {
         </CardContent>
       </Card>
 
-      {/* Section 2: Excel Aprobado (Filas Verdes) */}
+      {/* Section 2: Cotizaciones y Flujo */}
+      <Card id="cotizaciones">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardList className="h-5 w-5" />
+            Cotizaciones y Flujo
+          </CardTitle>
+          <CardDescription>
+            Como crear, gestionar y aprobar cotizaciones, y que puedes hacer en cada etapa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+
+          {/* Crear cotizacion */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base">Crear una cotizacion</p>
+            <p className="text-muted-foreground">
+              Desde el <strong>Cotizador</strong> puedes iniciar una nueva cotizacion de dos formas:
+            </p>
+            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+              <li>
+                <strong>Subiendo el Excel del cliente</strong> — el sistema extrae los ETMs y columnas reconocidas
+                y pre-rellena la tabla automaticamente (ver seccion anterior).
+              </li>
+              <li>
+                <strong>Agregando productos manualmente</strong> — usa el boton &ldquo;Agregar producto&rdquo;
+                para abrir el modal e ingresar los datos a mano, sin necesitar un Excel.
+              </li>
+            </ul>
+            <p className="text-muted-foreground">
+              La tabla es completamente editable: puedes modificar cualquier campo de cualquier fila (descripcion,
+              modelo, precio, cantidad, marca) usando el modal de edicion por producto. El estado de la
+              tabla se guarda localmente mientras trabajas, por lo que puedes recargar la pagina sin perder
+              el avance.
+            </p>
+          </div>
+
+          {/* Guardar */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base flex items-center gap-2">
+              <Brain className="h-4 w-4 text-muted-foreground" />
+              Guardar y auto-aprendizaje
+            </p>
+            <p className="text-muted-foreground">
+              Al hacer clic en <strong>&ldquo;Guardar cotizacion&rdquo;</strong> ocurren dos cosas en paralelo:
+            </p>
+            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+              <li>
+                Se crea el registro de cotizacion en la base de datos con todos sus productos (estado: <strong>Borrador</strong>).
+              </li>
+              <li>
+                El sistema actualiza el catalogo de productos de forma automatica: si el ETM es nuevo lo inserta,
+                y si ya existe pero los datos cambiaron (precio, marca, descripcion) los actualiza. Esto mantiene
+                la base de datos siempre al dia sin trabajo manual.
+              </li>
+            </ul>
+          </div>
+
+          {/* Estados */}
+          <div className="space-y-3 text-sm">
+            <p className="font-medium text-base">Estados de una cotizacion</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-full border px-2.5 py-0.5 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 font-medium">Borrador</span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="rounded-full border px-2.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium">En aprobacion</span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border px-2.5 py-0.5 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 font-medium">Aprobada</span>
+                <span className="text-muted-foreground">/</span>
+                <span className="rounded-full border px-2.5 py-0.5 bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-medium">Rechazada</span>
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="rounded-full border px-2.5 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 font-medium">Convertida a orden</span>
+            </div>
+            <div className="space-y-1 text-muted-foreground">
+              <p><strong className="text-foreground">Borrador</strong> — cotizacion en construccion, aun no enviada al cliente.</p>
+              <p><strong className="text-foreground">En aprobacion</strong> — se genero el link y se compartio con el cliente. Esperando su decision.</p>
+              <p><strong className="text-foreground">Aprobada</strong> — el cliente aprobo al menos un producto. Lista para generar una orden.</p>
+              <p><strong className="text-foreground">Rechazada</strong> — el cliente rechazo todos los productos.</p>
+              <p><strong className="text-foreground">Convertida a orden</strong> — ya se genero la orden de venta a partir de esta cotizacion.</p>
+            </div>
+          </div>
+
+          {/* Capacidades por estado */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base">Que puedes hacer en cada estado</p>
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Accion</TableHead>
+                    <TableHead className="text-center">Borrador</TableHead>
+                    <TableHead className="text-center">En aprobacion</TableHead>
+                    <TableHead className="text-center">Aprobada</TableHead>
+                    <TableHead className="text-center">Rechazada</TableHead>
+                    <TableHead className="text-center">Convertida</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[
+                    {
+                      action: 'Ver cotizacion y productos',
+                      icon: null,
+                      draft: true, approval: true, approved: true, rejected: true, converted: true,
+                    },
+                    {
+                      action: 'Editar campos de un producto',
+                      icon: <Pencil className="h-3.5 w-3.5 inline mr-1" />,
+                      draft: true, approval: false, approved: true, rejected: false, converted: false,
+                    },
+                    {
+                      action: 'Agregar producto',
+                      icon: <Plus className="h-3.5 w-3.5 inline mr-1" />,
+                      draft: true, approval: false, approved: true, rejected: false, converted: false,
+                    },
+                    {
+                      action: 'Eliminar producto',
+                      icon: <Trash2 className="h-3.5 w-3.5 inline mr-1" />,
+                      draft: true, approval: false, approved: true, rejected: false, converted: false,
+                    },
+                    {
+                      action: 'Enviar a aprobacion',
+                      icon: <Send className="h-3.5 w-3.5 inline mr-1" />,
+                      draft: true, approval: false, approved: false, rejected: false, converted: false,
+                    },
+                    {
+                      action: 'Crear orden de venta',
+                      icon: null,
+                      draft: false, approval: false, approved: true, rejected: false, converted: false,
+                    },
+                    {
+                      action: 'Ver orden vinculada',
+                      icon: null,
+                      draft: false, approval: false, approved: false, rejected: false, converted: true,
+                    },
+                  ].map((row) => (
+                    <TableRow key={row.action}>
+                      <TableCell className="text-sm">
+                        {row.icon}{row.action}
+                      </TableCell>
+                      {([row.draft, row.approval, row.approved, row.rejected, row.converted] as boolean[]).map((val, i) => (
+                        <TableCell key={i} className="text-center">
+                          {val
+                            ? <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
+                            : <span className="text-muted-foreground/40">—</span>
+                          }
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Los productos agregados en estado <strong>Aprobada</strong> entran directamente con aprobacion interna
+              (sin pasar por el cliente), util cuando DYMMSA necesita ajustar la cotizacion post-aprobacion.
+            </p>
+          </div>
+
+          {/* Aprobacion por link */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base flex items-center gap-2">
+              <ExternalLink className="h-4 w-4 text-muted-foreground" />
+              Aprobacion por link
+            </p>
+            <p className="text-muted-foreground">
+              Al enviar a aprobacion, el sistema genera un <strong>link unico</strong> (token) que puedes
+              compartir con el cliente por WhatsApp, correo o cualquier medio. El cliente accede sin
+              necesidad de crear una cuenta.
+            </p>
+            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+              <li>El cliente puede aprobar o rechazar <strong>cada producto de forma independiente</strong> (aprobacion parcial).</li>
+              <li>Hay un boton de <strong>&ldquo;Aprobar todo&rdquo;</strong> para confirmar todos los productos de una vez.</li>
+              <li>Una vez enviada la decision, la pagina muestra el estado actual y no permite re-aprobar.</li>
+              <li>Tu ves en tiempo real que productos fueron aprobados y cuales rechazados desde el detalle de la cotizacion.</li>
+            </ul>
+          </div>
+
+        </CardContent>
+      </Card>
+
+      {/* Section 3: Excel Aprobado (Filas Verdes) */}
       <Card id="aprobado">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
