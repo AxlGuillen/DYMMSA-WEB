@@ -40,54 +40,169 @@ const sections = [
   { id: 'flujo', label: 'Flujo del Sistema', icon: ArrowRight },
 ]
 
-const flowSteps = [
+type VariantColor = 'green' | 'amber' | 'red' | 'blue'
+
+type FlowVariant = {
+  label: string
+  description: string
+  color: VariantColor
+  endsFlow?: boolean
+}
+
+type FlowStep = {
+  number: number
+  title: string
+  description: string
+  variants?: FlowVariant[]
+}
+
+const variantBorderBg: Record<VariantColor, string> = {
+  green: 'border-l-2 border-l-green-400 bg-green-50 dark:border-l-green-700 dark:bg-green-950/20',
+  amber: 'border-l-2 border-l-amber-400 bg-amber-50 dark:border-l-amber-700 dark:bg-amber-950/20',
+  red:   'border-l-2 border-l-red-400 bg-red-50 dark:border-l-red-700 dark:bg-red-950/20',
+  blue:  'border-l-2 border-l-blue-400 bg-blue-50 dark:border-l-blue-700 dark:bg-blue-950/20',
+}
+
+const variantBadge: Record<VariantColor, string> = {
+  green: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+  amber: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300',
+  red:   'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
+  blue:  'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
+}
+
+const flowSteps: FlowStep[] = [
   {
     number: 1,
-    title: 'Subir Excel con ETMs',
-    description:
-      'Sube el archivo Excel del cliente con codigos ETM. El sistema genera una cotizacion automaticamente.',
+    title: 'Crear la cotizacion',
+    description: 'Ingresa los productos a cotizar desde el Cotizador.',
+    variants: [
+      {
+        label: 'Subiendo Excel del cliente',
+        description: 'Sube el Excel con ETMs. El sistema extrae y pre-rellena automaticamente todos los campos reconocidos.',
+        color: 'blue',
+      },
+      {
+        label: 'Manualmente',
+        description: 'Agrega productos uno a uno con el modal de producto, sin necesitar un archivo.',
+        color: 'blue',
+      },
+    ],
   },
   {
     number: 2,
-    title: 'Cliente aprueba productos',
-    description:
-      'El cliente marca las filas de los productos aprobados en color verde en el Excel.',
+    title: 'Revisar, editar y guardar',
+    description: 'Ajusta la tabla (precios, cantidades, descripciones), agrega o elimina filas. Al guardar, la cotizacion queda en BD y el catalogo de productos se actualiza automaticamente con los datos ingresados.',
   },
   {
     number: 3,
-    title: 'Subir Excel aprobado',
-    description:
-      'Sube el Excel con las filas verdes. El sistema detecta automaticamente los productos aprobados.',
+    title: 'Enviar a aprobacion',
+    description: 'El sistema genera un link unico (token) que puedes compartir con el cliente por WhatsApp o correo. La cotizacion pasa a estado En aprobacion.',
   },
   {
     number: 4,
-    title: 'Verificacion de stock y creacion de orden',
-    description:
-      'El sistema verifica el inventario de la tienda, aparta stock disponible y calcula lo que falta pedir a URREA.',
+    title: 'Respuesta del cliente',
+    description: 'El cliente accede al link sin necesidad de cuenta y decide sobre cada producto de forma individual.',
+    variants: [
+      {
+        label: 'Aprueba todos',
+        description: 'Cotizacion pasa a Aprobada. Todos los productos estan disponibles para generar la orden.',
+        color: 'green',
+      },
+      {
+        label: 'Aprueba algunos (parcial)',
+        description: 'Cotizacion pasa a Aprobada. Solo los productos marcados como aprobados entran a la orden; los rechazados se ignoran.',
+        color: 'amber',
+      },
+      {
+        label: 'Rechaza todos',
+        description: 'Cotizacion marcada como Rechazada. No se genera orden. El flujo termina aqui.',
+        color: 'red',
+        endsFlow: true,
+      },
+    ],
   },
   {
     number: 5,
-    title: 'Descargar pedido URREA',
-    description:
-      'Se genera un Excel con los productos faltantes en formato URREA (model_code + quantity) para descargar.',
+    title: 'Crear orden desde la cotizacion aprobada',
+    description: 'El sistema verifica el inventario de la tienda por cada producto aprobado y calcula automaticamente cuanto hay que pedir a URREA.',
+    variants: [
+      {
+        label: 'Stock completo',
+        description: 'El producto esta disponible en tienda. quantity_to_order = 0; no se pide a URREA.',
+        color: 'green',
+      },
+      {
+        label: 'Stock parcial',
+        description: 'Se aparta lo disponible en tienda y se calcula el faltante para pedirlo a URREA.',
+        color: 'amber',
+      },
+      {
+        label: 'Sin stock',
+        description: 'Todo el producto debe pedirse a URREA. quantity_to_order = quantity_approved.',
+        color: 'red',
+      },
+    ],
   },
   {
     number: 6,
-    title: 'Enviar pedido a URREA',
-    description:
-      'Envia el archivo de pedido a URREA por WhatsApp (paso manual, fuera del sistema).',
+    title: 'Pedido a URREA',
+    description: 'Aplica unicamente si hay productos con quantity_to_order > 0.',
+    variants: [
+      {
+        label: 'Hay faltantes URREA',
+        description: 'Descarga el Excel en formato URREA (model_code + quantity) y envialo por WhatsApp. Solo se incluyen productos de marca URREA; otras marcas (Stanley, Truper...) quedan excluidas con una notificacion.',
+        color: 'blue',
+      },
+      {
+        label: 'Todo cubierto con stock',
+        description: 'No hay productos que pedir a URREA. Este paso se omite y la orden avanza directamente a gestion de pago.',
+        color: 'green',
+      },
+    ],
   },
   {
     number: 7,
-    title: 'Recibir productos y confirmar',
-    description:
-      'Cuando llegan los productos de URREA, confirma la recepcion editando cantidades recibidas en la orden.',
+    title: 'Recepcion de productos de URREA',
+    description: 'Cuando llegan los productos, registra la cantidad recibida y el estado por cada item en el detalle de la orden.',
+    variants: [
+      {
+        label: 'URREA surte todo',
+        description: 'Marca cada item como supplied con la cantidad completa y confirma la recepcion.',
+        color: 'green',
+      },
+      {
+        label: 'URREA surte parcial',
+        description: 'Registra la cantidad recibida por item. Los no surtidos se marcan como not_supplied para gestionarlos con el cliente.',
+        color: 'amber',
+      },
+      {
+        label: 'URREA no surte',
+        description: 'Items marcados como not_supplied. Gestionar con el cliente si se consiguen de otra fuente o se cancela esa parte.',
+        color: 'red',
+      },
+    ],
   },
   {
     number: 8,
-    title: 'Completar orden',
-    description:
-      'Cambia el estado de la orden: pago pendiente, pagado, completado. El inventario se actualiza automaticamente.',
+    title: 'Confirmar recepcion',
+    description: 'Al confirmar, el inventario de la tienda se actualiza automaticamente sumando las cantidades recibidas de URREA.',
+  },
+  {
+    number: 9,
+    title: 'Cierre de la orden',
+    description: 'Avanza el estado de la orden hasta completarla o cancelarla.',
+    variants: [
+      {
+        label: 'Completada',
+        description: 'Recibido de URREA → Pago pendiente → Pagado → Completado. Cada transicion actualiza el estado en el sistema.',
+        color: 'green',
+      },
+      {
+        label: 'Cancelada',
+        description: 'Si la orden se cancela en cualquier punto, el inventario apartado se restaura automaticamente.',
+        color: 'red',
+      },
+    ],
   },
 ]
 
@@ -649,7 +764,7 @@ export default function DocsPage() {
         </CardContent>
       </Card>
 
-      {/* Section 4: Flujo del Sistema */}
+      {/* Section 5: Flujo del Sistema */}
       <Card id="flujo">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -657,7 +772,7 @@ export default function DocsPage() {
             Flujo Completo del Sistema
           </CardTitle>
           <CardDescription>
-            Pasos del proceso desde la cotizacion hasta la entrega final.
+            Pasos del proceso desde la cotizacion hasta la entrega final, con todas las variantes posibles en cada etapa.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -665,6 +780,7 @@ export default function DocsPage() {
             {flowSteps.map((step, i) => (
               <div key={step.number}>
                 <div className="flex gap-4">
+                  {/* Step number + connector */}
                   <div className="flex flex-col items-center">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
                       {step.number}
@@ -675,11 +791,37 @@ export default function DocsPage() {
                       </div>
                     )}
                   </div>
-                  <div className="pb-6">
+
+                  {/* Step content */}
+                  <div className="pb-6 flex-1 min-w-0">
                     <p className="font-medium leading-8">{step.title}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mb-2">
                       {step.description}
                     </p>
+
+                    {/* Variants */}
+                    {step.variants && (
+                      <div className="space-y-2">
+                        {step.variants.map((v) => (
+                          <div
+                            key={v.label}
+                            className={`rounded-md pl-3 pr-3 py-2 ${variantBorderBg[v.color]}`}
+                          >
+                            <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${variantBadge[v.color]}`}>
+                                {v.label}
+                              </span>
+                              {v.endsFlow && (
+                                <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                                  — flujo termina aqui
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{v.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
