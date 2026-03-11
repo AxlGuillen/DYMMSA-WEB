@@ -136,47 +136,124 @@ export default function DocsPage() {
           <div className="space-y-2 text-sm">
             <p>
               El archivo debe contener al menos una columna llamada{' '}
-              <strong>ETM</strong> (no importa mayusculas o minusculas).
+              <strong>ETM</strong> (no importa mayusculas o minusculas). El
+              sistema procesa <strong>todas las hojas</strong> del archivo y
+              busca esa columna en cada una.
             </p>
             <p>
-              El sistema procesa <strong>todas las hojas</strong> del archivo y
-              busca la columna ETM en cada una.
-            </p>
-            <p>
-              Las demas columnas son opcionales. El sistema solo necesita los
-              codigos ETM para buscar en la base de datos y generar la
-              cotizacion.
+              Ademas del ETM, el sistema reconoce columnas opcionales que{' '}
+              <strong>pre-rellenan automaticamente la tabla del cotizador</strong>,
+              reduciendo el trabajo manual. Si una columna no esta en el Excel o
+              viene vacia, el campo queda en blanco para llenarlo a mano.
             </p>
           </div>
 
-          <div>
-            <p className="mb-2 text-sm font-medium">Ejemplo:</p>
+          <div className="space-y-2 text-sm">
+            <p className="font-medium">Columnas reconocidas:</p>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ETM</TableHead>
+                  <TableHead>Columna</TableHead>
+                  <TableHead>Obligatoria</TableHead>
                   <TableHead>Descripcion</TableHead>
-                  <TableHead>Cantidad</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell className="font-mono">ETM-12345</TableCell>
-                  <TableCell>Llave combinada 1/2&quot;</TableCell>
-                  <TableCell>10</TableCell>
+                  <TableCell><code className="rounded bg-muted px-1">ETM</code></TableCell>
+                  <TableCell className="font-medium text-green-600 dark:text-green-400">Si</TableCell>
+                  <TableCell>Codigo ETM del producto. Sin el no se puede procesar la fila.</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-mono">ETM-67890</TableCell>
-                  <TableCell>Desarmador plano</TableCell>
-                  <TableCell>5</TableCell>
+                  <TableCell><code className="rounded bg-muted px-1">description</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Descripcion del producto en ingles.</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-mono">ETM-11111</TableCell>
-                  <TableCell>Pinza de corte</TableCell>
-                  <TableCell>3</TableCell>
+                  <TableCell><code className="rounded bg-muted px-1">description_es</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Descripcion del producto en espanol.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">model_code</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Codigo URREA del producto.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">quantity</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Cantidad solicitada. Si no viene, se puede ingresar manualmente en la tabla.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">price</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Precio unitario del producto.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">brand</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Marca del producto (ej. URREA, Stanley, Truper).</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
+          </div>
+
+          <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm space-y-1">
+            <p className="font-medium">Como funciona el pre-relleno</p>
+            <ol className="ml-4 list-decimal space-y-1 text-muted-foreground">
+              <li>El sistema lee las columnas reconocidas del Excel y las carga en la tabla del cotizador.</li>
+              <li>Por cada ETM, contrasta los datos del Excel con la base de datos interna. Si hay informacion en BD que falta en el Excel, la completa automaticamente.</li>
+              <li>Los campos que no se pudieron rellenar quedan editables para captura manual.</li>
+              <li>Cualquier columna del Excel que no este en la lista de arriba se ignora.</li>
+            </ol>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium">Ejemplo con columnas opcionales:</p>
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ETM</TableHead>
+                    <TableHead>description_es</TableHead>
+                    <TableHead>model_code</TableHead>
+                    <TableHead>quantity</TableHead>
+                    <TableHead>price</TableHead>
+                    <TableHead>brand</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="font-mono">ETM-12345</TableCell>
+                    <TableCell>Llave combinada 1/2&quot;</TableCell>
+                    <TableCell className="font-mono">1234A</TableCell>
+                    <TableCell>10</TableCell>
+                    <TableCell>$150.00</TableCell>
+                    <TableCell>URREA</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-mono">ETM-67890</TableCell>
+                    <TableCell>Desarmador plano</TableCell>
+                    <TableCell className="font-mono">5678B</TableCell>
+                    <TableCell>5</TableCell>
+                    <TableCell>$85.00</TableCell>
+                    <TableCell>Stanley</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-mono">ETM-11111</TableCell>
+                    <TableCell className="text-muted-foreground italic">— (vacio)</TableCell>
+                    <TableCell className="text-muted-foreground italic">— (vacio)</TableCell>
+                    <TableCell>3</TableCell>
+                    <TableCell className="text-muted-foreground italic">— (vacio)</TableCell>
+                    <TableCell className="text-muted-foreground italic">— (vacio)</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              La tercera fila solo tiene ETM y quantity. El sistema buscara el resto de los datos en
+              la base de datos; si no los encuentra, los campos quedaran en blanco para completarlos en el cotizador.
+            </p>
           </div>
         </CardContent>
       </Card>
