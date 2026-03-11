@@ -173,3 +173,60 @@
   animation: none;
   mix-blend-mode: normal;
 }
+
+/* Login page — rotating card border */
+@property --login-border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes login-border-spin {
+  to {
+    --login-border-angle: 360deg;
+  }
+}
+
+.login-page-bg {
+  background-color: #f4f4f5;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.dark .login-page-bg {
+  background-color: #080808;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+}
+
+.login-card-border {
+  border-radius: calc(var(--radius) + 6px);
+  padding: 2px;
+  background: conic-gradient(
+    from var(--login-border-angle),
+    transparent 68%,
+    #7f1d1d 76%,
+    #dc2626 84%,
+    #ef4444 89%,
+    #fca5a5 93%,
+    transparent 100%
+  );
+  animation: login-border-spin 5s linear infinite;
+}
+
+.login-card-inner {
+  background: white;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 32px 100px rgba(0, 0, 0, 0.12),
+    0 12px 40px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.dark .login-card-inner {
+  background: oklch(0.17 0 0);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 32px 100px rgba(0, 0, 0, 0.9),
+    0 12px 40px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
