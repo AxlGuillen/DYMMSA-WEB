@@ -211,6 +211,7 @@ const flowSteps: FlowStep[] = [
 
 export default function DocsPage() {
   return (
+    <div className="docs-page-bg -mx-4 -my-8 px-4 py-8">
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
@@ -223,7 +224,8 @@ export default function DocsPage() {
       </div>
 
       {/* Quick index */}
-      <Card>
+      <div className="login-card-border">
+      <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle>Indice rapido</CardTitle>
         </CardHeader>
@@ -245,9 +247,11 @@ export default function DocsPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Section 1: Excel para Cotizar */}
-      <Card id="cotizar">
+      <div id="cotizar" className="login-card-border">
+      <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
@@ -383,9 +387,11 @@ export default function DocsPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Section 2: Cotizaciones y Flujo */}
-      <Card id="cotizaciones">
+      <div id="cotizaciones" className="login-card-border">
+      <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
@@ -564,9 +570,11 @@ export default function DocsPage() {
 
         </CardContent>
       </Card>
+      </div>
 
       {/* Section 3: Excel Aprobado (Filas Verdes) */}
-      <Card id="aprobado">
+      <div id="aprobado" className="login-card-border">
+      <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5" />
@@ -702,9 +710,11 @@ export default function DocsPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Section 3: Excel de Inventario */}
-      <Card id="inventario">
+      <div id="inventario" className="login-card-border">
+      <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Warehouse className="h-5 w-5" />
@@ -766,9 +776,11 @@ export default function DocsPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Section 5: Detalle de Orden */}
-      <Card id="ordenes">
+      <div id="ordenes" className="login-card-border">
+      <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
@@ -1037,9 +1049,11 @@ export default function DocsPage() {
 
         </CardContent>
       </Card>
+      </div>
 
       {/* Section 6: Flujo del Sistema */}
-      <Card id="flujo">
+      <div id="flujo" className="login-card-border">
+      <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ArrowRight className="h-5 w-5" />
@@ -1103,6 +1117,8 @@ export default function DocsPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
+    </div>
     </div>
   )
 }
