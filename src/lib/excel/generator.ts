@@ -239,6 +239,101 @@ export async function generateUrreaOrderExcel(items: OrderItem[]): Promise<Blob>
   })
 }
 
+const IVA_RATE = 0.16
+
+/**
+ * Genera el Excel de entrega al cliente con productos surtidos.
+ * "Surtido" = quantity_in_stock + quantity_received > 0
+ */
+export function generateDeliveryExcel(items: OrderItem[], customerName: string): Blob {
+  const deliveredItems = items.filter(
+    (item) => item.quantity_in_stock + item.quantity_received > 0
+  )
+
+  const headers = [
+    'ETM',
+    'CANTIDAD',
+    'Descripcion',
+    'Translate',
+    'DYMMSA',
+    'Precio',
+    'Total',
+    'Comments',
+    'Comments2',
+  ]
+
+  const dataRows = deliveredItems.map((item) => {
+    const qty = item.quantity_in_stock + item.quantity_received
+    return [
+      item.etm,
+      qty,
+      '', // description_es not stored in order_items
+      item.description,
+      item.model_code,
+      item.unit_price,
+      qty * item.unit_price,
+      '',
+      '',
+    ]
+  })
+
+  const subtotal = deliveredItems.reduce((sum, item) => {
+    const qty = item.quantity_in_stock + item.quantity_received
+    return sum + qty * item.unit_price
+  }, 0)
+  const iva = subtotal * IVA_RATE
+  const total = subtotal + iva
+
+  const data: (string | number)[][] = [
+    headers,
+    ...dataRows,
+    [],
+    ['', '', '', '', '', 'Subtotal:', subtotal, '', ''],
+    ['', '', '', '', '', `IVA (${IVA_RATE * 100}%):`, iva, '', ''],
+    ['', '', '', '', '', 'Total:', total, '', ''],
+  ]
+
+  const worksheet = XLSX.utils.aoa_to_sheet(data)
+
+  worksheet['!cols'] = [
+    { wch: 14 }, // ETM
+    { wch: 10 }, // CANTIDAD
+    { wch: 35 }, // Descripcion
+    { wch: 35 }, // Translate
+    { wch: 14 }, // DYMMSA
+    { wch: 12 }, // Precio
+    { wch: 12 }, // Total
+    { wch: 18 }, // Comments
+    { wch: 18 }, // Comments2
+  ]
+
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Entrega')
+
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+  return new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+}
+
+/**
+ * Descarga el Excel de entrega al cliente
+ */
+export function downloadDeliveryExcel(blob: Blob, customerName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+
+  const date = new Date().toISOString().split('T')[0]
+  const safeName = customerName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  link.download = `entrega_${safeName}_${date}.xlsx`
+
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 /**
  * Descarga el Excel de pedido URREA
  */
