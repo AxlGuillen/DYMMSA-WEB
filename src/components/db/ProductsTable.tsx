@@ -83,6 +83,7 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
               <TableHead>Descripcion</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="w-[150px]">Modelo</TableHead>
+              <TableHead className="w-[120px]">Marca</TableHead>
               <TableHead className="w-[100px] text-right">Precio</TableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
             </TableRow>
@@ -98,6 +99,7 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
                   {product.description}
                 </TableCell>
                 <TableCell className="font-mono text-sm">{product.model_code}</TableCell>
+                <TableCell>{product.brand || '—'}</TableCell>
                 <TableCell className="text-right">
                   ${product.price.toFixed(2)}
                 </TableCell>
