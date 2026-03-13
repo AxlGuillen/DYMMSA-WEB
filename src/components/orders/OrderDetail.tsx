@@ -293,6 +293,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
   }
 
   const itemsToOrder = order.order_items.filter((item) => item.quantity_to_order > 0)
+  const urreaItemsToOrder = itemsToOrder.filter((item) => item.brand.toUpperCase() === 'URREA')
   const hasChanges = Object.keys(itemEdits).length > 0
   const isCancelled = order.status === 'cancelled'
   const isCompleted = order.status === 'completed'
@@ -346,23 +347,29 @@ export function OrderDetail({ order }: OrderDetailProps) {
             )}
 
             {/* Download URREA Order */}
-            {itemsToOrder.length > 0 && (
-              <Button variant="outline" onClick={handleDownloadUrreaOrder} disabled={isDownloading}>
-                {isDownloading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
-                Descargar Pedido URREA ({itemsToOrder.length})
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={handleDownloadUrreaOrder}
+              disabled={isDownloading || urreaItemsToOrder.length === 0}
+            >
+              {isDownloading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Descargar Pedido URREA ({urreaItemsToOrder.length})
+            </Button>
 
             {/* Cancel Order */}
             {!isCancelled && !isCompleted && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" disabled={cancelOrder.isPending}>
-                    <AlertTriangle className="mr-2 h-4 w-4" />
+                  <Button
+                    variant="outline"
+                    disabled={cancelOrder.isPending}
+                    className="border-destructive text-destructive hover:bg-destructive hover:text-white gap-1.5 transition-colors"
+                  >
+                    <AlertTriangle className="h-4 w-4" strokeWidth={2.5} />
                     Cancelar Orden
                   </Button>
                 </AlertDialogTrigger>
@@ -480,7 +487,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   <TableHead className="text-right">En Stock</TableHead>
                   <TableHead className="text-right">A Pedir</TableHead>
                   <TableHead className="text-right">Recibidos</TableHead>
-                  <TableHead>Estado URREA</TableHead>
+                  <TableHead>Estado de envío</TableHead>
                   <TableHead>Tiempo Entrega</TableHead>
                   <TableHead className="text-right">Precio</TableHead>
                   <TableHead className="text-right">Total</TableHead>
