@@ -60,7 +60,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { OrderStatusBadge } from './OrderStatusBadge'
-import { generateUrreaOrderExcel, downloadUrreaOrder } from '@/lib/excel/generator'
+import { generateUrreaOrderExcel, downloadUrreaOrder, generateDeliveryExcel, downloadDeliveryExcel } from '@/lib/excel/generator'
 import {
   useUpdateOrderStatus,
   useConfirmReception,
@@ -141,6 +141,29 @@ export function OrderDetail({ order }: OrderDetailProps) {
   }
 
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloadingDelivery, setIsDownloadingDelivery] = useState(false)
+
+  const handleDownloadDeliveryExcel = () => {
+    const deliveredItems = order.order_items.filter(
+      (item) => item.quantity_in_stock + item.quantity_received > 0
+    )
+
+    if (deliveredItems.length === 0) {
+      toast.info('No hay productos surtidos para generar el formato de entrega')
+      return
+    }
+
+    setIsDownloadingDelivery(true)
+    try {
+      const blob = generateDeliveryExcel(order.order_items, order.customer_name)
+      downloadDeliveryExcel(blob, order.customer_name)
+      toast.success(`Formato de entrega descargado (${deliveredItems.length} productos)`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al generar formato de entrega')
+    } finally {
+      setIsDownloadingDelivery(false)
+    }
+  }
 
   const handleDownloadUrreaOrder = async () => {
     const itemsToOrder = order.order_items.filter((item) => item.quantity_to_order > 0)
@@ -358,6 +381,20 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 <Download className="mr-2 h-4 w-4" />
               )}
               Descargar Pedido URREA ({urreaItemsToOrder.length})
+            </Button>
+
+            {/* Download Delivery Excel */}
+            <Button
+              variant="outline"
+              onClick={handleDownloadDeliveryExcel}
+              disabled={isDownloadingDelivery}
+            >
+              {isDownloadingDelivery ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Formato de Entrega
             </Button>
 
             {/* Cancel Order */}
