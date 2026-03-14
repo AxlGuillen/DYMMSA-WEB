@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
   Check,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -430,6 +431,26 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 </AlertDialogContent>
               </AlertDialog>
             )}
+          </div>
+
+          {/* Info notes */}
+          <div className="mt-4 flex flex-col gap-1.5 text-xs text-muted-foreground border-t pt-3">
+            <div className="flex items-start gap-1.5">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                <strong>Pedido URREA:</strong> el Excel solo incluye productos con{' '}
+                <em>A Pedir &gt; 0</em> y marca <em>URREA</em>. Productos de otras marcas o
+                completamente en stock quedan excluidos.
+              </span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                <strong>Estado de envío / Recibidos:</strong> solo es editable en productos con{' '}
+                <em>A Pedir &gt; 0</em>. Los productos cubiertos completamente por stock aparecen
+                fijos como <em>En stock</em>.
+              </span>
+            </div>
           </div>
         </CardContent>
       </Card>
