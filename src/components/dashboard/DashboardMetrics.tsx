@@ -2,13 +2,14 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Package, Warehouse, ShoppingCart, DollarSign } from 'lucide-react'
+import { Package, Warehouse, ShoppingCart, DollarSign, ArrowRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge'
 import { MetricCard } from './MetricCard'
 import { OrderStatusBreakdown } from './OrderStatusBreakdown'
 import { useDashboard, type DateRange } from '@/hooks/useDashboard'
+import { cn } from '@/lib/utils'
 
 type Preset = '7d' | '30d' | 'month'
 
@@ -43,6 +44,24 @@ function formatCurrency(amount: number): string {
   return `$${amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
 }
 
+function getCustomerInitials(name: string): string {
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+}
+
+function formatRelativeDate(iso: string): string {
+  const date = new Date(iso)
+  const diffDays = Math.floor((Date.now() - date.getTime()) / 86_400_000)
+  if (diffDays === 0) return 'Hoy'
+  if (diffDays === 1) return 'Ayer'
+  if (diffDays < 7) return `Hace ${diffDays} días`
+  return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+}
+
 export function DashboardMetrics() {
   const [activePreset, setActivePreset] = useState<Preset | null>('30d')
   const [customFrom, setCustomFrom] = useState('')
@@ -52,7 +71,6 @@ export function DashboardMetrics() {
     if (activePreset) {
       return getPresetRange(activePreset)
     }
-    // Custom range
     const from = customFrom
       ? new Date(customFrom + 'T00:00:00').toISOString()
       : new Date(0).toISOString()
@@ -65,52 +83,61 @@ export function DashboardMetrics() {
   const { data, isLoading } = useDashboard(dateRange)
 
   const presets: { key: Preset; label: string }[] = [
-    { key: '7d', label: '7 dias' },
-    { key: '30d', label: '30 dias' },
+    { key: '7d',    label: '7 días' },
+    { key: '30d',   label: '30 días' },
     { key: 'month', label: 'Este mes' },
   ]
 
   return (
     <div className="space-y-6">
       {/* Date filter */}
-      <div className="flex flex-wrap items-center gap-2">
-        {presets.map((p) => (
-          <button
-            key={p.key}
-            onClick={() => {
-              setActivePreset(p.key)
-              setCustomFrom('')
-              setCustomTo('')
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Segmented control */}
+        <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-0.5">
+          {presets.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => {
+                setActivePreset(p.key)
+                setCustomFrom('')
+                setCustomTo('')
+              }}
+              className={cn(
+                'rounded-md px-3 py-1 text-sm font-medium transition-all',
+                activePreset === p.key
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        <span className="text-muted-foreground/50 text-sm select-none">|</span>
+
+        {/* Custom range */}
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={activePreset ? formatDate(dateRange.from) : customFrom}
+            onChange={(e) => {
+              setActivePreset(null)
+              setCustomFrom(e.target.value)
             }}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              activePreset === p.key
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-        <span className="text-muted-foreground text-sm">|</span>
-        <input
-          type="date"
-          value={activePreset ? formatDate(dateRange.from) : customFrom}
-          onChange={(e) => {
-            setActivePreset(null)
-            setCustomFrom(e.target.value)
-          }}
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
-        />
-        <span className="text-muted-foreground text-sm">-</span>
-        <input
-          type="date"
-          value={activePreset ? formatDate(dateRange.to) : customTo}
-          onChange={(e) => {
-            setActivePreset(null)
-            setCustomTo(e.target.value)
-          }}
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
-        />
+            className="rounded-lg border bg-background px-2.5 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <span className="text-muted-foreground text-sm">—</span>
+          <input
+            type="date"
+            value={activePreset ? formatDate(dateRange.to) : customTo}
+            onChange={(e) => {
+              setActivePreset(null)
+              setCustomTo(e.target.value)
+            }}
+            className="rounded-lg border bg-background px-2.5 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
       </div>
 
       {/* Metric cards */}
@@ -120,6 +147,7 @@ export function DashboardMetrics() {
           value={data?.etmCount ?? 0}
           description="Total en catalogo"
           icon={<Package className="h-4 w-4" />}
+          color="blue"
           isLoading={isLoading}
         />
         <MetricCard
@@ -127,6 +155,7 @@ export function DashboardMetrics() {
           value={data?.inventoryCount ?? 0}
           description="Productos en tienda"
           icon={<Warehouse className="h-4 w-4" />}
+          color="green"
           isLoading={isLoading}
         />
         <MetricCard
@@ -134,6 +163,7 @@ export function DashboardMetrics() {
           value={data?.ordersInRange ?? 0}
           description="En periodo seleccionado"
           icon={<ShoppingCart className="h-4 w-4" />}
+          color="orange"
           isLoading={isLoading}
         />
         <MetricCard
@@ -141,6 +171,7 @@ export function DashboardMetrics() {
           value={data ? formatCurrency(data.totalSales) : '$0.00'}
           description="Pagadas y completadas"
           icon={<DollarSign className="h-4 w-4" />}
+          color="purple"
           isLoading={isLoading}
         />
       </div>
@@ -163,15 +194,26 @@ export function DashboardMetrics() {
 
         {/* Recent orders */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
             <CardTitle>Ordenes Recientes</CardTitle>
+            <Link
+              href="/dashboard/orders"
+              className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Ver todas
+              <ArrowRight className="h-3 w-3" />
+            </Link>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <Skeleton className="h-5 w-32" />
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="flex-1 space-y-1">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
                     <Skeleton className="h-5 w-20" />
                   </div>
                 ))}
@@ -181,22 +223,35 @@ export function DashboardMetrics() {
                 No hay ordenes en este periodo.
               </p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-1">
                 {data?.recentOrders.map((order) => (
                   <Link
                     key={order.id}
                     href={`/dashboard/orders/${order.id}`}
-                    className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted"
+                    className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted"
                   >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium">
+                    {/* Avatar */}
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                      {getCustomerInitials(order.customer_name)}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="truncate text-sm font-medium">
                         {order.customer_name}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {formatCurrency(order.total_amount)}
                       </span>
                     </div>
-                    <OrderStatusBadge status={order.status} />
+
+                    {/* Status + date */}
+                    <div className="flex shrink-0 flex-col items-end gap-0.5">
+                      <OrderStatusBadge status={order.status} />
+                      <span className="text-xs text-muted-foreground">
+                        {formatRelativeDate(order.created_at)}
+                      </span>
+                    </div>
                   </Link>
                 ))}
               </div>
