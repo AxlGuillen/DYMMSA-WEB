@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Navbar } from '@/components/layout/Navbar'
+import { Sidebar } from '@/components/layout/Sidebar'
+import { Footer } from '@/components/layout/Footer'
 
 export default async function DashboardLayout({
   children,
@@ -16,31 +16,15 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar />
-      <main className="container mx-auto flex-1 px-4 py-8">
-        {children}
-      </main>
-      <footer className="border-t py-4 text-center text-xs text-muted-foreground">
-        <p>
-          DYMMSA &copy; {new Date().getFullYear()} &mdash; Desarrollado por{' '}
-          <a
-            href="https://axl13.dev"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            Axl
-          </a>
-          {' | '}
-          <Link
-            href="/dashboard/docs"
-            className="font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            Documentacion
-          </Link>
-        </p>
-      </footer>
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      {/* Offset: sidebar width on desktop, top bar height on mobile */}
+      <div className="flex flex-1 flex-col min-w-0 pt-14 md:pt-0 md:pl-64">
+        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+          {children}
+        </main>
+        <Footer />
+      </div>
     </div>
   )
 }
