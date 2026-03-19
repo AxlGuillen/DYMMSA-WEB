@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 2. Crear quotation_items ────────────────────────────────────
-    const quotationItems = items.map((item) => ({
+    const quotationItems = items.map((item, index) => ({
       quotation_id:   quotation.id,
       etm:            item.etm            || null,
       description:    item.description    || null,
@@ -176,6 +176,7 @@ export async function POST(request: NextRequest) {
       quantity:       item.quantity,
       delivery_time:  item.delivery_time  ?? 'immediate',
       is_approved:    null,
+      sort_order:     index,
     }))
 
     const { error: itemsError } = await supabase
