@@ -128,7 +128,7 @@ export async function PATCH(
       return NextResponse.json({ message: 'Error al actualizar productos' }, { status: 500 })
     }
 
-    const newItems = items.map((item) => {
+    const newItems = items.map((item, index) => {
       let is_approved: boolean | null = null
       if (quotation.status === 'approved') {
         // Existing items: preserve their approval; new items: auto-approve (DYMMSA internal)
@@ -145,6 +145,7 @@ export async function PATCH(
         quantity:       item.quantity,
         delivery_time:  item.delivery_time  ?? 'immediate',
         is_approved,
+        sort_order:     index,
       }
     })
 
