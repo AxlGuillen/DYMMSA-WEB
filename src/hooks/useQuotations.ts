@@ -91,6 +91,7 @@ export function useQuotation(id: string) {
         .from('quotations')
         .select('*, quotation_items(*)')
         .eq('id', id)
+        .order('sort_order', { foreignTable: 'quotation_items', ascending: true })
         .single()
 
       if (error) throw error
