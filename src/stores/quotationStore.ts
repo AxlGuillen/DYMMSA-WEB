@@ -13,6 +13,7 @@ interface QuotationStore extends QuotationDraftState {
   updateItem: (id: string, updates: Partial<Omit<QuotationItemRow, '_id'>>) => void
   addItem: (item: Omit<QuotationItemRow, '_id'>) => void
   removeItem: (id: string) => void
+  reorderItems: (activeId: string, overId: string) => void
   reset: () => void
 }
 
@@ -49,6 +50,17 @@ export const useQuotationStore = create<QuotationStore>()(
         set((state) => ({
           items: state.items.filter((item) => item._id !== id),
         })),
+
+      reorderItems: (activeId, overId) =>
+        set((state) => {
+          const oldIndex = state.items.findIndex((item) => item._id === activeId)
+          const newIndex = state.items.findIndex((item) => item._id === overId)
+          if (oldIndex === -1 || newIndex === -1) return state
+          const next = [...state.items]
+          const [moved] = next.splice(oldIndex, 1)
+          next.splice(newIndex, 0, moved)
+          return { items: next }
+        }),
 
       reset: () => set(INITIAL_STATE),
     }),
