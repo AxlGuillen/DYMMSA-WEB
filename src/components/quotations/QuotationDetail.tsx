@@ -3,6 +3,20 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   ArrowLeft,
   Send,
   Copy,
@@ -16,6 +30,7 @@ import {
   XCircle,
   Clock,
   ShoppingCart,
+  GripVertical,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -53,6 +68,105 @@ import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal, DELIVERY_TIME_LABELS } from '@/components/quoter/ProductModal'
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow } from '@/types/database'
+
+// ------------------------------------------------------------------ //
+// Sortable row                                                        //
+// ------------------------------------------------------------------ //
+
+interface SortableDetailRowProps {
+  item: QuotationItemRow
+  canEdit: boolean
+  isApproved: boolean
+  isSentForApproval: boolean
+  dbItem: QuotationItem | undefined
+  onEdit: (item: QuotationItemRow) => void
+  onRemove: (id: string) => void
+}
+
+function SortableDetailRow({
+  item, canEdit, isApproved, isSentForApproval, dbItem, onEdit, onRemove,
+}: SortableDetailRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item._id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      {canEdit && (
+        <TableCell className="w-8 px-2">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
+            aria-label="Arrastrar para reordenar"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        </TableCell>
+      )}
+      <TableCell className="font-mono text-xs font-medium">{item.etm || '—'}</TableCell>
+      <TableCell className="max-w-52">
+        {item.description
+          ? <span className="truncate block" title={item.description}>{item.description}</span>
+          : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
+      </TableCell>
+      <TableCell className="font-mono text-xs">{item.model_code || <span className="text-muted-foreground">—</span>}</TableCell>
+      <TableCell>{item.brand || <span className="text-muted-foreground">—</span>}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {item.unit_price != null
+          ? `$${item.unit_price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+          : <span className="text-muted-foreground">—</span>}
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        {item.quantity ?? <span className="text-muted-foreground">—</span>}
+      </TableCell>
+      <TableCell className="text-right tabular-nums font-medium">
+        {item.unit_price != null && item.quantity != null
+          ? `$${(item.unit_price * item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+          : <span className="text-muted-foreground">—</span>}
+      </TableCell>
+      <TableCell className="text-sm whitespace-nowrap">
+        {item.delivery_time
+          ? DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'
+          : <span className="text-muted-foreground">—</span>}
+      </TableCell>
+      {(isApproved || isSentForApproval) && (
+        <TableCell className="text-center">
+          {dbItem?.is_approved === true
+            ? <Badge variant="outline" className="text-xs text-green-600 border-green-300"><CheckCircle2 className="h-3 w-3 mr-1" />Aprobado</Badge>
+            : dbItem?.is_approved === false
+              ? <Badge variant="outline" className="text-xs text-red-600 border-red-300"><XCircle className="h-3 w-3 mr-1" />Rechazado</Badge>
+              : <Badge variant="outline" className="text-xs text-muted-foreground"><Clock className="h-3 w-3 mr-1" />Pendiente</Badge>}
+        </TableCell>
+      )}
+      {canEdit && (
+        <TableCell>
+          <div className="flex items-center justify-center gap-1">
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(item)}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon" variant="ghost"
+              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => onRemove(item._id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      )}
+    </TableRow>
+  )
+}
 
 // ------------------------------------------------------------------ //
 // Helpers                                                             //
@@ -110,6 +224,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const updateQuotation        = useUpdateQuotation()
   const createOrderMutation    = useCreateOrderFromQuotation()
 
+  const sensors = useSensors(useSensor(PointerSensor))
+
   const isDraft            = quotation.status === 'draft'
   const isSentForApproval  = quotation.status === 'sent_for_approval'
   const isApproved         = quotation.status === 'approved'
@@ -151,6 +267,21 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const handleRemove = (id: string) => {
     setLocalItems((prev) => prev.filter((item) => item._id !== id))
+    setIsDirty(true)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setLocalItems((prev) => {
+      const oldIndex = prev.findIndex((item) => item._id === active.id)
+      const newIndex = prev.findIndex((item) => item._id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(oldIndex, 1)
+      next.splice(newIndex, 0, moved)
+      return next
+    })
     setIsDirty(true)
   }
 
@@ -473,6 +604,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {canEdit && <TableHead className="w-8" />}
                   <TableHead>ETM</TableHead>
                   <TableHead>Descripción</TableHead>
                   <TableHead>Código</TableHead>
@@ -489,75 +621,24 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   )}
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow
-                    key={item._id}
-                    className={`border-b border-border/60 ${getRowClass(item)}`}
-                  >
-                    <TableCell className="font-mono text-xs font-medium">{item.etm || '—'}</TableCell>
-                    <TableCell className="max-w-52">
-                      {item.description
-                        ? <span className="truncate block" title={item.description}>{item.description}</span>
-                        : <span className="text-muted-foreground italic text-xs">Sin descripción</span>
-                      }
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{item.model_code || <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell>{item.brand || <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {item.unit_price != null
-                        ? `$${item.unit_price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
-                        : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {item.quantity ?? <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {item.unit_price != null && item.quantity != null
-                        ? `$${(item.unit_price * item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
-                        : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {item.delivery_time
-                        ? DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'
-                        : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-
-                    {/* Approval column */}
-                    {(isApproved || isSentForApproval) && (
-                      <TableCell className="text-center">
-                        {(() => {
-                          const dbItem = quotation.quotation_items.find((i) => i.id === item._id)
-                          if (!dbItem) return null
-                          if (dbItem.is_approved === true)
-                            return <Badge variant="outline" className="text-xs text-green-600 border-green-300"><CheckCircle2 className="h-3 w-3 mr-1" />Aprobado</Badge>
-                          if (dbItem.is_approved === false)
-                            return <Badge variant="outline" className="text-xs text-red-600 border-red-300"><XCircle className="h-3 w-3 mr-1" />Rechazado</Badge>
-                          return <Badge variant="outline" className="text-xs text-muted-foreground"><Clock className="h-3 w-3 mr-1" />Pendiente</Badge>
-                        })()}
-                      </TableCell>
-                    )}
-
-                    {/* Edit/Delete (draft or approved) */}
-                    {canEdit && (
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(item)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon" variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => handleRemove(item._id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={items.map((i) => i._id)} strategy={verticalListSortingStrategy}>
+                  <TableBody>
+                    {items.map((item) => (
+                      <SortableDetailRow
+                        key={item._id}
+                        item={item}
+                        canEdit={canEdit}
+                        isApproved={isApproved}
+                        isSentForApproval={isSentForApproval}
+                        dbItem={quotation.quotation_items.find((i) => i.id === item._id)}
+                        onEdit={handleEdit}
+                        onRemove={handleRemove}
+                      />
+                    ))}
+                  </TableBody>
+                </SortableContext>
+              </DndContext>
 
               {partialTotal > 0 && (
                 <TableFooter>
@@ -568,7 +649,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                     </TableCell>
                     <TableCell /> {/* Entrega */}
                     {(isApproved || isSentForApproval) && <TableCell />}
-                    {canEdit && <TableCell />}
+                    {canEdit && <TableCell />} {/* Grip */}
+                    {canEdit && <TableCell />} {/* Acciones */}
                   </TableRow>
                 </TableFooter>
               )}
