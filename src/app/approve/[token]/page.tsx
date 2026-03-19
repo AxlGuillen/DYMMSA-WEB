@@ -15,6 +15,7 @@ export default async function ApprovalPage({
     .from('quotations')
     .select('*, quotation_items(*)')
     .eq('approval_token', token)
+    .order('sort_order', { foreignTable: 'quotation_items', ascending: true })
     .single()
 
   if (error || !data) {
