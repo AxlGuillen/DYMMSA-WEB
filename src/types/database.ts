@@ -180,6 +180,7 @@ export interface QuotationItem {
   is_approved: boolean | null
   notes: string | null
   delivery_time: DeliveryTime | null
+  sort_order: number
   created_at: string
 }
 
