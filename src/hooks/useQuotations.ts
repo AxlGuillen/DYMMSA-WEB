@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type {
   Quotation,
   QuotationWithItems,
+  QuotationWithCount,
   QuotationItemRow,
   QuotationStatus,
 } from '@/types/database'
@@ -27,11 +28,19 @@ interface QuotationsParams {
 }
 
 interface QuotationsResponse {
-  data: Quotation[]
+  data: QuotationWithCount[]
   count: number
   page: number
   pageSize: number
   totalPages: number
+}
+
+export interface QuotationStats {
+  draft: number
+  sent_for_approval: number
+  approved: number
+  rejected: number
+  converted_to_order: number
 }
 
 // ------------------------------------------------------------------ //
@@ -47,7 +56,7 @@ export function useQuotations(params: QuotationsParams = {}) {
     queryFn: async (): Promise<QuotationsResponse> => {
       let query = supabase
         .from('quotations')
-        .select('*', { count: 'exact' })
+        .select('*, quotation_items(count)', { count: 'exact' })
 
       if (search) {
         query = query.ilike('customer_name', `%${search}%`)
@@ -66,14 +75,57 @@ export function useQuotations(params: QuotationsParams = {}) {
 
       if (error) throw error
 
+      const mapped: QuotationWithCount[] = (data || []).map((q) => {
+        const raw = q as Quotation & { quotation_items: [{ count: number }] | null }
+        return {
+          ...q,
+          items_count: raw.quotation_items?.[0]?.count ?? 0,
+        }
+      })
+
       return {
-        data:       data || [],
+        data:       mapped,
         count:      count || 0,
         page,
         pageSize,
         totalPages: Math.ceil((count || 0) / pageSize),
       }
     },
+  })
+}
+
+// ------------------------------------------------------------------ //
+// Stats by status                                                     //
+// ------------------------------------------------------------------ //
+
+export function useQuotationStats() {
+  const supabase = createClient()
+
+  return useQuery({
+    queryKey: [...QUOTATIONS_KEY, 'stats'],
+    queryFn: async (): Promise<QuotationStats> => {
+      const { data, error } = await supabase
+        .from('quotations')
+        .select('status')
+
+      if (error) throw error
+
+      const stats: QuotationStats = {
+        draft: 0,
+        sent_for_approval: 0,
+        approved: 0,
+        rejected: 0,
+        converted_to_order: 0,
+      }
+
+      data?.forEach((q) => {
+        const s = q.status as QuotationStatus
+        if (s in stats) stats[s]++
+      })
+
+      return stats
+    },
+    staleTime: 30_000,
   })
 }
 
