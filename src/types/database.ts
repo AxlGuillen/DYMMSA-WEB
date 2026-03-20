@@ -188,6 +188,10 @@ export interface QuotationWithItems extends Quotation {
   quotation_items: QuotationItem[]
 }
 
+export interface QuotationWithCount extends Quotation {
+  items_count: number
+}
+
 // Row in the editable quotation table (local/draft state, not saved to DB yet)
 export interface QuotationItemRow {
   _id: string        // local UUID used as React key
