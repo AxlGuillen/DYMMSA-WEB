@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { QuotationItemRow } from '@/types/database'
 
 interface SaveQuotationInput {
+  name: string
   customer_name: string
   items: QuotationItemRow[]
 }
@@ -121,8 +122,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
     }
 
-    const { customer_name, items } = (await request.json()) as SaveQuotationInput
+    const { name, customer_name, items } = (await request.json()) as SaveQuotationInput
 
+    if (!name?.trim()) {
+      return NextResponse.json(
+        { message: 'El nombre de la cotización es requerido' },
+        { status: 400 }
+      )
+    }
     if (!customer_name?.trim()) {
       return NextResponse.json(
         { message: 'El nombre del cliente es requerido' },
@@ -148,6 +155,7 @@ export async function POST(request: NextRequest) {
     const { data: quotation, error: quotationError } = await supabase
       .from('quotations')
       .insert({
+        name:          name.trim(),
         customer_name: customer_name.trim(),
         status:        'draft',
         total_amount,
