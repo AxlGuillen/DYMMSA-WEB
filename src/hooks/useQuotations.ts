@@ -59,7 +59,7 @@ export function useQuotations(params: QuotationsParams = {}) {
         .select('*, quotation_items(count)', { count: 'exact' })
 
       if (search) {
-        query = query.ilike('customer_name', `%${search}%`)
+        query = query.or(`customer_name.ilike.%${search}%,name.ilike.%${search}%`)
       }
 
       if (status !== 'all') {
@@ -184,6 +184,7 @@ export function useSendForApproval() {
 
 export interface UpdateQuotationInput {
   id: string
+  name: string
   customer_name: string
   items: QuotationItemRow[]
 }
@@ -192,11 +193,11 @@ export function useUpdateQuotation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, customer_name, items }: UpdateQuotationInput) => {
+    mutationFn: async ({ id, name, customer_name, items }: UpdateQuotationInput) => {
       const response = await fetch(`/api/quotations/${id}/update`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_name, items }),
+        body: JSON.stringify({ name, customer_name, items }),
       })
       if (!response.ok) {
         const error = await response.json()
@@ -216,6 +217,7 @@ export function useUpdateQuotation() {
 // ------------------------------------------------------------------ //
 
 export interface SaveQuotationInput {
+  name: string
   customer_name: string
   items: QuotationItemRow[]
 }
