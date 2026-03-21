@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type {
   Order,
   OrderWithItems,
+  OrderWithCount,
   OrderStatus,
   DeliveryTime,
   CreateOrderInput,
@@ -21,11 +22,20 @@ interface OrdersParams {
 }
 
 interface OrdersResponse {
-  data: Order[]
+  data: OrderWithCount[]
   count: number
   page: number
   pageSize: number
   totalPages: number
+}
+
+export interface OrderStats {
+  pending_urrea_order: number
+  received_from_urrea: number
+  pending_payment: number
+  paid: number
+  completed: number
+  cancelled: number
 }
 
 export function useOrders(params: OrdersParams = {}) {
@@ -37,10 +47,10 @@ export function useOrders(params: OrdersParams = {}) {
     queryFn: async (): Promise<OrdersResponse> => {
       let query = supabase
         .from('orders')
-        .select('*', { count: 'exact' })
+        .select('*, order_items(count)', { count: 'exact' })
 
       if (search) {
-        query = query.ilike('customer_name', `%${search}%`)
+        query = query.or(`customer_name.ilike.%${search}%,name.ilike.%${search}%`)
       }
 
       if (status !== 'all') {
@@ -56,14 +66,51 @@ export function useOrders(params: OrdersParams = {}) {
 
       if (error) throw error
 
+      const mapped: OrderWithCount[] = (data || []).map((o) => {
+        const raw = o as Order & { order_items: [{ count: number }] | null }
+        return {
+          ...o,
+          items_count: raw.order_items?.[0]?.count ?? 0,
+        }
+      })
+
       return {
-        data: data || [],
+        data: mapped,
         count: count || 0,
         page,
         pageSize,
         totalPages: Math.ceil((count || 0) / pageSize),
       }
     },
+  })
+}
+
+export function useOrderStats() {
+  const supabase = createClient()
+
+  return useQuery({
+    queryKey: [...ORDERS_KEY, 'stats'],
+    queryFn: async (): Promise<OrderStats> => {
+      const { data, error } = await supabase.from('orders').select('status')
+      if (error) throw error
+
+      const stats: OrderStats = {
+        pending_urrea_order: 0,
+        received_from_urrea: 0,
+        pending_payment: 0,
+        paid: 0,
+        completed: 0,
+        cancelled: 0,
+      }
+
+      data?.forEach((o) => {
+        const s = o.status as OrderStatus
+        if (s in stats) stats[s]++
+      })
+
+      return stats
+    },
+    staleTime: 30_000,
   })
 }
 
