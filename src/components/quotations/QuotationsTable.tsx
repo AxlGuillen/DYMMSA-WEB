@@ -79,6 +79,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Nombre</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-center">Ítems</TableHead>
@@ -91,6 +92,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
             {[...Array(5)].map((_, i) => (
               <TableRow key={i}>
                 <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-36" /></TableCell>
                 <TableCell><Skeleton className="h-6 w-28" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
@@ -129,6 +131,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Nombre</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-center">Ítems</TableHead>
@@ -145,7 +148,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                 onClick={() => router.push(`/dashboard/quotations/${q.id}`)}
               >
                 <TableCell>
-                  <span className="font-medium">{q.customer_name}</span>
+                  <span className="font-medium">{q.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}</span>
                   {q.notes && (
                     <span
                       className="ml-2 text-xs text-muted-foreground"
@@ -155,6 +158,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                     </span>
                   )}
                 </TableCell>
+                <TableCell className="text-sm text-muted-foreground">{q.customer_name}</TableCell>
                 <TableCell>
                   <QuotationStatusBadge status={q.status} />
                 </TableCell>
