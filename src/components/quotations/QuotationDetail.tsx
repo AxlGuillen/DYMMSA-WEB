@@ -206,6 +206,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const router = useRouter()
 
   // ── Draft editing state ─────────────────────────────────────────
+  const [localQuotationName, setLocalQuotationName] = useState(quotation.name)
   const [localName, setLocalName]   = useState(quotation.customer_name)
   const [localItems, setLocalItems] = useState<QuotationItemRow[]>(
     quotation.quotation_items.map(toItemRow)
@@ -236,6 +237,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // Keep local state in sync if quotation data reloads
   useEffect(() => {
+    setLocalQuotationName(quotation.name)
     setLocalName(quotation.customer_name)
     setLocalItems(quotation.quotation_items.map(toItemRow))
     setIsDirty(false)
@@ -290,6 +292,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     try {
       await updateQuotation.mutateAsync({
         id:            quotation.id,
+        name:          localQuotationName,
         customer_name: localName,
         items:         localItems,
       })
@@ -308,6 +311,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       if (isDirty) {
         await updateQuotation.mutateAsync({
           id:            quotation.id,
+          name:          localQuotationName,
           customer_name: localName,
           items:         localItems,
         })
@@ -359,7 +363,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const noDataCount    = isDraft ? localItems.filter(isMissingData).length : 0
   const noQuantityCount= isDraft ? localItems.filter(isMissingQuantity).length : 0
 
-  const canSendForApproval = localName.trim().length > 0 && localItems.length > 0
+  const canSendForApproval = localQuotationName.trim().length > 0 && localName.trim().length > 0 && localItems.length > 0
 
   return (
     <div className="space-y-6">
@@ -372,11 +376,12 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">
-              {isDraft ? localName || 'Sin nombre' : quotation.customer_name}
+              {canEdit ? localQuotationName || 'Sin nombre' : quotation.name || 'Sin nombre'}
             </h1>
             <QuotationStatusBadge status={quotation.status} />
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
+            {canEdit ? localName || 'Sin cliente' : quotation.customer_name} ·{' '}
             #{quotation.id.slice(0, 8)} · Creada el{' '}
             {new Date(quotation.created_at).toLocaleDateString('es-MX', {
               day: '2-digit', month: 'long', year: 'numeric',
@@ -559,16 +564,27 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </Card>
       </div>
 
-      {/* Customer name input (draft only) */}
-      {canEdit && isDraft && (
-        <div className="max-w-sm space-y-1.5">
-          <Label htmlFor="customer_name">Nombre del cliente <span className="text-destructive">*</span></Label>
-          <Input
-            id="customer_name"
-            value={localName}
-            onChange={(e) => { setLocalName(e.target.value); setIsDirty(true) }}
-            placeholder="Ej: Constructora ABC"
-          />
+      {/* Name + Customer name inputs (editable quotations) */}
+      {canEdit && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+          <div className="space-y-1.5">
+            <Label htmlFor="quotation_name">Nombre de la cotización <span className="text-destructive">*</span></Label>
+            <Input
+              id="quotation_name"
+              value={localQuotationName}
+              onChange={(e) => { setLocalQuotationName(e.target.value); setIsDirty(true) }}
+              placeholder="Ej: Obra Norte Enero 2026"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="customer_name">Nombre del cliente <span className="text-destructive">*</span></Label>
+            <Input
+              id="customer_name"
+              value={localName}
+              onChange={(e) => { setLocalName(e.target.value); setIsDirty(true) }}
+              placeholder="Ej: Constructora ABC"
+            />
+          </div>
         </div>
       )}
 
