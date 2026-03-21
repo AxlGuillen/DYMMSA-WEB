@@ -332,9 +332,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle className="text-2xl">{order.customer_name}</CardTitle>
+              <CardTitle className="text-2xl">{order.name || order.customer_name}</CardTitle>
               <CardDescription className="mt-1">
-                Orden #{order.id.slice(0, 8)} •{' '}
+                {order.name ? `${order.customer_name} · ` : ''}Orden #{order.id.slice(0, 8)} •{' '}
                 {new Date(order.created_at).toLocaleDateString('es-MX', {
                   day: '2-digit',
                   month: 'long',
