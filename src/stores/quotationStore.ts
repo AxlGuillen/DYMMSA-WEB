@@ -3,11 +3,13 @@ import { persist } from 'zustand/middleware'
 import type { QuotationItemRow } from '@/types/database'
 
 interface QuotationDraftState {
+  name: string
   customer_name: string
   items: QuotationItemRow[]
 }
 
 interface QuotationStore extends QuotationDraftState {
+  setName: (name: string) => void
   setCustomerName: (name: string) => void
   setItems: (items: QuotationItemRow[]) => void
   updateItem: (id: string, updates: Partial<Omit<QuotationItemRow, '_id'>>) => void
@@ -18,6 +20,7 @@ interface QuotationStore extends QuotationDraftState {
 }
 
 const INITIAL_STATE: QuotationDraftState = {
+  name: '',
   customer_name: '',
   items: [],
 }
@@ -26,6 +29,8 @@ export const useQuotationStore = create<QuotationStore>()(
   persist(
     (set) => ({
       ...INITIAL_STATE,
+
+      setName: (name) => set({ name }),
 
       setCustomerName: (name) => set({ customer_name: name }),
 
