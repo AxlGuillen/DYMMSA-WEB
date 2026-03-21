@@ -68,6 +68,7 @@ export type DeliveryTime =
 
 export interface Order {
   id: string
+  name: string
   customer_name: string
   status: OrderStatus
   total_amount: number
@@ -153,6 +154,7 @@ export type QuotationStatus =
 
 export interface Quotation {
   id: string
+  name: string
   customer_name: string
   status: QuotationStatus
   approval_token: string
