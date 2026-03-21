@@ -108,6 +108,10 @@ export interface OrderWithItems extends Order {
   order_items: OrderItem[]
 }
 
+export interface OrderWithCount extends Order {
+  items_count: number
+}
+
 // Approved product from Excel (detected green rows)
 export interface ApprovedProduct {
   etm: string
