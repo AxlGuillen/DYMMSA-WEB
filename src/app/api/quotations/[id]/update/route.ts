@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { QuotationItemRow } from '@/types/database'
 
 interface UpdateQuotationInput {
+  name: string
   customer_name: string
   items: QuotationItemRow[]
 }
@@ -89,8 +90,11 @@ export async function PATCH(
       )
     }
 
-    const { customer_name, items } = (await request.json()) as UpdateQuotationInput
+    const { name, customer_name, items } = (await request.json()) as UpdateQuotationInput
 
+    if (!name?.trim()) {
+      return NextResponse.json({ message: 'El nombre de la cotización es requerido' }, { status: 400 })
+    }
     if (!customer_name?.trim()) {
       return NextResponse.json({ message: 'El nombre del cliente es requerido' }, { status: 400 })
     }
@@ -158,7 +162,7 @@ export async function PATCH(
     // Update quotation header
     await supabase
       .from('quotations')
-      .update({ customer_name: customer_name.trim(), total_amount })
+      .update({ name: name.trim(), customer_name: customer_name.trim(), total_amount })
       .eq('id', id)
 
     // Auto-learn
