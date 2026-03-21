@@ -106,6 +106,7 @@ export async function POST(
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
+        name:          quotation.name,
         customer_name: quotation.customer_name,
         status:        'pending_urrea_order',
         total_amount:  totalAmount,
