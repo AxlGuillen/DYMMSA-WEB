@@ -21,7 +21,7 @@ export default function QuoterPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('upload')
 
-  const { customer_name, items, setCustomerName, setItems, reset } =
+  const { name, customer_name, items, setName, setCustomerName, setItems, reset } =
     useQuotationStore()
 
   const lookupMutation  = useLookupEtms()
@@ -104,7 +104,7 @@ export default function QuoterPage() {
 
   const handleSave = async () => {
     try {
-      const result = await saveMutation.mutateAsync({ customer_name, items })
+      const result = await saveMutation.mutateAsync({ name, customer_name, items })
 
       // Auto-learn feedback
       const { added, updated } = result.auto_learn
@@ -127,6 +127,7 @@ export default function QuoterPage() {
   }
 
   const canSave =
+    name.trim().length > 0 &&
     customer_name.trim().length > 0 &&
     items.length > 0 &&
     !saveMutation.isPending
@@ -160,18 +161,32 @@ export default function QuoterPage() {
       {/* Step: editor */}
       {step === 'editor' && (
         <div className="space-y-6">
-          {/* Customer name */}
-          <div className="max-w-sm space-y-1.5">
-            <Label htmlFor="customer_name">
-              Nombre del cliente{' '}
-              <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="customer_name"
-              value={customer_name}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Ej: Constructora ABC"
-            />
+          {/* Quotation name + Customer name */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+            <div className="space-y-1.5">
+              <Label htmlFor="quotation_name">
+                Nombre de la cotización{' '}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="quotation_name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej: Obra Norte Enero 2026"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="customer_name">
+                Nombre del cliente{' '}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="customer_name"
+                value={customer_name}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Ej: Constructora ABC"
+              />
+            </div>
           </div>
 
           {/* Editable product table */}
