@@ -27,7 +27,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
+              <TableHead>Nombre</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-right">Total</TableHead>
@@ -38,7 +38,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
             {[...Array(5)].map((_, i) => (
               <TableRow key={i}>
                 <TableCell>
-                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-40" />
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-4 w-32" />
@@ -73,7 +73,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>ID</TableHead>
+            <TableHead>Nombre</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead className="text-right">Total</TableHead>
@@ -87,10 +87,10 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
               className="cursor-pointer hover:bg-muted/50"
               onClick={() => router.push(`/dashboard/orders/${order.id}`)}
             >
-              <TableCell className="font-mono text-sm">
-                {order.id.slice(0, 8)}...
+              <TableCell className="font-medium">
+                {order.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}
               </TableCell>
-              <TableCell className="font-medium">{order.customer_name}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">{order.customer_name}</TableCell>
               <TableCell>
                 <OrderStatusBadge status={order.status} />
               </TableCell>
