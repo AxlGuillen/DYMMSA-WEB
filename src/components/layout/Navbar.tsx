@@ -7,6 +7,16 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -50,6 +60,7 @@ export function Navbar() {
   const { user, signOut } = useAuth()
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const isEtmUrreaActive = etmUrreaLinks.some((link) =>
     pathname.startsWith(link.href)
@@ -142,9 +153,9 @@ export function Navbar() {
               <span className="sr-only">Documentacion</span>
             </Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={signOut}>
+          <Button variant="outline" size="sm" onClick={() => setConfirmOpen(true)}>
             <LogOut className="mr-2 h-4 w-4" />
-            Cerrar sesion
+            Cerrar sesión
           </Button>
         </div>
 
@@ -227,17 +238,34 @@ export function Navbar() {
                   className="w-full justify-start"
                   onClick={() => {
                     closeMobileMenu()
-                    signOut()
+                    setConfirmOpen(true)
                   }}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  Cerrar sesion
+                  Cerrar sesión
                 </Button>
               </div>
             </nav>
           </SheetContent>
         </Sheet>
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar sesión?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se cerrará tu sesión actual y tendrás que volver a iniciar sesión para acceder al sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={signOut}>
+              Cerrar sesión
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   )
 }
