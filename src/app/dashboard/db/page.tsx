@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useProducts } from '@/hooks/useProducts'
+import type { ProductSortBy, SortDir } from '@/hooks/useProducts'
 import { ProductsTable } from '@/components/db/ProductsTable'
 import { ProductForm } from '@/components/db/ProductForm'
 import { ExcelImporter } from '@/components/db/ExcelImporter'
@@ -20,13 +21,27 @@ export default function ProductosPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<EtmProduct | null>(null)
+  const [sortBy, setSortBy] = useState<ProductSortBy>('etm')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { data, isLoading } = useProducts({
     page,
     pageSize: PAGE_SIZE,
     search: searchQuery,
+    sortBy,
+    sortDir,
   })
+
+  const handleSort = (col: ProductSortBy) => {
+    if (col === sortBy) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(col)
+      setSortDir('asc')
+    }
+    setPage(1)
+  }
 
   // Debounced live search
   useEffect(() => {
@@ -115,6 +130,9 @@ export default function ProductosPage() {
         products={data?.data || []}
         isLoading={isLoading}
         onEdit={handleEdit}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onSort={handleSort}
       />
 
       {data && data.totalPages > 1 && (

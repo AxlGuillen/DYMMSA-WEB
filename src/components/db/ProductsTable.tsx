@@ -33,8 +33,9 @@ import {
 } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PackageSearch, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { PackageSearch, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { useDeleteProduct } from '@/hooks/useProducts'
+import type { ProductSortBy, SortDir } from '@/hooks/useProducts'
 import { toast } from 'sonner'
 import type { EtmProduct } from '@/types/database'
 
@@ -42,9 +43,51 @@ interface ProductsTableProps {
   products: EtmProduct[]
   isLoading: boolean
   onEdit: (product: EtmProduct) => void
+  sortBy?: ProductSortBy
+  sortDir?: SortDir
+  onSort?: (col: ProductSortBy) => void
 }
 
-export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProps) {
+function SortableHead({
+  col,
+  currentSort,
+  currentDir,
+  onSort,
+  children,
+  className,
+}: {
+  col: ProductSortBy
+  currentSort?: ProductSortBy
+  currentDir?: SortDir
+  onSort?: (col: ProductSortBy) => void
+  children: React.ReactNode
+  className?: string
+}) {
+  const isActive = currentSort === col
+  return (
+    <TableHead className={className}>
+      <button
+        onClick={() => onSort?.(col)}
+        className={`flex items-center gap-1 select-none transition-colors hover:text-foreground ${
+          isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
+        }`}
+      >
+        {children}
+        {isActive ? (
+          currentDir === 'asc' ? (
+            <ArrowUp className="h-3.5 w-3.5" />
+          ) : (
+            <ArrowDown className="h-3.5 w-3.5" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
+        )}
+      </button>
+    </TableHead>
+  )
+}
+
+export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, onSort }: ProductsTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<EtmProduct | null>(null)
   const deleteProduct = useDeleteProduct()
 
@@ -66,12 +109,12 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">ETM</TableHead>
-              <TableHead>Descripcion</TableHead>
+              <SortableHead col="etm" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[120px]">ETM</SortableHead>
+              <SortableHead col="description_es" currentSort={sortBy} currentDir={sortDir} onSort={onSort}>Descripcion</SortableHead>
               <TableHead>Description</TableHead>
-              <TableHead className="w-[150px]">Modelo</TableHead>
+              <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
-              <TableHead className="w-[100px] text-right">Precio</TableHead>
+              <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -99,12 +142,12 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">ETM</TableHead>
-              <TableHead>Descripcion</TableHead>
+              <SortableHead col="etm" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[120px]">ETM</SortableHead>
+              <SortableHead col="description_es" currentSort={sortBy} currentDir={sortDir} onSort={onSort}>Descripcion</SortableHead>
               <TableHead>Description</TableHead>
-              <TableHead className="w-[150px]">Modelo</TableHead>
+              <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
-              <TableHead className="w-[100px] text-right">Precio</TableHead>
+              <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -124,12 +167,12 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">ETM</TableHead>
-              <TableHead>Descripcion</TableHead>
+              <SortableHead col="etm" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[120px]">ETM</SortableHead>
+              <SortableHead col="description_es" currentSort={sortBy} currentDir={sortDir} onSort={onSort}>Descripcion</SortableHead>
               <TableHead>Description</TableHead>
-              <TableHead className="w-[150px]">Modelo</TableHead>
+              <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
-              <TableHead className="w-[100px] text-right">Precio</TableHead>
+              <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -167,7 +210,7 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
                 </TableCell>
                 <TableCell className="font-mono text-sm">{product.model_code || '—'}</TableCell>
                 <TableCell>{product.brand || '—'}</TableCell>
-                <TableCell className="text-right tabular-nums">
+                <TableCell className="tabular-nums">
                   ${(product.price ?? 0).toFixed(2)}
                 </TableCell>
                 <TableCell>

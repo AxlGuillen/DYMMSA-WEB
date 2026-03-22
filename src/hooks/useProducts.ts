@@ -6,10 +6,15 @@ import type { EtmProduct, EtmProductInsert, EtmProductUpdate } from '@/types/dat
 
 const PRODUCTS_KEY = ['products']
 
+export type ProductSortBy = 'etm' | 'description_es' | 'model_code' | 'price'
+export type SortDir = 'asc' | 'desc'
+
 interface ProductsParams {
   page?: number
   pageSize?: number
   search?: string
+  sortBy?: ProductSortBy
+  sortDir?: SortDir
 }
 
 interface ProductsResponse {
@@ -21,11 +26,11 @@ interface ProductsResponse {
 }
 
 export function useProducts(params: ProductsParams = {}) {
-  const { page = 1, pageSize = 20, search = '' } = params
+  const { page = 1, pageSize = 20, search = '', sortBy = 'etm', sortDir = 'asc' } = params
   const supabase = createClient()
 
   return useQuery({
-    queryKey: [...PRODUCTS_KEY, { page, pageSize, search }],
+    queryKey: [...PRODUCTS_KEY, { page, pageSize, search, sortBy, sortDir }],
     queryFn: async (): Promise<ProductsResponse> => {
       let query = supabase
         .from('etm_products')
@@ -39,7 +44,7 @@ export function useProducts(params: ProductsParams = {}) {
       const to = from + pageSize - 1
 
       const { data, error, count } = await query
-        .order('etm', { ascending: true })
+        .order(sortBy, { ascending: sortDir === 'asc' })
         .range(from, to)
 
       if (error) throw error
