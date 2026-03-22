@@ -7,6 +7,7 @@ import { z } from 'zod'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -22,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useCreateProduct, useUpdateProduct } from '@/hooks/useProducts'
 import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
 import type { EtmProduct } from '@/types/database'
 
 const productSchema = z.object({
@@ -114,6 +116,11 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
           <DialogTitle>
             {isEditing ? 'Editar Producto' : 'Agregar Producto'}
           </DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? 'Modifica los campos del producto. El código ETM no puede cambiarse.'
+              : 'Completa los datos del nuevo producto ETM - URREA.'}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -128,8 +135,14 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
                       placeholder="Codigo ETM"
                       {...field}
                       disabled={isEditing}
+                      className={isEditing ? 'font-mono bg-muted' : 'font-mono'}
                     />
                   </FormControl>
+                  {isEditing && (
+                    <p className="text-xs text-muted-foreground">
+                      El código ETM es el identificador único y no puede modificarse.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -220,6 +233,9 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
                 type="submit"
                 disabled={createProduct.isPending || updateProduct.isPending}
               >
+                {(createProduct.isPending || updateProduct.isPending) && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
                 {createProduct.isPending || updateProduct.isPending
                   ? 'Guardando...'
                   : isEditing

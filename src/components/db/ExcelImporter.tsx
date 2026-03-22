@@ -10,7 +10,8 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Upload, FileSpreadsheet, X } from 'lucide-react'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Upload, FileSpreadsheet, X, RefreshCw, Plus, Loader2 } from 'lucide-react'
 import { useImportProducts } from '@/hooks/useProducts'
 import { toast } from 'sonner'
 
@@ -159,30 +160,46 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
 
           <div className="space-y-2">
             <Label>Modo de importacion</Label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="mode"
-                  value="upsert"
-                  checked={mode === 'upsert'}
-                  onChange={() => setMode('upsert')}
-                  className="h-4 w-4"
-                />
-                <span className="text-sm">Actualizar existentes y agregar nuevos</span>
+            <RadioGroup
+              value={mode}
+              onValueChange={(v) => setMode(v as 'upsert' | 'insert')}
+              className="grid grid-cols-2 gap-2 pt-1"
+            >
+              <label
+                htmlFor="mode-upsert"
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                  mode === 'upsert' ? 'border-primary bg-primary/5' : 'border-muted hover:bg-muted/50'
+                }`}
+              >
+                <RadioGroupItem value="upsert" id="mode-upsert" className="mt-0.5" />
+                <div>
+                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Actualizar y agregar
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Sobreescribe existentes y añade nuevos
+                  </p>
+                </div>
               </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="mode"
-                  value="insert"
-                  checked={mode === 'insert'}
-                  onChange={() => setMode('insert')}
-                  className="h-4 w-4"
-                />
-                <span className="text-sm">Solo agregar nuevos</span>
+              <label
+                htmlFor="mode-insert"
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                  mode === 'insert' ? 'border-primary bg-primary/5' : 'border-muted hover:bg-muted/50'
+                }`}
+              >
+                <RadioGroupItem value="insert" id="mode-insert" className="mt-0.5" />
+                <div>
+                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                    <Plus className="h-3.5 w-3.5" />
+                    Solo agregar nuevos
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Ignora ETMs ya existentes
+                  </p>
+                </div>
               </label>
-            </div>
+            </RadioGroup>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
@@ -193,6 +210,7 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
               onClick={handleImport}
               disabled={!file || importProducts.isPending}
             >
+              {importProducts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {importProducts.isPending ? 'Importando...' : 'Importar'}
             </Button>
           </div>

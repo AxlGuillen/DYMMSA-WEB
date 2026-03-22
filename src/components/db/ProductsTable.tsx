@@ -25,9 +25,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { PackageSearch, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { useDeleteProduct } from '@/hooks/useProducts'
 import { toast } from 'sonner'
 import type { EtmProduct } from '@/types/database'
@@ -39,42 +45,81 @@ interface ProductsTableProps {
 }
 
 export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProps) {
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<EtmProduct | null>(null)
   const deleteProduct = useDeleteProduct()
 
   const handleDelete = async () => {
-    if (!deleteId) return
-
+    if (!deleteTarget) return
     try {
-      await deleteProduct.mutateAsync(deleteId)
+      await deleteProduct.mutateAsync(deleteTarget.id)
       toast.success('Producto eliminado')
-    } catch (error) {
+    } catch {
       toast.error('Error al eliminar producto')
     } finally {
-      setDeleteId(null)
+      setDeleteTarget(null)
     }
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full" />
-        ))}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[120px]">ETM</TableHead>
+              <TableHead>Descripcion</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="w-[150px]">Modelo</TableHead>
+              <TableHead className="w-[120px]">Marca</TableHead>
+              <TableHead className="w-[100px] text-right">Precio</TableHead>
+              <TableHead className="w-[80px]">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <TableRow key={i}>
+                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                <TableCell className="text-right"><Skeleton className="h-4 w-14 ml-auto" /></TableCell>
+                <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     )
   }
 
   if (products.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-muted-foreground">No se encontraron productos</p>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[120px]">ETM</TableHead>
+              <TableHead>Descripcion</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="w-[150px]">Modelo</TableHead>
+              <TableHead className="w-[120px]">Marca</TableHead>
+              <TableHead className="w-[100px] text-right">Precio</TableHead>
+              <TableHead className="w-[80px]">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+        </Table>
+        <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+          <PackageSearch className="h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground">No se encontraron productos</p>
+          <p className="text-xs text-muted-foreground/70">Intenta con otro término de búsqueda o agrega un producto nuevo.</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <>
+    <TooltipProvider delayDuration={400}>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -90,23 +135,49 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
           </TableHeader>
           <TableBody>
             {products.map((product) => (
-              <TableRow key={product.id}>
+              <TableRow key={product.id} className="group">
                 <TableCell className="font-mono text-sm">{product.etm}</TableCell>
-                <TableCell className="max-w-[300px] truncate">
-                  {product.description_es}
+                <TableCell className="max-w-[260px]">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="block truncate cursor-default">
+                        {product.description_es || <span className="text-muted-foreground/50">—</span>}
+                      </span>
+                    </TooltipTrigger>
+                    {product.description_es && (
+                      <TooltipContent side="bottom" className="max-w-[320px] text-xs">
+                        {product.description_es}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 </TableCell>
-                <TableCell className="max-w-[300px] truncate">
-                  {product.description}
+                <TableCell className="max-w-[260px]">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="block truncate cursor-default text-muted-foreground">
+                        {product.description || <span className="text-muted-foreground/50">—</span>}
+                      </span>
+                    </TooltipTrigger>
+                    {product.description && (
+                      <TooltipContent side="bottom" className="max-w-[320px] text-xs">
+                        {product.description}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 </TableCell>
-                <TableCell className="font-mono text-sm">{product.model_code}</TableCell>
+                <TableCell className="font-mono text-sm">{product.model_code || '—'}</TableCell>
                 <TableCell>{product.brand || '—'}</TableCell>
-                <TableCell className="text-right">
-                  ${product.price.toFixed(2)}
+                <TableCell className="text-right tabular-nums">
+                  ${(product.price ?? 0).toFixed(2)}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -116,10 +187,10 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
                         Editar
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => setDeleteId(product.id)}
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget(product)}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="mr-2 h-4 w-4 text-destructive" />
                         Eliminar
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -131,12 +202,15 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
         </Table>
       </div>
 
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar producto</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta accion no se puede deshacer. El producto sera eliminado permanentemente.
+              ¿Seguro que quieres eliminar{' '}
+              <span className="font-medium text-foreground font-mono">{deleteTarget?.etm}</span>
+              {deleteTarget?.description_es ? ` — ${deleteTarget.description_es}` : ''}?
+              {' '}Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -150,6 +224,6 @@ export function ProductsTable({ products, isLoading, onEdit }: ProductsTableProp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </TooltipProvider>
   )
 }
