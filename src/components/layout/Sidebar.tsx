@@ -8,6 +8,16 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -74,6 +84,7 @@ function NavLink({
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, signOut } = useAuth()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   return (
     <div className="flex h-full flex-col">
@@ -133,12 +144,29 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           variant="ghost"
           size="sm"
           className="w-full justify-start text-muted-foreground hover:text-foreground"
-          onClick={signOut}
+          onClick={() => setConfirmOpen(true)}
         >
           <LogOut className="mr-2 h-4 w-4" />
-          Cerrar sesion
+          Cerrar sesión
         </Button>
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar sesión?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se cerrará tu sesión actual y tendrás que volver a iniciar sesión para acceder al sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={signOut}>
+              Cerrar sesión
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
