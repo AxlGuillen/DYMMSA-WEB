@@ -6,10 +6,15 @@ import type { StoreInventory, StoreInventoryInsert, StoreInventoryUpdate } from 
 
 const INVENTORY_KEY = ['inventory']
 
+export type StockFilter = 'all' | 'in_stock' | 'low_stock' | 'sin_stock'
+export type QuantitySort = 'asc' | 'desc' | null
+
 interface InventoryParams {
   page?: number
   pageSize?: number
   search?: string
+  stockFilter?: StockFilter
+  quantitySort?: QuantitySort
 }
 
 interface InventoryResponse {
@@ -21,11 +26,11 @@ interface InventoryResponse {
 }
 
 export function useInventory(params: InventoryParams = {}) {
-  const { page = 1, pageSize = 20, search = '' } = params
+  const { page = 1, pageSize = 20, search = '', stockFilter = 'all', quantitySort = null } = params
   const supabase = createClient()
 
   return useQuery({
-    queryKey: [...INVENTORY_KEY, { page, pageSize, search }],
+    queryKey: [...INVENTORY_KEY, { page, pageSize, search, stockFilter, quantitySort }],
     queryFn: async (): Promise<InventoryResponse> => {
       let query = supabase
         .from('store_inventory')
@@ -35,11 +40,22 @@ export function useInventory(params: InventoryParams = {}) {
         query = query.ilike('model_code', `%${search}%`)
       }
 
+      if (stockFilter === 'sin_stock') {
+        query = query.eq('quantity', 0)
+      } else if (stockFilter === 'low_stock') {
+        query = query.gt('quantity', 0).lte('quantity', 5)
+      } else if (stockFilter === 'in_stock') {
+        query = query.gt('quantity', 5)
+      }
+
       const from = (page - 1) * pageSize
       const to = from + pageSize - 1
 
+      const orderCol = quantitySort ? 'quantity' : 'model_code'
+      const ascending = quantitySort ? quantitySort === 'asc' : true
+
       const { data, error, count } = await query
-        .order('model_code', { ascending: true })
+        .order(orderCol, { ascending })
         .range(from, to)
 
       if (error) throw error
@@ -113,6 +129,36 @@ export function useDeleteInventoryItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: INVENTORY_KEY })
+    },
+  })
+}
+
+interface InventoryStats {
+  total: number
+  in_stock: number
+  low_stock: number
+  sin_stock: number
+}
+
+export function useInventoryStats() {
+  const supabase = createClient()
+
+  return useQuery({
+    queryKey: [...INVENTORY_KEY, 'stats'],
+    queryFn: async (): Promise<InventoryStats> => {
+      const { data, error } = await supabase
+        .from('store_inventory')
+        .select('quantity')
+
+      if (error) throw error
+
+      const items = data || []
+      return {
+        total:     items.length,
+        sin_stock: items.filter((i) => i.quantity === 0).length,
+        low_stock: items.filter((i) => i.quantity > 0 && i.quantity <= 5).length,
+        in_stock:  items.filter((i) => i.quantity > 5).length,
+      }
     },
   })
 }
