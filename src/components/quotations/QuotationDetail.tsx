@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   DndContext,
   closestCenter,
@@ -31,6 +32,11 @@ import {
   Clock,
   ShoppingCart,
   GripVertical,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  ExternalLink,
+  AlertCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -67,7 +73,24 @@ import {
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal, DELIVERY_TIME_LABELS } from '@/components/quoter/ProductModal'
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
-import type { QuotationWithItems, QuotationItem, QuotationItemRow } from '@/types/database'
+import { useOrderByQuotationId } from '@/hooks/useOrders'
+import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime } from '@/types/database'
+
+// ------------------------------------------------------------------ //
+// Types                                                               //
+// ------------------------------------------------------------------ //
+
+type ApprovalFilter = 'all' | 'approved' | 'rejected' | 'pending'
+type SortField = 'description' | 'unit_price' | 'quantity' | 'delivery_time'
+
+const DELIVERY_ORDER: Record<DeliveryTime, number> = {
+  immediate: 0,
+  '2_3_days': 1,
+  '3_5_days': 2,
+  '1_week':   3,
+  '2_weeks':  4,
+  indefinite: 5,
+}
 
 // ------------------------------------------------------------------ //
 // Sortable row                                                        //
@@ -76,6 +99,7 @@ import type { QuotationWithItems, QuotationItem, QuotationItemRow } from '@/type
 interface SortableDetailRowProps {
   item: QuotationItemRow
   canEdit: boolean
+  isDndEnabled: boolean
   isApproved: boolean
   isSentForApproval: boolean
   dbItem: QuotationItem | undefined
@@ -84,7 +108,7 @@ interface SortableDetailRowProps {
 }
 
 function SortableDetailRow({
-  item, canEdit, isApproved, isSentForApproval, dbItem, onEdit, onRemove,
+  item, canEdit, isDndEnabled, isApproved, isSentForApproval, dbItem, onEdit, onRemove,
 }: SortableDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -103,14 +127,18 @@ function SortableDetailRow({
     >
       {canEdit && (
         <TableCell className="w-8 px-2">
-          <button
-            {...attributes}
-            {...listeners}
-            className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
-            aria-label="Arrastrar para reordenar"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
+          {isDndEnabled ? (
+            <button
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
+              aria-label="Arrastrar para reordenar"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          ) : (
+            <span className="block w-4" />
+          )}
         </TableCell>
       )}
       <TableCell className="font-mono text-xs font-medium">{item.etm || '—'}</TableCell>
@@ -194,6 +222,13 @@ const getRowClass = (item: QuotationItemRow) => {
   return ''
 }
 
+function SortIcon({ field, active, dir }: { field: SortField; active: SortField | null; dir: 'asc' | 'desc' }) {
+  if (active !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />
+  return dir === 'asc'
+    ? <ArrowUp className="h-3 w-3 ml-1" />
+    : <ArrowDown className="h-3 w-3 ml-1" />
+}
+
 // ------------------------------------------------------------------ //
 // Component                                                           //
 // ------------------------------------------------------------------ //
@@ -221,19 +256,27 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   // Copy-link state
   const [copied, setCopied] = useState(false)
 
-  const sendForApproval        = useSendForApproval()
-  const updateQuotation        = useUpdateQuotation()
-  const createOrderMutation    = useCreateOrderFromQuotation()
+  // Sort & filter state
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all')
+  const [sortField, setSortField] = useState<SortField | null>(null)
+  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('asc')
+
+  const sendForApproval     = useSendForApproval()
+  const updateQuotation     = useUpdateQuotation()
+  const createOrderMutation = useCreateOrderFromQuotation()
 
   const sensors = useSensors(useSensor(PointerSensor))
 
   const isDraft            = quotation.status === 'draft'
   const isSentForApproval  = quotation.status === 'sent_for_approval'
   const isApproved         = quotation.status === 'approved'
+  const isRejected         = quotation.status === 'rejected'
   const isConvertedToOrder = quotation.status === 'converted_to_order'
 
-  // DYMMSA can edit draft, in-approval and approved quotations
-  const canEdit = isDraft || isSentForApproval || isApproved
+  const canEdit      = isDraft || isSentForApproval || isApproved
+  const isDndEnabled = canEdit && sortField === null
+
+  const { data: relatedOrder } = useOrderByQuotationId(quotation.id, isConvertedToOrder)
 
   // Keep local state in sync if quotation data reloads
   useEffect(() => {
@@ -287,6 +330,21 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     setIsDirty(true)
   }
 
+  // ── Sort handler ────────────────────────────────────────────────
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
+
+  const clearSort = () => {
+    setSortField(null)
+    setSortDir('asc')
+  }
+
   // ── Save changes ────────────────────────────────────────────────
   const handleSave = async () => {
     try {
@@ -307,7 +365,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   // ── Send for approval ───────────────────────────────────────────
   const handleSendForApproval = async () => {
     try {
-      // Save pending changes first
       if (isDirty) {
         await updateQuotation.mutateAsync({
           id:            quotation.id,
@@ -348,22 +405,77 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  // ── Stats ───────────────────────────────────────────────────────
-  const items     = canEdit ? localItems : quotation.quotation_items.map(toItemRow)
-  const partialTotal = items.reduce((sum, item) => {
+  // ── Items, stats & derived display ─────────────────────────────
+  const rawItems = canEdit ? localItems : quotation.quotation_items.map(toItemRow)
+
+  const partialTotal = rawItems.reduce((sum, item) => {
     if (item.unit_price != null && item.quantity != null) {
       return sum + item.unit_price * item.quantity
     }
     return sum
   }, 0)
 
-  const approvedCount  = quotation.quotation_items.filter((i) => i.is_approved === true).length
-  const rejectedCount  = quotation.quotation_items.filter((i) => i.is_approved === false).length
-  const pendingCount   = quotation.quotation_items.filter((i) => i.is_approved === null).length
-  const noDataCount    = isDraft ? localItems.filter(isMissingData).length : 0
-  const noQuantityCount= isDraft ? localItems.filter(isMissingQuantity).length : 0
+  const approvedCount   = quotation.quotation_items.filter((i) => i.is_approved === true).length
+  const rejectedCount   = quotation.quotation_items.filter((i) => i.is_approved === false).length
+  const pendingCount    = quotation.quotation_items.filter((i) => i.is_approved === null).length
+  const noDataCount     = isDraft ? localItems.filter(isMissingData).length : 0
+  const noQuantityCount = isDraft ? localItems.filter(isMissingQuantity).length : 0
 
-  const canSendForApproval = localQuotationName.trim().length > 0 && localName.trim().length > 0 && localItems.length > 0
+  const canSendForApproval =
+    localQuotationName.trim().length > 0 &&
+    localName.trim().length > 0 &&
+    localItems.length > 0
+
+  const hasApprovalData = isApproved || isSentForApproval
+
+  // Filter by approval status
+  const filteredItems: QuotationItemRow[] =
+    hasApprovalData && approvalFilter !== 'all'
+      ? rawItems.filter((item) => {
+          const dbItem = quotation.quotation_items.find((i) => i.id === item._id)
+          if (approvalFilter === 'approved') return dbItem?.is_approved === true
+          if (approvalFilter === 'rejected') return dbItem?.is_approved === false
+          if (approvalFilter === 'pending')  return dbItem?.is_approved === null
+          return true
+        })
+      : rawItems
+
+  // Sort
+  const displayItems: QuotationItemRow[] = sortField
+    ? [...filteredItems].sort((a, b) => {
+        let aVal: number | string
+        let bVal: number | string
+        switch (sortField) {
+          case 'description':
+            aVal = (a.description || a.description_es || '').toLowerCase()
+            bVal = (b.description || b.description_es || '').toLowerCase()
+            break
+          case 'unit_price':
+            aVal = a.unit_price ?? -1
+            bVal = b.unit_price ?? -1
+            break
+          case 'quantity':
+            aVal = a.quantity ?? -1
+            bVal = b.quantity ?? -1
+            break
+          case 'delivery_time':
+            aVal = DELIVERY_ORDER[a.delivery_time] ?? 99
+            bVal = DELIVERY_ORDER[b.delivery_time] ?? 99
+            break
+        }
+        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
+        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
+        return 0
+      })
+    : filteredItems
+
+  // Column span for empty state / footer
+  const totalCols =
+    (canEdit ? 1 : 0) +        // grip
+    7 +                          // ETM, Desc, Código, Marca, P.unit, Cant, Subtotal
+    1 +                          // Entrega
+    (hasApprovalData ? 1 : 0) + // Aprobación
+    (canEdit ? 1 : 0)            // Acciones
 
   return (
     <div className="space-y-6">
@@ -397,9 +509,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               onClick={handleSave}
               disabled={updateQuotation.isPending}
             >
-              {updateQuotation.isPending
-                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                : null}
+              {updateQuotation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Guardar cambios
             </Button>
           )}
@@ -423,21 +533,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleSendForApproval}>
-                    Sí, enviar
-                  </AlertDialogAction>
+                  <AlertDialogAction onClick={handleSendForApproval}>Sí, enviar</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          )}
-
-          {isSentForApproval && (
-            <Button variant="outline" onClick={handleCopyLink}>
-              {copied
-                ? <Check className="mr-2 h-4 w-4 text-green-500" />
-                : <Copy className="mr-2 h-4 w-4" />}
-              {copied ? 'Copiado' : 'Copiar link de aprobación'}
-            </Button>
           )}
 
           {isApproved && (
@@ -499,16 +598,60 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </Card>
       )}
 
+      {/* Rejected banner */}
+      {isRejected && (
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 text-red-800 dark:text-red-300">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <p className="text-sm font-medium">
+                Esta cotización fue rechazada por el cliente. Puedes crear una nueva con los ajustes necesarios.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Converted to order banner */}
+      {isConvertedToOrder && (
+        <Card className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <p className="text-sm font-medium">
+                  Esta cotización fue convertida a una orden de venta.
+                </p>
+              </div>
+              {relatedOrder && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  asChild
+                  className="border-green-300 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/40 shrink-0"
+                >
+                  <Link href={`/dashboard/orders/${relatedOrder.id}`}>
+                    Ver orden
+                    <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
           <CardContent className="pt-4 pb-4">
             <p className="text-xs text-muted-foreground">Productos</p>
-            <p className="text-2xl font-bold">{isDraft ? localItems.length : quotation.quotation_items.length}</p>
+            <p className="text-2xl font-bold">
+              {isDraft ? localItems.length : quotation.quotation_items.length}
+            </p>
           </CardContent>
         </Card>
 
-        {/* Draft: show completeness stats */}
         {canEdit && isDraft && (
           <>
             <Card className={noQuantityCount > 0 ? 'border-yellow-300 dark:border-yellow-700' : ''}>
@@ -530,7 +673,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
           </>
         )}
 
-        {/* Approved: show approval stats */}
         {(isApproved || isSentForApproval) && (
           <>
             <Card>
@@ -549,6 +691,16 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 <p className="text-2xl font-bold text-red-500">{rejectedCount}</p>
               </CardContent>
             </Card>
+            {isSentForApproval && (
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-yellow-500" /> Pendientes
+                  </p>
+                  <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{pendingCount}</p>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
 
@@ -568,7 +720,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       {canEdit && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           <div className="space-y-1.5">
-            <Label htmlFor="quotation_name">Nombre de la cotización <span className="text-destructive">*</span></Label>
+            <Label htmlFor="quotation_name">
+              Nombre de la cotización <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="quotation_name"
               value={localQuotationName}
@@ -577,7 +731,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="customer_name">Nombre del cliente <span className="text-destructive">*</span></Label>
+            <Label htmlFor="customer_name">
+              Nombre del cliente <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="customer_name"
               value={localName}
@@ -614,7 +770,79 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               </Button>
             )}
           </div>
+
+          {/* Sort & Filter toolbar */}
+          <div className="flex flex-col gap-2 pt-3 border-t mt-3">
+            {/* Sort pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-muted-foreground mr-1">Ordenar:</span>
+              {(
+                [
+                  { field: 'description'   as SortField, label: 'Alfabético' },
+                  { field: 'unit_price'    as SortField, label: 'Precio'     },
+                  { field: 'quantity'      as SortField, label: 'Cantidad'   },
+                  { field: 'delivery_time' as SortField, label: 'Entrega'    },
+                ] satisfies { field: SortField; label: string }[]
+              ).map(({ field, label }) => (
+                <button
+                  key={field}
+                  onClick={() => handleSort(field)}
+                  className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    sortField === field
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:border-foreground/30'
+                  }`}
+                >
+                  {label}
+                  <SortIcon field={field} active={sortField} dir={sortDir} />
+                </button>
+              ))}
+              {sortField && (
+                <button
+                  onClick={clearSort}
+                  className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                >
+                  Limpiar orden
+                </button>
+              )}
+            </div>
+
+            {/* Approval filter pills (only when approval data exists) */}
+            {hasApprovalData && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs text-muted-foreground mr-1">Filtrar:</span>
+                {(
+                  [
+                    { key: 'all'      as ApprovalFilter, label: 'Todos',     count: quotation.quotation_items.length },
+                    { key: 'approved' as ApprovalFilter, label: 'Aprobado',  count: approvedCount },
+                    { key: 'rejected' as ApprovalFilter, label: 'Rechazado', count: rejectedCount },
+                    { key: 'pending'  as ApprovalFilter, label: 'Pendiente', count: pendingCount  },
+                  ] satisfies { key: ApprovalFilter; label: string; count: number }[]
+                ).map(({ key, label, count }) => (
+                  <button
+                    key={key}
+                    onClick={() => setApprovalFilter(key)}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                      approvalFilter === key
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'text-muted-foreground hover:text-foreground hover:border-foreground/30'
+                    }`}
+                  >
+                    {label}
+                    <span className={`rounded-full px-1 text-[10px] font-semibold ${
+                      approvalFilter === key
+                        ? 'bg-primary-foreground/20 text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </CardHeader>
+
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
             <Table>
@@ -629,7 +857,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   <TableHead className="text-right">Cant.</TableHead>
                   <TableHead className="text-right">Subtotal</TableHead>
                   <TableHead>Entrega</TableHead>
-                  {(isApproved || isSentForApproval) && (
+                  {hasApprovalData && (
                     <TableHead className="text-center">Aprobación</TableHead>
                   )}
                   {canEdit && (
@@ -638,34 +866,49 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </TableRow>
               </TableHeader>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={items.map((i) => i._id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={displayItems.map((i) => i._id)} strategy={verticalListSortingStrategy}>
                   <TableBody>
-                    {items.map((item) => (
-                      <SortableDetailRow
-                        key={item._id}
-                        item={item}
-                        canEdit={canEdit}
-                        isApproved={isApproved}
-                        isSentForApproval={isSentForApproval}
-                        dbItem={quotation.quotation_items.find((i) => i.id === item._id)}
-                        onEdit={handleEdit}
-                        onRemove={handleRemove}
-                      />
-                    ))}
+                    {displayItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={totalCols}
+                          className="h-24 text-center text-sm text-muted-foreground"
+                        >
+                          {approvalFilter !== 'all'
+                            ? 'No hay productos con ese estado de aprobación.'
+                            : 'No hay productos en esta cotización.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      displayItems.map((item) => (
+                        <SortableDetailRow
+                          key={item._id}
+                          item={item}
+                          canEdit={canEdit}
+                          isDndEnabled={isDndEnabled}
+                          isApproved={isApproved}
+                          isSentForApproval={isSentForApproval}
+                          dbItem={quotation.quotation_items.find((i) => i.id === item._id)}
+                          onEdit={handleEdit}
+                          onRemove={handleRemove}
+                        />
+                      ))
+                    )}
                   </TableBody>
                 </SortableContext>
               </DndContext>
 
-              {partialTotal > 0 && (
+              {partialTotal > 0 && displayItems.length > 0 && (
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-right font-bold">Total:</TableCell>
+                    <TableCell colSpan={canEdit ? 7 : 6} className="text-right font-bold">
+                      Total:
+                    </TableCell>
                     <TableCell className="text-right font-bold">
                       ${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell /> {/* Entrega */}
-                    {(isApproved || isSentForApproval) && <TableCell />}
-                    {canEdit && <TableCell />} {/* Grip */}
+                    {hasApprovalData && <TableCell />} {/* Aprobación */}
                     {canEdit && <TableCell />} {/* Acciones */}
                   </TableRow>
                 </TableFooter>
@@ -675,7 +918,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </CardContent>
       </Card>
 
-      {/* Product modal (draft and approved editing) */}
+      {/* Product modal */}
       {canEdit && (
         <ProductModal
           mode={modalMode}

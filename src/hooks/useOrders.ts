@@ -356,6 +356,24 @@ export function useRemoveOrderItem() {
   })
 }
 
+export function useOrderByQuotationId(quotationId: string, enabled: boolean) {
+  const supabase = createClient()
+
+  return useQuery({
+    queryKey: [...ORDERS_KEY, 'by-quotation', quotationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, name, status')
+        .eq('quotation_id', quotationId)
+        .single()
+      if (error) return null
+      return data as { id: string; name: string; status: string } | null
+    },
+    enabled: !!quotationId && enabled,
+  })
+}
+
 export function useAutoLearn() {
   return useMutation({
     mutationFn: async (products: CreateOrderInput['products']) => {
