@@ -119,7 +119,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
           <DialogDescription>
             {isEditing
               ? 'Modifica los campos del producto. El código ETM no puede cambiarse.'
-              : 'Completa los datos del nuevo producto ETM - URREA.'}
+              : 'Completa los datos del nuevo producto al catálogo ETM.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -179,7 +179,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
                 name="model_code"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Modelo URREA</FormLabel>
+                    <FormLabel>Código Modelo</FormLabel>
                     <FormControl>
                       <Input placeholder="Codigo modelo" {...field} />
                     </FormControl>

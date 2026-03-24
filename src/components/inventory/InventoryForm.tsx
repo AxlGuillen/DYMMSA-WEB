@@ -106,7 +106,7 @@ export function InventoryForm({ open, onOpenChange, item }: InventoryFormProps) 
               name="model_code"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Codigo Modelo URREA</FormLabel>
+                  <FormLabel>Código Modelo</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="Ej: 7420MT"

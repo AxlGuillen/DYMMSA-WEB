@@ -114,7 +114,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
           <div className="space-y-1">
             <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-              ETM — URREA
+              ETM — Catálogo
             </p>
             {etmUrreaLinks.map((link) => (
               <NavLink key={link.href} {...link} onClick={onNavigate} />

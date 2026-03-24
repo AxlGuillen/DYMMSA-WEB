@@ -61,7 +61,7 @@ export default function InventoryPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
           <p className="text-muted-foreground">
-            Gestiona el stock de productos URREA en DYMMSA.
+            Gestiona el stock de productos en la tienda DYMMSA.
           </p>
         </div>
         <div className="flex gap-2">

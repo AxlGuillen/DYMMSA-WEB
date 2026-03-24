@@ -116,7 +116,7 @@ export function Navbar() {
                     isEtmUrreaActive && 'bg-accent'
                   )}
                 >
-                  ETM - URREA
+                  ETM - Catálogo
                   <ChevronDown className="h-4 w-4" />
                 </button>
               </DropdownMenuTrigger>
@@ -206,7 +206,7 @@ export function Navbar() {
               {/* ETM - URREA Section */}
               <div className="mt-4 pt-4 border-t">
                 <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  ETM - URREA
+                  ETM - Catálogo
                 </p>
                 {etmUrreaLinks.map((link) => {
                   const Icon = link.icon
