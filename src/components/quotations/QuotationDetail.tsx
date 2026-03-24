@@ -37,6 +37,7 @@ import {
   ArrowDown,
   ExternalLink,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -82,6 +83,7 @@ import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime 
 
 type ApprovalFilter = 'all' | 'approved' | 'rejected' | 'pending'
 type SortField = 'description' | 'unit_price' | 'quantity' | 'delivery_time'
+type SortDir = 'asc' | 'desc'
 
 const DELIVERY_ORDER: Record<DeliveryTime, number> = {
   immediate: 0,
@@ -90,6 +92,47 @@ const DELIVERY_ORDER: Record<DeliveryTime, number> = {
   '1_week':   3,
   '2_weeks':  4,
   indefinite: 5,
+}
+
+// ------------------------------------------------------------------ //
+// SortableHead (matches ProductsTable pattern)                        //
+// ------------------------------------------------------------------ //
+
+function SortableHead({
+  col,
+  currentSort,
+  currentDir,
+  onSort,
+  children,
+  className,
+}: {
+  col: SortField
+  currentSort: SortField | null
+  currentDir: SortDir
+  onSort: (col: SortField) => void
+  children: React.ReactNode
+  className?: string
+}) {
+  const isActive = currentSort === col
+  return (
+    <TableHead className={className}>
+      <button
+        onClick={() => onSort(col)}
+        className={`flex items-center gap-1 select-none transition-colors hover:text-foreground ${
+          isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
+        }`}
+      >
+        {children}
+        {isActive ? (
+          currentDir === 'asc'
+            ? <ArrowUp className="h-3.5 w-3.5" />
+            : <ArrowDown className="h-3.5 w-3.5" />
+        ) : (
+          <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
+        )}
+      </button>
+    </TableHead>
+  )
 }
 
 // ------------------------------------------------------------------ //
@@ -222,13 +265,6 @@ const getRowClass = (item: QuotationItemRow) => {
   return ''
 }
 
-function SortIcon({ field, active, dir }: { field: SortField; active: SortField | null; dir: 'asc' | 'desc' }) {
-  if (active !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />
-  return dir === 'asc'
-    ? <ArrowUp className="h-3 w-3 ml-1" />
-    : <ArrowDown className="h-3 w-3 ml-1" />
-}
-
 // ------------------------------------------------------------------ //
 // Component                                                           //
 // ------------------------------------------------------------------ //
@@ -259,7 +295,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   // Sort & filter state
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all')
   const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('asc')
+  const [sortDir, setSortDir]     = useState<SortDir>('asc')
 
   const sendForApproval     = useSendForApproval()
   const updateQuotation     = useUpdateQuotation()
@@ -275,10 +311,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const canEdit      = isDraft || isSentForApproval || isApproved
   const isDndEnabled = canEdit && sortField === null
+  const hasApprovalData = isApproved || isSentForApproval
 
   const { data: relatedOrder } = useOrderByQuotationId(quotation.id, isConvertedToOrder)
 
-  // Keep local state in sync if quotation data reloads
   useEffect(() => {
     setLocalQuotationName(quotation.name)
     setLocalName(quotation.customer_name)
@@ -340,9 +376,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  const clearSort = () => {
-    setSortField(null)
-    setSortDir('asc')
+  // ── Approval filter toggle (same pattern as orders page) ────────
+  const handleFilterToggle = (key: ApprovalFilter) => {
+    setApprovalFilter((prev) => (prev === key && key !== 'all' ? 'all' : key))
   }
 
   // ── Save changes ────────────────────────────────────────────────
@@ -420,13 +456,12 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const pendingCount    = quotation.quotation_items.filter((i) => i.is_approved === null).length
   const noDataCount     = isDraft ? localItems.filter(isMissingData).length : 0
   const noQuantityCount = isDraft ? localItems.filter(isMissingQuantity).length : 0
+  const totalCount      = isDraft ? localItems.length : quotation.quotation_items.length
 
   const canSendForApproval =
     localQuotationName.trim().length > 0 &&
     localName.trim().length > 0 &&
     localItems.length > 0
-
-  const hasApprovalData = isApproved || isSentForApproval
 
   // Filter by approval status
   const filteredItems: QuotationItemRow[] =
@@ -469,13 +504,12 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       })
     : filteredItems
 
-  // Column span for empty state / footer
   const totalCols =
-    (canEdit ? 1 : 0) +        // grip
-    7 +                          // ETM, Desc, Código, Marca, P.unit, Cant, Subtotal
-    1 +                          // Entrega
-    (hasApprovalData ? 1 : 0) + // Aprobación
-    (canEdit ? 1 : 0)            // Acciones
+    (canEdit ? 1 : 0) +
+    7 +
+    1 +
+    (hasApprovalData ? 1 : 0) +
+    (canEdit ? 1 : 0)
 
   return (
     <div className="space-y-6">
@@ -641,80 +675,109 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </Card>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Productos</p>
-            <p className="text-2xl font-bold">
-              {isDraft ? localItems.length : quotation.quotation_items.length}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Stats / Filter cards */}
+      {hasApprovalData ? (
+        /* Approval filter cards — clickable, same pattern as orders page */
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Todos (acts as reset) */}
+          <button
+            onClick={() => handleFilterToggle('all')}
+            className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
+              bg-card hover:bg-muted/50
+              ${approvalFilter === 'all' ? 'ring-2 ring-offset-1 ring-border' : ''}`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-block h-2 w-2 rounded-full shrink-0 bg-muted-foreground/50" />
+              <span className="text-xs font-medium text-muted-foreground">Todos</span>
+            </div>
+            <p className="text-2xl font-bold">{totalCount}</p>
+          </button>
 
-        {canEdit && isDraft && (
-          <>
-            <Card className={noQuantityCount > 0 ? 'border-yellow-300 dark:border-yellow-700' : ''}>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs text-muted-foreground">Sin cantidad</p>
-                <p className={`text-2xl font-bold ${noQuantityCount > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-muted-foreground'}`}>
-                  {noQuantityCount}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className={noDataCount > 0 ? 'border-orange-300 dark:border-orange-700' : ''}>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs text-muted-foreground">Sin datos</p>
-                <p className={`text-2xl font-bold ${noDataCount > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
-                  {noDataCount}
-                </p>
-              </CardContent>
-            </Card>
-          </>
-        )}
+          {/* Aprobados */}
+          <button
+            onClick={() => handleFilterToggle('approved')}
+            className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
+              bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50
+              ${approvalFilter === 'approved' ? 'ring-2 ring-offset-1 ring-green-400' : ''}`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-block h-2 w-2 rounded-full shrink-0 bg-green-500" />
+              <span className="text-xs font-medium text-green-700 dark:text-green-300">Aprobados</span>
+            </div>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-300">{approvedCount}</p>
+          </button>
 
-        {(isApproved || isSentForApproval) && (
-          <>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3 text-green-500" /> Aprobados
-                </p>
-                <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <XCircle className="h-3 w-3 text-red-500" /> Rechazados
-                </p>
-                <p className="text-2xl font-bold text-red-500">{rejectedCount}</p>
-              </CardContent>
-            </Card>
-            {isSentForApproval && (
-              <Card>
+          {/* Rechazados */}
+          <button
+            onClick={() => handleFilterToggle('rejected')}
+            className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
+              bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50
+              ${approvalFilter === 'rejected' ? 'ring-2 ring-offset-1 ring-red-400' : ''}`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-block h-2 w-2 rounded-full shrink-0 bg-red-500" />
+              <span className="text-xs font-medium text-red-700 dark:text-red-300">Rechazados</span>
+            </div>
+            <p className="text-2xl font-bold text-red-700 dark:text-red-300">{rejectedCount}</p>
+          </button>
+
+          {/* Pendientes */}
+          <button
+            onClick={() => handleFilterToggle('pending')}
+            className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
+              bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50
+              ${approvalFilter === 'pending' ? 'ring-2 ring-offset-1 ring-yellow-400' : ''}`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-block h-2 w-2 rounded-full shrink-0 bg-yellow-500" />
+              <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Pendientes</span>
+            </div>
+            <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{pendingCount}</p>
+          </button>
+        </div>
+      ) : (
+        /* Regular stats (draft / converted / rejected) */
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">Productos</p>
+              <p className="text-2xl font-bold">{totalCount}</p>
+            </CardContent>
+          </Card>
+
+          {canEdit && isDraft && (
+            <>
+              <Card className={noQuantityCount > 0 ? 'border-yellow-300 dark:border-yellow-700' : ''}>
                 <CardContent className="pt-4 pb-4">
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-yellow-500" /> Pendientes
+                  <p className="text-xs text-muted-foreground">Sin cantidad</p>
+                  <p className={`text-2xl font-bold ${noQuantityCount > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-muted-foreground'}`}>
+                    {noQuantityCount}
                   </p>
-                  <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{pendingCount}</p>
                 </CardContent>
               </Card>
-            )}
-          </>
-        )}
+              <Card className={noDataCount > 0 ? 'border-orange-300 dark:border-orange-700' : ''}>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground">Sin datos</p>
+                  <p className={`text-2xl font-bold ${noDataCount > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+                    {noDataCount}
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Total</p>
-            <p className="text-xl font-bold">
-              {partialTotal > 0
-                ? `$${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
-                : <span className="text-muted-foreground text-base">Sin precio</span>}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-xl font-bold">
+                {partialTotal > 0
+                  ? `$${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                  : <span className="text-muted-foreground text-base">Sin precio</span>}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Name + Customer name inputs (editable quotations) */}
       {canEdit && (
@@ -763,83 +826,25 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </CardDescription>
               )}
             </div>
-            {canEdit && (
-              <Button size="sm" onClick={handleCreate}>
-                <Plus className="h-4 w-4 mr-1.5" />
-                Agregar
-              </Button>
-            )}
-          </div>
-
-          {/* Sort & Filter toolbar */}
-          <div className="flex flex-col gap-2 pt-3 border-t mt-3">
-            {/* Sort pills */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs text-muted-foreground mr-1">Ordenar:</span>
-              {(
-                [
-                  { field: 'description'   as SortField, label: 'Alfabético' },
-                  { field: 'unit_price'    as SortField, label: 'Precio'     },
-                  { field: 'quantity'      as SortField, label: 'Cantidad'   },
-                  { field: 'delivery_time' as SortField, label: 'Entrega'    },
-                ] satisfies { field: SortField; label: string }[]
-              ).map(({ field, label }) => (
-                <button
-                  key={field}
-                  onClick={() => handleSort(field)}
-                  className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                    sortField === field
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:border-foreground/30'
-                  }`}
-                >
-                  {label}
-                  <SortIcon field={field} active={sortField} dir={sortDir} />
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
               {sortField && (
-                <button
-                  onClick={clearSort}
-                  className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setSortField(null); setSortDir('asc') }}
+                  className="text-muted-foreground h-8 px-2"
                 >
-                  Limpiar orden
-                </button>
+                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                  Restablecer orden
+                </Button>
+              )}
+              {canEdit && (
+                <Button size="sm" onClick={handleCreate}>
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Agregar
+                </Button>
               )}
             </div>
-
-            {/* Approval filter pills (only when approval data exists) */}
-            {hasApprovalData && (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs text-muted-foreground mr-1">Filtrar:</span>
-                {(
-                  [
-                    { key: 'all'      as ApprovalFilter, label: 'Todos',     count: quotation.quotation_items.length },
-                    { key: 'approved' as ApprovalFilter, label: 'Aprobado',  count: approvedCount },
-                    { key: 'rejected' as ApprovalFilter, label: 'Rechazado', count: rejectedCount },
-                    { key: 'pending'  as ApprovalFilter, label: 'Pendiente', count: pendingCount  },
-                  ] satisfies { key: ApprovalFilter; label: string; count: number }[]
-                ).map(({ key, label, count }) => (
-                  <button
-                    key={key}
-                    onClick={() => setApprovalFilter(key)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                      approvalFilter === key
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'text-muted-foreground hover:text-foreground hover:border-foreground/30'
-                    }`}
-                  >
-                    {label}
-                    <span className={`rounded-full px-1 text-[10px] font-semibold ${
-                      approvalFilter === key
-                        ? 'bg-primary-foreground/20 text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </CardHeader>
 
@@ -850,13 +855,21 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 <TableRow>
                   {canEdit && <TableHead className="w-8" />}
                   <TableHead>ETM</TableHead>
-                  <TableHead>Descripción</TableHead>
+                  <SortableHead col="description" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
+                    Descripción
+                  </SortableHead>
                   <TableHead>Código</TableHead>
                   <TableHead>Marca</TableHead>
-                  <TableHead className="text-right">Precio unit.</TableHead>
-                  <TableHead className="text-right">Cant.</TableHead>
+                  <SortableHead col="unit_price" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
+                    Precio unit.
+                  </SortableHead>
+                  <SortableHead col="quantity" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
+                    Cant.
+                  </SortableHead>
                   <TableHead className="text-right">Subtotal</TableHead>
-                  <TableHead>Entrega</TableHead>
+                  <SortableHead col="delivery_time" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
+                    Entrega
+                  </SortableHead>
                   {hasApprovalData && (
                     <TableHead className="text-center">Aprobación</TableHead>
                   )}
