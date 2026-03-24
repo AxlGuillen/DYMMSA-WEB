@@ -114,13 +114,14 @@ function SortableHead({
   className?: string
 }) {
   const isActive = currentSort === col
+  const isRight  = className?.includes('text-right')
   return (
     <TableHead className={className}>
       <button
         onClick={() => onSort(col)}
-        className={`flex items-center gap-1 select-none transition-colors hover:text-foreground ${
-          isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
-        }`}
+        className={`flex items-center gap-1 w-full select-none transition-colors hover:text-foreground ${
+          isRight ? 'justify-end' : ''
+        } ${isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
       >
         {children}
         {isActive ? (
