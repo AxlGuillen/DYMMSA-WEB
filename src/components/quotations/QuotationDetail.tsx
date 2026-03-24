@@ -678,7 +678,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       {/* Stats / Filter cards */}
       {hasApprovalData ? (
         /* Approval filter cards — clickable, same pattern as orders page */
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {/* Todos (acts as reset) */}
           <button
             onClick={() => handleFilterToggle('all')}
@@ -686,10 +686,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               bg-card hover:bg-muted/50
               ${approvalFilter === 'all' ? 'ring-2 ring-offset-1 ring-border' : ''}`}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="inline-block h-2 w-2 rounded-full shrink-0 bg-muted-foreground/50" />
-              <span className="text-xs font-medium text-muted-foreground">Todos</span>
-            </div>
+            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+              <Package className="h-3 w-3" /> Todos
+            </p>
             <p className="text-2xl font-bold">{totalCount}</p>
           </button>
 
@@ -700,10 +699,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50
               ${approvalFilter === 'approved' ? 'ring-2 ring-offset-1 ring-green-400' : ''}`}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="inline-block h-2 w-2 rounded-full shrink-0 bg-green-500" />
-              <span className="text-xs font-medium text-green-700 dark:text-green-300">Aprobados</span>
-            </div>
+            <p className="text-xs font-medium text-green-700 dark:text-green-300 flex items-center gap-1 mb-2">
+              <CheckCircle2 className="h-3 w-3" /> Aprobados
+            </p>
             <p className="text-2xl font-bold text-green-700 dark:text-green-300">{approvedCount}</p>
           </button>
 
@@ -714,10 +712,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50
               ${approvalFilter === 'rejected' ? 'ring-2 ring-offset-1 ring-red-400' : ''}`}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="inline-block h-2 w-2 rounded-full shrink-0 bg-red-500" />
-              <span className="text-xs font-medium text-red-700 dark:text-red-300">Rechazados</span>
-            </div>
+            <p className="text-xs font-medium text-red-700 dark:text-red-300 flex items-center gap-1 mb-2">
+              <XCircle className="h-3 w-3" /> Rechazados
+            </p>
             <p className="text-2xl font-bold text-red-700 dark:text-red-300">{rejectedCount}</p>
           </button>
 
@@ -728,12 +725,23 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50
               ${approvalFilter === 'pending' ? 'ring-2 ring-offset-1 ring-yellow-400' : ''}`}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="inline-block h-2 w-2 rounded-full shrink-0 bg-yellow-500" />
-              <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Pendientes</span>
-            </div>
+            <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300 flex items-center gap-1 mb-2">
+              <Clock className="h-3 w-3" /> Pendientes
+            </p>
             <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{pendingCount}</p>
           </button>
+
+          {/* Total (non-clickable) */}
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-xl font-bold">
+                {partialTotal > 0
+                  ? `$${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                  : <span className="text-muted-foreground text-base">Sin precio</span>}
+              </p>
+            </CardContent>
+          </Card>
         </div>
       ) : (
         /* Regular stats (draft / converted / rejected) */
