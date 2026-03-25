@@ -39,18 +39,5 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
     )
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Back Button */}
-      <Link href="/dashboard/orders">
-        <Button className='mb-6' variant="ghost" size="sm">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Volver a Ordenes
-        </Button>
-      </Link>
-
-      {/* Order Detail */}
-      <OrderDetail order={order} />
-    </div>
-  )
+  return <OrderDetail order={order} />
 }
