@@ -4,11 +4,16 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
+  ArrowLeft,
   Download,
   Loader2,
   AlertTriangle,
   CheckCircle2,
+  XCircle,
   Package,
+  PackageCheck,
+  Truck,
+  DollarSign,
   Plus,
   Pencil,
   Trash2,
@@ -17,6 +22,7 @@ import {
   Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -322,177 +328,203 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const isCancelled = order.status === 'cancelled'
   const isCompleted = order.status === 'completed'
 
-  // Use total_amount from database (updated when confirming reception)
   const totalAmount = order.total_amount
 
   return (
     <div className="space-y-6">
-      {/* Order Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle className="text-2xl">{order.name || order.customer_name}</CardTitle>
-              <CardDescription className="mt-1">
-                {order.name ? `${order.customer_name} · ` : ''}Orden #{order.id.slice(0, 8)} •{' '}
-                {new Date(order.created_at).toLocaleDateString('es-MX', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </CardDescription>
-            </div>
+
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="mt-0.5 shrink-0"
+          onClick={() => router.push('/dashboard/orders')}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold tracking-tight">
+              {order.name || order.customer_name}
+            </h1>
             <OrderStatusBadge status={order.status} />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Status Select */}
-            {!isCancelled && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Estado:</span>
-                <Select
-                  value={order.status}
-                  onValueChange={(value) => handleStatusChange(value as OrderStatus)}
-                  disabled={updateStatus.isPending}
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {order.name ? `${order.customer_name} · ` : ''}#{order.id.slice(0, 8)} · Creada el{' '}
+            {new Date(order.created_at).toLocaleDateString('es-MX', {
+              day: '2-digit',
+              month: 'long',
+              year: 'numeric',
+            })}
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+          {!isCancelled && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Estado:</span>
+              <Select
+                value={order.status}
+                onValueChange={(value) => handleStatusChange(value as OrderStatus)}
+                disabled={updateStatus.isPending}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORDER_STATUSES.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <Button
+            variant="outline"
+            onClick={handleDownloadUrreaOrder}
+            disabled={isDownloading || urreaItemsToOrder.length === 0}
+          >
+            {isDownloading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Pedido URREA ({urreaItemsToOrder.length})
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleDownloadDeliveryExcel}
+            disabled={isDownloadingDelivery}
+          >
+            {isDownloadingDelivery ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Formato de Entrega
+          </Button>
+
+          {!isCancelled && !isCompleted && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={cancelOrder.isPending}
+                  className="border-destructive text-destructive hover:bg-destructive hover:text-white gap-1.5 transition-colors"
                 >
-                  <SelectTrigger className="w-44">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ORDER_STATUSES.map((status) => (
-                      <SelectItem key={status.value} value={status.value}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Download URREA Order */}
-            <Button
-              variant="outline"
-              onClick={handleDownloadUrreaOrder}
-              disabled={isDownloading || urreaItemsToOrder.length === 0}
-            >
-              {isDownloading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              Descargar Pedido URREA ({urreaItemsToOrder.length})
-            </Button>
-
-            {/* Download Delivery Excel */}
-            <Button
-              variant="outline"
-              onClick={handleDownloadDeliveryExcel}
-              disabled={isDownloadingDelivery}
-            >
-              {isDownloadingDelivery ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              Formato de Entrega
-            </Button>
-
-            {/* Cancel Order */}
-            {!isCancelled && !isCompleted && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    disabled={cancelOrder.isPending}
-                    className="border-destructive text-destructive hover:bg-destructive hover:text-white gap-1.5 transition-colors"
+                  <AlertTriangle className="h-4 w-4" strokeWidth={2.5} />
+                  Cancelar Orden
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Cancelar esta orden?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción devolverá el inventario apartado y marcará la orden como
+                    cancelada. Esta acción no se puede deshacer.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>No, mantener</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleCancelOrder}
+                    className="bg-destructive text-destructive-foreground"
                   >
-                    <AlertTriangle className="h-4 w-4" strokeWidth={2.5} />
-                    Cancelar Orden
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Cancelar esta orden?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción devolverá el inventario apartado y marcará la orden como
-                      cancelada. Esta acción no se puede deshacer.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>No, mantener</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleCancelOrder}
-                      className="bg-destructive text-destructive-foreground"
-                    >
-                      Sí, cancelar orden
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
+                    Sí, cancelar orden
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      </div>
 
-          {/* Info notes */}
-          <div className="mt-4 flex flex-col gap-1.5 text-xs text-muted-foreground border-t pt-3">
-            <div className="flex items-start gap-1.5">
-              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>
-                <strong>Pedido URREA:</strong> el Excel solo incluye productos con{' '}
-                <em>A Pedir &gt; 0</em> y marca <em>URREA</em>. Productos de otras marcas o
-                completamente en stock quedan excluidos.
-              </span>
+      {/* Cancelled banner */}
+      {isCancelled && (
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 text-red-800 dark:text-red-300">
+              <XCircle className="h-4 w-4 shrink-0" />
+              <p className="text-sm font-medium">
+                Esta orden fue cancelada. El inventario apartado ha sido restaurado.
+              </p>
             </div>
-            <div className="flex items-start gap-1.5">
-              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>
-                <strong>Estado de envío / Recibidos:</strong> solo es editable en productos con{' '}
-                <em>A Pedir &gt; 0</em>. Los productos cubiertos completamente por stock aparecen
-                fijos como <em>En stock</em>.
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Order Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{order.order_items.length}</p>
-              <p className="text-sm text-muted-foreground">Productos</p>
+      {/* Completed banner */}
+      {isCompleted && (
+        <Card className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <p className="text-sm font-medium">Esta orden está completada.</p>
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Info notes — only when order is active */}
+      {!isCancelled && !isCompleted && (
+        <div className="flex flex-col gap-1.5 text-xs text-muted-foreground px-1">
+          <div className="flex items-start gap-1.5">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              <strong>Pedido URREA:</strong> el Excel solo incluye productos con{' '}
+              <em>A Pedir &gt; 0</em> y marca <em>URREA</em>. Productos de otras marcas o
+              completamente en stock quedan excluidos.
+            </span>
+          </div>
+          <div className="flex items-start gap-1.5">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              <strong>Estado de envío / Recibidos:</strong> solo es editable en productos con{' '}
+              <em>A Pedir &gt; 0</em>. Los productos cubiertos completamente por stock aparecen
+              fijos como <em>En stock</em>.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-lg border p-4 bg-card">
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+            <Package className="h-3 w-3" /> Productos
+          </p>
+          <p className="text-2xl font-bold">{order.order_items.length}</p>
+        </div>
+        <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <p className="text-xs font-medium text-blue-700 dark:text-blue-300 flex items-center gap-1 mb-2">
+            <PackageCheck className="h-3 w-3" /> En Stock
+          </p>
+          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+            {order.order_items.reduce((sum, item) => sum + item.quantity_in_stock, 0)}
+          </p>
+        </div>
+        <div className="rounded-lg border p-4 bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
+          <p className="text-xs font-medium text-orange-700 dark:text-orange-300 flex items-center gap-1 mb-2">
+            <Truck className="h-3 w-3" /> A Pedir URREA
+          </p>
+          <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+            {order.order_items.reduce((sum, item) => sum + item.quantity_to_order, 0)}
+          </p>
+        </div>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600">
-                {order.order_items.reduce((sum, item) => sum + item.quantity_in_stock, 0)}
-              </p>
-              <p className="text-sm text-muted-foreground">En Stock</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-orange-600">
-                {order.order_items.reduce((sum, item) => sum + item.quantity_to_order, 0)}
-              </p>
-              <p className="text-sm text-muted-foreground">A Pedir URREA</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">
-                ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-              </p>
-              <p className="text-sm text-muted-foreground">Total</p>
-            </div>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
+              <DollarSign className="h-3 w-3" /> Total
+            </p>
+            <p className="text-xl font-bold">
+              ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -559,9 +591,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   const edit = itemEdits[item.id]
                   const isOrderOpen = !isCompleted && !isCancelled
                   const hasUrreaOrder = item.quantity_to_order > 0
-                  // Can edit quantity received only if there's something to order from URREA
                   const canEditQuantity = isOrderOpen && hasUrreaOrder
-                  // Can edit URREA status while order is open (even after receiving)
                   const canEditUrreaStatus = isOrderOpen && hasUrreaOrder
 
                   return (
@@ -616,26 +646,22 @@ export function OrderDetail({ order }: OrderDetailProps) {
                               <SelectItem value="not_supplied">No surtido</SelectItem>
                             </SelectContent>
                           </Select>
+                        ) : !hasUrreaOrder ? (
+                          <Badge variant="outline" className="text-xs text-blue-600 border-blue-300 dark:text-blue-400 dark:border-blue-700">
+                            En stock
+                          </Badge>
+                        ) : item.urrea_status === 'supplied' ? (
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-300 dark:text-green-400 dark:border-green-700">
+                            Surtido
+                          </Badge>
+                        ) : item.urrea_status === 'not_supplied' ? (
+                          <Badge variant="outline" className="text-xs text-red-600 border-red-300 dark:text-red-400 dark:border-red-700">
+                            No surtido
+                          </Badge>
                         ) : (
-                          <span
-                            className={
-                              !hasUrreaOrder
-                                ? 'text-green-600'
-                                : item.urrea_status === 'supplied'
-                                  ? 'text-green-600'
-                                  : item.urrea_status === 'not_supplied'
-                                    ? 'text-red-600'
-                                    : 'text-yellow-600'
-                            }
-                          >
-                            {!hasUrreaOrder
-                              ? 'En stock'
-                              : item.urrea_status === 'supplied'
-                                ? 'Surtido'
-                                : item.urrea_status === 'not_supplied'
-                                  ? 'No surtido'
-                                  : 'Pendiente'}
-                          </span>
+                          <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-300 dark:text-yellow-400 dark:border-yellow-700">
+                            Pendiente
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -749,6 +775,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
           </div>
         </CardContent>
       </Card>
+
       {/* Add item dialog */}
       <Dialog open={addItemOpen} onOpenChange={(o) => { setAddItemOpen(o); if (!o) setAddForm(EMPTY_ADD_FORM) }}>
         <DialogContent className="sm:max-w-lg">
