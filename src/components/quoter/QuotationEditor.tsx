@@ -27,15 +27,20 @@ import type { QuotationItemRow } from '@/types/database'
 const isMissingData = (item: QuotationItemRow): boolean =>
   !item.description && !item.model_code
 
+const hasNoModelCode = (item: QuotationItemRow): boolean =>
+  !isMissingData(item) && !item.model_code
+
 const isMissingQuantity = (item: QuotationItemRow): boolean =>
-  !isMissingData(item) && item.quantity == null
+  !isMissingData(item) && !hasNoModelCode(item) && item.quantity == null
 
 const isComplete = (item: QuotationItemRow): boolean =>
-  item.quantity != null && item.unit_price != null
+  !!item.model_code && item.quantity != null && item.unit_price != null
 
 const getRowClass = (item: QuotationItemRow): string => {
   if (isMissingData(item))
     return 'bg-orange-50 dark:bg-orange-950/20 hover:bg-orange-100 dark:hover:bg-orange-950/30'
+  if (hasNoModelCode(item))
+    return 'bg-muted/40 dark:bg-muted/20 hover:bg-muted/60 dark:hover:bg-muted/30'
   if (isMissingQuantity(item))
     return 'bg-yellow-50 dark:bg-yellow-950/20 hover:bg-yellow-100 dark:hover:bg-yellow-950/30'
   if (isComplete(item))
@@ -267,6 +272,10 @@ export function QuotationEditor() {
               Sin datos
             </span>
             <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-sm bg-muted-foreground/30" />
+              Sin código modelo
+            </span>
+            <span className="flex items-center gap-1.5">
               <span className="inline-block h-3 w-3 rounded-sm bg-yellow-200 dark:bg-yellow-800" />
               Sin cantidad
             </span>
@@ -314,6 +323,9 @@ export function QuotationEditor() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSave={handleModalSave}
+        existingEtms={items
+          .filter((i) => i._id !== selectedItem?._id)
+          .map((i) => i.etm)}
       />
     </div>
   )
