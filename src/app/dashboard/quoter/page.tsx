@@ -48,8 +48,20 @@ export default function QuoterPage() {
         return
       }
 
+      // Replace DYMMSA-TEMP-* placeholders (from ETM = "new") with real sequential codes
+      const tempRows = rows.filter((r) => r.etm.startsWith('DYMMSA-TEMP-'))
+      if (tempRows.length > 0) {
+        try {
+          const resp = await fetch('/api/products/next-dymmsa-code')
+          const { next } = await resp.json()
+          tempRows.forEach((row, i) => { row.etm = `DYMMSA-${next + i}` })
+        } catch {
+          // On error keep the TEMP ids; user can edit manually
+        }
+      }
+
       toast.info(
-        `${rows.length} ETMs encontrados en ${sheetsWithEtm} de ${sheetsProcessed} hojas`
+        `${rows.length} ETM${rows.length !== 1 ? 's' : ''} encontrado${rows.length !== 1 ? 's' : ''} en ${sheetsWithEtm} de ${sheetsProcessed} hojas${tempRows.length > 0 ? ` · ${tempRows.length} sin ETM asignado como DYMMSA-#` : ''}`
       )
 
       // Lookup against etm_products
