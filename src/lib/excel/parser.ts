@@ -43,6 +43,7 @@ export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProd
   const workbook = XLSX.read(buffer, { type: 'array' })
   const rowMap = new Map<string, ExcelExtractedRow>()
   let sheetsWithEtm = 0
+  let newEtmCounter = 0
 
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName]
@@ -71,8 +72,15 @@ export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProd
     for (const row of jsonRows) {
       const etmRaw = row[etmCol]
       if (etmRaw == null || etmRaw === '') continue
-      const etm = String(etmRaw).trim()
-      if (!etm || rowMap.has(etm)) continue
+      let etm = String(etmRaw).trim()
+      if (!etm) continue
+
+      // Replace "new" (any casing) with a unique temp placeholder
+      if (etm.toLowerCase() === 'new') {
+        etm = `DYMMSA-TEMP-${++newEtmCounter}`
+      }
+
+      if (rowMap.has(etm)) continue
 
       rowMap.set(etm, {
         etm,
