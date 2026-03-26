@@ -36,7 +36,7 @@ async function processAutoLearn(supabase: any, userId: string, items: QuotationI
         description_es: item.description_es || '',
         model_code:     item.model_code     || '',
         price:          item.unit_price     ?? 0,
-        brand:          item.brand          || 'URREA',
+        brand:          item.brand          || (item.model_code ? 'URREA' : null),
         created_by:     userId,
       })
     } else {
