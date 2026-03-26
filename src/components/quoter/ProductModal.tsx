@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import {
   Dialog,
@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Loader2 } from 'lucide-react'
 import type { QuotationItemRow, DeliveryTime } from '@/types/database'
 
 export const DELIVERY_TIME_LABELS: Record<DeliveryTime, string> = {
@@ -37,6 +38,7 @@ interface ProductModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: (data: Omit<QuotationItemRow, '_id'>, id?: string) => void
+  existingEtms?: string[]
 }
 
 interface FormValues {
@@ -56,6 +58,7 @@ export function ProductModal({
   open,
   onOpenChange,
   onSave,
+  existingEtms = [],
 }: ProductModalProps) {
   const {
     register,
@@ -63,10 +66,14 @@ export function ProductModal({
     reset,
     setValue,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<FormValues>()
 
   const deliveryTimeValue = watch('delivery_time')
+
+  const [etmError, setEtmError]           = useState<string | null>(null)
+  const [isCheckingEtm, setIsCheckingEtm] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -80,10 +87,54 @@ export function ProductModal({
         quantity:       item?.quantity    != null ? String(item.quantity)   : '',
         delivery_time:  item?.delivery_time  ?? 'immediate',
       })
+      setEtmError(null)
     }
   }, [open, item, reset])
 
-  const onSubmit = (data: FormValues) => {
+  const validateEtm = async (value: string): Promise<string | null> => {
+    const trimmed = value.trim()
+    if (!trimmed) return 'El ETM es requerido'
+
+    // Skip DB check if ETM is unchanged in edit mode
+    if (mode === 'edit' && trimmed === item?.etm) return null
+
+    // Check for duplicates within the current quotation
+    if (existingEtms.includes(trimmed)) return 'Este ETM ya existe en la cotización'
+
+    // Check against DB
+    try {
+      const resp = await fetch('/api/quotes/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ etmCodes: [trimmed] }),
+      })
+      const { found } = await resp.json()
+      if (found.length > 0) return 'Este ETM ya existe en el catálogo'
+    } catch {
+      // On network error don't block the user
+    }
+
+    return null
+  }
+
+  const handleEtmBlur = async () => {
+    const value = getValues('etm')
+    setIsCheckingEtm(true)
+    const error = await validateEtm(value)
+    setEtmError(error)
+    setIsCheckingEtm(false)
+  }
+
+  const onSubmit = async (data: FormValues) => {
+    setIsCheckingEtm(true)
+    const error = await validateEtm(data.etm)
+    setIsCheckingEtm(false)
+    if (error) {
+      setEtmError(error)
+      return
+    }
+    setEtmError(null)
+
     onSave(
       {
         etm:            data.etm.trim(),
@@ -124,19 +175,23 @@ export function ProductModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="etm">
-                ETM
-                {mode === 'create' && (
-                  <span className="text-destructive ml-1">*</span>
-                )}
+                ETM <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="etm"
                 placeholder="Ej: H7-ET400"
-                disabled={mode === 'edit'}
-                {...register('etm', { required: mode === 'create' })}
+                {...register('etm', { required: true })}
+                onBlur={handleEtmBlur}
               />
-              {errors.etm && (
-                <p className="text-xs text-destructive">El ETM es requerido</p>
+              {(errors.etm || etmError) && (
+                <p className="text-xs text-destructive">
+                  {etmError ?? 'El ETM es requerido'}
+                </p>
+              )}
+              {isCheckingEtm && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Verificando...
+                </p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -172,7 +227,7 @@ export function ProductModal({
               <Label htmlFor="brand">Marca</Label>
               <Input
                 id="brand"
-                placeholder="URREA"
+                placeholder="Ej: URREA"
                 {...register('brand')}
               />
             </div>
@@ -229,8 +284,13 @@ export function ProductModal({
             >
               Cancelar
             </Button>
-            <Button type="submit">
-              {mode === 'edit' ? 'Guardar cambios' : 'Agregar'}
+            <Button type="submit" disabled={isCheckingEtm}>
+              {isCheckingEtm ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verificando...
+                </>
+              ) : mode === 'edit' ? 'Guardar cambios' : 'Agregar'}
             </Button>
           </DialogFooter>
         </form>
