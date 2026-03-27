@@ -126,7 +126,7 @@ DYMMSA-WEB automatiza el flujo de trabajo desde la solicitud inicial del cliente
 11. Usuario edita quantity_received + urrea_status por ítem
     → Confirmar recepción → suma al store_inventory
     ↓
-12. Gestión de estados hasta completar la orden ✅
+12. Gestión de estados hasta completar la orden 
 ```
 
 ## Estructura del Proyecto
