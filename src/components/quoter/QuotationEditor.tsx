@@ -15,17 +15,21 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, Pencil, Trash2, AlertTriangle, AlertCircle, CheckCircle2, GripVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertTriangle, AlertCircle, CheckCircle2, GripVertical, SeparatorHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { ProductModal, DELIVERY_TIME_LABELS } from './ProductModal'
 import { useQuotationStore } from '@/stores/quotationStore'
 import type { QuotationItemRow } from '@/types/database'
 
 // --- helpers ----------------------------------------------------------
 
+const isProduct = (item: QuotationItemRow): boolean =>
+  !item.item_type || item.item_type === 'product'
+
 const isMissingData = (item: QuotationItemRow): boolean =>
-  !item.description && !item.model_code
+  isProduct(item) && !item.description && !item.model_code
 
 const hasNoModelCode = (item: QuotationItemRow): boolean =>
   !isMissingData(item) && !item.model_code
@@ -48,15 +52,76 @@ const getRowClass = (item: QuotationItemRow): string => {
   return 'bg-background hover:bg-muted/40'
 }
 
+// --- sortable separator row -------------------------------------------
+
+interface SortableSeparatorRowProps {
+  item: QuotationItemRow
+  onLabelChange: (id: string, label: string) => void
+  onRemove: (id: string) => void
+  colSpan: number
+}
+
+function SortableSeparatorRow({ item, onLabelChange, onRemove, colSpan }: SortableSeparatorRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item._id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`border-b border-dashed border-border/60 bg-muted/30 ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      <td className="px-2 py-2 w-8">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
+          aria-label="Arrastrar separador"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </td>
+      <td colSpan={colSpan - 2} className="px-4 py-2">
+        <div className="flex items-center gap-2">
+          <SeparatorHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Input
+            value={item.section_label ?? ''}
+            onChange={(e) => onLabelChange(item._id, e.target.value)}
+            placeholder="Nombre de la sección (opcional)..."
+            className="h-7 text-xs bg-transparent border-dashed focus-visible:border-solid"
+          />
+        </div>
+      </td>
+      <td className="px-4 py-2 text-center">
+        <Button
+          size="icon" variant="ghost"
+          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => onRemove(item._id)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          <span className="sr-only">Eliminar separador</span>
+        </Button>
+      </td>
+    </tr>
+  )
+}
+
 // --- sortable row -----------------------------------------------------
 
 interface SortableRowProps {
   item: QuotationItemRow
   onEdit: (item: QuotationItemRow) => void
   onRemove: (id: string) => void
+  onAddSeparatorAfter: (id: string) => void
 }
 
-function SortableRow({ item, onEdit, onRemove }: SortableRowProps) {
+function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
 
@@ -125,6 +190,15 @@ function SortableRow({ item, onEdit, onRemove }: SortableRowProps) {
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-center gap-1">
+          <Button
+            size="icon" variant="ghost"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            title="Insertar separador debajo"
+            onClick={() => onAddSeparatorAfter(item._id)}
+          >
+            <SeparatorHorizontal className="h-3.5 w-3.5" />
+            <span className="sr-only">Insertar separador</span>
+          </Button>
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(item)}>
             <Pencil className="h-3.5 w-3.5" />
             <span className="sr-only">Editar</span>
@@ -146,7 +220,8 @@ function SortableRow({ item, onEdit, onRemove }: SortableRowProps) {
 // --- component --------------------------------------------------------
 
 export function QuotationEditor() {
-  const { items, addItem, updateItem, removeItem, reorderItems } = useQuotationStore()
+  const { items, addItem, updateItem, addSeparatorAfter, removeItem, reorderItems } = useQuotationStore()
+  const productItems = items.filter(isProduct)
 
   const [modalOpen, setModalOpen]       = useState(false)
   const [modalMode, setModalMode]       = useState<'edit' | 'create'>('create')
@@ -181,19 +256,19 @@ export function QuotationEditor() {
     }
   }
 
-  // --- stats ---
-  const noDataCount     = items.filter(isMissingData).length
-  const noQuantityCount = items.filter(isMissingQuantity).length
-  const completeCount   = items.filter(isComplete).length
+  // --- stats (only product rows) ---
+  const noDataCount     = productItems.filter(isMissingData).length
+  const noQuantityCount = productItems.filter(isMissingQuantity).length
+  const completeCount   = productItems.filter(isComplete).length
 
-  const partialTotal = items.reduce((sum, item) => {
+  const partialTotal = productItems.reduce((sum, item) => {
     if (item.unit_price != null && item.quantity != null) {
       return sum + item.unit_price * item.quantity
     }
     return sum
   }, 0)
 
-  const allComplete = items.length > 0 && noDataCount === 0 && noQuantityCount === 0
+  const allComplete = productItems.length > 0 && noDataCount === 0 && noQuantityCount === 0
 
   return (
     <div className="space-y-4">
@@ -203,7 +278,7 @@ export function QuotationEditor() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border bg-card px-4 py-3 space-y-0.5">
             <p className="text-xs text-muted-foreground">Total productos</p>
-            <p className="text-xl font-bold">{items.length}</p>
+            <p className="text-xl font-bold">{productItems.length}</p>
           </div>
           <div className="rounded-lg border bg-card px-4 py-3 space-y-0.5">
             <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -301,14 +376,25 @@ export function QuotationEditor() {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={items.map((i) => i._id)} strategy={verticalListSortingStrategy}>
                   <tbody>
-                    {items.map((item) => (
-                      <SortableRow
-                        key={item._id}
-                        item={item}
-                        onEdit={handleEdit}
-                        onRemove={removeItem}
-                      />
-                    ))}
+                    {items.map((item) =>
+                      item.item_type === 'separator' ? (
+                        <SortableSeparatorRow
+                          key={item._id}
+                          item={item}
+                          colSpan={11}
+                          onLabelChange={(id, label) => updateItem(id, { section_label: label })}
+                          onRemove={removeItem}
+                        />
+                      ) : (
+                        <SortableRow
+                          key={item._id}
+                          item={item}
+                          onEdit={handleEdit}
+                          onRemove={removeItem}
+                          onAddSeparatorAfter={addSeparatorAfter}
+                        />
+                      )
+                    )}
                   </tbody>
                 </SortableContext>
               </DndContext>
@@ -324,7 +410,7 @@ export function QuotationEditor() {
         onOpenChange={setModalOpen}
         onSave={handleModalSave}
         existingEtms={items
-          .filter((i) => i._id !== selectedItem?._id)
+          .filter((i) => isProduct(i) && i._id !== selectedItem?._id)
           .map((i) => i.etm)}
       />
     </div>
