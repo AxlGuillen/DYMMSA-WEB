@@ -38,6 +38,7 @@ import {
   ExternalLink,
   AlertCircle,
   RotateCcw,
+  SeparatorHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -76,6 +77,9 @@ import { ProductModal, DELIVERY_TIME_LABELS } from '@/components/quoter/ProductM
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime } from '@/types/database'
+
+const isProductRow = (item: QuotationItemRow): boolean =>
+  !item.item_type || item.item_type === 'product'
 
 // ------------------------------------------------------------------ //
 // Types                                                               //
@@ -137,6 +141,88 @@ function SortableHead({
 }
 
 // ------------------------------------------------------------------ //
+// Sortable separator row                                              //
+// ------------------------------------------------------------------ //
+
+interface SortableSeparatorDetailRowProps {
+  item: QuotationItemRow
+  canEdit: boolean
+  isDndEnabled: boolean
+  totalCols: number
+  onLabelChange: (id: string, label: string) => void
+  onRemove: (id: string) => void
+}
+
+function SortableSeparatorDetailRow({
+  item, canEdit, isDndEnabled, totalCols, onLabelChange, onRemove,
+}: SortableSeparatorDetailRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item._id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      className={`border-b border-dashed border-border/60 bg-muted/30 ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      {canEdit && (
+        <TableCell className="w-8 px-2">
+          {isDndEnabled ? (
+            <button
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
+              aria-label="Arrastrar separador"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          ) : (
+            <span className="block w-4" />
+          )}
+        </TableCell>
+      )}
+      <TableCell colSpan={totalCols - (canEdit ? 2 : 0)} className="px-4 py-2">
+        {canEdit ? (
+          <div className="flex items-center gap-2">
+            <SeparatorHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <Input
+              value={item.section_label ?? ''}
+              onChange={(e) => onLabelChange(item._id, e.target.value)}
+              placeholder="Nombre de la sección (opcional)..."
+              className="h-7 text-xs bg-transparent border-dashed focus-visible:border-solid"
+            />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <SeparatorHorizontal className="h-3.5 w-3.5 shrink-0" />
+            <span className="font-medium">{item.section_label || 'Sección'}</span>
+          </div>
+        )}
+      </TableCell>
+      {canEdit && (
+        <TableCell>
+          <div className="flex items-center justify-center">
+            <Button
+              size="icon" variant="ghost"
+              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => onRemove(item._id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      )}
+    </TableRow>
+  )
+}
+
+// ------------------------------------------------------------------ //
 // Sortable row                                                        //
 // ------------------------------------------------------------------ //
 
@@ -149,10 +235,11 @@ interface SortableDetailRowProps {
   dbItem: QuotationItem | undefined
   onEdit: (item: QuotationItemRow) => void
   onRemove: (id: string) => void
+  onAddSeparatorAfter: (id: string) => void
 }
 
 function SortableDetailRow({
-  item, canEdit, isDndEnabled, isApproved, isSentForApproval, dbItem, onEdit, onRemove,
+  item, canEdit, isDndEnabled, isApproved, isSentForApproval, dbItem, onEdit, onRemove, onAddSeparatorAfter,
 }: SortableDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -223,6 +310,14 @@ function SortableDetailRow({
       {canEdit && (
         <TableCell>
           <div className="flex items-center justify-center gap-1">
+            <Button
+              size="icon" variant="ghost"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              title="Insertar separador debajo"
+              onClick={() => onAddSeparatorAfter(item._id)}
+            >
+              <SeparatorHorizontal className="h-3.5 w-3.5" />
+            </Button>
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(item)}>
               <Pencil className="h-3.5 w-3.5" />
             </Button>
@@ -246,6 +341,8 @@ function SortableDetailRow({
 
 const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   _id:            item.id,
+  item_type:      item.item_type      ?? 'product',
+  section_label:  item.section_label  ?? '',
   etm:            item.etm            ?? '',
   description:    item.description    ?? '',
   description_es: item.description_es ?? '',
@@ -257,8 +354,8 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   _inDb:          !!(item.model_code || item.description),
 })
 
-const isMissingData     = (item: QuotationItemRow) => !item.description && !item.model_code
-const isMissingQuantity = (item: QuotationItemRow) => !isMissingData(item) && item.quantity == null
+const isMissingData     = (item: QuotationItemRow) => isProductRow(item) && !item.description && !item.model_code
+const isMissingQuantity = (item: QuotationItemRow) => isProductRow(item) && !isMissingData(item) && item.quantity == null
 
 const getRowClass = (item: QuotationItemRow) => {
   if (isMissingData(item))     return 'bg-orange-50 dark:bg-orange-950/20'
@@ -349,6 +446,38 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const handleRemove = (id: string) => {
     setLocalItems((prev) => prev.filter((item) => item._id !== id))
+    setIsDirty(true)
+  }
+
+  const handleAddSeparatorAfter = (afterId: string) => {
+    const separator: QuotationItemRow = {
+      _id:            crypto.randomUUID(),
+      item_type:      'separator',
+      section_label:  '',
+      etm:            '',
+      description:    '',
+      description_es: '',
+      model_code:     '',
+      brand:          '',
+      unit_price:     null,
+      quantity:       null,
+      delivery_time:  'immediate',
+      _inDb:          false,
+    }
+    setLocalItems((prev) => {
+      const idx = prev.findIndex((i) => i._id === afterId)
+      if (idx === -1) return [...prev, separator]
+      const next = [...prev]
+      next.splice(idx + 1, 0, separator)
+      return next
+    })
+    setIsDirty(true)
+  }
+
+  const handleSeparatorLabelChange = (id: string, label: string) => {
+    setLocalItems((prev) =>
+      prev.map((item) => item._id === id ? { ...item, section_label: label } : item)
+    )
     setIsDirty(true)
   }
 
@@ -444,30 +573,38 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // ── Items, stats & derived display ─────────────────────────────
   const rawItems = canEdit ? localItems : quotation.quotation_items.map(toItemRow)
+  const rawProductItems = rawItems.filter(isProductRow)
+  const hasSeparators = rawItems.some((i) => i.item_type === 'separator')
 
-  const partialTotal = rawItems.reduce((sum, item) => {
+  const partialTotal = rawProductItems.reduce((sum, item) => {
     if (item.unit_price != null && item.quantity != null) {
       return sum + item.unit_price * item.quantity
     }
     return sum
   }, 0)
 
-  const approvedCount   = quotation.quotation_items.filter((i) => i.is_approved === true).length
-  const rejectedCount   = quotation.quotation_items.filter((i) => i.is_approved === false).length
-  const pendingCount    = quotation.quotation_items.filter((i) => i.is_approved === null).length
-  const noDataCount     = isDraft ? localItems.filter(isMissingData).length : 0
-  const noQuantityCount = isDraft ? localItems.filter(isMissingQuantity).length : 0
-  const totalCount      = isDraft ? localItems.length : quotation.quotation_items.length
+  const dbProductItems = quotation.quotation_items.filter(
+    (i) => !i.item_type || i.item_type === 'product'
+  )
+  const approvedCount   = dbProductItems.filter((i) => i.is_approved === true).length
+  const rejectedCount   = dbProductItems.filter((i) => i.is_approved === false).length
+  const pendingCount    = dbProductItems.filter((i) => i.is_approved === null).length
+  const noDataCount     = isDraft ? rawProductItems.filter(isMissingData).length : 0
+  const noQuantityCount = isDraft ? rawProductItems.filter(isMissingQuantity).length : 0
+  const totalCount      = isDraft
+    ? rawProductItems.length
+    : dbProductItems.length
 
   const canSendForApproval =
     localQuotationName.trim().length > 0 &&
     localName.trim().length > 0 &&
-    localItems.length > 0
+    localItems.some(isProductRow)
 
-  // Filter by approval status
+  // Filter by approval status — separators always pass through
   const filteredItems: QuotationItemRow[] =
     hasApprovalData && approvalFilter !== 'all'
       ? rawItems.filter((item) => {
+          if (item.item_type === 'separator') return true
           const dbItem = quotation.quotation_items.find((i) => i.id === item._id)
           if (approvalFilter === 'approved') return dbItem?.is_approved === true
           if (approvalFilter === 'rejected') return dbItem?.is_approved === false
@@ -476,8 +613,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         })
       : rawItems
 
-  // Sort
-  const displayItems: QuotationItemRow[] = sortField
+  // Sort — separators are excluded from sorting to preserve section structure
+  const displayItems: QuotationItemRow[] = sortField && !hasSeparators
     ? [...filteredItems].sort((a, b) => {
         let aVal: number | string
         let bVal: number | string
@@ -848,10 +985,16 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </Button>
               )}
               {canEdit && (
-                <Button size="sm" onClick={handleCreate}>
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Agregar
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" onClick={() => handleAddSeparatorAfter(localItems[localItems.length - 1]?._id ?? '')}>
+                    <SeparatorHorizontal className="h-4 w-4 mr-1.5" />
+                    Separador
+                  </Button>
+                  <Button size="sm" onClick={handleCreate}>
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Agregar
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -902,19 +1045,32 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      displayItems.map((item) => (
-                        <SortableDetailRow
-                          key={item._id}
-                          item={item}
-                          canEdit={canEdit}
-                          isDndEnabled={isDndEnabled}
-                          isApproved={isApproved}
-                          isSentForApproval={isSentForApproval}
-                          dbItem={quotation.quotation_items.find((i) => i.id === item._id)}
-                          onEdit={handleEdit}
-                          onRemove={handleRemove}
-                        />
-                      ))
+                      displayItems.map((item) =>
+                        item.item_type === 'separator' ? (
+                          <SortableSeparatorDetailRow
+                            key={item._id}
+                            item={item}
+                            canEdit={canEdit}
+                            isDndEnabled={isDndEnabled}
+                            totalCols={totalCols}
+                            onLabelChange={handleSeparatorLabelChange}
+                            onRemove={handleRemove}
+                          />
+                        ) : (
+                          <SortableDetailRow
+                            key={item._id}
+                            item={item}
+                            canEdit={canEdit}
+                            isDndEnabled={isDndEnabled}
+                            isApproved={isApproved}
+                            isSentForApproval={isSentForApproval}
+                            dbItem={quotation.quotation_items.find((i) => i.id === item._id)}
+                            onEdit={handleEdit}
+                            onRemove={handleRemove}
+                            onAddSeparatorAfter={handleAddSeparatorAfter}
+                          />
+                        )
+                      )
                     )}
                   </TableBody>
                 </SortableContext>
