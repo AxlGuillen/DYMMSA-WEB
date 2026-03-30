@@ -57,6 +57,8 @@ export async function POST(request: NextRequest) {
 
       orderItems.push({
         order_id: '', // Will be set after order creation
+        item_type: 'product',
+        section_label: null,
         etm: product.etm,
         model_code: product.model_code,
         description: product.description || product.description_es || '',
