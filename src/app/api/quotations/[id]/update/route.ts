@@ -10,7 +10,12 @@ interface UpdateQuotationInput {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processAutoLearn(supabase: any, userId: string, items: QuotationItemRow[]) {
-  const eligible = items.filter((i) => i.etm && (i.model_code || i.description))
+  const eligible = items.filter(
+    (i) =>
+      (!i.item_type || i.item_type === 'product') &&
+      i.etm &&
+      (i.model_code || i.description)
+  )
   if (eligible.length === 0) return
 
   const etmCodes = eligible.map((i) => i.etm)
@@ -98,12 +103,17 @@ export async function PATCH(
     if (!customer_name?.trim()) {
       return NextResponse.json({ message: 'El nombre del cliente es requerido' }, { status: 400 })
     }
-    if (!items?.length) {
+    const hasProduct = items?.some((i) => !i.item_type || i.item_type === 'product')
+    if (!hasProduct) {
       return NextResponse.json({ message: 'Se requiere al menos un producto' }, { status: 400 })
     }
 
     const total_amount = items.reduce((sum, item) => {
-      if (item.unit_price != null && item.quantity != null) {
+      if (
+        (!item.item_type || item.item_type === 'product') &&
+        item.unit_price != null &&
+        item.quantity != null
+      ) {
         return sum + item.unit_price * item.quantity
       }
       return sum
@@ -133,21 +143,24 @@ export async function PATCH(
     }
 
     const newItems = items.map((item, index) => {
+      const isSep = item.item_type === 'separator'
       let is_approved: boolean | null = null
-      if (quotation.status === 'approved') {
+      if (!isSep && quotation.status === 'approved') {
         // Existing items: preserve their approval; new items: auto-approve (DYMMSA internal)
         is_approved = approvalMap.has(item._id) ? (approvalMap.get(item._id) ?? null) : true
       }
       return {
         quotation_id:   id,
-        etm:            item.etm            || null,
-        description:    item.description    || null,
-        description_es: item.description_es || null,
-        model_code:     item.model_code     || null,
-        brand:          item.brand          || null,
-        unit_price:     item.unit_price,
-        quantity:       item.quantity,
-        delivery_time:  item.delivery_time  ?? 'immediate',
+        item_type:      item.item_type      ?? 'product',
+        section_label:  isSep ? (item.section_label ?? null) : null,
+        etm:            isSep ? null : (item.etm || null),
+        description:    isSep ? null : (item.description || null),
+        description_es: isSep ? null : (item.description_es || null),
+        model_code:     isSep ? null : (item.model_code || null),
+        brand:          isSep ? null : (item.brand || null),
+        unit_price:     isSep ? null : item.unit_price,
+        quantity:       isSep ? null : item.quantity,
+        delivery_time:  isSep ? null : (item.delivery_time ?? 'immediate'),
         is_approved,
         sort_order:     index,
       }
