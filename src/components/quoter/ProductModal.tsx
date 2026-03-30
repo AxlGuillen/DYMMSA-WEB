@@ -137,6 +137,8 @@ export function ProductModal({
 
     onSave(
       {
+        item_type:      'product',
+        section_label:  '',
         etm:            data.etm.trim(),
         description:    data.description.trim(),
         description_es: data.description_es.trim(),
