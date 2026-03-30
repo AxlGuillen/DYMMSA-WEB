@@ -20,6 +20,7 @@ import {
   X,
   Check,
   Info,
+  SeparatorHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -152,7 +153,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
   const handleDownloadDeliveryExcel = () => {
     const deliveredItems = order.order_items.filter(
-      (item) => item.quantity_in_stock + item.quantity_received > 0
+      (item) =>
+        (!item.item_type || item.item_type === 'product') &&
+        item.quantity_in_stock + item.quantity_received > 0
     )
 
     if (deliveredItems.length === 0) {
@@ -173,7 +176,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
   }
 
   const handleDownloadUrreaOrder = async () => {
-    const itemsToOrder = order.order_items.filter((item) => item.quantity_to_order > 0)
+    const itemsToOrder = order.order_items.filter(
+      (item) => (!item.item_type || item.item_type === 'product') && item.quantity_to_order > 0
+    )
 
     if (itemsToOrder.length === 0) {
       toast.info('No hay productos para pedir a URREA')
@@ -588,6 +593,20 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </TableHeader>
               <TableBody>
                 {order.order_items.map((item) => {
+                  // Render separator as a visual divider
+                  if (item.item_type === 'separator') {
+                    return (
+                      <TableRow key={item.id} className="border-b border-dashed border-border/60 bg-muted/30 hover:bg-muted/30">
+                        <TableCell colSpan={isCompleted || isCancelled ? 12 : 13} className="px-4 py-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <SeparatorHorizontal className="h-3.5 w-3.5 shrink-0" />
+                            <span className="font-medium">{item.section_label || 'Sección'}</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  }
+
                   const edit = itemEdits[item.id]
                   const isOrderOpen = !isCompleted && !isCancelled
                   const hasUrreaOrder = item.quantity_to_order > 0
