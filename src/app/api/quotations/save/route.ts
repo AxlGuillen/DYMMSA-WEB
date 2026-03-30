@@ -25,9 +25,12 @@ async function processAutoLearn(
 ): Promise<AutoLearnResult> {
   const result: AutoLearnResult = { added: 0, updated: 0, skipped: 0 }
 
-  // Only process items that have etm + at least model_code or description
+  // Only process product items that have etm + at least model_code or description
   const eligible = items.filter(
-    (item) => item.etm && (item.model_code || item.description)
+    (item) =>
+      (!item.item_type || item.item_type === 'product') &&
+      item.etm &&
+      (item.model_code || item.description)
   )
   if (eligible.length === 0) return result
 
@@ -136,16 +139,21 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    if (!items?.length) {
+    const hasProduct = items?.some((i) => !i.item_type || i.item_type === 'product')
+    if (!hasProduct) {
       return NextResponse.json(
         { message: 'Se requiere al menos un producto' },
         { status: 400 }
       )
     }
 
-    // Total parcial: solo items con precio y cantidad
+    // Total parcial: solo productos con precio y cantidad (skip separadores)
     const total_amount = items.reduce((sum, item) => {
-      if (item.unit_price != null && item.quantity != null) {
+      if (
+        (!item.item_type || item.item_type === 'product') &&
+        item.unit_price != null &&
+        item.quantity != null
+      ) {
         return sum + item.unit_price * item.quantity
       }
       return sum
@@ -175,14 +183,16 @@ export async function POST(request: NextRequest) {
     // ── 2. Crear quotation_items ────────────────────────────────────
     const quotationItems = items.map((item, index) => ({
       quotation_id:   quotation.id,
-      etm:            item.etm            || null,
-      description:    item.description    || null,
-      description_es: item.description_es || null,
-      model_code:     item.model_code     || null,
-      brand:          item.brand          || null,
-      unit_price:     item.unit_price,
-      quantity:       item.quantity,
-      delivery_time:  item.delivery_time  ?? 'immediate',
+      item_type:      item.item_type      ?? 'product',
+      section_label:  item.item_type === 'separator' ? (item.section_label ?? null) : null,
+      etm:            item.item_type === 'separator' ? null : (item.etm || null),
+      description:    item.item_type === 'separator' ? null : (item.description || null),
+      description_es: item.item_type === 'separator' ? null : (item.description_es || null),
+      model_code:     item.item_type === 'separator' ? null : (item.model_code || null),
+      brand:          item.item_type === 'separator' ? null : (item.brand || null),
+      unit_price:     item.item_type === 'separator' ? null : item.unit_price,
+      quantity:       item.item_type === 'separator' ? null : item.quantity,
+      delivery_time:  item.item_type === 'separator' ? null : (item.delivery_time ?? 'immediate'),
       is_approved:    null,
       sort_order:     index,
     }))
