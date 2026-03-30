@@ -37,11 +37,11 @@ function findColumnHeader(headers: string[], aliases: string[]): string | null {
 /**
  * Extrae todas las filas de producto de un Excel multi-hoja.
  * Solo ETM es obligatorio; los demás campos se extraen si la columna existe.
- * Deduplica por ETM (primera aparición gana).
+ * Permite el mismo ETM múltiples veces (distintas secciones = filas independientes).
  */
 export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProductResult {
   const workbook = XLSX.read(buffer, { type: 'array' })
-  const rowMap = new Map<string, ExcelExtractedRow>()
+  const rows: ExcelExtractedRow[] = []
   let sheetsWithEtm = 0
   let newEtmCounter = 0
 
@@ -80,9 +80,7 @@ export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProd
         etm = `DYMMSA-TEMP-${++newEtmCounter}`
       }
 
-      if (rowMap.has(etm)) continue
-
-      rowMap.set(etm, {
+      rows.push({
         etm,
         description:    descCol   ? String(row[descCol]   ?? '').trim() : '',
         description_es: descEsCol ? String(row[descEsCol] ?? '').trim() : '',
@@ -95,7 +93,7 @@ export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProd
   }
 
   return {
-    rows: Array.from(rowMap.values()),
+    rows,
     sheetsProcessed: workbook.SheetNames.length,
     sheetsWithEtm,
   }
