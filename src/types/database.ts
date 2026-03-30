@@ -87,6 +87,8 @@ export type OrderUpdate = Partial<Omit<Order, 'id' | 'created_at' | 'updated_at'
 export interface OrderItem {
   id: string
   order_id: string
+  item_type: 'product' | 'separator'
+  section_label: string | null
   etm: string
   model_code: string
   description: string
@@ -177,6 +179,8 @@ export type QuotationUpdate = Partial<Omit<Quotation, 'id' | 'created_at' | 'upd
 export interface QuotationItem {
   id: string
   quotation_id: string
+  item_type: 'product' | 'separator'
+  section_label: string | null
   etm: string | null
   description: string | null
   description_es: string | null
@@ -202,6 +206,8 @@ export interface QuotationWithCount extends Quotation {
 // Row in the editable quotation table (local/draft state, not saved to DB yet)
 export interface QuotationItemRow {
   _id: string        // local UUID used as React key
+  item_type: 'product' | 'separator'
+  section_label: string  // label for separator rows (may be empty)
   etm: string        // required, read-only in edit mode
   description: string
   description_es: string
