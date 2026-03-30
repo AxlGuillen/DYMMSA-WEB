@@ -41,24 +41,56 @@ export async function POST(
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const approvedItems = (quotation.quotation_items as any[]).filter(
-      (i) => i.is_approved === true
+    const allItems = (quotation.quotation_items as any[])
+      .slice()
+      .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const approvedProducts = allItems.filter((i: any) =>
+      (i.item_type === 'product' || !i.item_type) && i.is_approved === true
     )
 
-    if (approvedItems.length === 0) {
+    if (approvedProducts.length === 0) {
       return NextResponse.json(
         { message: 'No hay productos aprobados en esta cotización' },
         { status: 400 }
       )
     }
 
-    // Build order items + resolve inventory
+    // Build order items: include all separators + approved products (preserving sort order)
     let totalAmount = 0
     const inventoryUpdates: StockResult[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const orderItemsPayload: any[] = []
 
-    for (const item of approvedItems) {
+    // Approved product IDs for quick lookup
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const approvedIds = new Set(approvedProducts.map((i: any) => i.id))
+
+    for (const item of allItems) {
+      const isSep = item.item_type === 'separator'
+
+      if (isSep) {
+        orderItemsPayload.push({
+          item_type:         'separator',
+          section_label:     item.section_label ?? null,
+          etm:               '',
+          model_code:        '',
+          description:       '',
+          brand:             '',
+          quantity_approved: 0,
+          quantity_in_stock: 0,
+          quantity_to_order: 0,
+          quantity_received: 0,
+          urrea_status:      'pending',
+          delivery_time:     'immediate',
+          unit_price:        0,
+        })
+        continue
+      }
+
+      if (!approvedIds.has(item.id)) continue
+
       const quantityApproved = item.quantity ?? 1
       const unitPrice = item.unit_price ?? 0
 
@@ -88,6 +120,8 @@ export async function POST(
       totalAmount += unitPrice * quantityApproved
 
       orderItemsPayload.push({
+        item_type:         'product',
+        section_label:     null,
         etm:               item.etm            || '',
         model_code:        item.model_code     || '',
         description:       item.description    || item.description_es || '',
@@ -147,7 +181,7 @@ export async function POST(
 
     return NextResponse.json({
       order_id:     order.id,
-      items_count:  orderItemsPayload.length,
+      items_count:  approvedProducts.length,
       total_amount: totalAmount,
     })
   } catch (error) {
