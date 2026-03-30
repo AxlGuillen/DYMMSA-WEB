@@ -14,6 +14,7 @@ interface QuotationStore extends QuotationDraftState {
   setItems: (items: QuotationItemRow[]) => void
   updateItem: (id: string, updates: Partial<Omit<QuotationItemRow, '_id'>>) => void
   addItem: (item: Omit<QuotationItemRow, '_id'>) => void
+  addSeparatorAfter: (afterId: string | null) => void
   removeItem: (id: string) => void
   reorderItems: (activeId: string, overId: string) => void
   reset: () => void
@@ -50,6 +51,32 @@ export const useQuotationStore = create<QuotationStore>()(
             { ...item, _id: crypto.randomUUID() },
           ],
         })),
+
+      addSeparatorAfter: (afterId) =>
+        set((state) => {
+          const separator: QuotationItemRow = {
+            _id:            crypto.randomUUID(),
+            item_type:      'separator',
+            section_label:  '',
+            etm:            '',
+            description:    '',
+            description_es: '',
+            model_code:     '',
+            brand:          '',
+            unit_price:     null,
+            quantity:       null,
+            delivery_time:  'immediate',
+            _inDb:          false,
+          }
+          if (afterId === null) {
+            return { items: [separator, ...state.items] }
+          }
+          const idx = state.items.findIndex((i) => i._id === afterId)
+          if (idx === -1) return { items: [...state.items, separator] }
+          const next = [...state.items]
+          next.splice(idx + 1, 0, separator)
+          return { items: next }
+        }),
 
       removeItem: (id) =>
         set((state) => ({
