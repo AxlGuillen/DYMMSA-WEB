@@ -64,9 +64,9 @@ export default function QuoterPage() {
         `${rows.length} ETM${rows.length !== 1 ? 's' : ''} encontrado${rows.length !== 1 ? 's' : ''} en ${sheetsWithEtm} de ${sheetsProcessed} hojas${tempRows.length > 0 ? ` · ${tempRows.length} sin ETM asignado como DYMMSA-#` : ''}`
       )
 
-      // Lookup against etm_products
-      const etmCodes = rows.map((r) => r.etm)
-      const { found } = await lookupMutation.mutateAsync(etmCodes)
+      // Lookup against etm_products (deduplicate ETMs for the API call)
+      const uniqueEtms = [...new Set(rows.map((r) => r.etm))]
+      const { found } = await lookupMutation.mutateAsync(uniqueEtms)
       const dbMap = new Map(found.map((p) => [p.etm, p]))
 
       // Merge: Excel data + DB data → QuotationItemRow[]
@@ -75,6 +75,8 @@ export default function QuoterPage() {
         const db = dbMap.get(row.etm)
         return {
           _id:            crypto.randomUUID(),
+          item_type:      'product',
+          section_label:  '',
           etm:            row.etm,
           description:    db?.description    || row.description,
           description_es: db?.description_es || row.description_es,
@@ -141,7 +143,7 @@ export default function QuoterPage() {
   const canSave =
     name.trim().length > 0 &&
     customer_name.trim().length > 0 &&
-    items.length > 0 &&
+    items.some((i) => !i.item_type || i.item_type === 'product') &&
     !saveMutation.isPending
 
   return (
