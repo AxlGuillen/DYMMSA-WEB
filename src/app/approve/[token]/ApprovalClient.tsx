@@ -10,6 +10,7 @@ import {
   Send,
   Loader2,
   ShieldCheck,
+  SeparatorHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -53,9 +54,14 @@ interface Props {
 export function ApprovalClient({ quotation, token }: Props) {
   const isEditable = quotation.status === 'sent_for_approval'
 
+  // Only product items get approval decisions (separators are visual only)
+  const productItems = quotation.quotation_items.filter(
+    (i) => !i.item_type || i.item_type === 'product'
+  )
+
   // Default: everything starts as NOT approved — client only clicks what they want
   const [decisions, setDecisions] = useState<ItemDecision[]>(
-    quotation.quotation_items.map((item) => ({
+    productItems.map((item) => ({
       item_id:     item.id,
       is_approved: item.is_approved === true, // preserve if re-visiting
     }))
@@ -66,7 +72,7 @@ export function ApprovalClient({ quotation, token }: Props) {
   const approvedCount    = decisions.filter((d) => d.is_approved).length
   const notApprovedCount = decisions.length - approvedCount
 
-  const approvedTotal = quotation.quotation_items.reduce((sum, item) => {
+  const approvedTotal = productItems.reduce((sum, item) => {
     const dec = decisions.find((d) => d.item_id === item.id)
     if (dec?.is_approved && item.unit_price != null && item.quantity != null) {
       return sum + item.unit_price * item.quantity
@@ -85,6 +91,9 @@ export function ApprovalClient({ quotation, token }: Props) {
   const handleApproveAll = () => {
     setDecisions((prev) => prev.map((d) => ({ ...d, is_approved: true })))
   }
+
+  // Send only product decisions (separators have no decisions)
+
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
@@ -213,7 +222,7 @@ export function ApprovalClient({ quotation, token }: Props) {
               <div className="flex gap-8 text-center shrink-0">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</p>
-                  <p className="text-3xl font-bold tabular-nums">{quotation.quotation_items.length}</p>
+                  <p className="text-3xl font-bold tabular-nums">{productItems.length}</p>
                 </div>
                 {quotation.total_amount > 0 && (
                   <>
@@ -313,6 +322,20 @@ export function ApprovalClient({ quotation, token }: Props) {
                 </TableHeader>
                 <TableBody>
                   {quotation.quotation_items.map((item, index) => {
+                    // Render separator as a visual divider row
+                    if (item.item_type === 'separator') {
+                      return (
+                        <TableRow key={item.id} className="border-b border-dashed border-slate-200 dark:border-zinc-700 bg-slate-50/60 dark:bg-zinc-800/30 hover:bg-slate-50/60 dark:hover:bg-zinc-800/30">
+                          <TableCell colSpan={9} className="px-4 py-2">
+                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
+                              <SeparatorHorizontal className="h-3.5 w-3.5 shrink-0" />
+                              <span className="font-medium">{item.section_label || 'Sección'}</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    }
+
                     const dec      = decisions.find((d) => d.item_id === item.id)
                     const approved = dec?.is_approved ?? false
                     const subtotal =
