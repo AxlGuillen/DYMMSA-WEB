@@ -70,10 +70,21 @@ export async function POST(
       }
     }
 
+    const { data: maxSortData } = await supabase
+      .from('order_items')
+      .select('sort_order')
+      .eq('order_id', id)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .single()
+
+    const nextSortOrder = (maxSortData?.sort_order ?? -1) + 1
+
     const { data: newItem, error: insertError } = await supabase
       .from('order_items')
       .insert({
         order_id:          id,
+        sort_order:        nextSortOrder,
         etm:               etm || '',
         model_code:        model_code || '',
         description:       description || '',
