@@ -133,7 +133,7 @@ export function useOrder(id: string) {
         .from('order_items')
         .select('*')
         .eq('order_id', id)
-        .order('etm', { ascending: true })
+        .order('sort_order', { ascending: true })
 
       if (itemsError) throw itemsError
 
