@@ -89,6 +89,7 @@ export interface OrderItem {
   order_id: string
   item_type: 'product' | 'separator'
   section_label: string | null
+  sort_order: number
   etm: string
   model_code: string
   description: string
