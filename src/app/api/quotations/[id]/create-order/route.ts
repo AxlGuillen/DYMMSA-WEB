@@ -59,6 +59,7 @@ export async function POST(
 
     // Build order items: include all separators + approved products (preserving sort order)
     let totalAmount = 0
+    let sortIndex = 0
     const inventoryUpdates: StockResult[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const orderItemsPayload: any[] = []
@@ -72,6 +73,7 @@ export async function POST(
 
       if (isSep) {
         orderItemsPayload.push({
+          sort_order:        sortIndex++,
           item_type:         'separator',
           section_label:     item.section_label ?? null,
           etm:               '',
@@ -120,6 +122,7 @@ export async function POST(
       totalAmount += unitPrice * quantityApproved
 
       orderItemsPayload.push({
+        sort_order:        sortIndex++,
         item_type:         'product',
         section_label:     null,
         etm:               item.etm            || '',
