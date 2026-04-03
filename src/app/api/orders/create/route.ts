@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     let totalAmount = 0
     const inventoryUpdates: { model_code: string; quantity: number }[] = []
 
-    for (const product of input.products) {
+    for (const [sortIndex, product] of input.products.entries()) {
       // Get current inventory for this model_code
       const { data: inventory } = await supabase
         .from('store_inventory')
@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
         urrea_status: 'pending',
         delivery_time: 'immediate',
         unit_price: product.price,
+        sort_order: sortIndex,
       })
     }
 
