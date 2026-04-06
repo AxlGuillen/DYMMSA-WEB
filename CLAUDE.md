@@ -90,7 +90,7 @@ updated_at TIMESTAMPTZ
 
 **3. quotations** (Cotizaciones — NUEVA)
 ```sql
-id UUID, customer_name TEXT, status TEXT,
+id UUID, name TEXT, customer_name TEXT, status TEXT,
 approval_token UUID (unique),
 total_amount DECIMAL, notes TEXT,
 original_file_url TEXT,
@@ -111,13 +111,19 @@ etm TEXT, description TEXT, description_es TEXT,
 model_code TEXT, brand TEXT,
 unit_price DECIMAL, quantity INTEGER,
 is_approved BOOLEAN (null=pendiente, true=aprobado, false=rechazado),
+item_type TEXT (default 'product' | 'separator'),
+section_label TEXT,
 notes TEXT,
 created_at TIMESTAMPTZ
 ```
 
+**Notas `item_type`:**
+- `product` — ítem normal de producto
+- `separator` — fila divisora visual; excluida de totales, auto-learn, conteos y decisiones de aprobación
+
 **5. orders** (Ordenes de venta)
 ```sql
-id UUID, quotation_id UUID (FK → quotations),
+id UUID, name TEXT, quotation_id UUID (FK → quotations),
 customer_name TEXT, status TEXT, total_amount DECIMAL,
 urrea_order_file_url TEXT, notes TEXT,
 created_at, updated_at, created_by UUID
@@ -138,12 +144,20 @@ etm TEXT, model_code TEXT, description TEXT, brand TEXT,
 quantity_approved INTEGER, quantity_in_stock INTEGER,
 quantity_to_order INTEGER, quantity_received INTEGER,
 urrea_status TEXT, unit_price DECIMAL,
+item_type TEXT (default 'product' | 'separator'),
+section_label TEXT,
+sort_order INTEGER,
 created_at TIMESTAMPTZ
 ```
 
 **Estados URREA:** `pending`, `supplied`, `not_supplied`
 
 **Constraint:** `quantity_in_stock + quantity_to_order = quantity_approved`
+
+**Notas `item_type` y `sort_order`:**
+- Separadores copiados desde `quotation_items` al crear orden, preservando posición relativa
+- `sort_order` preserva el orden de entrada; cuando se agrega ítem manualmente se asigna `max(sort_order) + 1`
+- Separadores excluidos del Excel URREA y del Excel de entrega
 
 ## 🔄 FLUJO COMPLETO DEL SISTEMA
 
@@ -321,7 +335,45 @@ Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
 - Ignorar columnas de imágenes
 
 ### 🔄 Fase 6: Mejoras y Optimización (ACTUAL)
-Reportes, estadísticas, notificaciones, optimizaciones, historial de cambios en cotizaciones/órdenes.
+
+**Objetivo:** Mejorar UX, agregar funcionalidades de organización y estadísticas.
+
+#### UX y UI ✅
+- Stats cards con filtros activos en páginas de Cotizaciones, Órdenes e Inventario
+- `QuotationStatusBadge` y `OrderStatusBadge` con punto de color por estado
+- `QuotationDetail`: sort arrows en cabeceras, filter cards por estado/color
+- `OrderDetail`: header reestructurado, tarjetas resumen mejoradas
+- `QuotationsTable` / `OrdersTable`: columna `name` como título principal, `customer_name` como secundario, conteo de ítems, fechas relativas
+- `InventoryTable`: sort por cantidad, resaltado de filas, fechas relativas
+- Catálogo ETM: ordenamiento por columnas
+- Diálogo de confirmación al cerrar sesión (Navbar y Sidebar)
+
+#### Campo `name` en Cotizaciones y Órdenes ✅
+- `name` es obligatorio al crear cotización; se propaga a la orden al convertir
+- Buscable en listados de cotizaciones y órdenes
+- Se muestra como título principal en `QuotationDetail` y `OrderDetail`
+
+#### Separadores en Cotizaciones y Órdenes ✅
+- Usuario puede insertar filas separadoras con etiqueta editable entre productos en `QuotationEditor`
+- Separadores renderizados como divisores visuales en `QuotationDetail`, `ApprovalClient` y `OrderDetail`
+- Copiados a `order_items` al crear orden, preservando posición relativa
+- Excluidos de: totales, auto-learn, conteos, decisiones de aprobación, Excel URREA, Excel de entrega
+
+#### ETM editable y códigos DYMMSA ✅
+- ETM editable en `ProductModal` con validación de unicidad al editar
+- Productos sin ETM en Excel reciben código `DYMMSA-{n}` vía `GET /api/products/next-dymmsa-code`
+- Auto-learn no asigna brand URREA a productos sin `model_code`
+- Ítems sin `model_code` resaltados en gris en la tabla del cotizador con leyenda
+
+#### `sort_order` en order_items ✅
+- Campo `sort_order` preserva el orden de entrada al crear orden desde cotización
+- Ítems agregados manualmente reciben `max(sort_order) + 1`
+- Listado en `OrderDetail` ordenado por `sort_order` en lugar de ETM alfabético
+
+**Nuevas rutas:**
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/api/products/next-dymmsa-code` | ✅ | Obtener siguiente código DYMMSA-{n} disponible |
 
 ## 🔧 CONSIDERACIONES TÉCNICAS
 
@@ -403,8 +455,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 ---
 
-**Última actualización:** 2026-03-06
-**Fase actual:** Fase 6 - Mejoras y Optimización
+**Última actualización:** 2026-04-06
+**Fase actual:** Fase 6 - Mejoras y Optimización (en curso)
 **Stack:** Next.js 16 + TypeScript + Supabase + shadcn/ui
 ```
 
