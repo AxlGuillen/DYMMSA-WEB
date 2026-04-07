@@ -116,7 +116,7 @@ DYMMSA-WEB automatiza el flujo de trabajo desde la solicitud inicial del cliente
    → status quotation: converted_to_order
    ↓
 8. Descargar Excel URREA (solo faltantes, solo brand=URREA)
-   → Usuario envía a URREA por WhatsApp
+   → Usuario envía a URREA por WhatsApp 
    ↓
 9. URREA envía productos (días después)
    ↓
