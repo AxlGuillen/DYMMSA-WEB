@@ -145,7 +145,7 @@ export async function POST(
       .insert({
         name:          quotation.name,
         customer_name: quotation.customer_name,
-        status:        'pending_urrea_order',
+        status:        'ordered',
         total_amount:  totalAmount,
         created_by:    user.id,
       })
