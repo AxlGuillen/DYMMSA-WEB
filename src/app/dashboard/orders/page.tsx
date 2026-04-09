@@ -17,13 +17,12 @@ import { useOrders, useOrderStats } from '@/hooks/useOrders'
 import type { OrderStatus } from '@/types/database'
 
 const STATUS_OPTIONS: { value: OrderStatus | 'all'; label: string }[] = [
-  { value: 'all',                 label: 'Todos los estados' },
-  { value: 'pending_urrea_order', label: 'Pendiente URREA' },
-  { value: 'received_from_urrea', label: 'Recibido URREA' },
-  { value: 'pending_payment',     label: 'Pendiente Pago' },
-  { value: 'paid',                label: 'Pagado' },
-  { value: 'completed',           label: 'Completado' },
-  { value: 'cancelled',           label: 'Cancelado' },
+  { value: 'all',       label: 'Todos los estados' },
+  { value: 'ordered',   label: 'Pedido' },
+  { value: 'received',  label: 'Recibido' },
+  { value: 'delivered', label: 'Entregado' },
+  { value: 'completed', label: 'Completado' },
+  { value: 'cancelled', label: 'Cancelado' },
 ]
 
 const STAT_CARDS: {
@@ -34,12 +33,11 @@ const STAT_CARDS: {
   bg: string
   ring: string
 }[] = [
-  { status: 'pending_urrea_order', label: 'Pend. URREA',   dot: 'bg-yellow-500',  color: 'text-yellow-700 dark:text-yellow-300',  bg: 'bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50',   ring: 'ring-yellow-400'  },
-  { status: 'received_from_urrea', label: 'Recibido',       dot: 'bg-blue-500',    color: 'text-blue-700 dark:text-blue-300',      bg: 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50',           ring: 'ring-blue-400'    },
-  { status: 'pending_payment',     label: 'Pend. Pago',     dot: 'bg-orange-500',  color: 'text-orange-700 dark:text-orange-300',  bg: 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/30 dark:hover:bg-orange-900/50',   ring: 'ring-orange-400'  },
-  { status: 'paid',                label: 'Pagado',          dot: 'bg-emerald-500', color: 'text-emerald-700 dark:text-emerald-300',bg: 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50',ring: 'ring-emerald-400' },
-  { status: 'completed',           label: 'Completado',      dot: 'bg-green-500',   color: 'text-green-700 dark:text-green-300',    bg: 'bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50',       ring: 'ring-green-400'   },
-  { status: 'cancelled',           label: 'Cancelado',       dot: 'bg-red-500',     color: 'text-red-700 dark:text-red-300',        bg: 'bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50',               ring: 'ring-red-400'     },
+  { status: 'ordered',   label: 'Pedido',     dot: 'bg-yellow-500',  color: 'text-yellow-700 dark:text-yellow-300',  bg: 'bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50',     ring: 'ring-yellow-400'  },
+  { status: 'received',  label: 'Recibido',   dot: 'bg-blue-500',    color: 'text-blue-700 dark:text-blue-300',      bg: 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50',             ring: 'ring-blue-400'    },
+  { status: 'delivered', label: 'Entregado',  dot: 'bg-emerald-500', color: 'text-emerald-700 dark:text-emerald-300',bg: 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50', ring: 'ring-emerald-400' },
+  { status: 'completed', label: 'Completado', dot: 'bg-green-500',   color: 'text-green-700 dark:text-green-300',    bg: 'bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50',         ring: 'ring-green-400'   },
+  { status: 'cancelled', label: 'Cancelado',  dot: 'bg-red-500',     color: 'text-red-700 dark:text-red-300',        bg: 'bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50',                 ring: 'ring-red-400'     },
 ]
 
 export default function OrdersPage() {
