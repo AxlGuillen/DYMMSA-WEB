@@ -49,10 +49,9 @@ export interface ExcelInventoryRow {
 // ============================================
 
 export type OrderStatus =
-  | 'pending_urrea_order'
-  | 'received_from_urrea'
-  | 'pending_payment'
-  | 'paid'
+  | 'ordered'
+  | 'received'
+  | 'delivered'
   | 'completed'
   | 'cancelled'
 
