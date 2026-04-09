@@ -181,10 +181,9 @@ export function DashboardMetrics() {
         <OrderStatusBreakdown
           statusCounts={
             data?.statusCounts ?? {
-              pending_urrea_order: 0,
-              received_from_urrea: 0,
-              pending_payment: 0,
-              paid: 0,
+              ordered: 0,
+              received: 0,
+              delivered: 0,
               completed: 0,
               cancelled: 0,
             }
