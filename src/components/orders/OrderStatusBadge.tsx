@@ -7,23 +7,18 @@ const statusConfig: Record<
   OrderStatus,
   { label: string; dot: string; badge: string }
 > = {
-  pending_urrea_order: {
-    label: 'Pendiente URREA',
+  ordered: {
+    label: 'Pedido',
     dot:   'bg-yellow-500',
     badge: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900/50 dark:text-yellow-300 dark:hover:bg-yellow-900/50',
   },
-  received_from_urrea: {
-    label: 'Recibido URREA',
+  received: {
+    label: 'Recibido',
     dot:   'bg-blue-500',
     badge: 'bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/50',
   },
-  pending_payment: {
-    label: 'Pendiente Pago',
-    dot:   'bg-orange-500',
-    badge: 'bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-900/50 dark:text-orange-300 dark:hover:bg-orange-900/50',
-  },
-  paid: {
-    label: 'Pagado',
+  delivered: {
+    label: 'Entregado',
     dot:   'bg-emerald-500',
     badge: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50',
   },
