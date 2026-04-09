@@ -12,10 +12,9 @@ export interface DateRange {
 }
 
 interface StatusCounts {
-  pending_urrea_order: number
-  received_from_urrea: number
-  pending_payment: number
-  paid: number
+  ordered: number
+  received: number
+  delivered: number
   completed: number
   cancelled: number
 }
@@ -71,7 +70,7 @@ export function useDashboard(dateRange: DateRange) {
         supabase
           .from('orders')
           .select('total_amount')
-          .in('status', ['completed', 'paid'])
+          .in('status', ['completed', 'delivered'])
           .gte('created_at', dateRange.from)
           .lte('created_at', dateRange.to),
 
@@ -93,10 +92,9 @@ export function useDashboard(dateRange: DateRange) {
 
       // Count orders by status
       const statusCounts: StatusCounts = {
-        pending_urrea_order: 0,
-        received_from_urrea: 0,
-        pending_payment: 0,
-        paid: 0,
+        ordered: 0,
+        received: 0,
+        delivered: 0,
         completed: 0,
         cancelled: 0,
       }
