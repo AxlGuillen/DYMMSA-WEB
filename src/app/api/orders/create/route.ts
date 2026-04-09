@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       .from('orders')
       .insert({
         customer_name: input.customer_name,
-        status: 'pending_urrea_order',
+        status: 'ordered',
         total_amount: totalAmount,
         created_by: user.id,
       })
