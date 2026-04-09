@@ -99,10 +99,9 @@ const DELIVERY_TIME_OPTIONS: { value: DeliveryTime; label: string }[] = [
 ]
 
 const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
-  { value: 'pending_urrea_order', label: 'Pendiente URREA' },
-  { value: 'received_from_urrea', label: 'Recibido URREA' },
-  { value: 'pending_payment', label: 'Pendiente Pago' },
-  { value: 'paid', label: 'Pagado' },
+  { value: 'ordered',   label: 'Pedido' },
+  { value: 'received',  label: 'Recibido' },
+  { value: 'delivered', label: 'Entregado' },
   { value: 'completed', label: 'Completado' },
 ]
 
