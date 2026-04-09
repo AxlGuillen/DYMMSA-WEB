@@ -30,10 +30,9 @@ interface OrdersResponse {
 }
 
 export interface OrderStats {
-  pending_urrea_order: number
-  received_from_urrea: number
-  pending_payment: number
-  paid: number
+  ordered: number
+  received: number
+  delivered: number
   completed: number
   cancelled: number
 }
@@ -95,10 +94,9 @@ export function useOrderStats() {
       if (error) throw error
 
       const stats: OrderStats = {
-        pending_urrea_order: 0,
-        received_from_urrea: 0,
-        pending_payment: 0,
-        paid: 0,
+        ordered: 0,
+        received: 0,
+        delivered: 0,
         completed: 0,
         cancelled: 0,
       }
