@@ -6,19 +6,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { OrderStatus } from '@/types/database'
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
-  pending_urrea_order: { label: 'Pendiente URREA', color: '#EAB308' },
-  received_from_urrea: { label: 'Recibido URREA',  color: '#3B82F6' },
-  pending_payment:     { label: 'Pendiente Pago',  color: '#F97316' },
-  paid:                { label: 'Pagado',           color: '#10B981' },
-  completed:           { label: 'Completado',       color: '#22C55E' },
-  cancelled:           { label: 'Cancelado',        color: '#EF4444' },
+  ordered:   { label: 'Pedido',     color: '#EAB308' },
+  received:  { label: 'Recibido',   color: '#3B82F6' },
+  delivered: { label: 'Entregado',  color: '#10B981' },
+  completed: { label: 'Completado', color: '#22C55E' },
+  cancelled: { label: 'Cancelado',  color: '#EF4444' },
 }
 
 const ALL_STATUSES: OrderStatus[] = [
-  'pending_urrea_order',
-  'received_from_urrea',
-  'pending_payment',
-  'paid',
+  'ordered',
+  'received',
+  'delivered',
   'completed',
   'cancelled',
 ]
