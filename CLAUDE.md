@@ -1,463 +1,156 @@
-# DYMMSA - Sistema de Cotizaciones y Gestión de Inventario
+# DYMMSA — Sistema de Cotizaciones y Gestión de Inventario
 
-## 📋 DESCRIPCIÓN DEL PROYECTO
+Aplicación web para automatizar cotizaciones de DYMMSA (distribuidor URREA en Morelia, México).
+Flujo: subir Excel del cliente → cotizador editable → aprobación por link → orden → inventario.
 
-Aplicación web integral para automatizar el proceso completo de cotizaciones de DYMMSA, un distribuidor de herramientas URREA en Morelia, México. 
+> 📚 Documentación completa en la bóveda Obsidian: `DYMMSA/00-Inicio/README.md`
 
-El sistema maneja desde la solicitud inicial del cliente hasta la entrega final, incluyendo gestión de inventario, pedidos a URREA, y seguimiento de Ordenes.
+---
 
-## 🎯 PROBLEMA QUE RESUELVE
+## Stack
 
-### Situación Actual (Manual)
+| Capa | Tecnología |
+|------|-----------|
+| Framework | Next.js 16 (App Router) |
+| Lenguaje | TypeScript estricto |
+| Estilos | Tailwind CSS + shadcn/ui |
+| Estado | Zustand (draft cotización) + TanStack Query (server state) |
+| BD + Auth | Supabase (PostgreSQL 17.6) + @supabase/ssr |
+| Excel | SheetJS (parse) + ExcelJS (generate) |
+| Deploy | Vercel + Bun |
 
-**Flujo Completo Real:**
-1. Cliente envía Excel con códigos ETM
-2. DYMMSA convierte ETM → URREA con macros manuales
-3. Genera cotización y sube a Drive
-4. Cliente marca productos aprobados en VERDE (toda la fila)
-5. DYMMSA descarga Excel, revisa stock tienda manualmente
-6. Genera pedido a URREA manualmente (solo faltantes)
-7. URREA envía productos (algunos no surtidos)
-8. DYMMSA confirma recepción manualmente
-9. Genera cotización final solo con productos disponibles
-10. Actualiza inventario manualmente
-
-**Problemas:**
-- Múltiples pasos manuales propensos a error
-- No hay sistema de inventario integrado
-- No hay tracking de Ordenes
-- Base de datos ETM-URREA desactualizada (~384 de miles)
-- Proceso lento (días)
-
-### Solución Propuesta
-
-Sistema automatizado que:
-- ✅ Convierte ETM → URREA automáticamente
-- ✅ Gestiona inventario tienda DYMMSA (código URREA + cantidad)
-- ✅ Cotizador con tabla editable (pre-rellena desde BD, editable manualmente)
-- ✅ Cotizaciones con link de aprobación por token (semi-privado)
-- ✅ Aprobación parcial por ítem desde página pública
-- ✅ Genera pedidos a URREA automáticamente desde orden
-- ✅ Tracking de Ordenes con estados
-- ✅ Actualiza inventario automáticamente
-- ✅ Auto-aprende: crece y actualiza BD al guardar cotización
-
-## 👤 CONTEXTO DEL DESARROLLADOR
-
-- Frontend developer con experiencia en React/TypeScript
-- Primer proyecto profesional con Next.js + Supabase
-- Usa **Context7** para compartir contexto del proyecto con Claude
-- Prefiere arquitecturas modernas, mantenibles y escalables
-- **Convención:** TODO en inglés (código, BD, variables) para consistencia
-
-## 🛠️ STACK TECNOLÓGICO
-
-### Frontend
-- **Framework:** Next.js 16 (App Router)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS
-- **UI Components:** shadcn/ui
-- **State Management:** Zustand
-- **Data Fetching:** TanStack Query (React Query)
-
-### Backend & Database
-- **Database:** Supabase (PostgreSQL)
-- **Auth:** Supabase Auth (@supabase/ssr)
-- **API:** Next.js API Routes (Route Handlers)
-
-### Tools & Libraries
-- **Package Manager:** Bun
-- **Excel Processing:** SheetJS (xlsx) + ExcelJS
-- **Version Control:** GitHub
-- **Deployment:** Vercel
-
-## 🏗️ ARQUITECTURA DE DATOS
-
-### Tablas Implementadas
-
-**1. etm_products** (Catálogo ETM → URREA)
-```sql
-id UUID, etm TEXT (unique), description TEXT, description_es TEXT,
-model_code TEXT, price DECIMAL, brand TEXT,
-created_at, updated_at, created_by UUID
-```
-
-**2. store_inventory** (Stock tienda - SIMPLE)
-```sql
-id UUID, model_code TEXT (unique), quantity INTEGER,
-updated_at TIMESTAMPTZ
-```
-
-**3. quotations** (Cotizaciones — NUEVA)
-```sql
-id UUID, name TEXT, customer_name TEXT, status TEXT,
-approval_token UUID (unique),
-total_amount DECIMAL, notes TEXT,
-original_file_url TEXT,
-created_at, updated_at, created_by UUID
-```
-
-**Estados de cotización:**
-- `draft` (editando en cotizador)
-- `sent_for_approval` (link enviado al aprobador)
-- `approved` (al menos un ítem aprobado)
-- `rejected` (todos rechazados)
-- `converted_to_order` (orden generada)
-
-**4. quotation_items** (Productos por cotización — NUEVA)
-```sql
-id UUID, quotation_id UUID (FK),
-etm TEXT, description TEXT, description_es TEXT,
-model_code TEXT, brand TEXT,
-unit_price DECIMAL, quantity INTEGER,
-is_approved BOOLEAN (null=pendiente, true=aprobado, false=rechazado),
-item_type TEXT (default 'product' | 'separator'),
-section_label TEXT,
-notes TEXT,
-created_at TIMESTAMPTZ
-```
-
-**Notas `item_type`:**
-- `product` — ítem normal de producto
-- `separator` — fila divisora visual; excluida de totales, auto-learn, conteos y decisiones de aprobación
-
-**5. orders** (Ordenes de venta)
-```sql
-id UUID, name TEXT, quotation_id UUID (FK → quotations),
-customer_name TEXT, status TEXT, total_amount DECIMAL,
-urrea_order_file_url TEXT, notes TEXT,
-created_at, updated_at, created_by UUID
-```
-
-**Estados de orden:**
-- `pending_urrea_order` (inicial - esperando envío a URREA)
-- `received_from_urrea` (productos recibidos)
-- `pending_payment` (esperando pago cliente)
-- `paid` (cliente pagó)
-- `completed` (entrega completa)
-- `cancelled` (orden cancelada)
-
-**6. order_items** (Productos por orden)
-```sql
-id UUID, order_id UUID (FK),
-etm TEXT, model_code TEXT, description TEXT, brand TEXT,
-quantity_approved INTEGER, quantity_in_stock INTEGER,
-quantity_to_order INTEGER, quantity_received INTEGER,
-urrea_status TEXT, unit_price DECIMAL,
-item_type TEXT (default 'product' | 'separator'),
-section_label TEXT,
-sort_order INTEGER,
-created_at TIMESTAMPTZ
-```
-
-**Estados URREA:** `pending`, `supplied`, `not_supplied`
-
-**Constraint:** `quantity_in_stock + quantity_to_order = quantity_approved`
-
-**Notas `item_type` y `sort_order`:**
-- Separadores copiados desde `quotation_items` al crear orden, preservando posición relativa
-- `sort_order` preserva el orden de entrada; cuando se agrega ítem manualmente se asigna `max(sort_order) + 1`
-- Separadores excluidos del Excel URREA y del Excel de entrega
-
-## 🔄 FLUJO COMPLETO DEL SISTEMA
-
-### Flujo Automatizado Definitivo
-```
-1. COTIZADOR: Usuario sube Excel cliente (multi-hoja)
-   - Sistema extrae ETMs y cualquier columna disponible
-     (description, description_es, model_code, brand, price, quantity)
-   - Solo ETM es obligatorio en el Excel
-   ↓
-2. TABLA EDITABLE (estado gestionado con Zustand + localStorage)
-   - Pre-rellena columnas encontradas en el Excel
-   - Contrasta con etm_products por ETM → completa datos faltantes
-   - Todos los campos son editables excepto ETM
-   - quantity puede venir del Excel o ingresarse manualmente
-   - Se pueden agregar filas nuevas manualmente
-   - Modal por producto para edición ordenada (v1)
-   ↓
-3. GUARDAR COTIZACIÓN ("Save Quotation")
-   - AUTO-APRENDIZAJE en etm_products:
-     * ETM nuevo → INSERT con todos los datos del ítem
-     * ETM existente con datos cambiados → UPDATE (precio, marca, descripción)
-   - Crea registro en `quotations` (status: draft)
-   - Crea `quotation_items` con is_approved = null
-   ↓
-4. ENVIAR A APROBACIÓN
-   - Genera approval_token UUID único
-   - Status quotation → sent_for_approval
-   - Link: /approve/[approval_token]  (semi-privado, sin login)
-   ↓
-5. PÁGINA DE APROBACIÓN (acceso por token en URL)
-   - Preview de la cotización para el aprobador externo
-   - Aprobador marca cada ítem: aprobar ✅ o rechazar ❌
-   - Puede aprobar todos, algunos o ninguno (aprobación parcial)
-   - Submit → quotation_items.is_approved se actualiza
-   - Status quotation → approved / rejected
-   ↓
-6. DYMMSA ve cotización aprobada en su dashboard
-   - Visualiza ítems aprobados vs rechazados
-   - Genera orden desde cotización
-   ↓
-7. CREAR ORDEN desde cotización aprobada
-   - Solo quotation_items con is_approved = true
-   - Verifica stock DYMMSA por model_code:
-     * Stock completo → quantity_to_order = 0
-     * Stock parcial → apartar disponible, pedir faltante
-     * Sin stock → quantity_to_order = quantity_approved
-   - RESTAR inventario inmediatamente
-   - Status quotation → converted_to_order
-   - Crea orden con quotation_id FK (status: pending_urrea_order)
-   ↓
-8. GENERAR Excel formato URREA (.xlsm)
-   - Solo order_items con quantity_to_order > 0 Y brand = URREA
-   - Productos de otras marcas se excluyen (notificación al usuario)
-   - Columnas: model_code | quantity
-   - Descargar automáticamente
-   ↓
-9. Usuario envía Excel a URREA (WhatsApp - fuera del sistema)
-   ↓
-10. URREA envía productos (días después)
-    ↓
-11. Usuario accede a Order Detail Page
-    - Edita manualmente: quantity_received y urrea_status por ítem
-    - Confirma recepción
-    ↓
-12. SISTEMA actualiza inventario
-    - SUMAR quantity_received al store_inventory
-    ↓
-13. Gestión estados orden
-    - pending_urrea_order → received_from_urrea → pending_payment → paid → completed
-    ↓
-14. Orden completada ✅
-```
-
-## 📐 FASES DE DESARROLLO
-
-### ✅ Fase 0: Setup Inicial - COMPLETADA
-Proyecto Next.js 16, dependencias, shadcn/ui, estructura base.
-
-### ✅ Fase 1: Autenticación - COMPLETADA
-Supabase Auth, login, protección de rutas.
-
-### ✅ Fase 2: Catálogo Productos - COMPLETADA
-Tabla etm_products, CRUD completo, importación masiva desde Excel.
-
-### ✅ Fase 3: Cotizador Básico - COMPLETADA
-Subir Excel, detectar ETM multi-hoja, generar cotización descargable.
-
-### ✅ Fase 4: Inventario Tienda - COMPLETADA
-Tabla store_inventory, CRUD, importación Excel (model_code + quantity).
-
-### ✅ Fase 5.5: Flexibilidad en Cotizaciones y Órdenes - COMPLETADA
-
-**Objetivo:** Permitir edición post-aprobación para adaptarse al flujo informal de DYMMSA.
-
-#### Cotizaciones aprobadas editables ✅
-- `PATCH /api/quotations/[id]/update` acepta `status = 'approved'` además de `draft`
-- Ítems existentes preservan su `is_approved` original al re-insertar
-- Ítems nuevos agregados por DYMMSA entran con `is_approved = true` (aprobación interna)
-- `QuotationDetail`: `canEdit = isDraft || isApproved` controla todos los controles de edición
-- Botón "Agregar" y editar/eliminar por fila disponibles en cotizaciones aprobadas
-- "Enviar a aprobación" solo aparece en `draft`
-
-#### Ítems de orden editables ✅
-- `POST /api/orders/[id]/items` — agrega producto con check de stock y deducción de inventario
-- `PATCH /api/orders/[id]/items/[itemId]` — edita `unit_price`, recalcula `total_amount`
-- `DELETE /api/orders/[id]/items/[itemId]` — elimina ítem y restaura `quantity_in_stock` al inventario
-- `OrderDetail`: botón "Agregar" con dialog, edición de precio inline por fila, eliminación con confirmación
-- Solo disponible cuando orden no está `completed` ni `cancelled`
-
-**Nuevas rutas:**
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| POST | `/api/orders/[id]/items` | ✅ | Agregar ítem a orden (stock check + inventario) |
-| PATCH | `/api/orders/[id]/items/[itemId]` | ✅ | Editar precio de ítem |
-| DELETE | `/api/orders/[id]/items/[itemId]` | ✅ | Eliminar ítem + restaurar inventario |
-
-**Nuevos hooks:**
-- `useAddOrderItem` — POST agregar ítem
-- `useEditOrderItem` — PATCH editar precio
-- `useRemoveOrderItem` — DELETE eliminar ítem
-
-### ✅ Fase 5: Cotizador, Aprobación y Sistema de Ordenes - COMPLETADA
-
-**Objetivo:** Implementar flujo completo: cotizador con tabla editable → aprobación por link → orden automática.
-
-#### 5A: Cotizador (tabla editable) ✅
-1. ✅ Subir Excel cliente multi-hoja → extraer ETMs y columnas disponibles (`FileUploader` + `extractProductRowsFromExcel`)
-2. ✅ Tabla editable pre-rellena con datos del Excel + BD (`QuotationEditor` + lookup `/api/quotes/lookup`)
-3. ✅ Modal por producto para edición ordenada (`ProductModal` con modos create/edit)
-4. ✅ Zustand store + localStorage para persistir estado draft (`quotationStore.ts`, key: `dymmsa-quotation-draft`)
-5. ✅ Agregar filas manualmente (botón en `QuotationEditor` abre `ProductModal` en modo create)
-6. ✅ Guardar cotización en BD (`POST /api/quotations/save` → crea `quotations` + `quotation_items`)
-7. ✅ Auto-aprendizaje al guardar: ETM nuevo → INSERT, existente con cambios → UPDATE en `etm_products`
-
-#### 5B: Aprobación por link ✅
-8. ✅ Generar approval_token UUID y link semi-privado (`POST /api/quotations/[id]/send-for-approval`)
-9. ✅ Página pública `/approve/[token]` — server component + `ApprovalClient` (sin auth)
-10. ✅ Aprobación parcial: cada ítem tiene botón ✅/❌/? independiente; botón "Aprobar todo"
-11. ✅ Submit → actualiza `quotation_items.is_approved` + status quotation (`approved`/`rejected`)
-12. ✅ Banner informativo si la cotización ya fue procesada (no permite re-aprobar)
-
-#### 5C: Orden desde cotización ✅
-13. ✅ Dashboard cotizaciones con filtros por estado y búsqueda (`/dashboard/quotations`)
-14. ✅ `QuotationDetail` — vista completa con stats, edición draft, envío a aprobación, creación de orden
-15. ✅ Generar orden desde cotización aprobada (`POST /api/quotations/[id]/create-order`)
-    - Solo `quotation_items` con `is_approved = true`
-    - Verifica stock en `store_inventory` por `model_code`
-    - Crea `order_items` con desglose: `quantity_in_stock` + `quantity_to_order`
-    - Resta inventario inmediatamente; status quotation → `converted_to_order`
-16. ✅ Generar Excel URREA (`.xlsx`) descargable desde `OrderDetail`
-    - Solo ítems con `quantity_to_order > 0` Y `brand = URREA`
-    - Notificación al usuario sobre productos de otras marcas excluidos
-17. ✅ `OrderDetail` — edición manual de `quantity_received` y `urrea_status` por ítem
-18. ✅ Confirmar recepción → suma `quantity_received` a `store_inventory` (`POST /api/orders/[id]/confirm-reception`)
-19. ✅ Gestión de estados de orden via dropdown (5 transiciones posibles)
-20. ✅ Cancelar orden → restaura inventario (`POST /api/orders/[id]/cancel`)
-
-**Rutas implementadas:**
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| POST | `/api/quotations/save` | ✅ | Crear cotización + auto-learn |
-| POST | `/api/quotations/[id]/send-for-approval` | ✅ | Generar token + cambiar status |
-| PATCH | `/api/quotations/[id]/update` | ✅ | Editar cotización draft |
-| POST | `/api/quotations/[id]/create-order` | ✅ | Generar orden desde cotización aprobada |
-| GET | `/api/approve/[token]` | ❌ público | Obtener cotización por token |
-| POST | `/api/approve/[token]` | ❌ público | Enviar decisiones de aprobación |
-| POST | `/api/orders/[id]/confirm-reception` | ✅ | Confirmar recepción + actualizar inventario |
-| POST | `/api/orders/[id]/cancel` | ✅ | Cancelar orden + restaurar inventario |
-
-**Excel de entrada (cliente):**
-- Solo ETM es obligatorio; demás columnas opcionales
-- Columnas reconocidas: `ETM`, `description`, `description_es`, `model_code`, `quantity`, `price`, `brand`
-- Multi-hoja permitido, columna ETM detectada case-insensitive
-- Ignorar columnas de imágenes
-
-### 🔄 Fase 6: Mejoras y Optimización (ACTUAL)
-
-**Objetivo:** Mejorar UX, agregar funcionalidades de organización y estadísticas.
-
-#### UX y UI ✅
-- Stats cards con filtros activos en páginas de Cotizaciones, Órdenes e Inventario
-- `QuotationStatusBadge` y `OrderStatusBadge` con punto de color por estado
-- `QuotationDetail`: sort arrows en cabeceras, filter cards por estado/color
-- `OrderDetail`: header reestructurado, tarjetas resumen mejoradas
-- `QuotationsTable` / `OrdersTable`: columna `name` como título principal, `customer_name` como secundario, conteo de ítems, fechas relativas
-- `InventoryTable`: sort por cantidad, resaltado de filas, fechas relativas
-- Catálogo ETM: ordenamiento por columnas
-- Diálogo de confirmación al cerrar sesión (Navbar y Sidebar)
-
-#### Campo `name` en Cotizaciones y Órdenes ✅
-- `name` es obligatorio al crear cotización; se propaga a la orden al convertir
-- Buscable en listados de cotizaciones y órdenes
-- Se muestra como título principal en `QuotationDetail` y `OrderDetail`
-
-#### Separadores en Cotizaciones y Órdenes ✅
-- Usuario puede insertar filas separadoras con etiqueta editable entre productos en `QuotationEditor`
-- Separadores renderizados como divisores visuales en `QuotationDetail`, `ApprovalClient` y `OrderDetail`
-- Copiados a `order_items` al crear orden, preservando posición relativa
-- Excluidos de: totales, auto-learn, conteos, decisiones de aprobación, Excel URREA, Excel de entrega
-
-#### ETM editable y códigos DYMMSA ✅
-- ETM editable en `ProductModal` con validación de unicidad al editar
-- Productos sin ETM en Excel reciben código `DYMMSA-{n}` vía `GET /api/products/next-dymmsa-code`
-- Auto-learn no asigna brand URREA a productos sin `model_code`
-- Ítems sin `model_code` resaltados en gris en la tabla del cotizador con leyenda
-
-#### `sort_order` en order_items ✅
-- Campo `sort_order` preserva el orden de entrada al crear orden desde cotización
-- Ítems agregados manualmente reciben `max(sort_order) + 1`
-- Listado en `OrderDetail` ordenado por `sort_order` en lugar de ETM alfabético
-
-**Nuevas rutas:**
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| GET | `/api/products/next-dymmsa-code` | ✅ | Obtener siguiente código DYMMSA-{n} disponible |
-
-## 🔧 CONSIDERACIONES TÉCNICAS
-
-### Excel Processing
-- Detectar columna "ETM" (case insensitive) en múltiples hojas
-- Extraer todas las columnas reconocidas: ETM, description, description_es, model_code, quantity, price, brand
-- Solo ETM es obligatorio; columnas faltantes quedan vacías para edición manual
-- Ignorar columnas de imágenes
-- Formato URREA output: solo model_code + quantity, brand = URREA y quantity_to_order > 0
-- Formato URREA inventario import: skiprows=13
-
-### Cotizador / Estado
-- Zustand store maneja el estado de la cotización en curso (draft)
-- Persistir en localStorage como respaldo ante recargas
-- Limpiar localStorage al guardar cotización exitosamente en BD
-
-### Aprobación por Token
-- approval_token: UUID v4 generado en el servidor al enviar a aprobación
-- Ruta pública: `/approve/[token]` — accesible sin autenticación
-- La página valida el token contra BD; si no existe → 404
-- quotation con status !== `sent_for_approval` → mostrar estado actual (ya aprobada, etc.)
-
-### Seguridad
-- RLS en todas las tablas
-- Validación server-side
-- Middleware en rutas protegidas
-
-### Performance
-- Cache con TanStack Query
-- Paginación en tablas grandes
-- Procesamiento Excel en memoria
-
-### UX/UI
-- Loading states en operaciones
-- Mensajes de error claros
-- Diseño responsive
-
-## 📝 VARIABLES DE ENTORNO
 ```bash
-# Supabase
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-## 🎯 CRITERIOS DE ÉXITO (MVP COMPLETO)
+---
 
-- ✅ Login funcional
-- ✅ CRUD completo de productos
-- ✅ CRUD completo de inventario
-- ✅ Cotizador: subir Excel → tabla editable pre-rellena
-- ✅ Tabla editable: modal por producto, agregar filas manualmente
-- ✅ Guardar cotización en BD + auto-aprendizaje etm_products
-- ✅ Link de aprobación por token (página pública `/approve/[token]`)
-- ✅ Aprobación parcial por ítem desde página de aprobación
-- ✅ Generar orden desde cotización aprobada
-- ✅ Verificación stock y desglose order_items
-- ✅ Generación Excel URREA (faltantes brand=URREA)
-- ✅ Order Detail Page con edición manual
-- ✅ Confirmación recepción → actualizar inventario
-- ✅ Gestión de estados orden y cotización
-- ✅ Función cancelar orden
+## Base de datos
 
-## 📚 RECURSOS DE REFERENCIA
+Supabase project: `wjlklwtvjewhtghlskbt` · us-west-2 · RLS habilitado en todas las tablas.
 
-- [Next.js 16 Documentation](https://nextjs.org/docs)
-- [Supabase Documentation](https://supabase.com/docs)
-- [shadcn/ui Components](https://ui.shadcn.com)
-- [SheetJS Documentation](https://docs.sheetjs.com)
-- [ExcelJS Documentation](https://github.com/exceljs/exceljs)
-- [TanStack Query](https://tanstack.com/query/latest)
+### Tablas y estados críticos
 
-## 🔄 NOTAS PARA CLAUDE
+**`quotations`** — status CHECK:
+```
+draft | sent_for_approval | approved | rejected | converted_to_order
+```
+- `canEdit = isDraft || isApproved` (Fase 5.5: cotizaciones aprobadas son editables)
+- Ítems nuevos agregados en estado `approved` → `is_approved = true` (aprobación interna DYMMSA)
+- `approval_token UUID UNIQUE` — se usa en `/approve/[token]` sin auth
 
-- Este proyecto usa **Context7** para compartir contexto
-- El desarrollador indicará manualmente la fase actual
-- Priorizar código limpio y TypeScript estricto
-- TODO en inglés (código, BD, variables)
-- Sistema crece iterativamente: empezar simple, agregar complejidad
+**`quotation_items`** — campos clave:
+```
+item_type: 'product' | 'separator'
+is_approved: null (pendiente) | true | false
+delivery_time: 'immediate' | '2_3_days' | '3_5_days' | '1_week' | '2_weeks' | 'indefinite'
+sort_order: INTEGER  -- preserva orden del array al guardar
+```
+
+**`orders`** — status CHECK (migración `20260409055423`):
+```
+ordered | received | delivered | completed | cancelled
+```
+
+**`order_items`** — campos clave:
+```
+item_type: 'product' | 'separator'
+urrea_status: 'pending' | 'supplied' | 'not_supplied'
+delivery_time: (mismo enum que quotation_items)
+sort_order: INTEGER  -- preserva orden desde cotización; manual = max+1
+quantity_approved, quantity_in_stock, quantity_to_order, quantity_received
+```
+Constraint implícito: `quantity_in_stock + quantity_to_order = quantity_approved`
+
+**`etm_products`** — `etm TEXT UNIQUE`, `model_code TEXT`, `brand TEXT DEFAULT 'URREA'`
+
+**`store_inventory`** — `model_code TEXT UNIQUE`, `quantity INTEGER CHECK >= 0`
 
 ---
 
-**Última actualización:** 2026-04-06
-**Fase actual:** Fase 6 - Mejoras y Optimización (en curso)
-**Stack:** Next.js 16 + TypeScript + Supabase + shadcn/ui
+## Reglas de negocio críticas
+
+Estas reglas generan bugs si se ignoran al escribir código:
+
+| Regla | Detalle |
+|-------|---------|
+| **Separadores excluidos de todo** | `item_type='separator'` nunca se incluye en: totales, auto-learn, conteos, is_approved, Excel URREA |
+| **Stock se deduce al CREAR la orden** | No al confirmar recepción. Cancelar restaura `quantity_in_stock`. |
+| **Excel URREA** | Solo ítems: `item_type='product'` AND `brand='URREA'` AND `quantity_to_order > 0` |
+| **Auto-learn** | Solo actualiza campos no vacíos. No asigna `brand='URREA'` si `model_code` está vacío. |
+| **sort_order** | Al guardar cotización: `sort_order = index`. Al crear orden: re-asigna secuencialmente. Agregar ítem manual: `max(sort_order) + 1`. Siempre ordenar por `sort_order ASC`. |
+| **Aprobación pública** | `/approve/[token]` sin auth. Si `status !== 'sent_for_approval'` → mostrar estado actual, no permitir re-aprobar. |
+| **Rollback** | Si falla inserción de ítems en `save` o `create-order` → eliminar el registro padre (quotation/order). |
+
+---
+
+## Convenciones de código
+
+- **Todo en inglés:** código, variables, nombres de BD, API routes.
+- **TypeScript estricto.** Types centralizados en `src/types/database.ts`.
+- **Hooks = TanStack Query + fetch a API Routes propias.** No llamar Supabase directo desde el cliente.
+- **API Routes:** usar `createClient()` de `@supabase/ssr` + verificar `auth.getUser()` al inicio.
+- **Páginas:** Server Components por defecto; `"use client"` solo donde hay interactividad.
+- **Zustand store:** `dymmsa-quotation-draft` en localStorage. Llamar `reset()` al guardar exitosamente.
+- **Sin comentarios obvios.** Solo comentar WHY cuando no es evidente.
+
+---
+
+## Estado del proyecto
+
+**Fase actual:** 6 — Mejoras y Optimización (en curso)
+
+| Fase | Estado | Módulo principal |
+|------|--------|-----------------|
+| 0 — Setup | ✅ | — |
+| 1 — Auth | ✅ | `src/hooks/useAuth.ts` |
+| 2 — Catálogo ETM | ✅ | `src/app/api/products/` |
+| 3 — Cotizador básico | ✅ | `src/components/quoter/` |
+| 4 — Inventario | ✅ | `src/app/api/inventory/` |
+| 5 — Flujo completo | ✅ | `src/app/api/quotations/` + `src/app/api/orders/` |
+| 5.5 — Flexibilidad post-aprobación | ✅ | `src/app/api/orders/[id]/items/` |
+| 6 — Mejoras UX | 🔄 | — |
+
+---
+
+## 🤖 Auto-mejora: instrucciones para Claude
+
+> Obligatorio. Ejecutar automáticamente al final de cada cambio significativo.
+
+### Qué actualizar en la bóveda (`DYMMSA/`)
+
+| Evento | Archivo a actualizar |
+|--------|---------------------|
+| Nueva o modificada **ruta API** | `DYMMSA/02-Arquitectura/API-Routes.md` |
+| Nueva **tabla o columna** en Supabase | `DYMMSA/02-Arquitectura/Base-de-Datos.md` (verificar con MCP Supabase) + este CLAUDE.md |
+| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` |
+| **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
+| **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
+| Nuevo **enum o estado** | `DYMMSA/00-Inicio/Glosario.md` + tabla de BD en este CLAUDE.md |
+| **Migración de BD** | `DYMMSA/06-Changelog/YYYY-MM.md` (fecha + migración + descripción + motivo) |
+| Cambio en **flujo de negocio** | `DYMMSA/01-Negocio/Flujo-Operacional.md` |
+| Cambio en **estructura de carpetas** | `DYMMSA/02-Arquitectura/Estructura-de-Carpetas.md` |
+
+### Reglas
+
+1. **No inventar schema.** Si hay duda, usar MCP Supabase (`list_tables`, `execute_sql`) antes de documentar.
+2. **Fechas absolutas** en changelog (`YYYY-MM-DD`), nunca relativas.
+3. **Links Obsidian** entre notas relacionadas: `[[Carpeta/Nota]]`.
+4. **Este CLAUDE.md es la fuente de verdad operacional.** La bóveda es el detalle. Si hay conflicto, CLAUDE.md tiene prioridad — y debe corregirse también.
+
+### Formato changelog
+
+```markdown
+## YYYY-MM-DD
+
+**[Categoría]:** Qué cambió.
+- Detalle
+**Motivo:** Por qué.
 ```
 
 ---
+
+**Última actualización:** 2026-04-25  
+**BD:** Supabase `wjlklwtvjewhtghlskbt` · PostgreSQL 17.6 · us-west-2  
+**Filas (2026-04-25):** etm_products 564 · store_inventory 195 · quotations 9 · quotation_items 365 · orders 8 · order_items 182
