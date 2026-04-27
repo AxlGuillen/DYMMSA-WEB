@@ -142,7 +142,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 ### Formato changelog
 
 ```markdown
-## YYYY-MM-DD
+## YYYY-MM-DD 
 
 **[Categoría]:** Qué cambió.
 - Detalle
