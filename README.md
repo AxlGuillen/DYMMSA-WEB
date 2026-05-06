@@ -13,7 +13,7 @@ DYMMSA-WEB automatiza el flujo de trabajo desde la solicitud inicial del cliente
 - Verificación de stock y desglose automático (en tienda vs a pedir a URREA)
 - Generación de Excel de pedido a URREA (solo faltantes)
 - Confirmación de recepción y actualización de inventario
-- Auto-aprendizaje: la base de datos ETM→URREA crece con cada cotización guardada 
+- Auto-aprendizaje: la base de datos ETM→URREA crece con cada cotización guardada
 
 ## Stack Tecnológico
 
