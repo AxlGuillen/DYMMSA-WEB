@@ -9,6 +9,7 @@ import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge'
 import { MetricCard } from './MetricCard'
 import { OrderStatusBreakdown } from './OrderStatusBreakdown'
 import { useDashboard, type DateRange } from '@/hooks/useDashboard'
+import { useCurrency } from '@/hooks/useCurrency'
 import { cn } from '@/lib/utils'
 
 type Preset = '7d' | '30d' | 'month'
@@ -40,9 +41,6 @@ function formatDate(iso: string): string {
   return iso.slice(0, 10)
 }
 
-function formatCurrency(amount: number): string {
-  return `$${amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
-}
 
 function getCustomerInitials(name: string): string {
   return name
@@ -63,6 +61,7 @@ function formatRelativeDate(iso: string): string {
 }
 
 export function DashboardMetrics() {
+  const fmt = useCurrency()
   const [activePreset, setActivePreset] = useState<Preset | null>('30d')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -168,7 +167,7 @@ export function DashboardMetrics() {
         />
         <MetricCard
           title="Ventas Cerradas"
-          value={data ? formatCurrency(data.totalSales) : '$0.00'}
+          value={fmt(data?.totalSales ?? 0)}
           description="Pagadas y completadas"
           icon={<DollarSign className="h-4 w-4" />}
           color="purple"
@@ -240,7 +239,7 @@ export function DashboardMetrics() {
                         {order.customer_name}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {formatCurrency(order.total_amount)}
+                        {fmt(order.total_amount)}
                       </span>
                     </div>
 
