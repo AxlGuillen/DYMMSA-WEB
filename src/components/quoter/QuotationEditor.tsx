@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { ProductModal, DELIVERY_TIME_LABELS } from './ProductModal'
 import { useQuotationStore } from '@/stores/quotationStore'
+import { useCurrency } from '@/hooks/useCurrency'
 import type { QuotationItemRow } from '@/types/database'
 
 // --- helpers ----------------------------------------------------------
@@ -124,6 +125,7 @@ interface SortableRowProps {
 function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
+  const fmt = useCurrency()
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -163,7 +165,7 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
       </td>
       <td className="px-4 py-3 text-right tabular-nums">
         {item.unit_price != null
-          ? `$${item.unit_price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+          ? fmt(item.unit_price)
           : <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-4 py-3 text-right tabular-nums">
@@ -172,7 +174,7 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
       <td className="px-4 py-3 text-right tabular-nums">
         {item.unit_price != null && item.quantity != null ? (
           <span className="font-medium">
-            ${(item.unit_price * item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+            {fmt(item.unit_price * item.quantity)}
           </span>
         ) : (
           <span className="text-muted-foreground">—</span>
@@ -221,6 +223,7 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
 
 export function QuotationEditor() {
   const { items, addItem, updateItem, addSeparatorAfter, removeItem, reorderItems } = useQuotationStore()
+  const fmt = useCurrency()
   const productItems = items.filter(isProduct)
 
   const [modalOpen, setModalOpen]       = useState(false)
@@ -320,7 +323,7 @@ export function QuotationEditor() {
             <span className="font-medium">
               {allComplete ? 'Total:' : 'Total parcial:'}{' '}
               <span className="text-foreground">
-                ${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                {fmt(partialTotal)}
               </span>
               {!allComplete && (
                 <span className="text-muted-foreground text-xs ml-1">(faltan cantidades)</span>

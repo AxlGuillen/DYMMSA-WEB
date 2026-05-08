@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import type { EtmProduct } from '@/types/database'
 import { toast } from 'sonner'
+import { useCurrency } from '@/hooks/useCurrency'
 
 interface QuotePreviewProps {
   filename: string
@@ -50,6 +51,7 @@ export function QuotePreview({
   onReset,
 }: QuotePreviewProps) {
   const [showUnmatched, setShowUnmatched] = useState(false)
+  const fmt = useCurrency()
 
   const matchPercentage =
     totalRequested > 0
@@ -113,10 +115,7 @@ export function QuotePreview({
             <CardDescription>Valor Total</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
               <DollarSign className="h-5 w-5 text-green-600" />
-              {total.toLocaleString('es-MX', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {fmt(total)}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -193,10 +192,7 @@ export function QuotePreview({
                       <TableCell>{product.description_es}</TableCell>
                       <TableCell>{product.model_code}</TableCell>
                       <TableCell className="text-right">
-                        $
-                        {product.price.toLocaleString('es-MX', {
-                          minimumFractionDigits: 2,
-                        })}
+                        {fmt(product.price)}
                       </TableCell>
                       <TableCell>{product.brand}</TableCell>
                     </TableRow>
