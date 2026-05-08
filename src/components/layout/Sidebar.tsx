@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { DiscreteModeToggle } from '@/components/discrete-mode-toggle'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -135,10 +136,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Footer */}
       <div className="shrink-0 border-t px-3 py-4 space-y-2">
         <div className="flex items-center justify-between rounded-lg px-3 py-1.5">
-          <span className="truncate text-xs text-muted-foreground max-w-[150px]">
+          <span className="truncate text-xs text-muted-foreground max-w-[120px]">
             {user?.email}
           </span>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <DiscreteModeToggle />
+            <ThemeToggle />
+          </div>
         </div>
         <Button
           variant="ghost"
