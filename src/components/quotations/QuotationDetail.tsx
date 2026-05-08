@@ -76,6 +76,7 @@ import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal, DELIVERY_TIME_LABELS } from '@/components/quoter/ProductModal'
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
+import { useCurrency } from '@/hooks/useCurrency'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime } from '@/types/database'
 
 const isProductRow = (item: QuotationItemRow): boolean =>
@@ -243,6 +244,7 @@ function SortableDetailRow({
 }: SortableDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
+  const fmt = useCurrency()
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -282,7 +284,7 @@ function SortableDetailRow({
       <TableCell>{item.brand || <span className="text-muted-foreground">—</span>}</TableCell>
       <TableCell className="text-right tabular-nums">
         {item.unit_price != null
-          ? `$${item.unit_price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+          ? fmt(item.unit_price)
           : <span className="text-muted-foreground">—</span>}
       </TableCell>
       <TableCell className="text-right tabular-nums">
@@ -290,7 +292,7 @@ function SortableDetailRow({
       </TableCell>
       <TableCell className="text-right tabular-nums font-medium">
         {item.unit_price != null && item.quantity != null
-          ? `$${(item.unit_price * item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+          ? fmt(item.unit_price * item.quantity)
           : <span className="text-muted-foreground">—</span>}
       </TableCell>
       <TableCell className="text-sm whitespace-nowrap">
@@ -373,6 +375,7 @@ interface QuotationDetailProps {
 
 export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const router = useRouter()
+  const fmt = useCurrency()
 
   // ── Draft editing state ─────────────────────────────────────────
   const [localQuotationName, setLocalQuotationName] = useState(quotation.name)
@@ -875,7 +878,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               <p className="text-xs text-muted-foreground">Total</p>
               <p className="text-xl font-bold">
                 {partialTotal > 0
-                  ? `$${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                  ? fmt(partialTotal)
                   : <span className="text-muted-foreground text-base">Sin precio</span>}
               </p>
             </CardContent>
@@ -917,7 +920,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               <p className="text-xs text-muted-foreground">Total</p>
               <p className="text-xl font-bold">
                 {partialTotal > 0
-                  ? `$${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                  ? fmt(partialTotal)
                   : <span className="text-muted-foreground text-base">Sin precio</span>}
               </p>
             </CardContent>
@@ -1083,7 +1086,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                       Total:
                     </TableCell>
                     <TableCell className="text-right font-bold">
-                      ${partialTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      {fmt(partialTotal)}
                     </TableCell>
                     <TableCell /> {/* Entrega */}
                     {hasApprovalData && <TableCell />} {/* Aprobación */}

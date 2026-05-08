@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { useDeleteQuotation } from '@/hooks/useQuotations'
+import { useCurrency } from '@/hooks/useCurrency'
 import type { QuotationWithCount } from '@/types/database'
 
 function formatRelative(dateStr: string): string {
@@ -61,6 +62,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
   const router = useRouter()
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const deleteQuotation = useDeleteQuotation()
+  const fmt = useCurrency()
 
   const handleDelete = async () => {
     if (!deletingId) return
@@ -167,7 +169,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {q.total_amount > 0
-                    ? `$${q.total_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                    ? fmt(q.total_amount)
                     : <span className="text-muted-foreground text-sm">—</span>
                   }
                 </TableCell>
