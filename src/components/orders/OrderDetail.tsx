@@ -78,6 +78,7 @@ import {
   useEditDeliveryTime,
   useRemoveOrderItem,
 } from '@/hooks/useOrders'
+import { useCurrency } from '@/hooks/useCurrency'
 import type { OrderWithItems, OrderStatus, UrreaStatus, DeliveryTime } from '@/types/database'
 
 const EMPTY_ADD_FORM = {
@@ -117,6 +118,7 @@ interface ItemEdit {
 
 export function OrderDetail({ order }: OrderDetailProps) {
   const router = useRouter()
+  const fmt = useCurrency()
   const [itemEdits, setItemEdits] = useState<Record<string, ItemEdit>>({})
 
   // Add item dialog
@@ -527,7 +529,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <DollarSign className="h-3 w-3" /> Total
             </p>
             <p className="text-xl font-bold">
-              ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+              {fmt(totalAmount)}
             </p>
           </CardContent>
         </Card>
@@ -739,17 +741,17 @@ export function OrderDetail({ order }: OrderDetailProps) {
                             </Button>
                           </div>
                         ) : (
-                          <span>${item.unit_price.toLocaleString('es-MX')}</span>
+                          <span>{fmt(item.unit_price)}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        ${(() => {
+                        {fmt((() => {
                           let qty = item.quantity_in_stock
                           if (item.urrea_status !== 'not_supplied') {
                             qty += item.quantity_received
                           }
                           return qty * item.unit_price
-                        })().toLocaleString('es-MX')}
+                        })())}
                       </TableCell>
                       {isOrderOpen && (
                         <TableCell>
@@ -785,7 +787,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                     Total:
                   </TableCell>
                   <TableCell className="text-right font-bold">
-                    ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    {fmt(totalAmount)}
                   </TableCell>
                 </TableRow>
               </TableFooter>

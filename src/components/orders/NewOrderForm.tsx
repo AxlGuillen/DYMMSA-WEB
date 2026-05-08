@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card'
 import { detectApprovedProducts } from '@/lib/excel/detect-approved'
 import { useCreateOrder, useAutoLearn } from '@/hooks/useOrders'
+import { useCurrency } from '@/hooks/useCurrency'
 import type { ApprovedProduct } from '@/types/database'
 
 interface DetectionResult {
@@ -27,6 +28,7 @@ interface DetectionResult {
 
 export function NewOrderForm() {
   const router = useRouter()
+  const fmt = useCurrency()
   const [customerName, setCustomerName] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -233,7 +235,7 @@ export function NewOrderForm() {
                         <td className="p-2">{product.model_code}</td>
                         <td className="p-2 text-right">{product.quantity}</td>
                         <td className="p-2 text-right">
-                          ${product.price.toLocaleString('es-MX')}
+                          {fmt(product.price)}
                         </td>
                       </tr>
                     ))}

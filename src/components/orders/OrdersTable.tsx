@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OrderStatusBadge } from './OrderStatusBadge'
+import { useCurrency } from '@/hooks/useCurrency'
 import type { OrderWithCount } from '@/types/database'
 
 function formatRelative(dateStr: string): string {
@@ -46,6 +47,7 @@ interface OrdersTableProps {
 
 export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
   const router = useRouter()
+  const fmt = useCurrency()
 
   if (isLoading) {
     return (
@@ -129,7 +131,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {order.total_amount > 0
-                  ? `$${order.total_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                  ? fmt(order.total_amount)
                   : <span className="text-muted-foreground text-sm">—</span>}
               </TableCell>
               <TableCell
