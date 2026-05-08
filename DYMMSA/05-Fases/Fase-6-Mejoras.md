@@ -57,6 +57,18 @@
 - `completed` → `completed`
 - `cancelled` → `cancelled`
 
+## Modo Discreto ✅
+
+> 2026-05-07 · [[04-Decisiones-Tecnicas/ADR-005-Modo-Discreto]]
+
+Toggle global para ocultar todos los valores monetarios en las páginas autenticadas, sin afectar la página pública de aprobación de clientes.
+
+- `discreteModeStore` (Zustand + persist) — estado global persistido en `localStorage`.
+- `useCurrency()` — hook que devuelve una función formateadora; retorna `$•,•••.••` en modo activo o el valor real (`es-MX`, 2 decimales) en modo normal.
+- `DiscreteModeToggle` (Eye/EyeOff) añadido al footer del Sidebar junto a ThemeToggle.
+- Implementado en 8 componentes autenticados. `ApprovalClient` excluido intencionalmente.
+- Eliminada función local `formatCurrency` en `DashboardMetrics`; formato centralizado en el hook.
+
 ## Pendiente / Próximo
 
 _(agregar aquí lo que se planifique para Fase 6 adicional)_

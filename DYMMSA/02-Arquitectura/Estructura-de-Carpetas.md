@@ -53,6 +53,7 @@ src/
 ├── components/
 │   ├── dashboard/                # DashboardMetrics, MetricCard, OrderStatusBreakdown
 │   ├── db/                       # ExcelImporter, ProductForm, ProductsTable
+│   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
 │   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable
@@ -63,6 +64,7 @@ src/
 │
 ├── hooks/
 │   ├── useAuth.ts                # Auth state y helpers
+│   ├── useCurrency.ts            # Formatea montos; devuelve '$•,•••.••' en modo discreto
 │   ├── useDashboard.ts           # Métricas y stats del dashboard
 │   ├── useInventory.ts           # CRUD inventario
 │   ├── useOrders.ts              # CRUD + acciones de órdenes (add/edit/remove items, cancel, confirm)
@@ -82,6 +84,7 @@ src/
 │   └── utils.ts                  # cn(), formatters, helpers
 │
 ├── stores/
+│   ├── discreteModeStore.ts      # Zustand store: modo discreto ON/OFF (persist en localStorage)
 │   └── quotationStore.ts         # Zustand store: draft de cotización (persist en localStorage)
 │
 └── types/
