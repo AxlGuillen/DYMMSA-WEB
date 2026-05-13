@@ -1,62 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
+import { requireAuth } from '@/lib/api-helpers'
+import { processAutoLearn } from '@/lib/auto-learn'
 import type { QuotationItemRow } from '@/types/database'
 
 interface UpdateQuotationInput {
   name: string
   customer_name: string
   items: QuotationItemRow[]
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function processAutoLearn(supabase: any, userId: string, items: QuotationItemRow[]) {
-  const eligible = items.filter(
-    (i) =>
-      (!i.item_type || i.item_type === 'product') &&
-      i.etm &&
-      (i.model_code || i.description)
-  )
-  if (eligible.length === 0) return
-
-  const etmCodes = eligible.map((i) => i.etm)
-  const { data: existing } = await supabase
-    .from('etm_products')
-    .select('id, etm, description, description_es, model_code, price, brand')
-    .in('etm', etmCodes)
-
-  const existingMap = new Map(
-    (existing ?? []).map((p: { etm: string; [key: string]: unknown }) => [p.etm, p])
-  )
-
-  for (const item of eligible) {
-    const dbProduct = existingMap.get(item.etm) as {
-      etm: string; description: string; description_es: string
-      model_code: string; price: number; brand: string
-    } | undefined
-
-    if (!dbProduct) {
-      await supabase.from('etm_products').insert({
-        etm:            item.etm,
-        description:    item.description    || '',
-        description_es: item.description_es || '',
-        model_code:     item.model_code     || '',
-        price:          item.unit_price     ?? 0,
-        brand:          item.brand          || (item.model_code ? 'URREA' : null),
-        created_by:     userId,
-      })
-    } else {
-      const updates: Record<string, unknown> = {}
-      if (item.description    && item.description    !== dbProduct.description)    updates.description = item.description
-      if (item.description_es && item.description_es !== dbProduct.description_es) updates.description_es = item.description_es
-      if (item.model_code     && item.model_code     !== dbProduct.model_code)     updates.model_code = item.model_code
-      if (item.brand          && item.brand          !== dbProduct.brand)          updates.brand = item.brand
-      if (item.unit_price != null && item.unit_price !== dbProduct.price)          updates.price = item.unit_price
-
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('etm_products').update(updates).eq('etm', item.etm)
-      }
-    }
-  }
 }
 
 export async function PATCH(
@@ -67,10 +19,9 @@ export async function PATCH(
     const { id } = await params
     const supabase = await createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     // Verify quotation belongs to user and is draft
     const { data: quotation, error: fetchError } = await supabase
@@ -103,21 +54,12 @@ export async function PATCH(
     if (!customer_name?.trim()) {
       return NextResponse.json({ message: 'El nombre del cliente es requerido' }, { status: 400 })
     }
-    const hasProduct = items?.some((i) => !i.item_type || i.item_type === 'product')
+    const hasProduct = items?.some(isProductItem)
     if (!hasProduct) {
       return NextResponse.json({ message: 'Se requiere al menos un producto' }, { status: 400 })
     }
 
-    const total_amount = items.reduce((sum, item) => {
-      if (
-        (!item.item_type || item.item_type === 'product') &&
-        item.unit_price != null &&
-        item.quantity != null
-      ) {
-        return sum + item.unit_price * item.quantity
-      }
-      return sum
-    }, 0)
+    const total_amount = calculateQuotationTotal(items)
 
     // For approved quotations, preserve existing is_approved values per item
     const approvalMap = new Map<string, boolean | null>()

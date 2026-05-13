@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { allocateInventory } from '@/lib/business-rules'
+import { requireAuth } from '@/lib/api-helpers'
 import type { CreateOrderInput, OrderItemInsert } from '@/types/database'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Get authenticated user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     const input = (await request.json()) as CreateOrderInput
 
@@ -39,9 +37,9 @@ export async function POST(request: NextRequest) {
       const availableStock = inventory?.quantity || 0
       const quantityApproved = product.quantity || 1
 
-      // Calculate stock allocation
-      const quantityInStock = Math.min(quantityApproved, availableStock)
-      const quantityToOrder = quantityApproved - quantityInStock
+      // Calculate stock allocation (invariant: inStock + toOrder = needed)
+      const { inStock: quantityInStock, toOrder: quantityToOrder } =
+        allocateInventory(quantityApproved, availableStock)
 
       // If we're taking from stock, track inventory update
       if (quantityInStock > 0 && inventory) {
