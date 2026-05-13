@@ -22,15 +22,13 @@ import { Input } from '@/components/ui/input'
 import { ProductModal, DELIVERY_TIME_LABELS } from './ProductModal'
 import { useQuotationStore } from '@/stores/quotationStore'
 import { useCurrency } from '@/hooks/useCurrency'
+import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
 import type { QuotationItemRow } from '@/types/database'
 
 // --- helpers ----------------------------------------------------------
 
-const isProduct = (item: QuotationItemRow): boolean =>
-  !item.item_type || item.item_type === 'product'
-
 const isMissingData = (item: QuotationItemRow): boolean =>
-  isProduct(item) && !item.description && !item.model_code
+  isProductItem(item) && !item.description && !item.model_code
 
 const hasNoModelCode = (item: QuotationItemRow): boolean =>
   !isMissingData(item) && !item.model_code
@@ -224,7 +222,7 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
 export function QuotationEditor() {
   const { items, addItem, updateItem, addSeparatorAfter, removeItem, reorderItems } = useQuotationStore()
   const fmt = useCurrency()
-  const productItems = items.filter(isProduct)
+  const productItems = items.filter(isProductItem)
 
   const [modalOpen, setModalOpen]       = useState(false)
   const [modalMode, setModalMode]       = useState<'edit' | 'create'>('create')
@@ -264,12 +262,7 @@ export function QuotationEditor() {
   const noQuantityCount = productItems.filter(isMissingQuantity).length
   const completeCount   = productItems.filter(isComplete).length
 
-  const partialTotal = productItems.reduce((sum, item) => {
-    if (item.unit_price != null && item.quantity != null) {
-      return sum + item.unit_price * item.quantity
-    }
-    return sum
-  }, 0)
+  const partialTotal = calculateQuotationTotal(productItems)
 
   const allComplete = productItems.length > 0 && noDataCount === 0 && noQuantityCount === 0
 
@@ -413,7 +406,7 @@ export function QuotationEditor() {
         onOpenChange={setModalOpen}
         onSave={handleModalSave}
         existingEtms={items
-          .filter((i) => isProduct(i) && i._id !== selectedItem?._id)
+          .filter((i) => isProductItem(i) && i._id !== selectedItem?._id)
           .map((i) => i.etm)}
       />
     </div>

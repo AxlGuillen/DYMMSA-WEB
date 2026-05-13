@@ -77,10 +77,8 @@ import { ProductModal, DELIVERY_TIME_LABELS } from '@/components/quoter/ProductM
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
+import { calculateQuotationTotal, isProductItem as isProductRow } from '@/lib/business-rules'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime } from '@/types/database'
-
-const isProductRow = (item: QuotationItemRow): boolean =>
-  !item.item_type || item.item_type === 'product'
 
 // ------------------------------------------------------------------ //
 // Types                                                               //
@@ -579,16 +577,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const rawProductItems = rawItems.filter(isProductRow)
   const hasSeparators = rawItems.some((i) => i.item_type === 'separator')
 
-  const partialTotal = rawProductItems.reduce((sum, item) => {
-    if (item.unit_price != null && item.quantity != null) {
-      return sum + item.unit_price * item.quantity
-    }
-    return sum
-  }, 0)
+  const partialTotal = calculateQuotationTotal(rawProductItems)
 
-  const dbProductItems = quotation.quotation_items.filter(
-    (i) => !i.item_type || i.item_type === 'product'
-  )
+  const dbProductItems = quotation.quotation_items.filter(isProductRow)
   const approvedCount   = dbProductItems.filter((i) => i.is_approved === true).length
   const rejectedCount   = dbProductItems.filter((i) => i.is_approved === false).length
   const pendingCount    = dbProductItems.filter((i) => i.is_approved === null).length
