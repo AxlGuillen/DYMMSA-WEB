@@ -73,7 +73,7 @@ Toggle global para ocultar todos los valores monetarios en las páginas autentic
 
 > 2026-05-16
 
-Agregado un cuarto preset `'all'` al segmented control del dashboard para ver métricas históricas completas (no solo últimos 30 días).
+Agregado un cuarto preset `'all'` al segmented control del dashboard para ver métricas históricas completas.
 
 - `DashboardMetrics.tsx` — `Preset = '7d' | '30d' | 'month' | 'all'`
 - `getPresetRange('all')` retorna `from = new Date(0)` (Unix epoch).
@@ -99,12 +99,25 @@ Resultado: **-315 líneas netas**, 25 archivos tocados, 5 commits atómicos en `
 
 Tras guardar una cotización en `approved`, los badges de aprobación caían a "Pendiente" hasta recargar.
 
-- Causa: el route hace DELETE+INSERT regenerando IDs, pero el `useEffect` en `QuotationDetail.tsx` solo dependía de `[quotation.id]`, por lo que `localItems` retenía los IDs viejos y `quotation_items.find(i => i.id === item._id)` retornaba undefined.
+- Causa: el route hace DELETE+INSERT regenerando IDs, pero el `useEffect` en `QuotationDetail.tsx` solo dependía de `[quotation.id]`, por lo que `localItems` retenía los IDs viejos.
 - Fix: agregar `itemsSignature` (string con todos los IDs concatenados) como dep del useEffect.
 
 **Archivo:** `src/components/quotations/QuotationDetail.tsx` L417-426
 
+## Claude PR Reviewer ✅
+
+> 2026-05-17
+
+GitHub Action que revisa automáticamente cada PR contra las reglas de negocio del proyecto.
+
+- `.github/workflows/claude.yml` con `anthropics/claude-code-action@v1`
+- Trigger automático en `pull_request` (opened, synchronize, reopened)
+- Prompt con stack, 10 reglas de negocio críticas y módulos `src/lib/`
+- Tres niveles: 🔴 bloqueante · 🟡 advertencia · 🟢 sugerencia
+- `use_sticky_comment`: un comment consolidado por PR, se actualiza en cada push
+- `@claude` disponible en comentarios para consultas on-demand
+
 ## Pendiente / Próximo
 
 - **Fase 1 de QA:** Instalar Bun test y escribir tests unitarios sobre `src/lib/*` puras (ver ADR-006).
-- _(agregar aquí lo que se planifique para Fase 6 adicional)_
+- **Fase 2+ QA:** Integration tests de route handlers, component tests con Testing Library, E2E con Playwright.
