@@ -35,13 +35,18 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          use_sticky_comment: true
-          allowed_tools: "Bash(gh pr comment*),Bash(gh pr view*),Bash(git diff*),Bash(git log*)"
+          track_progress: true
 
           additional_permissions: |
             actions: read
 
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
           prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
             Eres el revisor de código del sistema DYMMSA — una aplicación Next.js 16 para gestión de cotizaciones, órdenes e inventario de un distribuidor URREA en México.
 
             Tu rol es ser una capa de seguridad que garantiza que ningún cambio rompa el sistema o viole las reglas de negocio críticas.
@@ -75,35 +80,22 @@ jobs:
 
             ## Qué revisar en cada PR
 
-            **🔴 Bloqueantes (menciona explícitamente si encuentras alguno):**
-            - Violación de alguna de las 10 reglas de negocio de arriba
-            - Lógica de cálculo de totales que no use `business-rules.ts`
-            - Operaciones de inventario fuera de los flujos establecidos
+            **🔴 Bloqueantes:**
+            - Violación de alguna de las 10 reglas de negocio
+            - Lógica de totales que no use `business-rules.ts`
             - Rutas API sin `requireAuth()`
-            - Consultas SQL que modifiquen stock sin pasar por los routes correctos
-            - TypeScript errors o uso de `any` donde hay tipos definidos en `src/types/database.ts`
+            - TypeScript `any` donde hay tipos en `src/types/database.ts`
 
-            **🟡 Advertencias (señalar pero no bloquear):**
+            **🟡 Advertencias:**
             - Lógica duplicada que debería ir en `src/lib/`
             - `formatCurrency` local en vez de `useCurrency()`
-            - Componentes cliente innecesarios (sin interactividad)
-            - Imports directos de Supabase desde el cliente (debe ser via API routes)
+            - Imports directos de Supabase desde el cliente
 
             **🟢 Sugerencias opcionales:**
-            - Mejoras de legibilidad o consistencia con el resto del codebase
-            - Oportunidades de reutilizar utilidades ya existentes
+            - Consistencia con el codebase
+            - Reutilización de utilidades existentes
 
-            ## Formato de tu respuesta
+            ## Formato
 
-            Empieza con un resumen de 2-3 líneas de qué hace el PR. Luego lista los hallazgos por categoría (🔴/🟡/🟢). Si no hay problemas, di explícitamente que el PR es seguro para mergear. Sé directo y conciso.
-
-            ## IMPORTANTE — Cómo entregar el review
-
-            Cuando termines el análisis, DEBES publicar tu review como comentario en el PR usando exactamente este comando:
-
-            ```
-            gh pr comment $PR_NUMBER --repo $REPO --body "TU REVIEW AQUÍ"
-            ```
-
-            Donde `$PR_NUMBER` es el número del PR actual y `$REPO` es el repositorio en formato `owner/repo`.
-            No termines sin haber ejecutado ese comando.
+            Empieza con un resumen de 2-3 líneas. Lista hallazgos por categoría. Si no hay problemas, di que el PR es seguro para mergear.
+            Publica el review como comentario en el PR usando `gh pr comment`.
