@@ -12,7 +12,7 @@ import { useDashboard, type DateRange } from '@/hooks/useDashboard'
 import { useCurrency } from '@/hooks/useCurrency'
 import { cn } from '@/lib/utils'
 
-type Preset = '7d' | '30d' | 'month'
+type Preset = '7d' | '30d' | 'month' | 'all'
 
 function getPresetRange(preset: Preset): DateRange {
   const now = new Date()
@@ -25,8 +25,11 @@ function getPresetRange(preset: Preset): DateRange {
   } else if (preset === '30d') {
     from = new Date(to)
     from.setDate(from.getDate() - 29)
-  } else {
+  } else if (preset === 'month') {
     from = new Date(now.getFullYear(), now.getMonth(), 1)
+  } else {
+    // 'all' — desde el inicio del tiempo (Unix epoch) hasta hoy
+    from = new Date(0)
   }
 
   from.setHours(0, 0, 0, 0)
@@ -85,6 +88,7 @@ export function DashboardMetrics() {
     { key: '7d',    label: '7 días' },
     { key: '30d',   label: '30 días' },
     { key: 'month', label: 'Este mes' },
+    { key: 'all',   label: 'Todo' },
   ]
 
   return (
@@ -119,7 +123,13 @@ export function DashboardMetrics() {
         <div className="flex items-center gap-2">
           <input
             type="date"
-            value={activePreset ? formatDate(dateRange.from) : customFrom}
+            value={
+              activePreset === 'all'
+                ? ''
+                : activePreset
+                ? formatDate(dateRange.from)
+                : customFrom
+            }
             onChange={(e) => {
               setActivePreset(null)
               setCustomFrom(e.target.value)
