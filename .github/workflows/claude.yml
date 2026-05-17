@@ -35,8 +35,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          use_sticky_comment: true
-          allowed_tools: "Bash(gh pr comment*),Bash(gh pr view*),Bash(git diff*),Bash(git log*)"
           track_progress: true
 
           additional_permissions: |
@@ -99,15 +97,5 @@ jobs:
 
             ## Formato
 
-            Empieza con un resumen de 2-3 líneas de qué hace el PR. Luego lista los hallazgos por categoría (🔴/🟡/🟢). Si no hay problemas, di explícitamente que el PR es seguro para mergear. Sé directo y conciso.
-
-            ## IMPORTANTE — Cómo entregar el review
-
-            Cuando termines el análisis, DEBES publicar tu review como comentario en el PR usando exactamente este comando:
-
-            ```
-            gh pr comment $PR_NUMBER --repo $REPO --body "TU REVIEW AQUÍ"
-            ```
-
-            Donde `$PR_NUMBER` es el número del PR actual y `$REPO` es el repositorio en formato `owner/repo`.
-            No termines sin haber ejecutado ese comando.
+            Empieza con un resumen de 2-3 líneas. Lista hallazgos por categoría. Si no hay problemas, di que el PR es seguro para mergear.
+            Publica el review como comentario en el PR usando `gh pr comment`.
