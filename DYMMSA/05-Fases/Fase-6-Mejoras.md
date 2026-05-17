@@ -1,8 +1,8 @@
 # Fase 6: Mejoras y Optimización 🔄
 
 > **Módulos mejorados:** [[03-Modulos/Cotizador]], [[03-Modulos/Ordenes]], [[03-Modulos/Inventario]], [[03-Modulos/Dashboard]]  
-> **ADRs implementados:** [[04-Decisiones-Tecnicas/ADR-001-Separadores]], [[04-Decisiones-Tecnicas/ADR-002-DYMMSA-codes]], [[04-Decisiones-Tecnicas/ADR-003-sort_order]]  
-> **Changelog:** [[06-Changelog/2026-04]]
+> **ADRs implementados:** [[04-Decisiones-Tecnicas/ADR-001-Separadores]], [[04-Decisiones-Tecnicas/ADR-002-DYMMSA-codes]], [[04-Decisiones-Tecnicas/ADR-003-sort_order]], [[04-Decisiones-Tecnicas/ADR-005-Modo-Discreto]], [[04-Decisiones-Tecnicas/ADR-006-Refactor-Utils-Phase-0]]  
+> **Changelog:** [[06-Changelog/2026-04]] · [[06-Changelog/2026-05]]
 
 **Estado:** En curso (desde 2026-04)
 
@@ -69,6 +69,55 @@ Toggle global para ocultar todos los valores monetarios en las páginas autentic
 - Implementado en 8 componentes autenticados. `ApprovalClient` excluido intencionalmente.
 - Eliminada función local `formatCurrency` en `DashboardMetrics`; formato centralizado en el hook.
 
+## Dashboard — Filtro "Todo" ✅
+
+> 2026-05-16
+
+Agregado un cuarto preset `'all'` al segmented control del dashboard para ver métricas históricas completas.
+
+- `DashboardMetrics.tsx` — `Preset = '7d' | '30d' | 'month' | 'all'`
+- `getPresetRange('all')` retorna `from = new Date(0)` (Unix epoch).
+- El input de fecha "desde" queda vacío cuando "Todo" está activo.
+
+## Refactor Fase 0 — Utilidades en `src/lib/*` ✅
+
+> 2026-05-16 · [[04-Decisiones-Tecnicas/ADR-006-Refactor-Utils-Phase-0]]
+
+Preparación para Fase 1 de QA. Extracción de lógica duplicada a 5 módulos puros, sin cambios de comportamiento.
+
+- `format.ts` — fechas, strings, números (8 funciones puras)
+- `business-rules.ts` — separadores, totales, allocation, invariantes (9 funciones puras)
+- `api-helpers.ts` — `requireAuth()` aplicado a 15 routes
+- `inventory.ts` — `computeRestoration` (pura) + `restoreOrderInventory` (DB)
+- `auto-learn.ts` — `mergeEtmFields`/`computeNewEtmFields` (puras) + `processAutoLearn` (orchestración)
+
+Resultado: **-315 líneas netas**, 25 archivos tocados, 5 commits atómicos en `stg`.
+
+## Fix — UI sync al editar cotización aprobada ✅
+
+> 2026-05-16
+
+Tras guardar una cotización en `approved`, los badges de aprobación caían a "Pendiente" hasta recargar.
+
+- Causa: el route hace DELETE+INSERT regenerando IDs, pero el `useEffect` en `QuotationDetail.tsx` solo dependía de `[quotation.id]`, por lo que `localItems` retenía los IDs viejos.
+- Fix: agregar `itemsSignature` (string con todos los IDs concatenados) como dep del useEffect.
+
+**Archivo:** `src/components/quotations/QuotationDetail.tsx` L417-426
+
+## Claude PR Reviewer ✅
+
+> 2026-05-17
+
+GitHub Action que revisa automáticamente cada PR contra las reglas de negocio del proyecto.
+
+- `.github/workflows/claude.yml` con `anthropics/claude-code-action@v1`
+- Trigger automático en `pull_request` (opened, synchronize, reopened)
+- Prompt con stack, 10 reglas de negocio críticas y módulos `src/lib/`
+- Tres niveles: 🔴 bloqueante · 🟡 advertencia · 🟢 sugerencia
+- `use_sticky_comment`: un comment consolidado por PR, se actualiza en cada push
+- `@claude` disponible en comentarios para consultas on-demand
+
 ## Pendiente / Próximo
 
-_(agregar aquí lo que se planifique para Fase 6 adicional)_
+- **Fase 1 de QA:** Instalar Bun test y escribir tests unitarios sobre `src/lib/*` puras (ver ADR-006).
+- **Fase 2+ QA:** Integration tests de route handlers, component tests con Testing Library, E2E con Playwright.

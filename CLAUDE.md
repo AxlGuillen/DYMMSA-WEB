@@ -97,6 +97,29 @@ Estas reglas generan bugs si se ignoran al escribir código:
 
 ---
 
+## CI/CD y Code Review
+
+### GitHub Actions — Claude PR Reviewer
+
+**Workflow:** `.github/workflows/claude.yml`
+
+Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abierto o actualizado contra las reglas de negocio críticas del proyecto.
+
+**Triggers:**
+- Automático al abrir o actualizar un PR
+- `@claude` en comentarios para preguntas on-demand
+
+**Modelo:** Claude Sonnet (default de Claude Code, via OAuth — sin costo adicional de API)
+
+**Tres niveles de revisión:**
+- 🔴 **Bloqueante** — violación de reglas de negocio, rutas sin `requireAuth()`, lógica de totales fuera de `business-rules.ts`, TypeScript `any`
+- 🟡 **Advertencia** — lógica duplicada que debería ir en `src/lib/`, `formatCurrency` local, imports directos de Supabase desde cliente
+- 🟢 **Sugerencia** — consistencia con el codebase, reutilización de utilidades existentes
+
+**Secret requerido:** `CLAUDE_CODE_OAUTH_TOKEN` (guardado en GitHub Secrets del repo)
+
+---
+
 ## Estado del proyecto
 
 **Fase actual:** 6 — Mejoras y Optimización (en curso)
@@ -151,6 +174,6 @@ Estas reglas generan bugs si se ignoran al escribir código:
 
 ---
 
-**Última actualización:** 2026-05-07  
+**Última actualización:** 2026-05-17  
 **BD:** Supabase `wjlklwtvjewhtghlskbt` · PostgreSQL 17.6 · us-west-2  
 **Filas (2026-04-25):** etm_products 564 · store_inventory 195 · quotations 9 · quotation_items 365 · orders 8 · order_items 182
