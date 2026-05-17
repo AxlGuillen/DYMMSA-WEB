@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+// @ts-ignore: Allow side-effect import of global CSS without type declarations
 import "./globals.css";
 
 const geistSans = Geist({
@@ -51,7 +52,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "es_MX",
     siteName: "DYMMSA",
-    title: "DYMMSA - Sistema de Cotizaciones",
+    title: "DYMMSA - Sistema Modular",
     description:
       "Sistema de cotizaciones y gestión de inventario para DYMMSA, distribuidor autorizado de herramientas URREA.",
   },
