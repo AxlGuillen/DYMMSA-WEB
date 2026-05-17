@@ -414,12 +414,18 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const { data: relatedOrder } = useOrderByQuotationId(quotation.id, isConvertedToOrder)
 
+  // Re-sync local state when quotation IDs change OR when item IDs change.
+  // After save, the route DELETE+INSERT regenerates item IDs, so we react to
+  // the items signature to keep localItems in sync with the refetched data.
+  const itemsSignature = quotation.quotation_items.map((i) => i.id).join('|')
+
   useEffect(() => {
     setLocalQuotationName(quotation.name)
     setLocalName(quotation.customer_name)
     setLocalItems(quotation.quotation_items.map(toItemRow))
     setIsDirty(false)
-  }, [quotation.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotation.id, itemsSignature])
 
   // ── Item editing handlers ───────────────────────────────────────
   const handleEdit = (item: QuotationItemRow) => {
