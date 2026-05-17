@@ -81,7 +81,12 @@ src/
 │   │   ├── client.ts             # createBrowserClient (browser)
 │   │   ├── server.ts             # createClient (server/API routes)
 │   │   └── admin.ts              # createAdminClient (service role, cuando necesario)
-│   └── utils.ts                  # cn(), formatters, helpers
+│   ├── format.ts                 # Fechas relativas/absolutas, sanitize, parseNumber, parseInteger
+│   ├── business-rules.ts         # isProductItem, calculateQuotationTotal, allocateInventory, etc.
+│   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers
+│   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
+│   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
+│   └── utils.ts                  # cn() — class merging
 │
 ├── stores/
 │   ├── discreteModeStore.ts      # Zustand store: modo discreto ON/OFF (persist en localStorage)
