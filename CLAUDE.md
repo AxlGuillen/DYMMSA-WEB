@@ -1,7 +1,7 @@
 # DYMMSA — Sistema de Cotizaciones y Gestión de Inventario
 
 Aplicación web para automatizar cotizaciones de DYMMSA (distribuidor URREA en Morelia, México).
-Flujo: subir Excel del cliente → cotizador editable → aprobación por link → orden → inventario.
+Flujo: subir Excel del cliente → cotizador editable → aprobación por link → orden → inventario. 
 
 > 📚 Documentación completa en la bóveda Obsidian: `DYMMSA/00-Inicio/README.md`
 
