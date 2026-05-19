@@ -14,12 +14,11 @@ export async function POST(
       return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
     }
 
-    // Verify quotation exists, belongs to user and is in draft
+    // Verify quotation exists and is in draft
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
       .select('id, status, approval_token')
       .eq('id', id)
-      .eq('created_by', user.id)
       .single()
 
     if (fetchError || !quotation) {

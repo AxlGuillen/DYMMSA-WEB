@@ -23,12 +23,11 @@ export async function POST(
 
     const { data: order } = await supabase
       .from('orders')
-      .select('id, status, total_amount, created_by')
+      .select('id, status, total_amount')
       .eq('id', id)
       .single()
 
     if (!order) return NextResponse.json({ message: 'Orden no encontrada' }, { status: 404 })
-    if (order.created_by !== user.id) return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
     if (['completed', 'cancelled'].includes(order.status)) {
       return NextResponse.json(
         { message: 'No se puede modificar una orden completada o cancelada' },

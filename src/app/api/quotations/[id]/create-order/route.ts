@@ -21,19 +21,22 @@ export async function POST(
       return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
     }
 
-    // Fetch quotation with items — must be approved and belong to this user
+    console.log(`[create-order] START quotationId=${id} userId=${user.id}`)
+
+    // Fetch quotation with items — must be approved; any authenticated user can create the order
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
       .select('*, quotation_items(*)')
       .eq('id', id)
-      .eq('created_by', user.id)
       .single()
 
     if (fetchError || !quotation) {
+      console.error(`[create-order] quotation not found id=${id} dbError=${fetchError?.message}`)
       return NextResponse.json({ message: 'Cotización no encontrada' }, { status: 404 })
     }
 
     if (quotation.status !== 'approved') {
+      console.log(`[create-order] rejected: bad status="${quotation.status}" quotationId=${id}`)
       return NextResponse.json(
         { message: 'Solo se puede generar una orden a partir de una cotización aprobada' },
         { status: 400 }
@@ -50,7 +53,11 @@ export async function POST(
       (i.item_type === 'product' || !i.item_type) && i.is_approved === true
     )
 
+    const seps = allItems.filter((i: { item_type: string }) => i.item_type === 'separator').length
+    console.log(`[create-order] items total=${allItems.length} separators=${seps} approved=${approvedProducts.length}`)
+
     if (approvedProducts.length === 0) {
+      console.log(`[create-order] rejected: no approved products quotationId=${id}`)
       return NextResponse.json(
         { message: 'No hay productos aprobados en esta cotización' },
         { status: 400 }
@@ -153,9 +160,11 @@ export async function POST(
       .single()
 
     if (orderError || !order) {
-      console.error('Error creating order:', orderError)
+      console.error(`[create-order] order insert error quotationId=${id}`, orderError)
       return NextResponse.json({ message: 'Error al crear la orden' }, { status: 500 })
     }
+
+    console.log(`[create-order] order inserted orderId=${order.id} total=${totalAmount}`)
 
     // Insert order items
     const { error: itemsError } = await supabase
@@ -164,7 +173,7 @@ export async function POST(
 
     if (itemsError) {
       await supabase.from('orders').delete().eq('id', order.id)
-      console.error('Error inserting order items:', itemsError)
+      console.error(`[create-order] items insert error rolling back orderId=${order.id}`, itemsError)
       return NextResponse.json({ message: 'Error al guardar los productos de la orden' }, { status: 500 })
     }
 
@@ -174,6 +183,7 @@ export async function POST(
         .from('store_inventory')
         .update({ quantity: upd.newQty })
         .eq('model_code', upd.model_code)
+      console.log(`[create-order] inventory deducted model=${upd.model_code} newQty=${upd.newQty}`)
     }
 
     // Mark quotation as converted
@@ -182,13 +192,15 @@ export async function POST(
       .update({ status: 'converted_to_order' })
       .eq('id', id)
 
+    console.log(`[create-order] DONE orderId=${order.id} items=${approvedProducts.length} total=${totalAmount}`)
+
     return NextResponse.json({
       order_id:     order.id,
       items_count:  approvedProducts.length,
       total_amount: totalAmount,
     })
   } catch (error) {
-    console.error('Create order from quotation error:', error)
+    console.error(`[create-order] unhandled error quotationId=${(await params).id}`, error)
     return NextResponse.json({ message: 'Error interno' }, { status: 500 })
   }
 }
