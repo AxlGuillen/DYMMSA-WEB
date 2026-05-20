@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/api-helpers'
 
 export async function GET() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
+  const auth = await requireAuth(supabase)
+  if ('error' in auth) return auth.error
 
   const { data } = await supabase
     .from('etm_products')

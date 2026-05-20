@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { normalizeString, parseNumber } from '@/lib/format'
 import type { ExcelExtractedRow } from '@/types/database'
 
 export interface ExtractionResult {
@@ -26,7 +27,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
 }
 
 function findColumnHeader(headers: string[], aliases: string[]): string | null {
-  const normalized = headers.map((h) => h.toLowerCase().trim())
+  const normalized = headers.map(normalizeString)
   for (const alias of aliases) {
     const idx = normalized.indexOf(alias)
     if (idx !== -1) return headers[idx]
@@ -64,9 +65,8 @@ export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProd
     const brandCol   = findColumnHeader(headers, COLUMN_ALIASES.brand)
 
     const parseNum = (row: Record<string, unknown>, col: string | null): number | null => {
-      if (!col || row[col] == null) return null
-      const val = parseFloat(String(row[col]))
-      return isNaN(val) ? null : val
+      if (!col) return null
+      return parseNumber(row[col])
     }
 
     for (const row of jsonRows) {

@@ -30,6 +30,7 @@ import {
   TableRow,
   TableFooter,
 } from '@/components/ui/table'
+import { filterProductItems } from '@/lib/business-rules'
 import type { QuotationWithItems, DeliveryTime } from '@/types/database'
 
 const DELIVERY_TIME_LABELS: Record<DeliveryTime, string> = {
@@ -55,9 +56,7 @@ export function ApprovalClient({ quotation, token }: Props) {
   const isEditable = quotation.status === 'sent_for_approval'
 
   // Only product items get approval decisions (separators are visual only)
-  const productItems = quotation.quotation_items.filter(
-    (i) => !i.item_type || i.item_type === 'product'
-  )
+  const productItems = filterProductItems(quotation.quotation_items)
 
   // Default: everything starts as NOT approved — client only clicks what they want
   const [decisions, setDecisions] = useState<ItemDecision[]>(

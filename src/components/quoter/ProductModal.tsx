@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
+import { parseNumber, parseInteger } from '@/lib/format'
 import type { QuotationItemRow, DeliveryTime } from '@/types/database'
 
 export const DELIVERY_TIME_LABELS: Record<DeliveryTime, string> = {
@@ -144,8 +145,8 @@ export function ProductModal({
         description_es: data.description_es.trim(),
         model_code:     data.model_code.trim(),
         brand:          data.brand.trim(),
-        unit_price:     data.unit_price ? parseFloat(data.unit_price) : null,
-        quantity:       data.quantity   ? parseInt(data.quantity, 10) : null,
+        unit_price:     parseNumber(data.unit_price),
+        quantity:       parseInteger(data.quantity),
         delivery_time:  data.delivery_time,
         _inDb:          item?._inDb ?? false,
       },

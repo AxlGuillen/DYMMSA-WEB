@@ -15,30 +15,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { useCurrency } from '@/hooks/useCurrency'
+import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { OrderWithCount } from '@/types/database'
-
-function formatRelative(dateStr: string): string {
-  const diff  = Date.now() - new Date(dateStr).getTime()
-  const mins  = Math.floor(diff / 60_000)
-  const hours = Math.floor(diff / 3_600_000)
-  const days  = Math.floor(diff / 86_400_000)
-  if (mins  <  2) return 'hace un momento'
-  if (mins  < 60) return `hace ${mins} min`
-  if (hours < 24) return `hace ${hours}h`
-  if (days  === 1) return 'ayer'
-  if (days  <  7) return `hace ${days} días`
-  if (days  < 30) return `hace ${Math.floor(days / 7)} sem`
-  return new Date(dateStr).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  })
-}
-
-function formatAbsolute(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
 
 interface OrdersTableProps {
   orders: OrderWithCount[]

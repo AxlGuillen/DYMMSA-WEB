@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/api-helpers'
 import type { ApprovedProduct, AutoLearnResult } from '@/types/database'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Get authenticated user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     const { products } = (await request.json()) as { products: ApprovedProduct[] }
 

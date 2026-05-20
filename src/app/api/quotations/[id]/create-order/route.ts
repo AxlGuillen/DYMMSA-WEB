@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/api-helpers'
+import { allocateInventory } from '@/lib/business-rules'
 
 interface StockResult {
   model_code: string
@@ -14,12 +16,9 @@ export async function POST(
     const { id } = await params
     const supabase = await createClient()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     console.log(`[create-order] START quotationId=${id} userId=${user.id}`)
 
@@ -114,8 +113,9 @@ export async function POST(
           .single()
 
         if (inv) {
-          quantityInStock = Math.min(quantityApproved, inv.quantity)
-          quantityToOrder = quantityApproved - quantityInStock
+          const allocation = allocateInventory(quantityApproved, inv.quantity)
+          quantityInStock = allocation.inStock
+          quantityToOrder = allocation.toOrder
 
           if (quantityInStock > 0) {
             inventoryUpdates.push({

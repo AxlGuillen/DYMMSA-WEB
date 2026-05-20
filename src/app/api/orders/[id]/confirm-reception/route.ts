@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { calculateDeliveredTotal } from '@/lib/business-rules'
+import { requireAuth } from '@/lib/api-helpers'
 import type { ConfirmReceptionInput } from '@/types/database'
 
 export async function POST(
@@ -10,13 +12,8 @@ export async function POST(
     const { id: orderId } = await context.params
     const supabase = await createClient()
 
-    // Get authenticated user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
 
     const input = (await request.json()) as ConfirmReceptionInput
 
@@ -107,13 +104,7 @@ export async function POST(
       .eq('order_id', orderId)
 
     if (allItems) {
-      const newTotal = allItems.reduce((sum, item) => {
-        let quantityDelivered = item.quantity_in_stock
-        if (item.urrea_status !== 'not_supplied') {
-          quantityDelivered += item.quantity_received
-        }
-        return sum + quantityDelivered * item.unit_price
-      }, 0)
+      const newTotal = calculateDeliveredTotal(allItems)
 
       await supabase
         .from('orders')

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/api-helpers'
+import { restoreOrderInventory } from '@/lib/inventory'
 
 export async function POST(
   request: NextRequest,
@@ -9,13 +11,8 @@ export async function POST(
     const { id: orderId } = await context.params
     const supabase = await createClient()
 
-    // Get authenticated user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
 
     // Get order with items
     const { data: order, error: orderError } = await supabase
@@ -45,47 +42,8 @@ export async function POST(
       )
     }
 
-    // Get order items
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('model_code, quantity_in_stock, quantity_received')
-      .eq('order_id', orderId)
-
-    let inventoryRestored = 0
-
-    // Restore inventory for each item
-    if (items) {
-      for (const item of items) {
-        // Calculate total to restore (what was taken from stock + what was received)
-        const toRestore = item.quantity_in_stock + item.quantity_received
-
-        if (toRestore > 0) {
-          // Get current inventory
-          const { data: inventory } = await supabase
-            .from('store_inventory')
-            .select('id, quantity')
-            .eq('model_code', item.model_code)
-            .single()
-
-          if (inventory) {
-            // Update existing
-            await supabase
-              .from('store_inventory')
-              .update({ quantity: inventory.quantity + toRestore })
-              .eq('id', inventory.id)
-          } else {
-            // Create new inventory entry
-            await supabase
-              .from('store_inventory')
-              .insert({
-                model_code: item.model_code,
-                quantity: toRestore,
-              })
-          }
-          inventoryRestored++
-        }
-      }
-    }
+    // Restore inventory using shared helper (computeRestoration + DB writes)
+    const { restored: inventoryRestored } = await restoreOrderInventory(supabase, orderId)
 
     // Update order status to cancelled
     await supabase

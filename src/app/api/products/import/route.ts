@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/api-helpers'
 
 interface ExcelRow {
   ETM?: string
@@ -15,14 +16,9 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Verify user is authenticated
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json(
-        { message: 'No autorizado' },
-        { status: 401 }
-      )
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     const formData = await request.formData()
     const file = formData.get('file') as File
