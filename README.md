@@ -1,281 +1,274 @@
-# DYMMSA - Sistema de Cotizaciones y Gestión de Inventario
+# DYMMSA-WEB
 
-Sistema web para automatizar el proceso completo de cotizaciones de DYMMSA, distribuidor de herramientas URREA en Morelia, México.
+Web system for automating the full quotation workflow of DYMMSA, an authorized URREA tools distributor in Morelia, Mexico.
 
-## Descripción
+## Overview
 
-DYMMSA-WEB automatiza el flujo de trabajo desde la solicitud inicial del cliente hasta la entrega final:
+DYMMSA-WEB covers the entire sales cycle — from the customer's initial request to final delivery:
 
-- Cotizador con tabla editable: sube Excel del cliente → pre-rellena datos desde catálogo
-- Aprobación por link con token (sin login requerido para el aprobador externo)
-- Aprobación parcial por ítem: el cliente aprueba o rechaza producto por producto
-- Generación automática de orden desde cotización aprobada
-- Verificación de stock y desglose automático (en tienda vs a pedir a URREA)
-- Generación de Excel de pedido a URREA (solo faltantes)
-- Confirmación de recepción y actualización de inventario
-- Auto-aprendizaje: la base de datos ETM→URREA crece con cada cotización guardada
+- Editable quotation table: upload customer Excel → auto-fill from catalog
+- Approval via shareable link with UUID token (no login required for the external approver)
+- Item-level partial approval: customer approves or rejects each product individually
+- Automatic order generation from an approved quotation
+- Stock verification and automatic allocation (in-store vs. to order from URREA)
+- URREA purchase order Excel export (pending items only)
+- Reception confirmation and inventory update
+- Auto-learn: the ETM → URREA catalog grows with every saved quotation
 
-## Stack Tecnológico
+## Tech Stack
 
-| Categoría | Tecnología |
-|-----------|------------|
+| Layer | Technology |
+|-------|-----------|
 | Framework | Next.js 16 (App Router) |
-| Lenguaje | TypeScript |
-| Estilos | Tailwind CSS |
-| Componentes UI | shadcn/ui |
-| Estado (draft) | Zustand + localStorage |
-| Data Fetching | TanStack Query |
-| Base de datos | Supabase (PostgreSQL) |
-| Autenticación | Supabase Auth (@supabase/ssr) |
-| Procesamiento Excel | SheetJS (xlsx) + ExcelJS |
-| Package Manager | Bun |
-| Deploy | Vercel |
+| Language | TypeScript (strict) |
+| Styles | Tailwind CSS + shadcn/ui |
+| Client state | Zustand + localStorage |
+| Server state | TanStack Query |
+| Database + Auth | Supabase (PostgreSQL 17.6) · @supabase/ssr · RLS enabled |
+| Excel | SheetJS (parse) + ExcelJS (generate) |
+| Package manager | Bun |
+| Deployment | Vercel |
 
-## Características
+## Features
 
-### Catálogo ETM-URREA
-- CRUD completo de productos (`etm_products`)
-- Importación masiva desde Excel
-- Auto-aprendizaje: al guardar una cotización, ETMs nuevos se insertan y los existentes se actualizan
+### ETM–URREA Catalog
+- Full CRUD for `etm_products`
+- Bulk import from Excel
+- Auto-learn: when a quotation is saved, new ETMs are inserted and existing ones are updated with any new data
 
-### Cotizador
-- Sube Excel del cliente (multi-hoja, solo ETM es obligatorio)
-- Detecta columna `ETM` case-insensitive; extrae columnas opcionales: `description`, `description_es`, `model_code`, `quantity`, `price`, `brand`
-- Tabla editable pre-rellena con datos del Excel + catálogo de BD
-- Modal por producto para edición ordenada; agregar filas manualmente
-- Estado persistido en Zustand + localStorage (sobrevive recargas)
-- Al guardar: crea registro en `quotations` + `quotation_items` y ejecuta auto-aprendizaje
+### Quotation Builder
+- Upload customer Excel (multi-sheet; only the ETM column is required)
+- Case-insensitive ETM column detection; optional columns: `description`, `description_es`, `model_code`, `quantity`, `price`, `brand`
+- Editable table pre-filled from Excel + database catalog
+- Per-product modal for structured editing; manual row addition
+- Draft persisted in Zustand + localStorage (survives page reloads)
+- On save: creates `quotations` + `quotation_items` records and runs auto-learn
+- Section separators to organize large quotations (300+ items)
 
-### Aprobación por Link
-- Genera token UUID al enviar cotización a aprobación
-- Link público `/approve/[token]` — sin login requerido
-- Aprobador externo marca cada ítem: ✅ aprobado / ❌ rechazado (aprobación parcial)
-- Botón "Aprobar todo" para facilitar el proceso
-- Una vez enviada la aprobación, no se puede modificar (banner informativo)
+### Approval Flow
+- Generates a UUID token when a quotation is sent for approval
+- Public page `/approve/[token]` — no login required for the external approver
+- Approver marks each item: ✅ approved / ❌ rejected (partial approval)
+- "Approve all" button for convenience
+- Once submitted, the approval cannot be changed (informational banner shown)
 
-### Sistema de Cotizaciones
-- Dashboard con lista, filtros por estado y búsqueda
-- Vista detalle con stats: ítems aprobados/rechazados/pendientes, total
-- Edición de cotizaciones en estado `draft` **y** `approved`:
-  - DYMMSA puede agregar productos extra a una cotización ya aprobada
-  - Los nuevos ítems quedan auto-aprobados (aprobación interna)
-  - Los ítems existentes conservan su estado de aprobación original
-  - Se puede editar cantidad y precio de ítems ya aprobados
-- Estados: `draft` → `sent_for_approval` → `approved` / `rejected` → `converted_to_order`
+### Quotation Management
+- Dashboard with list view, status filters, and search
+- Detail view with stats: approved / rejected / pending items, total amount
+- Discrete mode: mask monetary values app-wide (useful for demos)
+- Editing allowed in both `draft` and `approved` status:
+  - DYMMSA can add extra products to an already-approved quotation
+  - New items are auto-approved (internal approval)
+  - Existing items preserve their original approval status
+  - Quantity and price of approved items can be edited
+- Statuses: `draft` → `sent_for_approval` → `approved` / `rejected` → `converted_to_order`
 
-### Sistema de Órdenes
-- Generación automática desde cotización aprobada (solo ítems aprobados)
-- Verificación de stock por `model_code`:
-  - Stock completo → `quantity_to_order = 0`
-  - Stock parcial → aparta disponible, pide faltante a URREA
-  - Sin stock → todo va a URREA
-- Descuenta inventario en el momento de crear la orden
-- Genera Excel de pedido URREA (`.xlsx`): solo `brand = URREA` y `quantity_to_order > 0`
-- Order Detail Page: editar `quantity_received` y `urrea_status` por ítem
-- **Gestión flexible de ítems en órdenes activas:**
-  - Agregar productos de último momento (con check de stock automático)
-  - Editar precio por ítem directamente en la tabla
-  - Eliminar productos (restaura inventario apartado automáticamente)
-- Confirmar recepción → suma al inventario (`store_inventory`)
-- Cancelar orden → restaura inventario
-- Estados: `pending_urrea_order` → `received_from_urrea` → `pending_payment` → `paid` → `completed`
+### Order Management
+- Auto-generated from an approved quotation (approved items only)
+- Stock check per `model_code`:
+  - Full stock → `quantity_to_order = 0`
+  - Partial stock → reserve available, order the rest from URREA
+  - No stock → entire quantity goes to URREA
+- Inventory is deducted immediately when the order is created
+- URREA purchase order Excel (`.xlsx`): only `brand = URREA` and `quantity_to_order > 0`
+- Order detail page: edit `quantity_received` and `urrea_status` per item
+- Flexible item management on active orders:
+  - Add last-minute products (automatic stock check)
+  - Edit unit price per item
+  - Remove products (automatically restores reserved inventory)
+- Confirm reception → adds to `store_inventory`
+- Cancel order → restores inventory
+- Statuses: `ordered` → `received` → `delivered` → `completed` / `cancelled`
 
-### Inventario
-- Gestión de stock por código URREA (`store_inventory`)
-- CRUD + importación desde Excel
-- Actualización automática al crear órdenes y confirmar recepciones
+### Inventory
+- Stock management by URREA model code (`store_inventory`)
+- Full CRUD + Excel import
+- Automatically updated when orders are created and receptions are confirmed
 
-## Flujo Completo
+## Full Workflow
 
 ```
-1. Usuario sube Excel del cliente (códigos ETM)
+1. User uploads customer Excel (ETM codes)
    ↓
-2. Sistema pre-rellena tabla editable (Excel + catálogo BD)
-   Usuario completa datos faltantes, ajusta cantidades
+2. System pre-fills the editable table (Excel + DB catalog)
+   User fills in missing data and adjusts quantities
    ↓
-3. Guardar cotización
-   → Auto-aprendizaje en etm_products (INSERT / UPDATE)
-   → Crea quotations (status: draft) + quotation_items
+3. Save quotation
+   → Auto-learn in etm_products (INSERT / UPDATE)
+   → Creates quotations (status: draft) + quotation_items
    ↓
-4. Enviar a aprobación
-   → Genera approval_token UUID
-   → Link /approve/[token] se comparte con el cliente (WhatsApp, email, etc.)
+4. Send for approval
+   → Generates approval_token UUID
+   → Link /approve/[token] shared with customer (WhatsApp, email, etc.)
    ↓
-5. Cliente abre el link (sin login) y aprueba/rechaza cada ítem
-   → quotation_items.is_approved actualizado
+5. Customer opens the link (no login) and approves/rejects each item
+   → quotation_items.is_approved updated
    → status: approved / rejected
    ↓
-6. DYMMSA ve cotización aprobada en el dashboard
-   → Puede agregar ítems extra o editar datos (auto-aprobados internamente)
-   → Genera orden desde la cotización
+6. DYMMSA sees the approved quotation in the dashboard
+   → Can add extra items or edit data (auto-approved internally)
+   → Generates order from the quotation
    ↓
-7. Sistema crea la orden
-   → Solo ítems aprobados
-   → Verifica stock, descuenta inventario inmediatamente
-   → Crea order_items con desglose stock/a-pedir
-   → status quotation: converted_to_order
+7. System creates the order
+   → Approved items only
+   → Checks stock, deducts inventory immediately
+   → Creates order_items with stock/to-order breakdown
+   → quotation status: converted_to_order
    ↓
-8. Descargar Excel URREA (solo faltantes, solo brand=URREA)
-   → Usuario envía a URREA por WhatsApp
+8. Download URREA Excel (pending items only, brand = URREA)
+   → User sends to URREA via WhatsApp
    ↓
-9. URREA envía productos (días después)
+9. URREA ships the products (days later)
    ↓
-10. Si es necesario, agregar/quitar productos a la orden de último momento
-    → Stock se ajusta automáticamente al agregar o eliminar
+10. If needed, add/remove products from the order last-minute
+    → Stock is adjusted automatically
     ↓
-11. Usuario edita quantity_received + urrea_status por ítem
-    → Confirmar recepción → suma al store_inventory
+11. User edits quantity_received + urrea_status per item
+    → Confirm reception → adds to store_inventory
     ↓
-12. Gestión de estados hasta completar la orden 
+12. Manage statuses until order is completed
 ```
 
-## Estructura del Proyecto
+## Project Structure
 
 ```
 src/
 ├── app/
 │   ├── api/
-│   │   ├── approve/[token]/        # GET + POST públicos (sin auth)
-│   │   ├── inventory/              # Import inventario Excel
+│   │   ├── approve/[token]/             # GET + POST — public (no auth)
+│   │   ├── inventory/                   # Excel inventory import
 │   │   ├── orders/
-│   │   │   ├── [id]/cancel/        # Cancelar orden + restaurar inventario
-│   │   │   ├── [id]/confirm-reception/  # Confirmar recepción + actualizar inventario
-│   │   │   ├── [id]/items/         # POST: agregar ítem a orden
-│   │   │   └── [id]/items/[itemId]/# PATCH: editar precio | DELETE: eliminar + restaurar inv.
-│   │   ├── products/               # Import catálogo Excel
+│   │   │   ├── [id]/cancel/             # Cancel order + restore inventory
+│   │   │   ├── [id]/confirm-reception/  # Confirm reception + update inventory
+│   │   │   ├── [id]/items/              # POST: add item to order
+│   │   │   └── [id]/items/[itemId]/     # PATCH: edit price | DELETE: remove + restore inv.
+│   │   ├── products/                    # Excel catalog import
 │   │   ├── quotations/
-│   │   │   ├── save/               # Crear cotización + auto-learn
+│   │   │   ├── save/                    # Create quotation + auto-learn
 │   │   │   └── [id]/
-│   │   │       ├── send-for-approval/   # Generar token + cambiar status
-│   │   │       ├── update/              # Editar cotización draft o approved
-│   │   │       └── create-order/        # Generar orden desde cotización aprobada
-│   │   └── quotes/lookup/          # Lookup ETMs contra etm_products
-│   ├── approve/[token]/            # Página pública de aprobación (sin auth)
+│   │   │       ├── send-for-approval/   # Generate token + change status
+│   │   │       ├── update/              # Edit draft or approved quotation
+│   │   │       └── create-order/        # Generate order from approved quotation
+│   │   └── quotes/lookup/               # Lookup ETMs against etm_products
+│   ├── approve/[token]/                 # Public approval page (no auth)
 │   ├── dashboard/
-│   │   ├── db/                     # Catálogo ETM-URREA
-│   │   ├── inventory/              # Gestión de inventario
-│   │   ├── orders/                 # Lista + detalle de órdenes
-│   │   │   └── [id]/
-│   │   ├── quotations/             # Lista + detalle de cotizaciones
-│   │   │   └── [id]/
-│   │   └── quoter/                 # Cotizador (upload + tabla editable)
+│   │   ├── db/                          # ETM–URREA catalog
+│   │   ├── inventory/                   # Inventory management
+│   │   ├── orders/[id]/                 # Order list + detail
+│   │   └── quotations/[id]/             # Quotation list + detail
 │   └── login/
 ├── components/
-│   ├── layout/                     # Navbar, sidebar, layouts
-│   ├── orders/                     # OrderDetail, OrdersTable, OrderStatusBadge
-│   ├── products/                   # ProductsTable, ProductModal, etc.
-│   ├── quotations/                 # QuotationDetail, QuotationsTable, QuotationStatusBadge
-│   ├── quoter/                     # FileUploader, QuotationEditor, ProductModal
-│   └── ui/                         # shadcn/ui components
+│   ├── layout/                          # Navbar, sidebar, layouts
+│   ├── orders/                          # OrderDetail, OrdersTable, OrderStatusBadge
+│   ├── quotations/                      # QuotationDetail, QuotationsTable, QuotationStatusBadge
+│   ├── quoter/                          # FileUploader, QuotationEditor, ProductModal
+│   └── ui/                              # shadcn/ui components
 ├── hooks/
-│   ├── useQuotations.ts            # useQuotations, useQuotation, useSaveQuotation,
-│   │                               # useSendForApproval, useUpdateQuotation,
-│   │                               # useCreateOrderFromQuotation
-│   ├── useOrders.ts                # useOrders, useOrder, useUpdateOrderStatus,
-│   │                               # useConfirmReception, useCancelOrder,
-│   │                               # useAddOrderItem, useEditOrderItem, useRemoveOrderItem
-│   └── useQuotes.ts                # useLookupEtms
+│   ├── useQuotations.ts                 # All quotation mutations and queries
+│   ├── useOrders.ts                     # All order mutations and queries
+│   └── useQuotes.ts                     # useLookupEtms
 ├── lib/
-│   ├── excel/                      # extractProductRowsFromExcel, generateUrreaOrderExcel
-│   └── supabase/                   # client.ts, server.ts
+│   ├── business-rules.ts                # Totals, item filters, allocation logic
+│   ├── api-helpers.ts                   # requireAuth(), standard responses
+│   ├── inventory.ts                     # computeRestoration, restoreOrderInventory
+│   ├── auto-learn.ts                    # mergeEtmFields, processAutoLearn
+│   ├── format.ts                        # Dates, strings, numbers
+│   └── supabase/                        # client.ts, server.ts, admin.ts
 ├── stores/
-│   └── quotationStore.ts           # Zustand + persist (draft cotización)
+│   ├── quotationStore.ts                # Zustand + persist (quotation draft)
+│   └── discreteModeStore.ts             # Zustand + persist (discrete mode toggle)
 └── types/
-    └── database.ts                 # Todos los tipos TypeScript del proyecto
+    └── database.ts                      # All TypeScript types for the project
 ```
 
-## Base de Datos
+## Database
 
-**etm_products** — Catálogo ETM → URREA (auto-aprendizaje)
+**`etm_products`** — ETM → URREA catalog (auto-learn)
 ```sql
 id, etm (unique), description, description_es, model_code, price, brand,
 created_at, updated_at, created_by
 ```
 
-**store_inventory** — Stock de tienda
+**`store_inventory`** — In-store stock
 ```sql
 id, model_code (unique), quantity, updated_at
 ```
 
-**quotations** — Cotizaciones
+**`quotations`** — Quotations
 ```sql
-id, customer_name, status, approval_token (unique), total_amount,
-notes, original_file_url, created_at, updated_at, created_by
+id, name, customer_name, status, approval_token (unique), total_amount,
+notes, created_at, updated_at, created_by
 ```
-Estados: `draft` → `sent_for_approval` → `approved` / `rejected` → `converted_to_order`
+Statuses: `draft` → `sent_for_approval` → `approved` / `rejected` → `converted_to_order`
 
-**quotation_items** — Productos por cotización
+**`quotation_items`** — Quotation line items
 ```sql
-id, quotation_id (FK), etm, description, description_es, model_code, brand,
-unit_price, quantity, is_approved (null=pendiente | true | false), notes, created_at
+id, quotation_id (FK), item_type ('product' | 'separator'), section_label,
+etm, description, description_es, model_code, brand, unit_price, quantity,
+is_approved (null = pending | true | false), delivery_time, sort_order, created_at
 ```
 
-**orders** — Órdenes de venta
+**`orders`** — Sales orders
 ```sql
-id, quotation_id (FK → quotations), customer_name, status, total_amount,
-urrea_order_file_url, notes, created_at, updated_at, created_by
+id, name, customer_name, status, total_amount, created_at, updated_at, created_by
 ```
-Estados: `pending_urrea_order` → `received_from_urrea` → `pending_payment` → `paid` → `completed` / `cancelled`
+Statuses: `ordered` → `received` → `delivered` → `completed` / `cancelled`
 
-**order_items** — Productos por orden
+**`order_items`** — Order line items
 ```sql
-id, order_id (FK), etm, model_code, description, brand,
-quantity_approved, quantity_in_stock, quantity_to_order, quantity_received,
-urrea_status (pending | supplied | not_supplied), unit_price, created_at
+id, order_id (FK), item_type ('product' | 'separator'), section_label,
+etm, model_code, description, brand, quantity_approved, quantity_in_stock,
+quantity_to_order, quantity_received, urrea_status ('pending' | 'supplied' | 'not_supplied'),
+delivery_time, unit_price, sort_order, created_at
 ```
 Constraint: `quantity_in_stock + quantity_to_order = quantity_approved`
 
-## Instalación
+## Setup
 
-### Prerrequisitos
-- Node.js 18+
+### Prerequisites
 - Bun
-- Cuenta de Supabase
+- Supabase account
 
-### Setup
+### Local development
 
-1. Clonar el repositorio
+1. Clone the repository
 ```bash
 git clone https://github.com/AxlGuillen/DYMMSA-WEB.git
 cd DYMMSA-WEB
 ```
 
-2. Instalar dependencias
+2. Install dependencies
 ```bash
 bun install
 ```
 
-3. Configurar variables de entorno
+3. Set up environment variables
 ```bash
 cp .env.example .env.local
 ```
 
-Editar `.env.local`:
+Edit `.env.local`:
 ```env
-NEXT_PUBLIC_SUPABASE_URL=tu_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-4. Ejecutar en desarrollo
+4. Start the development server
 ```bash
 bun dev
 ```
 
-5. Abrir [http://localhost:3000](http://localhost:3000)
+5. Open [http://localhost:3000](http://localhost:3000)
 
 ## Scripts
 
 ```bash
-bun dev      # Servidor de desarrollo
-bun build    # Build de producción
-bun start    # Iniciar producción
-bun lint     # Ejecutar linter
+bun dev      # Development server
+bun build    # Production build
+bun start    # Start production server
+bun lint     # Run ESLint
 ```
 
-## Deploy
+## Deployment
 
-El proyecto está configurado para deploy en Vercel:
-
-```bash
-vercel
-```
+The project is configured for deployment on Vercel. Push to `main` to trigger an automatic deploy.
