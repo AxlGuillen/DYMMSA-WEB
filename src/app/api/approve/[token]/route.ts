@@ -74,18 +74,19 @@ export async function POST(
       return NextResponse.json({ message: 'No se enviaron decisiones' }, { status: 400 })
     }
 
-    // Update each quotation item
-    for (const decision of decisions) {
-      const { error } = await supabase
-        .from('quotation_items')
-        .update({ is_approved: decision.is_approved })
-        .eq('id', decision.item_id)
-        .eq('quotation_id', quotation.id)
-
-      if (error) {
-        console.error('Error updating item:', decision.item_id, error)
-      }
-    }
+    // Update all quotation items in parallel (independent writes)
+    await Promise.all(
+      decisions.map((decision) =>
+        supabase
+          .from('quotation_items')
+          .update({ is_approved: decision.is_approved })
+          .eq('id', decision.item_id)
+          .eq('quotation_id', quotation.id)
+          .then(({ error }) => {
+            if (error) console.error('Error updating item:', decision.item_id, error)
+          })
+      )
+    )
 
     // Determine new quotation status
     const hasApproved = decisions.some((d) => d.is_approved)
