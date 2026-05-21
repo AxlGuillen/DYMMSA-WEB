@@ -373,6 +373,8 @@ export function useOrderByQuotationId(quotationId: string, enabled: boolean) {
 }
 
 export function useAutoLearn() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: async (products: CreateOrderInput['products']) => {
       const response = await fetch('/api/orders/auto-learn', {
@@ -387,6 +389,10 @@ export function useAutoLearn() {
       }
 
       return response.json()
+    },
+    onSuccess: () => {
+      // Auto-learn updates etm_products; invalidate catalog so DB page stays fresh
+      queryClient.invalidateQueries({ queryKey: ['products'] })
     },
   })
 }
