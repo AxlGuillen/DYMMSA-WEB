@@ -43,6 +43,7 @@ next-env.d.ts
 
 # CLAUDE
 .claude
+CLAUDE.local.md
 
 # MCP config (contains secrets)
 .mcp.json
