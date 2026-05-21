@@ -170,19 +170,19 @@ export function useCreateOrder() {
 
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient()
-  const supabase = createClient()
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: OrderStatus }) => {
-      const { data, error } = await supabase
-        .from('orders')
-        .update({ status })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
+      const response = await fetch(`/api/orders/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al actualizar el estado')
+      }
+      return response.json()
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
