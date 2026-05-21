@@ -372,6 +372,29 @@ export function useOrderByQuotationId(quotationId: string, enabled: boolean) {
   })
 }
 
+export function useUpdateOrderOdooId() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orderId, odoo_id }: { orderId: string; odoo_id: string | null }) => {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ odoo_id }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al actualizar ID de Odoo')
+      }
+      return response.json()
+    },
+    onSuccess: (_, { orderId }) => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
+      queryClient.invalidateQueries({ queryKey: [...ORDERS_KEY, orderId] })
+    },
+  })
+}
+
 export function useAutoLearn() {
   return useMutation({
     mutationFn: async (products: CreateOrderInput['products']) => {

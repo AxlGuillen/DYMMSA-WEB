@@ -77,6 +77,7 @@ import {
   useEditOrderItem,
   useEditDeliveryTime,
   useRemoveOrderItem,
+  useUpdateOrderOdooId,
 } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import type { OrderWithItems, OrderStatus, UrreaStatus, DeliveryTime } from '@/types/database'
@@ -105,6 +106,40 @@ const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'delivered', label: 'Entregado' },
   { value: 'completed', label: 'Completado' },
 ]
+
+function ExpandableDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!text) return <span className="text-muted-foreground italic text-xs">—</span>
+
+  const isLong = text.length > 60
+
+  return (
+    <div className="max-w-[200px]">
+      {expanded ? (
+        <span
+          className="whitespace-pre-wrap break-words text-sm cursor-pointer"
+          onClick={() => setExpanded(false)}
+          title="Click para colapsar"
+        >
+          {text}
+        </span>
+      ) : (
+        <span className="flex items-center gap-1">
+          <span className="truncate text-sm">{text}</span>
+          {isLong && (
+            <button
+              onClick={() => setExpanded(true)}
+              className="text-muted-foreground hover:text-foreground shrink-0 text-xs underline"
+              title="Ver descripción completa"
+            >
+              ···
+            </button>
+          )}
+        </span>
+      )}
+    </div>
+  )
+}
 
 interface OrderDetailProps {
   order: OrderWithItems
@@ -139,6 +174,25 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const editOrderItem = useEditOrderItem()
   const editDeliveryTime = useEditDeliveryTime()
   const removeOrderItem = useRemoveOrderItem()
+  const updateOdooId = useUpdateOrderOdooId()
+
+  // Odoo ID inline edit state
+  const [editingOdooId, setEditingOdooId] = useState(false)
+  const [odooIdValue, setOdooIdValue] = useState(order.odoo_id ?? '')
+
+  const handleSaveOdooId = async () => {
+    const trimmed = odooIdValue.trim()
+    const newValue = trimmed === '' ? null : trimmed
+    if (newValue === order.odoo_id) { setEditingOdooId(false); return }
+    try {
+      await updateOdooId.mutateAsync({ orderId: order.id, odoo_id: newValue })
+      toast.success('ID de Odoo actualizado')
+    } catch {
+      toast.error('Error al guardar ID de Odoo')
+    } finally {
+      setEditingOdooId(false)
+    }
+  }
 
   const handleStatusChange = async (status: OrderStatus) => {
     try {
@@ -364,6 +418,38 @@ export function OrderDetail({ order }: OrderDetailProps) {
               year: 'numeric',
             })}
           </p>
+
+          {/* Odoo ID inline edit */}
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span className="text-xs text-muted-foreground">Odoo:</span>
+            {editingOdooId ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  autoFocus
+                  value={odooIdValue}
+                  onChange={(e) => setOdooIdValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveOdooId()
+                    if (e.key === 'Escape') { setEditingOdooId(false); setOdooIdValue(order.odoo_id ?? '') }
+                  }}
+                  onBlur={handleSaveOdooId}
+                  className="h-6 w-36 text-xs font-mono px-2"
+                  placeholder="ej. FAC-001"
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => { setOdooIdValue(order.odoo_id ?? ''); setEditingOdooId(true) }}
+                className="flex items-center gap-1 text-xs rounded px-1 hover:bg-muted transition-colors"
+              >
+                {order.odoo_id
+                  ? <span className="font-mono">{order.odoo_id}</span>
+                  : <span className="text-muted-foreground italic">Sin ID de Odoo</span>
+                }
+                <Pencil className="h-3 w-3 text-muted-foreground" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Actions */}
@@ -619,8 +705,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
                       <TableCell className="font-mono text-sm">{item.etm}</TableCell>
                       <TableCell>{item.model_code}</TableCell>
                       <TableCell>{item.brand || '—'}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {item.description}
+                      <TableCell>
+                        <ExpandableDescription text={item.description} />
                       </TableCell>
                       <TableCell className="text-right">{item.quantity_approved}</TableCell>
                       <TableCell className="text-right text-blue-600">

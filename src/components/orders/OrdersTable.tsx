@@ -56,6 +56,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Nombre</TableHead>
+              <TableHead>Odoo ID</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-center">Ítems</TableHead>
@@ -67,6 +68,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
             {[...Array(5)].map((_, i) => (
               <TableRow key={i}>
                 <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                 <TableCell><Skeleton className="h-6 w-28" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>
@@ -105,6 +107,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
         <TableHeader>
           <TableRow>
             <TableHead>Nombre</TableHead>
+            <TableHead>Odoo ID</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead className="text-center">Ítems</TableHead>
@@ -121,6 +124,9 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
             >
               <TableCell className="font-medium">
                 {order.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}
+              </TableCell>
+              <TableCell className="text-sm font-mono">
+                {order.odoo_id ?? <span className="text-muted-foreground">—</span>}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">{order.customer_name}</TableCell>
               <TableCell>
