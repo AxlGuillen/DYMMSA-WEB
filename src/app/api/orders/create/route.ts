@@ -21,27 +21,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Process each product to calculate stock allocation
+    // Fetch all inventory records in parallel, then build order items
+    const productAllocations = await Promise.all(
+      input.products.map(async (product, sortIndex) => {
+        const { data: inventory } = await supabase
+          .from('store_inventory')
+          .select('id, quantity')
+          .eq('model_code', product.model_code)
+          .single()
+
+        const availableStock = inventory?.quantity || 0
+        const quantityApproved = product.quantity || 1
+        const { inStock: quantityInStock, toOrder: quantityToOrder } =
+          allocateInventory(quantityApproved, availableStock)
+
+        return { product, sortIndex, inventory, quantityInStock, quantityToOrder, quantityApproved }
+      })
+    )
+
     const orderItems: OrderItemInsert[] = []
     let totalAmount = 0
     const inventoryUpdates: { model_code: string; quantity: number }[] = []
 
-    for (const [sortIndex, product] of input.products.entries()) {
-      // Get current inventory for this model_code
-      const { data: inventory } = await supabase
-        .from('store_inventory')
-        .select('id, quantity')
-        .eq('model_code', product.model_code)
-        .single()
-
-      const availableStock = inventory?.quantity || 0
-      const quantityApproved = product.quantity || 1
-
-      // Calculate stock allocation (invariant: inStock + toOrder = needed)
-      const { inStock: quantityInStock, toOrder: quantityToOrder } =
-        allocateInventory(quantityApproved, availableStock)
-
-      // If we're taking from stock, track inventory update
+    for (const { product, sortIndex, inventory, quantityInStock, quantityToOrder, quantityApproved } of productAllocations) {
       if (quantityInStock > 0 && inventory) {
         inventoryUpdates.push({
           model_code: product.model_code,
@@ -49,9 +51,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Calculate line total
-      const lineTotal = quantityApproved * product.price
-      totalAmount += lineTotal
+      totalAmount += quantityApproved * product.price
 
       orderItems.push({
         order_id: '', // Will be set after order creation
@@ -112,13 +112,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update inventory (subtract allocated stock)
-    for (const update of inventoryUpdates) {
-      await supabase
-        .from('store_inventory')
-        .update({ quantity: update.quantity })
-        .eq('model_code', update.model_code)
-    }
+    // Update inventory in parallel (independent writes per model_code)
+    await Promise.all(
+      inventoryUpdates.map((update) =>
+        supabase
+          .from('store_inventory')
+          .update({ quantity: update.quantity })
+          .eq('model_code', update.model_code)
+      )
+    )
 
     // Get items that need to be ordered from URREA
     const itemsToOrder = orderItems.filter((item) => item.quantity_to_order > 0)
