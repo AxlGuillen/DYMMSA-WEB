@@ -205,7 +205,8 @@ export interface QuotationWithCount extends Quotation {
 
 // Row in the editable quotation table (local/draft state, not saved to DB yet)
 export interface QuotationItemRow {
-  _id: string        // local UUID used as React key
+  _id: string        // React key. For existing items it equals the DB id; for new items it's a local UUID
+  _dbId?: string     // real DB id; present only on persisted items (undefined for newly added rows)
   item_type: 'product' | 'separator'
   section_label: string  // label for separator rows (may be empty)
   etm: string        // required, read-only in edit mode
