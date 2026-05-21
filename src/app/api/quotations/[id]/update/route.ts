@@ -60,14 +60,15 @@ export async function PATCH(
 
     const total_amount = calculateQuotationTotal(items)
 
-    // For approved quotations, preserve existing is_approved values per item
+    // Read existing items before the destructive delete: used to preserve
+    // is_approved on approved quotations AND to roll back if the re-insert fails.
+    const { data: existingItems } = await supabase
+      .from('quotation_items')
+      .select('*')
+      .eq('quotation_id', id)
+
     const approvalMap = new Map<string, boolean | null>()
     if (quotation.status === 'approved') {
-      const { data: existingItems } = await supabase
-        .from('quotation_items')
-        .select('id, is_approved')
-        .eq('quotation_id', id)
-
       for (const ei of existingItems ?? []) {
         approvalMap.set(ei.id, ei.is_approved)
       }
@@ -87,8 +88,10 @@ export async function PATCH(
       const isSep = item.item_type === 'separator'
       let is_approved: boolean | null = null
       if (!isSep && quotation.status === 'approved') {
-        // Existing items: preserve their approval; new items: auto-approve (DYMMSA internal)
-        is_approved = approvalMap.has(item._id) ? (approvalMap.get(item._id) ?? null) : true
+        // Existing items: preserve their approval; new items: auto-approve (DYMMSA internal).
+        // _dbId carries the real DB id for persisted rows; new rows only have a local _id.
+        const lookupKey = item._dbId ?? item._id
+        is_approved = approvalMap.has(lookupKey) ? (approvalMap.get(lookupKey) ?? null) : true
       }
       return {
         quotation_id:   id,
@@ -110,6 +113,10 @@ export async function PATCH(
     const { error: insertError } = await supabase.from('quotation_items').insert(newItems)
 
     if (insertError) {
+      // Rollback: the delete already wiped the items, so restore the originals.
+      if (existingItems?.length) {
+        await supabase.from('quotation_items').insert(existingItems)
+      }
       return NextResponse.json({ message: 'Error al guardar los productos' }, { status: 500 })
     }
 
