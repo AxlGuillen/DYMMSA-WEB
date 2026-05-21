@@ -17,12 +17,11 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
     const { data: quotation } = await supabase
       .from('quotations')
-      .select('id, status, created_by')
+      .select('id, status')
       .eq('id', id)
       .single()
 
     if (!quotation) return NextResponse.json({ message: 'Cotización no encontrada' }, { status: 404 })
-    if (quotation.created_by !== user.id) return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
     if (quotation.status === 'converted_to_order') {
       return NextResponse.json(
         { message: 'No se puede eliminar una cotización que ya tiene una orden generada' },

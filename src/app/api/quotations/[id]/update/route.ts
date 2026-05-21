@@ -23,12 +23,11 @@ export async function PATCH(
     if ('error' in auth) return auth.error
     const { user } = auth
 
-    // Verify quotation belongs to user and is draft
+    // Verify quotation exists and is editable
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
       .select('id, status')
       .eq('id', id)
-      .eq('created_by', user.id)
       .single()
 
     if (fetchError || !quotation) {

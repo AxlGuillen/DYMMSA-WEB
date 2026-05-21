@@ -7,18 +7,16 @@ type Params = { params: Promise<{ id: string; itemId: string }> }
 
 async function getOrderAndItem(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
   orderId: string,
   itemId: string
 ) {
   const { data: order } = await supabase
     .from('orders')
-    .select('id, status, total_amount, created_by')
+    .select('id, status, total_amount')
     .eq('id', orderId)
     .single()
 
   if (!order) return { error: 'Orden no encontrada', status: 404 }
-  if (order.created_by !== userId) return { error: 'No autorizado', status: 401 }
   if (['completed', 'cancelled'].includes(order.status)) {
     return { error: 'No se puede modificar una orden completada o cancelada', status: 400 }
   }
@@ -61,7 +59,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if ('error' in auth) return auth.error
     const { user } = auth
 
-    const result = await getOrderAndItem(supabase, user.id, id, itemId)
+    const result = await getOrderAndItem(supabase, id, itemId)
     if ('error' in result) {
       return NextResponse.json({ message: result.error }, { status: result.status })
     }
@@ -111,7 +109,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     if ('error' in auth) return auth.error
     const { user } = auth
 
-    const result = await getOrderAndItem(supabase, user.id, id, itemId)
+    const result = await getOrderAndItem(supabase, id, itemId)
     if ('error' in result) {
       return NextResponse.json({ message: result.error }, { status: result.status })
     }
