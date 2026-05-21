@@ -177,14 +177,16 @@ export async function POST(
       return NextResponse.json({ message: 'Error al guardar los productos de la orden' }, { status: 500 })
     }
 
-    // Deduct inventory
-    for (const upd of inventoryUpdates) {
-      await supabase
-        .from('store_inventory')
-        .update({ quantity: upd.newQty })
-        .eq('model_code', upd.model_code)
-      console.log(`[create-order] inventory deducted model=${upd.model_code} newQty=${upd.newQty}`)
-    }
+    // Deduct inventory in parallel (independent writes per model_code)
+    await Promise.all(
+      inventoryUpdates.map(async (upd) => {
+        await supabase
+          .from('store_inventory')
+          .update({ quantity: upd.newQty })
+          .eq('model_code', upd.model_code)
+        console.log(`[create-order] inventory deducted model=${upd.model_code} newQty=${upd.newQty}`)
+      })
+    )
 
     // Mark quotation as converted
     await supabase
