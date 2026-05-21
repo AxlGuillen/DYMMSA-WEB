@@ -45,55 +45,53 @@ export async function POST(
       )
     }
 
-    let inventoryUpdated = 0
-
-    // Update each item
-    for (const item of input.items) {
-      // Get current item to find model_code
-      const { data: currentItem } = await supabase
-        .from('order_items')
-        .select('model_code')
-        .eq('id', item.id)
-        .single()
-
-      if (!currentItem) continue
-
-      // Update order item
-      await supabase
-        .from('order_items')
-        .update({
-          quantity_received: item.quantity_received,
-          urrea_status: item.urrea_status,
-        })
-        .eq('id', item.id)
-
-      // If received quantity > 0, add to inventory
-      if (item.quantity_received > 0) {
-        // Check if item exists in inventory
-        const { data: inventory } = await supabase
-          .from('store_inventory')
-          .select('id, quantity')
-          .eq('model_code', currentItem.model_code)
+    // Process all items in parallel (each item is independent)
+    const results = await Promise.all(
+      input.items.map(async (item) => {
+        const { data: currentItem } = await supabase
+          .from('order_items')
+          .select('model_code')
+          .eq('id', item.id)
           .single()
 
-        if (inventory) {
-          // Update existing
-          await supabase
+        if (!currentItem) return false
+
+        await supabase
+          .from('order_items')
+          .update({
+            quantity_received: item.quantity_received,
+            urrea_status: item.urrea_status,
+          })
+          .eq('id', item.id)
+
+        if (item.quantity_received > 0) {
+          const { data: inventory } = await supabase
             .from('store_inventory')
-            .update({ quantity: inventory.quantity + item.quantity_received })
-            .eq('id', inventory.id)
-        } else {
-          // Create new inventory entry
-          await supabase
-            .from('store_inventory')
-            .insert({
-              model_code: currentItem.model_code,
-              quantity: item.quantity_received,
-            })
+            .select('id, quantity')
+            .eq('model_code', currentItem.model_code)
+            .single()
+
+          if (inventory) {
+            await supabase
+              .from('store_inventory')
+              .update({ quantity: inventory.quantity + item.quantity_received })
+              .eq('id', inventory.id)
+          } else {
+            await supabase
+              .from('store_inventory')
+              .insert({
+                model_code: currentItem.model_code,
+                quantity: item.quantity_received,
+              })
+          }
+          return true
         }
-        inventoryUpdated++
-      }
-    }
+
+        return false
+      })
+    )
+
+    const inventoryUpdated = results.filter(Boolean).length
 
     // Recalculate total amount based on what will actually be delivered
     // - quantity_in_stock: always counts (already reserved)
