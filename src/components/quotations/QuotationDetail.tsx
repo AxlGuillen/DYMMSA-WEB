@@ -341,6 +341,7 @@ function SortableDetailRow({
 
 const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   _id:            item.id,
+  _dbId:          item.id,
   item_type:      item.item_type      ?? 'product',
   section_label:  item.section_label  ?? '',
   etm:            item.etm            ?? '',
