@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
 import { allocateInventory } from '@/lib/business-rules'
+import type { QuotationItem, OrderItemInsert } from '@/types/database'
 
 interface StockResult {
   model_code: string
   newQty: number
 }
+
+type OrderItemPayload = Omit<OrderItemInsert, 'order_id'>
 
 export async function POST(
   _req: NextRequest,
@@ -42,17 +45,15 @@ export async function POST(
       )
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allItems = (quotation.quotation_items as any[])
+    const allItems = (quotation.quotation_items as QuotationItem[])
       .slice()
-      .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
+      .sort((a, b) => a.sort_order - b.sort_order)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const approvedProducts = allItems.filter((i: any) =>
-      (i.item_type === 'product' || !i.item_type) && i.is_approved === true
+    const approvedProducts = allItems.filter(
+      (i) => (i.item_type === 'product' || !i.item_type) && i.is_approved === true
     )
 
-    const seps = allItems.filter((i: { item_type: string }) => i.item_type === 'separator').length
+    const seps = allItems.filter((i) => i.item_type === 'separator').length
     console.log(`[create-order] items total=${allItems.length} separators=${seps} approved=${approvedProducts.length}`)
 
     if (approvedProducts.length === 0) {
@@ -67,12 +68,10 @@ export async function POST(
     let totalAmount = 0
     let sortIndex = 0
     const inventoryUpdates: StockResult[] = []
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const orderItemsPayload: any[] = []
+    const orderItemsPayload: OrderItemPayload[] = []
 
     // Approved product IDs for quick lookup
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const approvedIds = new Set(approvedProducts.map((i: any) => i.id))
+    const approvedIds = new Set(approvedProducts.map((i) => i.id))
 
     for (const item of allItems) {
       const isSep = item.item_type === 'separator'
