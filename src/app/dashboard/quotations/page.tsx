@@ -57,14 +57,14 @@ export default function QuotationsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Cotizaciones</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Cotizaciones</h1>
           <p className="text-muted-foreground">
             Gestiona las cotizaciones y envíalas a aprobación
           </p>
         </div>
         <Link href="/dashboard/quoter">
           <Button>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 size-4" />
             Nueva cotización
           </Button>
         </Link>
@@ -73,7 +73,7 @@ export default function QuotationsPage() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {STAT_CARDS.map((card) => (
-          <button
+          <button type="button"
             key={card.status}
             onClick={() => {
               setStatus((s) => (s === card.status ? 'all' : card.status))
@@ -97,7 +97,7 @@ export default function QuotationsPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por cliente..."
             className="pl-10"
@@ -127,12 +127,12 @@ export default function QuotationsPage() {
           </SelectContent>
         </Select>
         {activeStatusLabel && (
-          <button
+          <button type="button"
             onClick={() => { setStatus('all'); setPage(1) }}
             className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1.5 text-sm text-foreground hover:bg-muted/70 transition-colors whitespace-nowrap"
           >
             {activeStatusLabel}
-            <X className="h-3.5 w-3.5" />
+            <X className="size-3.5" />
           </button>
         )}
       </div>

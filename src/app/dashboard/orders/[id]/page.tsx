@@ -18,7 +18,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
       </div>
     )
   }
@@ -28,7 +28,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
       <div className="space-y-6">
         <Link href="/dashboard/orders">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft className="mr-2 size-4" />
             Volver a Ordenes
           </Button>
         </Link>

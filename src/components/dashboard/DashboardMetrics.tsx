@@ -98,7 +98,7 @@ export function DashboardMetrics() {
         {/* Segmented control */}
         <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-0.5">
           {presets.map((p) => (
-            <button
+            <button type="button"
               key={p.key}
               onClick={() => {
                 setActivePreset(p.key)
@@ -123,6 +123,7 @@ export function DashboardMetrics() {
         <div className="flex items-center gap-2">
           <input
             type="date"
+            aria-label="Fecha desde"
             value={
               activePreset === 'all'
                 ? ''
@@ -136,9 +137,10 @@ export function DashboardMetrics() {
             }}
             className="rounded-lg border bg-background px-2.5 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <span className="text-muted-foreground text-sm">—</span>
+          <span className="text-muted-foreground text-sm">{'\u2014'}</span>
           <input
             type="date"
+            aria-label="Fecha hasta"
             value={activePreset ? formatDate(dateRange.to) : customTo}
             onChange={(e) => {
               setActivePreset(null)
@@ -155,7 +157,7 @@ export function DashboardMetrics() {
           title="Productos ETM"
           value={data?.etmCount ?? 0}
           description="Total en catalogo"
-          icon={<Package className="h-4 w-4" />}
+          icon={<Package className="size-4" />}
           color="blue"
           isLoading={isLoading}
         />
@@ -163,7 +165,7 @@ export function DashboardMetrics() {
           title="Items Inventario"
           value={data?.inventoryCount ?? 0}
           description="Productos en tienda"
-          icon={<Warehouse className="h-4 w-4" />}
+          icon={<Warehouse className="size-4" />}
           color="green"
           isLoading={isLoading}
         />
@@ -171,7 +173,7 @@ export function DashboardMetrics() {
           title="Ordenes"
           value={data?.ordersInRange ?? 0}
           description="En periodo seleccionado"
-          icon={<ShoppingCart className="h-4 w-4" />}
+          icon={<ShoppingCart className="size-4" />}
           color="orange"
           isLoading={isLoading}
         />
@@ -179,7 +181,7 @@ export function DashboardMetrics() {
           title="Ventas Cerradas"
           value={fmt(data?.totalSales ?? 0)}
           description="Pagadas y completadas"
-          icon={<DollarSign className="h-4 w-4" />}
+          icon={<DollarSign className="size-4" />}
           color="purple"
           isLoading={isLoading}
         />
@@ -209,7 +211,7 @@ export function DashboardMetrics() {
               className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               Ver todas
-              <ArrowRight className="h-3 w-3" />
+              <ArrowRight className="size-3" />
             </Link>
           </CardHeader>
           <CardContent>
@@ -217,7 +219,7 @@ export function DashboardMetrics() {
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <Skeleton className="size-8 rounded-full" />
                     <div className="flex-1 space-y-1">
                       <Skeleton className="h-4 w-32" />
                       <Skeleton className="h-3 w-20" />
@@ -236,10 +238,10 @@ export function DashboardMetrics() {
                   <Link
                     key={order.id}
                     href={`/dashboard/orders/${order.id}`}
-                    className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted"
+                    className="flex items-center gap-3 rounded-lg p-2  transition-colors hover:bg-muted"
                   >
                     {/* Avatar */}
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
                       {getCustomerInitials(order.customer_name)}
                     </div>
 

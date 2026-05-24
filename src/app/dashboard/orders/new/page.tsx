@@ -7,7 +7,7 @@ export default function NewOrderPage() {
     <div className="max-w-8xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Nueva Orden</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Nueva Orden</h1>
         <p className="text-muted-foreground">
           Sube un Excel con productos aprobados (filas verdes) para crear una orden
         </p>
