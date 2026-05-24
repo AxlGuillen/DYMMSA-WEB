@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Home, ArrowLeft } from 'lucide-react'
 
+const CURRENT_YEAR = new Date().getFullYear()
+
 export default function NotFound() {
-  const router = useRouter()
+  const { back } = useRouter()
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
@@ -46,12 +48,12 @@ export default function NotFound() {
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
           <Button asChild>
             <Link href="/dashboard">
-              <Home className="mr-2 h-4 w-4" />
+              <Home className="mr-2 size-4" />
               Ir al inicio
             </Link>
           </Button>
-          <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
+          <Button variant="outline" onClick={() => back()}>
+            <ArrowLeft className="mr-2 size-4" />
             Regresar
           </Button>
         </div>
@@ -59,7 +61,7 @@ export default function NotFound() {
 
       {/* Footer */}
       <p className="absolute bottom-6 text-xs text-muted-foreground">
-        DYMMSA &copy; {new Date().getFullYear()}
+        DYMMSA &copy; {CURRENT_YEAR}
       </p>
     </div>
   )

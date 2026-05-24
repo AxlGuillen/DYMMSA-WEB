@@ -1,10 +1,12 @@
 import Link from 'next/link'
 
+const CURRENT_YEAR = new Date().getFullYear()
+
 export function Footer() {
   return (
     <footer className="border-t py-4 text-center text-xs text-muted-foreground">
       <p>
-        DYMMSA &copy; {new Date().getFullYear()} &mdash; Desarrollado por{' '}
+        DYMMSA &copy; {CURRENT_YEAR} &mdash; Desarrollado por{' '}
         <a
           href="https://axl13.dev"
           target="_blank"
