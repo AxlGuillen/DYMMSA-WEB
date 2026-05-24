@@ -75,7 +75,7 @@ import {
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal } from '@/components/quoter/ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
-import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
+import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { calculateQuotationTotal, isProductItem as isProductRow } from '@/lib/business-rules'
@@ -405,6 +405,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const sendForApproval     = useSendForApproval()
   const updateQuotation     = useUpdateQuotation()
   const createOrderMutation = useCreateOrderFromQuotation()
+  const deleteQuotation     = useDeleteQuotation()
 
   const sensors = useSensors(useSensor(PointerSensor))
 
@@ -589,6 +590,16 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
+  const handleDeleteQuotation = async () => {
+    try {
+      await deleteQuotation.mutateAsync(quotation.id)
+      toast.success('Cotización eliminada')
+      push('/dashboard/quotations')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar la cotización')
+    }
+  }
+
   // ── Items, stats & derived display ─────────────────────────────
   const rawItems = canEdit ? localItems : quotation.quotation_items.map(toItemRow)
   const rawProductItems = rawItems.filter(isProductRow)
@@ -757,6 +768,40 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               </AlertDialogContent>
             </AlertDialog>
           )}
+
+          {/* Delete — always available */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+                title="Eliminar cotización"
+                disabled={deleteQuotation.isPending}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar esta cotización?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se eliminará la cotización y todos sus productos permanentemente.
+                  Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleDeleteQuotation}
+                >
+                  Sí, eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

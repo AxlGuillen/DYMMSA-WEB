@@ -158,17 +158,16 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                   {formatRelative(q.created_at)}
                 </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
-                  {q.status !== 'converted_to_order' && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => setDeletingId(q.id)}
-                      title="Eliminar cotización"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setDeletingId(q.id)}
+                    title="Eliminar cotización"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

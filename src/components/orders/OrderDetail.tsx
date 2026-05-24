@@ -73,6 +73,7 @@ import {
   useUpdateOrderStatus,
   useConfirmReception,
   useCancelOrder,
+  useDeleteOrder,
   useAddOrderItem,
   useEditOrderItem,
   useEditDeliveryTime,
@@ -136,6 +137,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const updateStatus = useUpdateOrderStatus()
   const confirmReception = useConfirmReception()
   const cancelOrder = useCancelOrder()
+  const deleteOrder = useDeleteOrder()
   const addOrderItem = useAddOrderItem()
   const editOrderItem = useEditOrderItem()
   const editDeliveryTime = useEditDeliveryTime()
@@ -329,6 +331,16 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
+  const handleDeleteOrder = async () => {
+    try {
+      await deleteOrder.mutateAsync(order.id)
+      toast.success('Orden eliminada')
+      push('/dashboard/orders')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar la orden')
+    }
+  }
+
   const itemsToOrder = order.order_items.filter((item) => item.quantity_to_order > 0)
   const urreaItemsToOrder = itemsToOrder.filter((item) => item.brand.toUpperCase() === 'URREA')
   const hasChanges = Object.keys(itemEdits).length > 0
@@ -449,6 +461,41 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </AlertDialogContent>
             </AlertDialog>
           )}
+
+          {/* Delete — always available */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+                title="Eliminar orden"
+                disabled={deleteOrder.isPending}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar esta orden?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se eliminará la orden y todos sus ítems permanentemente. Si tenía stock
+                  descontado del inventario, será restaurado automáticamente.
+                  Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleDeleteOrder}
+                >
+                  Sí, eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

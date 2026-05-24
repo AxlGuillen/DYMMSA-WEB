@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ShoppingCart } from 'lucide-react'
+import { ShoppingCart, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Table,
   TableBody,
@@ -13,7 +15,18 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { OrderStatusBadge } from './OrderStatusBadge'
+import { useDeleteOrder } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { OrderWithCount } from '@/types/database'
@@ -25,7 +38,20 @@ interface OrdersTableProps {
 
 export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
   const { push } = useRouter()
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const deleteOrder = useDeleteOrder()
   const fmt = useCurrency()
+
+  const handleDelete = async () => {
+    if (!deletingId) return
+    try {
+      await deleteOrder.mutateAsync(deletingId)
+      toast.success('Orden eliminada')
+      setDeletingId(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar la orden')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -39,6 +65,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
               <TableHead className="text-center">Ítems</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead>Fecha</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -50,6 +77,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
                 <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell />
               </TableRow>
             ))}
           </TableBody>
@@ -78,50 +106,87 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nombre</TableHead>
-            <TableHead>Cliente</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead className="text-center">Ítems</TableHead>
-            <TableHead className="text-right">Total</TableHead>
-            <TableHead>Fecha</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {orders.map((order) => (
-            <TableRow
-              key={order.id}
-              className="group cursor-pointer hover:bg-muted/50"
-              onClick={() => push(`/dashboard/orders/${order.id}`)}
-            >
-              <TableCell className="font-medium">
-                {order.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">{order.customer_name}</TableCell>
-              <TableCell>
-                <OrderStatusBadge status={order.status} />
-              </TableCell>
-              <TableCell className="text-center tabular-nums text-sm text-muted-foreground">
-                {order.items_count}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {order.total_amount > 0
-                  ? fmt(order.total_amount)
-                  : <span className="text-muted-foreground text-sm">{'\u2014'}</span>}
-              </TableCell>
-              <TableCell
-                className="text-muted-foreground text-sm whitespace-nowrap"
-                title={formatAbsolute(order.created_at)}
-              >
-                {formatRelative(order.created_at)}
-              </TableCell>
+    <>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="text-center">Ítems</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+              <TableHead>Fecha</TableHead>
+              <TableHead />
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {orders.map((order) => (
+              <TableRow
+                key={order.id}
+                className="group cursor-pointer hover:bg-muted/50"
+                onClick={() => push(`/dashboard/orders/${order.id}`)}
+              >
+                <TableCell className="font-medium">
+                  {order.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">{order.customer_name}</TableCell>
+                <TableCell>
+                  <OrderStatusBadge status={order.status} />
+                </TableCell>
+                <TableCell className="text-center tabular-nums text-sm text-muted-foreground">
+                  {order.items_count}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {order.total_amount > 0
+                    ? fmt(order.total_amount)
+                    : <span className="text-muted-foreground text-sm">{'—'}</span>}
+                </TableCell>
+                <TableCell
+                  className="text-muted-foreground text-sm whitespace-nowrap"
+                  title={formatAbsolute(order.created_at)}
+                >
+                  {formatRelative(order.created_at)}
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setDeletingId(order.id)}
+                    title="Eliminar orden"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <AlertDialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar esta orden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará la orden y todos sus ítems. Si la orden tenía stock descontado del
+              inventario, será restaurado automáticamente. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDelete}
+              disabled={deleteOrder.isPending}
+            >
+              Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

@@ -239,6 +239,24 @@ export function useCancelOrder() {
   })
 }
 
+export function useDeleteOrder() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const response = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al eliminar orden')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
+    },
+  })
+}
+
 export interface AddOrderItemInput {
   etm: string
   description: string
