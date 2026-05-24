@@ -47,3 +47,8 @@ CLAUDE.local.md
 
 # MCP config (contains secrets)
 .mcp.json
+
+# React Doctor (analysis artifacts)
+rd-report.json
+rd-codemod.cjs
+rd-fix-docs.cjs
