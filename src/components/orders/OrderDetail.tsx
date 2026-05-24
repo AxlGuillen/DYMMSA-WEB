@@ -133,6 +133,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
   // Delete confirmation
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null)
+  const [deleteOrderDialogOpen, setDeleteOrderDialogOpen] = useState(false)
 
   const updateStatus = useUpdateOrderStatus()
   const confirmReception = useConfirmReception()
@@ -334,6 +335,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const handleDeleteOrder = async () => {
     try {
       await deleteOrder.mutateAsync(order.id)
+      setDeleteOrderDialogOpen(false)
       toast.success('Orden eliminada')
       push('/dashboard/orders')
     } catch (error) {
@@ -463,19 +465,20 @@ export function OrderDetail({ order }: OrderDetailProps) {
           )}
 
           {/* Delete — always available */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
-                title="Eliminar orden"
-                disabled={deleteOrder.isPending}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </AlertDialogTrigger>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+            title="Eliminar orden"
+            onClick={() => setDeleteOrderDialogOpen(true)}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+          <AlertDialog
+            open={deleteOrderDialogOpen}
+            onOpenChange={(o) => { if (!o && !deleteOrder.isPending) setDeleteOrderDialogOpen(false) }}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Eliminar esta orden?</AlertDialogTitle>
@@ -486,13 +489,16 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                <AlertDialogCancel disabled={deleteOrder.isPending}>Cancelar</AlertDialogCancel>
+                <Button
+                  type="button"
+                  variant="destructive"
                   onClick={handleDeleteOrder}
+                  disabled={deleteOrder.isPending}
                 >
+                  {deleteOrder.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Sí, eliminar
-                </AlertDialogAction>
+                </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

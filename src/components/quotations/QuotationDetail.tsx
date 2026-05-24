@@ -396,6 +396,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // Copy-link state
   const [copied, setCopied] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   // Sort & filter state
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all')
@@ -593,6 +594,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const handleDeleteQuotation = async () => {
     try {
       await deleteQuotation.mutateAsync(quotation.id)
+      setDeleteDialogOpen(false)
       toast.success('Cotización eliminada')
       push('/dashboard/quotations')
     } catch (error) {
@@ -770,19 +772,20 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
           )}
 
           {/* Delete — always available */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
-                title="Eliminar cotización"
-                disabled={deleteQuotation.isPending}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </AlertDialogTrigger>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+            title="Eliminar cotización"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+          <AlertDialog
+            open={deleteDialogOpen}
+            onOpenChange={(o) => { if (!o && !deleteQuotation.isPending) setDeleteDialogOpen(false) }}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Eliminar esta cotización?</AlertDialogTitle>
@@ -792,13 +795,16 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                <AlertDialogCancel disabled={deleteQuotation.isPending}>Cancelar</AlertDialogCancel>
+                <Button
+                  type="button"
+                  variant="destructive"
                   onClick={handleDeleteQuotation}
+                  disabled={deleteQuotation.isPending}
                 >
+                  {deleteQuotation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Sí, eliminar
-                </AlertDialogAction>
+                </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

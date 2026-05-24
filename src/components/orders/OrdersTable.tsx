@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ShoppingCart, Trash2 } from 'lucide-react'
+import { ShoppingCart, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Table,
@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -166,7 +165,10 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
         </Table>
       </div>
 
-      <AlertDialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null) }}>
+      <AlertDialog
+        open={!!deletingId}
+        onOpenChange={(o) => { if (!o && !deleteOrder.isPending) setDeletingId(null) }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar esta orden?</AlertDialogTitle>
@@ -176,14 +178,16 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            <AlertDialogCancel disabled={deleteOrder.isPending}>Cancelar</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
               onClick={handleDelete}
               disabled={deleteOrder.isPending}
             >
+              {deleteOrder.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               Sí, eliminar
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Trash2, FileText } from 'lucide-react'
+import { Trash2, FileText, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Table,
@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -175,7 +174,10 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
         </Table>
       </div>
 
-      <AlertDialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null) }}>
+      <AlertDialog
+        open={!!deletingId}
+        onOpenChange={(o) => { if (!o && !deleteQuotation.isPending) setDeletingId(null) }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar esta cotización?</AlertDialogTitle>
@@ -184,14 +186,16 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground"
+            <AlertDialogCancel disabled={deleteQuotation.isPending}>Cancelar</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
               onClick={handleDelete}
               disabled={deleteQuotation.isPending}
             >
+              {deleteQuotation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               Sí, eliminar
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
