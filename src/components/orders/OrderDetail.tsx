@@ -571,7 +571,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </div>
         <div className="rounded-lg border p-4 bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
           <p className="text-xs font-medium text-orange-700 dark:text-orange-300 flex items-center gap-1 mb-2">
-            <Truck className="size-3" /> A Pedir URREA
+            <Truck className="size-3" /> A Pedir
           </p>
           <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
             {order.order_items.reduce((sum, item) => sum + item.quantity_to_order, 0)}
