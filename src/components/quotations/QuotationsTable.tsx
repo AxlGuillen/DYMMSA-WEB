@@ -37,7 +37,7 @@ interface QuotationsTableProps {
 }
 
 export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps) {
-  const router = useRouter()
+  const { push } = useRouter()
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const deleteQuotation = useDeleteQuotation()
   const fmt = useCurrency()
@@ -90,7 +90,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
     return (
       <div className="rounded-md border p-16 flex flex-col items-center gap-4 text-center">
         <div className="rounded-full bg-muted p-4">
-          <FileText className="h-8 w-8 text-muted-foreground" />
+          <FileText className="size-8 text-muted-foreground" />
         </div>
         <div>
           <p className="font-medium">No hay cotizaciones</p>
@@ -125,7 +125,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
               <TableRow
                 key={q.id}
                 className="group cursor-pointer hover:bg-muted/50"
-                onClick={() => router.push(`/dashboard/quotations/${q.id}`)}
+                onClick={() => push(`/dashboard/quotations/${q.id}`)}
               >
                 <TableCell>
                   <span className="font-medium">{q.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}</span>
@@ -148,7 +148,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                 <TableCell className="text-right tabular-nums">
                   {q.total_amount > 0
                     ? fmt(q.total_amount)
-                    : <span className="text-muted-foreground text-sm">—</span>
+                    : <span className="text-muted-foreground text-sm">{'\u2014'}</span>
                   }
                 </TableCell>
                 <TableCell
@@ -162,11 +162,11 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => setDeletingId(q.id)}
                       title="Eliminar cotización"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="size-3.5" />
                     </Button>
                   )}
                 </TableCell>

@@ -52,6 +52,7 @@ interface Props {
   token: string
 }
 
+// oxlint-disable-next-line react-doctor/no-giant-component -- intentional pattern; structural refactor tracked separately
 export function ApprovalClient({ quotation, token }: Props) {
   const isEditable = quotation.status === 'sent_for_approval'
 
@@ -60,7 +61,7 @@ export function ApprovalClient({ quotation, token }: Props) {
 
   // Default: everything starts as NOT approved — client only clicks what they want
   const [decisions, setDecisions] = useState<ItemDecision[]>(
-    productItems.map((item) => ({
+    () => productItems.map((item) => ({
       item_id:     item.id,
       is_approved: item.is_approved === true, // preserve if re-visiting
     }))
@@ -139,11 +140,11 @@ export function ApprovalClient({ quotation, token }: Props) {
           <CardContent className="pt-10 pb-10 space-y-5">
             <div className="flex justify-center">
               <div className="rounded-full bg-green-100 dark:bg-green-900/30 p-4">
-                <ShieldCheck className="h-14 w-14 text-green-600 dark:text-green-400" />
+                <ShieldCheck className="size-14 text-green-600 dark:text-green-400" />
               </div>
             </div>
             <div className="space-y-1">
-              <h2 className="text-2xl font-bold tracking-tight">¡Aprobación enviada!</h2>
+              <h2 className="text-2xl font-semibold tracking-tight">¡Aprobación enviada!</h2>
               <p className="text-muted-foreground text-sm">
                 Tu selección ha sido registrada. El equipo de DYMMSA la recibirá de inmediato.
               </p>
@@ -289,13 +290,13 @@ export function ApprovalClient({ quotation, token }: Props) {
           <CardHeader className="border-b border-slate-100 dark:border-zinc-700">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-slate-800 dark:text-zinc-100">
-                <Package className="h-5 w-5 text-slate-600 dark:text-zinc-400" />
+                <Package className="size-5 text-slate-600 dark:text-zinc-400" />
                 Productos de la cotización
               </CardTitle>
               {isEditable && (
                 <Button size="sm" variant="outline" onClick={handleApproveAll}
                   className="border-slate-300 dark:border-zinc-600 hover:bg-slate-100 dark:hover:bg-zinc-800">
-                  <CheckSquare className="h-4 w-4 mr-1.5" />
+                  <CheckSquare className="size-4 mr-1.5" />
                   Aprobar todos
                 </Button>
               )}
@@ -327,7 +328,7 @@ export function ApprovalClient({ quotation, token }: Props) {
                         <TableRow key={item.id} className="border-b border-dashed border-slate-200 dark:border-zinc-700 bg-slate-50/60 dark:bg-zinc-800/30 hover:bg-slate-50/60 dark:hover:bg-zinc-800/30">
                           <TableCell colSpan={9} className="px-4 py-2">
                             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
-                              <SeparatorHorizontal className="h-3.5 w-3.5 shrink-0" />
+                              <SeparatorHorizontal className="size-3.5 shrink-0" />
                               <span className="font-medium">{item.section_label || 'Sección'}</span>
                             </div>
                           </TableCell>
@@ -366,34 +367,34 @@ export function ApprovalClient({ quotation, token }: Props) {
                               {item.description_es}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground text-xs italic">—</span>
+                            <span className="text-muted-foreground text-xs italic">{'\u2014'}</span>
                           )}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-slate-500 dark:text-zinc-400">
-                          {item.model_code || <span className="text-muted-foreground">—</span>}
+                          {item.model_code || <span className="text-muted-foreground">{'\u2014'}</span>}
                         </TableCell>
                         <TableCell className="text-sm">
                           {item.brand
                             ? <span className="font-medium">{item.brand}</span>
-                            : <span className="text-muted-foreground">—</span>}
+                            : <span className="text-muted-foreground">{'\u2014'}</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-sm">
                           {item.unit_price != null
                             ? `$${item.unit_price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
-                            : <span className="text-muted-foreground">—</span>}
+                            : <span className="text-muted-foreground">{'\u2014'}</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-sm font-medium">
-                          {item.quantity ?? <span className="text-muted-foreground">—</span>}
+                          {item.quantity ?? <span className="text-muted-foreground">{'\u2014'}</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-semibold text-sm">
                           {subtotal != null
                             ? `$${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
-                            : <span className="text-muted-foreground font-normal">—</span>}
+                            : <span className="text-muted-foreground font-normal">{'\u2014'}</span>}
                         </TableCell>
                         <TableCell className="text-sm whitespace-nowrap">
                           {item.delivery_time
                             ? DELIVERY_TIME_LABELS[item.delivery_time as DeliveryTime] ?? item.delivery_time
-                            : <span className="text-muted-foreground">—</span>}
+                            : <span className="text-muted-foreground">{'\u2014'}</span>}
                         </TableCell>
 
                         {/* Approval cell */}
@@ -409,17 +410,17 @@ export function ApprovalClient({ quotation, token }: Props) {
                               }`}
                               onClick={() => toggleDecision(item.id)}
                             >
-                              <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                              <CheckCircle className="size-3.5 mr-1.5" />
                               {approved ? 'Aprobado' : 'Aprobar'}
                             </Button>
                           ) : (
                             item.is_approved === true ? (
                               <Badge className="bg-green-100 text-green-800 border border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700">
-                                <CheckCircle className="h-3 w-3 mr-1" /> Aprobado
+                                <CheckCircle className="size-3 mr-1" /> Aprobado
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="text-muted-foreground border-slate-300 dark:border-zinc-600">
-                                <XCircle className="h-3 w-3 mr-1" /> No aprobado
+                                <XCircle className="size-3 mr-1" /> No aprobado
                               </Badge>
                             )
                           )}
@@ -464,12 +465,12 @@ export function ApprovalClient({ quotation, token }: Props) {
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Enviando...
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Enviando…
                 </>
               ) : (
                 <>
-                  <Send className="mr-2 h-4 w-4" />
+                  <Send className="mr-2 size-4" />
                   Enviar aprobación
                 </>
               )}

@@ -209,13 +209,14 @@ const flowSteps: FlowStep[] = [
   },
 ]
 
+// oxlint-disable-next-line react-doctor/no-giant-component -- intentional pattern; structural refactor tracked separately
 export default function DocsPage() {
   return (
     <div className="docs-page-bg -mx-4 -my-8 px-4 py-8">
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-          <BookOpen className="h-8 w-8" />
+        <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
+          <BookOpen className="size-8" />
           Documentacion
         </h1>
         <p className="mt-2 text-muted-foreground">
@@ -239,7 +240,7 @@ export default function DocsPage() {
                   href={`#${section.id}`}
                   className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
                 >
-                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <Icon className="size-4 text-muted-foreground" />
                   {section.label}
                 </Link>
               )
@@ -254,7 +255,7 @@ export default function DocsPage() {
       <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
+            <FileSpreadsheet className="size-5" />
             Formato Excel para Cotizar (Matcher)
           </CardTitle>
           <CardDescription>
@@ -371,11 +372,11 @@ export default function DocsPage() {
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-mono">ETM-11111</TableCell>
-                    <TableCell className="text-muted-foreground italic">— (vacio)</TableCell>
-                    <TableCell className="text-muted-foreground italic">— (vacio)</TableCell>
+                    <TableCell className="text-muted-foreground italic">{'\u2014'} (vacio)</TableCell>
+                    <TableCell className="text-muted-foreground italic">{'\u2014'} (vacio)</TableCell>
                     <TableCell>3</TableCell>
-                    <TableCell className="text-muted-foreground italic">— (vacio)</TableCell>
-                    <TableCell className="text-muted-foreground italic">— (vacio)</TableCell>
+                    <TableCell className="text-muted-foreground italic">{'\u2014'} (vacio)</TableCell>
+                    <TableCell className="text-muted-foreground italic">{'\u2014'} (vacio)</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -394,7 +395,7 @@ export default function DocsPage() {
       <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5" />
+            <ClipboardList className="size-5" />
             Cotizaciones y Flujo
           </CardTitle>
           <CardDescription>
@@ -411,11 +412,11 @@ export default function DocsPage() {
             </p>
             <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
               <li>
-                <strong>Subiendo el Excel del cliente</strong> — el sistema extrae los ETMs y columnas reconocidas
+                <strong>Subiendo el Excel del cliente</strong> {'\u2014'} el sistema extrae los ETMs y columnas reconocidas
                 y pre-rellena la tabla automaticamente (ver seccion anterior).
               </li>
               <li>
-                <strong>Agregando productos manualmente</strong> — usa el boton &ldquo;Agregar producto&rdquo;
+                <strong>Agregando productos manualmente</strong> {'\u2014'} usa el boton &ldquo;Agregar producto&rdquo;
                 para abrir el modal e ingresar los datos a mano, sin necesitar un Excel.
               </li>
             </ul>
@@ -430,7 +431,7 @@ export default function DocsPage() {
           {/* Guardar */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
-              <Brain className="h-4 w-4 text-muted-foreground" />
+              <Brain className="size-4 text-muted-foreground" />
               Guardar y auto-aprendizaje
             </p>
             <p className="text-muted-foreground">
@@ -453,23 +454,23 @@ export default function DocsPage() {
             <p className="font-medium text-base">Estados de una cotizacion</p>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full border px-2.5 py-0.5 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 font-medium">Borrador</span>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
               <span className="rounded-full border px-2.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium">En aprobacion</span>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
               <div className="flex items-center gap-2">
                 <span className="rounded-full border px-2.5 py-0.5 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 font-medium">Aprobada</span>
                 <span className="text-muted-foreground">/</span>
                 <span className="rounded-full border px-2.5 py-0.5 bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-medium">Rechazada</span>
               </div>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
               <span className="rounded-full border px-2.5 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 font-medium">Convertida a orden</span>
             </div>
             <div className="space-y-1 text-muted-foreground">
-              <p><strong className="text-foreground">Borrador</strong> — cotizacion en construccion, aun no enviada al cliente.</p>
-              <p><strong className="text-foreground">En aprobacion</strong> — se genero el link y se compartio con el cliente. Esperando su decision.</p>
-              <p><strong className="text-foreground">Aprobada</strong> — el cliente aprobo al menos un producto. Lista para generar una orden.</p>
-              <p><strong className="text-foreground">Rechazada</strong> — el cliente rechazo todos los productos.</p>
-              <p><strong className="text-foreground">Convertida a orden</strong> — ya se genero la orden de venta a partir de esta cotizacion.</p>
+              <p><strong className="text-foreground">Borrador</strong> {'\u2014'} cotizacion en construccion, aun no enviada al cliente.</p>
+              <p><strong className="text-foreground">En aprobacion</strong> {'\u2014'} se genero el link y se compartio con el cliente. Esperando su decision.</p>
+              <p><strong className="text-foreground">Aprobada</strong> {'\u2014'} el cliente aprobo al menos un producto. Lista para generar una orden.</p>
+              <p><strong className="text-foreground">Rechazada</strong> {'\u2014'} el cliente rechazo todos los productos.</p>
+              <p><strong className="text-foreground">Convertida a orden</strong> {'\u2014'} ya se genero la orden de venta a partir de esta cotizacion.</p>
             </div>
           </div>
 
@@ -497,22 +498,22 @@ export default function DocsPage() {
                     },
                     {
                       action: 'Editar campos de un producto',
-                      icon: <Pencil className="h-3.5 w-3.5 inline mr-1" />,
+                      icon: <Pencil className="size-3.5 inline mr-1" />,
                       draft: true, approval: false, approved: true, rejected: false, converted: false,
                     },
                     {
                       action: 'Agregar producto',
-                      icon: <Plus className="h-3.5 w-3.5 inline mr-1" />,
+                      icon: <Plus className="size-3.5 inline mr-1" />,
                       draft: true, approval: false, approved: true, rejected: false, converted: false,
                     },
                     {
                       action: 'Eliminar producto',
-                      icon: <Trash2 className="h-3.5 w-3.5 inline mr-1" />,
+                      icon: <Trash2 className="size-3.5 inline mr-1" />,
                       draft: true, approval: false, approved: true, rejected: false, converted: false,
                     },
                     {
                       action: 'Enviar a aprobacion',
-                      icon: <Send className="h-3.5 w-3.5 inline mr-1" />,
+                      icon: <Send className="size-3.5 inline mr-1" />,
                       draft: true, approval: false, approved: false, rejected: false, converted: false,
                     },
                     {
@@ -530,11 +531,17 @@ export default function DocsPage() {
                       <TableCell className="text-sm">
                         {row.icon}{row.action}
                       </TableCell>
-                      {([row.draft, row.approval, row.approved, row.rejected, row.converted] as boolean[]).map((val, i) => (
-                        <TableCell key={i} className="text-center">
+                      {([
+                        ['draft', row.draft],
+                        ['approval', row.approval],
+                        ['approved', row.approved],
+                        ['rejected', row.rejected],
+                        ['converted', row.converted],
+                      ] as [string, boolean][]).map(([col, val]) => (
+                        <TableCell key={row.action + '-' + col} className="text-center">
                           {val
                             ? <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
-                            : <span className="text-muted-foreground/40">—</span>
+                            : <span className="text-muted-foreground/40">{'\u2014'}</span>
                           }
                         </TableCell>
                       ))}
@@ -552,7 +559,7 @@ export default function DocsPage() {
           {/* Aprobacion por link */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
-              <ExternalLink className="h-4 w-4 text-muted-foreground" />
+              <ExternalLink className="size-4 text-muted-foreground" />
               Aprobacion por link
             </p>
             <p className="text-muted-foreground">
@@ -577,7 +584,7 @@ export default function DocsPage() {
       <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5" />
+            <CheckCircle2 className="size-5" />
             Formato Excel Aprobado (Filas Verdes)
           </CardTitle>
           <CardDescription>
@@ -641,7 +648,7 @@ export default function DocsPage() {
               ].map((g) => (
                 <div key={g.color} className="flex items-center gap-1.5">
                   <div
-                    className="h-5 w-5 rounded border"
+                    className="size-5 rounded border"
                     style={{ backgroundColor: g.color }}
                   />
                   <span className="font-mono text-xs">{g.label}</span>
@@ -717,7 +724,7 @@ export default function DocsPage() {
       <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Warehouse className="h-5 w-5" />
+            <Warehouse className="size-5" />
             Formato Excel de Inventario
           </CardTitle>
           <CardDescription>
@@ -783,7 +790,7 @@ export default function DocsPage() {
       <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
+            <Package className="size-5" />
             Detalle de Orden
           </CardTitle>
           <CardDescription>
@@ -806,19 +813,19 @@ export default function DocsPage() {
             <p className="text-muted-foreground">El encabezado muestra el nombre del cliente, ID de orden, fecha de creacion y el estado actual. Desde ahi puedes:</p>
             <ul className="ml-4 list-disc space-y-1.5 text-muted-foreground">
               <li>
-                <strong className="text-foreground">Cambiar estado</strong> — dropdown con los 5 estados activos.
+                <strong className="text-foreground">Cambiar estado</strong> {'\u2014'} dropdown con los 5 estados activos.
                 Disponible en cualquier estado excepto <em>Cancelado</em>.
               </li>
               <li>
                 <strong className="text-foreground">Descargar Pedido URREA</strong>{' '}
-                <span className="inline-flex items-center gap-1">(<Download className="h-3 w-3" /></span>) — aparece unicamente cuando
+                <span className="inline-flex items-center gap-1">(<Download className="size-3" /></span>) {'\u2014'} aparece unicamente cuando
                 hay productos con cantidad a pedir &gt; 0. Genera un Excel con{' '}
                 <code className="rounded bg-muted px-1">model_code</code> +{' '}
                 <code className="rounded bg-muted px-1">quantity</code> solo para items de marca{' '}
                 <strong>URREA</strong>. Los de otras marcas se excluyen con una notificacion.
               </li>
               <li>
-                <strong className="text-foreground">Cancelar Orden</strong> — disponible mientras la orden no este
+                <strong className="text-foreground">Cancelar Orden</strong> {'\u2014'} disponible mientras la orden no este
                 Completada ni Cancelada. Al confirmar, <strong>restaura automaticamente el inventario</strong> apartado
                 al cancelar.
               </li>
@@ -842,11 +849,11 @@ export default function DocsPage() {
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium text-blue-600 dark:text-blue-400">En Stock</TableCell>
-                  <TableCell className="text-muted-foreground">Suma de <code className="rounded bg-muted px-1">quantity_in_stock</code> — unidades apartadas del inventario de tienda al crear la orden.</TableCell>
+                  <TableCell className="text-muted-foreground">Suma de <code className="rounded bg-muted px-1">quantity_in_stock</code> {'\u2014'} unidades apartadas del inventario de tienda al crear la orden.</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium text-orange-600 dark:text-orange-400">A Pedir URREA</TableCell>
-                  <TableCell className="text-muted-foreground">Suma de <code className="rounded bg-muted px-1">quantity_to_order</code> — unidades que hay que pedir al proveedor.</TableCell>
+                  <TableCell className="text-muted-foreground">Suma de <code className="rounded bg-muted px-1">quantity_to_order</code> {'\u2014'} unidades que hay que pedir al proveedor.</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium text-green-600 dark:text-green-400">Total</TableCell>
@@ -887,7 +894,7 @@ export default function DocsPage() {
                       <TableCell className="font-medium whitespace-nowrap">{row.col}</TableCell>
                       <TableCell className="whitespace-nowrap">
                         {row.editable === 'No'
-                          ? <span className="text-muted-foreground/60">—</span>
+                          ? <span className="text-muted-foreground/60">{'\u2014'}</span>
                           : <span className="text-green-600 dark:text-green-400 font-medium">{row.editable}</span>
                         }
                       </TableCell>
@@ -910,7 +917,7 @@ export default function DocsPage() {
             <p className="text-muted-foreground text-xs mb-1">Disponibles solo cuando la orden no esta Completada ni Cancelada.</p>
             <div className="space-y-3">
               <div className="rounded-md border px-4 py-3 space-y-1">
-                <p className="font-medium flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> Agregar producto</p>
+                <p className="font-medium flex items-center gap-1.5"><Plus className="size-3.5" /> Agregar producto</p>
                 <p className="text-xs text-muted-foreground">
                   Abre un dialogo para ingresar ETM, codigo de modelo, descripcion, marca, precio y cantidad.
                   El sistema verifica el inventario de tienda y calcula automaticamente cuanto va a stock y cuanto
@@ -918,7 +925,7 @@ export default function DocsPage() {
                 </p>
               </div>
               <div className="rounded-md border px-4 py-3 space-y-1">
-                <p className="font-medium flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" /> Editar precio</p>
+                <p className="font-medium flex items-center gap-1.5"><Pencil className="size-3.5" /> Editar precio</p>
                 <p className="text-xs text-muted-foreground">
                   Icono lapiz en la columna Acciones de cada fila. Abre un input inline; confirmar con Enter
                   o el boton de check, cancelar con Escape o la X. Al guardar, el{' '}
@@ -926,7 +933,7 @@ export default function DocsPage() {
                 </p>
               </div>
               <div className="rounded-md border px-4 py-3 space-y-1">
-                <p className="font-medium flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" /> Eliminar producto</p>
+                <p className="font-medium flex items-center gap-1.5"><Trash2 className="size-3.5" /> Eliminar producto</p>
                 <p className="text-xs text-muted-foreground">
                   Icono papelera con dialogo de confirmacion. Al eliminar, la cantidad que estaba apartada en stock
                   (<code className="rounded bg-muted px-1">quantity_in_stock</code> del item) se devuelve automaticamente
@@ -939,7 +946,7 @@ export default function DocsPage() {
           {/* Confirmar recepcion */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              <CheckCircle2 className="size-4 text-muted-foreground" />
               Confirmar Recepcion
             </p>
             <p className="text-muted-foreground">
@@ -958,13 +965,13 @@ export default function DocsPage() {
             <p className="font-medium text-base">Estados de la orden</p>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full border px-2.5 py-0.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 font-medium">Pendiente URREA</span>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
               <span className="rounded-full border px-2.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium">Recibido URREA</span>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
               <span className="rounded-full border px-2.5 py-0.5 bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300 font-medium">Pendiente Pago</span>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
               <span className="rounded-full border px-2.5 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 font-medium">Pagado</span>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
               <span className="rounded-full border px-2.5 py-0.5 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 font-medium">Completado</span>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -1028,11 +1035,18 @@ export default function DocsPage() {
                   ].map((row) => (
                     <TableRow key={row.action}>
                       <TableCell className="text-sm whitespace-nowrap">{row.action}</TableCell>
-                      {row.vals.map((v, i) => (
-                        <TableCell key={i} className="text-center">
+                      {([
+                        ['pend_urrea', row.vals[0]],
+                        ['recibido_urrea', row.vals[1]],
+                        ['pend_pago', row.vals[2]],
+                        ['pagado', row.vals[3]],
+                        ['completado', row.vals[4]],
+                        ['cancelado', row.vals[5]],
+                      ] as [string, boolean][]).map(([col, v]) => (
+                        <TableCell key={row.action + '-' + col} className="text-center">
                           {v
                             ? <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
-                            : <span className="text-muted-foreground/40">—</span>
+                            : <span className="text-muted-foreground/40">{'\u2014'}</span>
                           }
                         </TableCell>
                       ))}
@@ -1056,7 +1070,7 @@ export default function DocsPage() {
       <Card className="docs-card-inner border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5" />
+            <ArrowRight className="size-5" />
             Flujo Completo del Sistema
           </CardTitle>
           <CardDescription>
@@ -1070,12 +1084,12 @@ export default function DocsPage() {
                 <div className="flex gap-4">
                   {/* Step number + connector */}
                   <div className="flex flex-col items-center">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
                       {step.number}
                     </div>
                     {i < flowSteps.length - 1 && (
                       <div className="flex flex-1 items-center py-1">
-                        <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                        <ArrowDown className="size-4 text-muted-foreground" />
                       </div>
                     )}
                   </div>
@@ -1101,7 +1115,7 @@ export default function DocsPage() {
                               </span>
                               {v.endsFlow && (
                                 <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                                  — flujo termina aqui
+                                  {'—'} flujo termina aqui
                                 </span>
                               )}
                             </div>
