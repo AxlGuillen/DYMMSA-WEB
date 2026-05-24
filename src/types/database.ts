@@ -75,6 +75,7 @@ export interface Order {
   original_file_url: string | null
   urrea_order_file_url: string | null
   notes: string | null
+  odoo_id: string | null
   created_at: string
   updated_at: string
   created_by: string | null

@@ -78,6 +78,7 @@ import {
   useEditOrderItem,
   useEditDeliveryTime,
   useRemoveOrderItem,
+  useUpdateOrderOdooId,
 } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import type { OrderWithItems, OrderStatus, UrreaStatus, DeliveryTime } from '@/types/database'
@@ -106,6 +107,7 @@ const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'delivered', label: 'Entregado' },
   { value: 'completed', label: 'Completado' },
 ]
+
 
 interface OrderDetailProps {
   order: OrderWithItems
@@ -143,6 +145,25 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const editOrderItem = useEditOrderItem()
   const editDeliveryTime = useEditDeliveryTime()
   const removeOrderItem = useRemoveOrderItem()
+  const updateOdooId = useUpdateOrderOdooId()
+
+  // Odoo ID inline edit state
+  const [editingOdooId, setEditingOdooId] = useState(false)
+  const [odooIdValue, setOdooIdValue] = useState(order.odoo_id ?? '')
+
+  const handleSaveOdooId = async () => {
+    const trimmed = odooIdValue.trim()
+    const newValue = trimmed === '' ? null : trimmed
+    if (newValue === order.odoo_id) { setEditingOdooId(false); return }
+    try {
+      await updateOdooId.mutateAsync({ orderId: order.id, odoo_id: newValue })
+      toast.success('ID de Odoo actualizado')
+    } catch {
+      toast.error('Error al guardar ID de Odoo')
+    } finally {
+      setEditingOdooId(false)
+    }
+  }
 
   const handleStatusChange = async (status: OrderStatus) => {
     try {
@@ -379,6 +400,53 @@ export function OrderDetail({ order }: OrderDetailProps) {
               year: 'numeric',
             })}
           </p>
+
+          {/* Odoo ID inline edit */}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs font-medium text-muted-foreground shrink-0">Odoo ID:</span>
+            {editingOdooId ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  autoFocus
+                  value={odooIdValue}
+                  onChange={(e) => setOdooIdValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveOdooId()
+                    if (e.key === 'Escape') { setEditingOdooId(false); setOdooIdValue(order.odoo_id ?? '') }
+                  }}
+                  className="h-8 w-44 text-sm font-mono"
+                  placeholder="ej. FAC-001"
+                />
+                <Button
+                  size="sm"
+                  className="h-8"
+                  disabled={updateOdooId.isPending}
+                  onClick={handleSaveOdooId}
+                >
+                  {updateOdooId.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Guardar'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8"
+                  onClick={() => { setEditingOdooId(false); setOdooIdValue(order.odoo_id ?? '') }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setOdooIdValue(order.odoo_id ?? ''); setEditingOdooId(true) }}
+                className="flex items-center gap-1.5 text-sm rounded px-2 py-0.5 border border-transparent hover:border-border hover:bg-muted transition-colors"
+              >
+                {order.odoo_id
+                  ? <span className="font-mono">{order.odoo_id}</span>
+                  : <span className="text-muted-foreground italic text-xs">Sin ID de Odoo</span>
+                }
+                <Pencil className="h-3 w-3 text-muted-foreground" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Actions */}
@@ -673,7 +741,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                       <TableCell className="font-mono text-sm">{item.etm}</TableCell>
                       <TableCell>{item.model_code}</TableCell>
                       <TableCell>{item.brand || '—'}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">
+                      <TableCell className="max-w-[200px] text-sm break-words whitespace-normal">
                         {item.description}
                       </TableCell>
                       <TableCell className="text-right">{item.quantity_approved}</TableCell>
