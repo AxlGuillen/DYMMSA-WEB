@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
 
       if (mode === 'replace') {
         // In replace mode, just insert all
+        // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { error } = await supabase
           .from('store_inventory')
           .insert({ model_code: modelCode, quantity: safeQuantity })

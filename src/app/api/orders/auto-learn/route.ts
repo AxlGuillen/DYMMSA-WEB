@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if ETM already exists
+      // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
       const { data: existing } = await supabase
         .from('etm_products')
         .select('id')

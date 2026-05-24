@@ -57,6 +57,7 @@ async function migrate() {
       created_by: null,
     }
 
+    // oxlint-disable-next-line react-doctor/async-await-in-loop -- one-off migration script (not app code); sequential by design
     const { error } = await supabase
       .from('etm_products')
       .upsert(product, { onConflict: 'etm' })

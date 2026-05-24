@@ -64,6 +64,7 @@ export async function restoreOrderInventory(
   let restored = 0
 
   for (const { model_code, quantityToRestore } of restorations) {
+    // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
     const { data: inventory } = await supabase
       .from('store_inventory')
       .select('id, quantity')

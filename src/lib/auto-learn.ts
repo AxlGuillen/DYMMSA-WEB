@@ -140,6 +140,7 @@ export async function processAutoLearn(
 
     if (!existing) {
       // ── INSERT ─────────────────────────────────────────────────────
+      // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
       const { error } = await supabase
         .from('etm_products')
         .insert({ ...computeNewEtmFields(item), created_by: userId })

@@ -105,6 +105,7 @@ export async function POST(
       let quantityToOrder = quantityApproved
 
       if (item.model_code) {
+        // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { data: inv } = await supabase
           .from('store_inventory')
           .select('quantity')

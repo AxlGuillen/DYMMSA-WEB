@@ -27,10 +27,14 @@ const COLUMN_ALIASES: Record<string, string[]> = {
 }
 
 function findColumnHeader(headers: string[], aliases: string[]): string | null {
-  const normalized = headers.map(normalizeString)
+  const indexByNormalized = new Map<string, number>()
+  headers.forEach((h, i) => {
+    const n = normalizeString(h)
+    if (!indexByNormalized.has(n)) indexByNormalized.set(n, i)
+  })
   for (const alias of aliases) {
-    const idx = normalized.indexOf(alias)
-    if (idx !== -1) return headers[idx]
+    const idx = indexByNormalized.get(alias)
+    if (idx !== undefined) return headers[idx]
   }
   return null
 }
@@ -117,7 +121,10 @@ export function extractEtmCodesFromExcel(buffer: ArrayBuffer): ExtractionResult 
 
     // Buscar columna ETM (case insensitive)
     const headers = Object.keys(rows[0])
-    const etmColumn = headers.find((h) => h.toUpperCase().trim() === 'ETM')
+    let etmColumn: string | undefined
+    for (const h of headers) {
+      if (h.toUpperCase().trim() === 'ETM') { etmColumn = h; break }
+    }
 
     if (!etmColumn) continue
 
