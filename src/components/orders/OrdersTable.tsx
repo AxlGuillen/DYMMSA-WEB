@@ -24,7 +24,7 @@ interface OrdersTableProps {
 }
 
 export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
-  const router = useRouter()
+  const { push } = useRouter()
   const fmt = useCurrency()
 
   if (isLoading) {
@@ -62,7 +62,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
     return (
       <div className="rounded-md border p-16 flex flex-col items-center gap-4 text-center">
         <div className="rounded-full bg-muted p-4">
-          <ShoppingCart className="h-8 w-8 text-muted-foreground" />
+          <ShoppingCart className="size-8 text-muted-foreground" />
         </div>
         <div>
           <p className="font-medium">No hay órdenes</p>
@@ -95,7 +95,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
             <TableRow
               key={order.id}
               className="group cursor-pointer hover:bg-muted/50"
-              onClick={() => router.push(`/dashboard/orders/${order.id}`)}
+              onClick={() => push(`/dashboard/orders/${order.id}`)}
             >
               <TableCell className="font-medium">
                 {order.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}
@@ -110,7 +110,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
               <TableCell className="text-right tabular-nums">
                 {order.total_amount > 0
                   ? fmt(order.total_amount)
-                  : <span className="text-muted-foreground text-sm">—</span>}
+                  : <span className="text-muted-foreground text-sm">{'\u2014'}</span>}
               </TableCell>
               <TableCell
                 className="text-muted-foreground text-sm whitespace-nowrap"

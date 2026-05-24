@@ -116,8 +116,9 @@ interface ItemEdit {
   urrea_status: UrreaStatus
 }
 
+// oxlint-disable-next-line react-doctor/no-giant-component, react-doctor/prefer-useReducer -- intentional pattern; structural refactor tracked separately
 export function OrderDetail({ order }: OrderDetailProps) {
-  const router = useRouter()
+  const { refresh, push } = useRouter()
   const fmt = useCurrency()
   const [itemEdits, setItemEdits] = useState<Record<string, ItemEdit>>({})
 
@@ -245,7 +246,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       })
       toast.success('Recepción confirmada')
       setItemEdits({})
-      router.refresh()
+      refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al confirmar recepción')
     }
@@ -273,7 +274,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       toast.success('Producto agregado')
       setAddForm(EMPTY_ADD_FORM)
       setAddItemOpen(false)
-      router.refresh()
+      refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al agregar el producto')
     }
@@ -292,7 +293,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       await editOrderItem.mutateAsync({ orderId: order.id, itemId, unit_price: price })
       toast.success('Precio actualizado')
       setEditingPriceId(null)
-      router.refresh()
+      refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al actualizar el precio')
     }
@@ -304,7 +305,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       await removeOrderItem.mutateAsync({ orderId: order.id, itemId: deletingItemId })
       toast.success('Producto eliminado')
       setDeletingItemId(null)
-      router.refresh()
+      refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al eliminar el producto')
     }
@@ -322,7 +323,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
     try {
       await cancelOrder.mutateAsync(order.id)
       toast.success('Orden cancelada')
-      router.refresh()
+      refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al cancelar orden')
     }
@@ -345,13 +346,13 @@ export function OrderDetail({ order }: OrderDetailProps) {
           variant="ghost"
           size="icon"
           className="mt-0.5 shrink-0"
-          onClick={() => router.push('/dashboard/orders')}
+          onClick={() => push('/dashboard/orders')}
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="size-5" />
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight">
               {order.name || order.customer_name}
             </h1>
             <OrderStatusBadge status={order.status} />
@@ -396,9 +397,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
             disabled={isDownloading || urreaItemsToOrder.length === 0}
           >
             {isDownloading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="mr-2 size-4" />
             )}
             Pedido URREA ({urreaItemsToOrder.length})
           </Button>
@@ -409,9 +410,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
             disabled={isDownloadingDelivery}
           >
             {isDownloadingDelivery ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="mr-2 size-4" />
             )}
             Formato de Entrega
           </Button>
@@ -424,7 +425,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   disabled={cancelOrder.isPending}
                   className="border-destructive text-destructive hover:bg-destructive hover:text-white gap-1.5 transition-colors"
                 >
-                  <AlertTriangle className="h-4 w-4" strokeWidth={2.5} />
+                  <AlertTriangle className="size-4" strokeWidth={2.5} />
                   Cancelar Orden
                 </Button>
               </AlertDialogTrigger>
@@ -456,7 +457,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         <Card className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 text-red-800 dark:text-red-300">
-              <XCircle className="h-4 w-4 shrink-0" />
+              <XCircle className="size-4 shrink-0" />
               <p className="text-sm font-medium">
                 Esta orden fue cancelada. El inventario apartado ha sido restaurado.
               </p>
@@ -470,7 +471,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         <Card className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <CheckCircle2 className="size-4 shrink-0" />
               <p className="text-sm font-medium">Esta orden está completada.</p>
             </div>
           </CardContent>
@@ -481,7 +482,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       {!isCancelled && !isCompleted && (
         <div className="flex flex-col gap-1.5 text-xs text-muted-foreground px-1">
           <div className="flex items-start gap-1.5">
-            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <Info className="size-3.5 mt-0.5 shrink-0" />
             <span>
               <strong>Pedido URREA:</strong> el Excel solo incluye productos con{' '}
               <em>A Pedir &gt; 0</em> y marca <em>URREA</em>. Productos de otras marcas o
@@ -489,7 +490,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
             </span>
           </div>
           <div className="flex items-start gap-1.5">
-            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <Info className="size-3.5 mt-0.5 shrink-0" />
             <span>
               <strong>Estado de envío / Recibidos:</strong> solo es editable en productos con{' '}
               <em>A Pedir &gt; 0</em>. Los productos cubiertos completamente por stock aparecen
@@ -503,13 +504,13 @@ export function OrderDetail({ order }: OrderDetailProps) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-lg border p-4 bg-card">
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-            <Package className="h-3 w-3" /> Productos
+            <Package className="size-3" /> Productos
           </p>
           <p className="text-2xl font-bold">{order.order_items.length}</p>
         </div>
         <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
           <p className="text-xs font-medium text-blue-700 dark:text-blue-300 flex items-center gap-1 mb-2">
-            <PackageCheck className="h-3 w-3" /> En Stock
+            <PackageCheck className="size-3" /> En Stock
           </p>
           <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
             {order.order_items.reduce((sum, item) => sum + item.quantity_in_stock, 0)}
@@ -517,7 +518,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </div>
         <div className="rounded-lg border p-4 bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
           <p className="text-xs font-medium text-orange-700 dark:text-orange-300 flex items-center gap-1 mb-2">
-            <Truck className="h-3 w-3" /> A Pedir URREA
+            <Truck className="size-3" /> A Pedir URREA
           </p>
           <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
             {order.order_items.reduce((sum, item) => sum + item.quantity_to_order, 0)}
@@ -526,7 +527,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         <Card>
           <CardContent className="pt-4 pb-4">
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
-              <DollarSign className="h-3 w-3" /> Total
+              <DollarSign className="size-3" /> Total
             </p>
             <p className="text-xl font-bold">
               {fmt(totalAmount)}
@@ -541,7 +542,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
+                <Package className="size-5" />
                 Productos
               </CardTitle>
               {!isCompleted && !isCancelled && (
@@ -553,16 +554,16 @@ export function OrderDetail({ order }: OrderDetailProps) {
             <div className="flex items-center gap-2">
               {!isCompleted && !isCancelled && (
                 <Button size="sm" variant="outline" onClick={() => setAddItemOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" />
+                  <Plus className="size-4 mr-1.5" />
                   Agregar
                 </Button>
               )}
               {!isCompleted && !isCancelled && hasChanges && (
                 <Button onClick={handleConfirmReception} disabled={confirmReception.isPending}>
                   {confirmReception.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 size-4 animate-spin" />
                   ) : (
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    <CheckCircle2 className="mr-2 size-4" />
                   )}
                   Confirmar Recepción
                 </Button>
@@ -600,7 +601,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                       <TableRow key={item.id} className="border-b border-dashed border-border/60 bg-muted/30 hover:bg-muted/30">
                         <TableCell colSpan={isCompleted || isCancelled ? 12 : 13} className="px-4 py-2">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <SeparatorHorizontal className="h-3.5 w-3.5 shrink-0" />
+                            <SeparatorHorizontal className="size-3.5 shrink-0" />
                             <span className="font-medium">{item.section_label || 'Sección'}</span>
                           </div>
                         </TableCell>
@@ -727,17 +728,17 @@ export function OrderDetail({ order }: OrderDetailProps) {
                               autoFocus
                             />
                             <Button
-                              size="icon" variant="ghost" className="h-7 w-7 text-green-600"
+                              size="icon" variant="ghost" className="size-7 text-green-600"
                               onClick={() => handleSavePrice(item.id)}
                               disabled={editOrderItem.isPending}
                             >
-                              <Check className="h-3.5 w-3.5" />
+                              <Check className="size-3.5" />
                             </Button>
                             <Button
-                              size="icon" variant="ghost" className="h-7 w-7"
+                              size="icon" variant="ghost" className="size-7"
                               onClick={() => setEditingPriceId(null)}
                             >
-                              <X className="h-3.5 w-3.5" />
+                              <X className="size-3.5" />
                             </Button>
                           </div>
                         ) : (
@@ -757,19 +758,19 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         <TableCell>
                           <div className="flex items-center justify-center gap-1">
                             <Button
-                              size="icon" variant="ghost" className="h-7 w-7"
+                              size="icon" variant="ghost" className="size-7"
                               onClick={() => handleStartEditPrice(item.id, item.unit_price)}
                               title="Editar precio"
                             >
-                              <Pencil className="h-3.5 w-3.5" />
+                              <Pencil className="size-3.5" />
                             </Button>
                             <Button
                               size="icon" variant="ghost"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={() => setDeletingItemId(item.id)}
                               title="Eliminar producto"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="size-3.5" />
                             </Button>
                           </div>
                         </TableCell>
@@ -873,7 +874,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               Cancelar
             </Button>
             <Button onClick={handleAddItem} disabled={addOrderItem.isPending}>
-              {addOrderItem.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {addOrderItem.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
               Agregar
             </Button>
           </DialogFooter>
@@ -899,7 +900,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               onClick={handleRemoveItem}
               disabled={removeOrderItem.isPending}
             >
-              {removeOrderItem.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {removeOrderItem.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
               Sí, eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

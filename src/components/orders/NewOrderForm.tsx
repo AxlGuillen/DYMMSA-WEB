@@ -27,7 +27,7 @@ interface DetectionResult {
 }
 
 export function NewOrderForm() {
-  const router = useRouter()
+  const { push } = useRouter()
   const fmt = useCurrency()
   const [customerName, setCustomerName] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -105,7 +105,7 @@ export function NewOrderForm() {
       })
 
       toast.success('Orden creada correctamente')
-      router.push(`/dashboard/orders/${orderResult.order_id}`)
+      push(`/dashboard/orders/${orderResult.order_id}`)
     } catch (error) {
       console.error('Error creating order:', error)
       toast.error(error instanceof Error ? error.message : 'Error al crear orden')
@@ -158,14 +158,14 @@ export function NewOrderForm() {
 
             {isProcessing ? (
               <div className="flex flex-col items-center gap-2">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <Loader2 className="size-10 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">
-                  Procesando archivo...
+                  Procesando archivo…
                 </p>
               </div>
             ) : file ? (
               <div className="flex flex-col items-center gap-2">
-                <FileSpreadsheet className="h-10 w-10 text-green-600" />
+                <FileSpreadsheet className="size-10 text-green-600" />
                 <p className="font-medium">{file.name}</p>
                 <p className="text-sm text-muted-foreground">
                   Click o arrastra para cambiar
@@ -173,7 +173,7 @@ export function NewOrderForm() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2">
-                <Upload className="h-10 w-10 text-muted-foreground" />
+                <Upload className="size-10 text-muted-foreground" />
                 <p className="font-medium">
                   {isDragActive ? 'Suelta el archivo aquí' : 'Arrastra o haz click'}
                 </p>
@@ -192,9 +192,9 @@ export function NewOrderForm() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               {detectionResult.products.length > 0 ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
+                <CheckCircle className="size-5 text-green-600" />
               ) : (
-                <AlertCircle className="h-5 w-5 text-yellow-600" />
+                <AlertCircle className="size-5 text-yellow-600" />
               )}
               Resultados de Detección
             </CardTitle>
@@ -230,7 +230,7 @@ export function NewOrderForm() {
                   </thead>
                   <tbody>
                     {detectionResult.products.map((product, index) => (
-                      <tr key={index} className="border-b">
+                      <tr key={`${product.etm}-${index}`} className="border-b">
                         <td className="p-2 font-mono">{product.etm}</td>
                         <td className="p-2">{product.model_code}</td>
                         <td className="p-2 text-right">{product.quantity}</td>
@@ -251,7 +251,7 @@ export function NewOrderForm() {
       <div className="flex justify-end gap-2">
         <Button
           variant="outline"
-          onClick={() => router.push('/dashboard/orders')}
+          onClick={() => push('/dashboard/orders')}
           disabled={isSubmitting}
         >
           Cancelar
@@ -267,8 +267,8 @@ export function NewOrderForm() {
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creando orden...
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              Creando orden…
             </>
           ) : (
             'Crear Orden'
