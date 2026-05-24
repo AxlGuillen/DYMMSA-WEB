@@ -88,10 +88,15 @@ export async function PATCH(
       const isSep = item.item_type === 'separator'
       let is_approved: boolean | null = null
       if (!isSep && quotation.status === 'approved') {
-        // Existing items: preserve their approval; new items: auto-approve (DYMMSA internal).
-        // _dbId carries the real DB id for persisted rows; new rows only have a local _id.
-        const lookupKey = item._dbId ?? item._id
-        is_approved = approvalMap.has(lookupKey) ? (approvalMap.get(lookupKey) ?? null) : true
+        // Use the approval value set by the user in the UI (null=pending, true=approved, false=rejected).
+        // is_approved is always present on QuotationItemRow for approved quotations (set via toItemRow or
+        // defaulted to null for new items). Fallback to approvalMap for legacy clients that don't send it.
+        if (item.is_approved !== undefined) {
+          is_approved = item.is_approved ?? null
+        } else {
+          const lookupKey = item._dbId ?? item._id
+          is_approved = approvalMap.has(lookupKey) ? (approvalMap.get(lookupKey) ?? null) : null
+        }
       }
       return {
         quotation_id:   id,

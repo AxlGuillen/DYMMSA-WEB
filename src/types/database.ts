@@ -218,6 +218,7 @@ export interface QuotationItemRow {
   quantity: number | null
   delivery_time: DeliveryTime
   _inDb: boolean     // true if ETM was matched in etm_products
+  is_approved?: boolean | null  // local approval state; null = pending, true = approved, false = rejected
 }
 
 // Raw row extracted from Excel before DB lookup

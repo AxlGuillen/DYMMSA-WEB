@@ -232,15 +232,15 @@ interface SortableDetailRowProps {
   isDndEnabled: boolean
   isApproved: boolean
   isSentForApproval: boolean
-  dbItem: QuotationItem | undefined
   onEdit: (item: QuotationItemRow) => void
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
+  onApprovalChange: (id: string, value: boolean | null) => void
 }
 
 // oxlint-disable-next-line react-doctor/no-many-boolean-props -- intentional pattern; structural refactor tracked separately
 function SortableDetailRow({
-  item, canEdit, isDndEnabled, isApproved, isSentForApproval, dbItem, onEdit, onRemove, onAddSeparatorAfter,
+  item, canEdit, isDndEnabled, isApproved, isSentForApproval, onEdit, onRemove, onAddSeparatorAfter, onApprovalChange,
 }: SortableDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -302,11 +302,42 @@ function SortableDetailRow({
       </TableCell>
       {(isApproved || isSentForApproval) && (
         <TableCell className="text-center">
-          {dbItem?.is_approved === true
-            ? <Badge variant="outline" className="text-xs text-green-600 border-green-300"><CheckCircle2 className="size-3 mr-1" />Aprobado</Badge>
-            : dbItem?.is_approved === false
-              ? <Badge variant="outline" className="text-xs text-red-600 border-red-300"><XCircle className="size-3 mr-1" />Rechazado</Badge>
-              : <Badge variant="outline" className="text-xs text-muted-foreground"><Clock className="size-3 mr-1" />Pendiente</Badge>}
+          {isApproved && canEdit ? (
+            // Interactive toggle — click active button to reset to pending
+            <div className="flex items-center justify-center gap-1">
+              <button
+                type="button"
+                title={item.is_approved === true ? 'Quitar aprobación' : 'Aprobar'}
+                onClick={() => onApprovalChange(item._id, item.is_approved === true ? null : true)}
+                className={`rounded p-1 transition-colors ${
+                  item.is_approved === true
+                    ? 'text-green-600 bg-green-100 dark:bg-green-900/30'
+                    : 'text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                }`}
+              >
+                <CheckCircle2 className="size-4" />
+              </button>
+              <button
+                type="button"
+                title={item.is_approved === false ? 'Quitar rechazo' : 'Rechazar'}
+                onClick={() => onApprovalChange(item._id, item.is_approved === false ? null : false)}
+                className={`rounded p-1 transition-colors ${
+                  item.is_approved === false
+                    ? 'text-red-600 bg-red-100 dark:bg-red-900/30'
+                    : 'text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                }`}
+              >
+                <XCircle className="size-4" />
+              </button>
+            </div>
+          ) : (
+            // Static badge for sent_for_approval (client voted) or read-only view
+            item.is_approved === true
+              ? <Badge variant="outline" className="text-xs text-green-600 border-green-300"><CheckCircle2 className="size-3 mr-1" />Aprobado</Badge>
+              : item.is_approved === false
+                ? <Badge variant="outline" className="text-xs text-red-600 border-red-300"><XCircle className="size-3 mr-1" />Rechazado</Badge>
+                : <Badge variant="outline" className="text-xs text-muted-foreground"><Clock className="size-3 mr-1" />Pendiente</Badge>
+          )}
         </TableCell>
       )}
       {canEdit && (
@@ -355,6 +386,7 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   quantity:       item.quantity,
   delivery_time:  item.delivery_time ?? 'immediate',
   _inDb:          !!(item.model_code || item.description),
+  is_approved:    item.is_approved,
 })
 
 const isMissingData     = (item: QuotationItemRow) => isProductRow(item) && !item.description && !item.model_code
@@ -455,17 +487,26 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const handleModalSave = (data: Omit<QuotationItemRow, '_id'>, id?: string) => {
     if (id) {
+      // Edit: preserve the existing is_approved; modal doesn't control approval
       setLocalItems((prev) =>
-        prev.map((item) => (item._id === id ? { ...item, ...data } : item))
+        prev.map((item) => (item._id === id ? { ...item, ...data, is_approved: item.is_approved } : item))
       )
     } else {
-      setLocalItems((prev) => [...prev, { ...data, _id: crypto.randomUUID() }])
+      // New item: start as pending (null) so user can decide to approve/reject
+      setLocalItems((prev) => [...prev, { ...data, _id: crypto.randomUUID(), is_approved: null }])
     }
     setIsDirty(true)
   }
 
   const handleRemove = (id: string) => {
     setLocalItems((prev) => prev.filter((item) => item._id !== id))
+    setIsDirty(true)
+  }
+
+  const handleApprovalChange = (id: string, value: boolean | null) => {
+    setLocalItems((prev) =>
+      prev.map((item) => item._id === id ? { ...item, is_approved: value } : item)
+    )
     setIsDirty(true)
   }
 
@@ -583,6 +624,17 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   // ── Create order from approved quotation ────────────────────────
   const handleCreateOrder = async () => {
     try {
+      // Auto-save pending changes before creating the order so all items (including
+      // post-approval additions and their is_approved state) are persisted first.
+      if (isDirty) {
+        await updateQuotation.mutateAsync({
+          id:            quotation.id,
+          name:          localQuotationName,
+          customer_name: localName,
+          items:         localItems,
+        })
+        setIsDirty(false)
+      }
       const result = await createOrderMutation.mutateAsync(quotation.id)
       toast.success(`Orden creada con ${result.items_count} producto(s)`)
       push(`/dashboard/orders/${result.order_id}`)
@@ -609,30 +661,27 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const partialTotal = calculateQuotationTotal(rawProductItems)
 
-  const dbProductItems = quotation.quotation_items.filter(isProductRow)
-  const approvedCount   = dbProductItems.filter((i) => i.is_approved === true).length
-  const rejectedCount   = dbProductItems.filter((i) => i.is_approved === false).length
-  const pendingCount    = dbProductItems.filter((i) => i.is_approved === null).length
+  // Use local state for counts so new/modified items are reflected immediately
+  const approvedCount = rawProductItems.filter((i) => i.is_approved === true).length
+  const rejectedCount = rawProductItems.filter((i) => i.is_approved === false).length
+  const pendingCount  = rawProductItems.filter((i) => i.is_approved == null).length
   const noDataCount     = isDraft ? rawProductItems.filter(isMissingData).length : 0
   const noQuantityCount = isDraft ? rawProductItems.filter(isMissingQuantity).length : 0
-  const totalCount      = isDraft
-    ? rawProductItems.length
-    : dbProductItems.length
+  const totalCount      = rawProductItems.length
 
   const canSendForApproval =
     localQuotationName.trim().length > 0 &&
     localName.trim().length > 0 &&
     localItems.some(isProductRow)
 
-  // Filter by approval status — separators always pass through
+  // Filter by approval status — separators always pass through; use local is_approved
   const filteredItems: QuotationItemRow[] =
     hasApprovalData && approvalFilter !== 'all'
       ? rawItems.filter((item) => {
           if (item.item_type === 'separator') return true
-          const dbItem = quotation.quotation_items.find((i) => i.id === item._id)
-          if (approvalFilter === 'approved') return dbItem?.is_approved === true
-          if (approvalFilter === 'rejected') return dbItem?.is_approved === false
-          if (approvalFilter === 'pending')  return dbItem?.is_approved === null
+          if (approvalFilter === 'approved') return item.is_approved === true
+          if (approvalFilter === 'rejected') return item.is_approved === false
+          if (approvalFilter === 'pending')  return item.is_approved == null
           return true
         })
       : rawItems
@@ -740,9 +789,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               <AlertDialogTrigger asChild>
                 <Button
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={createOrderMutation.isPending}
+                  disabled={createOrderMutation.isPending || updateQuotation.isPending}
                 >
-                  {createOrderMutation.isPending
+                  {(createOrderMutation.isPending || updateQuotation.isPending)
                     ? <Loader2 className="mr-2 size-4 animate-spin" />
                     : <ShoppingCart className="mr-2 size-4" />}
                   Generar Orden
@@ -753,8 +802,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   <AlertDialogTitle>¿Generar orden de venta?</AlertDialogTitle>
                   <AlertDialogDescription>
                     Se creará una orden con los{' '}
-                    {quotation.quotation_items.filter((i) => i.is_approved === true).length}{' '}
-                    productos aprobados. Se verificará el stock disponible y se descontará
+                    {approvedCount}{' '}
+                    producto(s) marcados como aprobados.
+                    {isDirty && ' Los cambios pendientes se guardarán automáticamente.'}
+                    {' '}Se verificará el stock disponible y se descontará
                     automáticamente del inventario. Esta acción no se puede deshacer.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -1030,7 +1081,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                     ? 'Agrega, edita o elimina productos antes de enviar a aprobación'
                     : isSentForApproval
                       ? 'Puedes editar precio, cantidad y entrega mientras el cliente revisa'
-                      : 'Agrega o edita productos — los nuevos quedan aprobados automáticamente'}
+                      : 'Agrega productos y usa los botones ✓ / ✗ para aprobar o rechazar cada uno'}
                 </CardDescription>
               )}
             </div>
@@ -1126,10 +1177,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                             isDndEnabled={isDndEnabled}
                             isApproved={isApproved}
                             isSentForApproval={isSentForApproval}
-                            dbItem={quotation.quotation_items.find((i) => i.id === item._id)}
                             onEdit={handleEdit}
                             onRemove={handleRemove}
                             onAddSeparatorAfter={handleAddSeparatorAfter}
+                            onApprovalChange={handleApprovalChange}
                           />
                         )
                       )
