@@ -19,7 +19,8 @@ import { Plus, Pencil, Trash2, AlertTriangle, AlertCircle, CheckCircle2, GripVer
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ProductModal, DELIVERY_TIME_LABELS } from './ProductModal'
+import { ProductModal } from './ProductModal'
+import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { useQuotationStore } from '@/stores/quotationStore'
 import { useCurrency } from '@/hooks/useCurrency'
 import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
@@ -76,19 +77,19 @@ function SortableSeparatorRow({ item, onLabelChange, onRemove, colSpan }: Sortab
       style={style}
       className={`border-b border-dashed border-border/60 bg-muted/30 ${isDragging ? 'shadow-lg' : ''}`}
     >
-      <td className="px-2 py-2 w-8">
-        <button
+      <td className="p-2  w-8">
+        <button type="button"
           {...attributes}
           {...listeners}
           className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
           aria-label="Arrastrar separador"
         >
-          <GripVertical className="h-4 w-4" />
+          <GripVertical className="size-4" />
         </button>
       </td>
       <td colSpan={colSpan - 2} className="px-4 py-2">
         <div className="flex items-center gap-2">
-          <SeparatorHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <SeparatorHorizontal className="size-3.5 text-muted-foreground shrink-0" />
           <Input
             value={item.section_label ?? ''}
             onChange={(e) => onLabelChange(item._id, e.target.value)}
@@ -100,10 +101,10 @@ function SortableSeparatorRow({ item, onLabelChange, onRemove, colSpan }: Sortab
       <td className="px-4 py-2 text-center">
         <Button
           size="icon" variant="ghost"
-          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => onRemove(item._id)}
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="size-3.5" />
           <span className="sr-only">Eliminar separador</span>
         </Button>
       </td>
@@ -138,13 +139,13 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
       className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''}`}
     >
       <td className="px-2 py-3 w-8">
-        <button
+        <button type="button"
           {...attributes}
           {...listeners}
           className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
           aria-label="Arrastrar para reordenar"
         >
-          <GripVertical className="h-4 w-4" />
+          <GripVertical className="size-4" />
         </button>
       </td>
       <td className="px-4 py-3 font-mono text-xs font-medium">{item.etm}</td>
@@ -156,18 +157,18 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
         )}
       </td>
       <td className="px-4 py-3 font-mono text-xs">
-        {item.model_code || <span className="text-muted-foreground">—</span>}
+        {item.model_code || <span className="text-muted-foreground">{'\u2014'}</span>}
       </td>
       <td className="px-4 py-3">
-        {item.brand || <span className="text-muted-foreground">—</span>}
+        {item.brand || <span className="text-muted-foreground">{'\u2014'}</span>}
       </td>
       <td className="px-4 py-3 text-right tabular-nums">
         {item.unit_price != null
           ? fmt(item.unit_price)
-          : <span className="text-muted-foreground">—</span>}
+          : <span className="text-muted-foreground">{'\u2014'}</span>}
       </td>
       <td className="px-4 py-3 text-right tabular-nums">
-        {item.quantity != null ? item.quantity : <span className="text-muted-foreground">—</span>}
+        {item.quantity != null ? item.quantity : <span className="text-muted-foreground">{'\u2014'}</span>}
       </td>
       <td className="px-4 py-3 text-right tabular-nums">
         {item.unit_price != null && item.quantity != null ? (
@@ -175,7 +176,7 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
             {fmt(item.unit_price * item.quantity)}
           </span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground">{'\u2014'}</span>
         )}
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
@@ -192,23 +193,23 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
         <div className="flex items-center justify-center gap-1">
           <Button
             size="icon" variant="ghost"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className="size-7 text-muted-foreground hover:text-foreground"
             title="Insertar separador debajo"
             onClick={() => onAddSeparatorAfter(item._id)}
           >
-            <SeparatorHorizontal className="h-3.5 w-3.5" />
+            <SeparatorHorizontal className="size-3.5" />
             <span className="sr-only">Insertar separador</span>
           </Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(item)}>
-            <Pencil className="h-3.5 w-3.5" />
+          <Button size="icon" variant="ghost" className="size-7" onClick={() => onEdit(item)}>
+            <Pencil className="size-3.5" />
             <span className="sr-only">Editar</span>
           </Button>
           <Button
             size="icon" variant="ghost"
-            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={() => onRemove(item._id)}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="size-3.5" />
             <span className="sr-only">Eliminar</span>
           </Button>
         </div>
@@ -278,7 +279,7 @@ export function QuotationEditor() {
           </div>
           <div className="rounded-lg border bg-card px-4 py-3 space-y-0.5">
             <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-green-500" /> Completos
+              <CheckCircle2 className="size-3 text-green-500" /> Completos
             </p>
             <p className="text-xl font-bold text-green-600 dark:text-green-400">{completeCount}</p>
           </div>
@@ -288,7 +289,7 @@ export function QuotationEditor() {
               : 'bg-card'
           }`}>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3 text-yellow-500" /> Sin cantidad
+              <AlertTriangle className="size-3 text-yellow-500" /> Sin cantidad
             </p>
             <p className={`text-xl font-bold ${
               noQuantityCount > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-muted-foreground'
@@ -300,7 +301,7 @@ export function QuotationEditor() {
               : 'bg-card'
           }`}>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <AlertCircle className="h-3 w-3 text-orange-500" /> Sin datos
+              <AlertCircle className="size-3 text-orange-500" /> Sin datos
             </p>
             <p className={`text-xl font-bold ${
               noDataCount > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'
@@ -325,7 +326,7 @@ export function QuotationEditor() {
           )}
         </div>
         <Button size="sm" onClick={handleCreate}>
-          <Plus className="h-4 w-4 mr-1.5" />
+          <Plus className="size-4 mr-1.5" />
           Agregar producto
         </Button>
       </div>
@@ -339,15 +340,15 @@ export function QuotationEditor() {
         <div className="space-y-2">
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm bg-orange-200 dark:bg-orange-800" />
+              <span className="inline-block size-3 rounded-sm bg-orange-200 dark:bg-orange-800" />
               Sin datos
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm bg-muted-foreground/30" />
+              <span className="inline-block size-3 rounded-sm bg-muted-foreground/30" />
               Sin código modelo
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm bg-yellow-200 dark:bg-yellow-800" />
+              <span className="inline-block size-3 rounded-sm bg-yellow-200 dark:bg-yellow-800" />
               Sin cantidad
             </span>
           </div>
@@ -356,7 +357,7 @@ export function QuotationEditor() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="px-2 py-3 w-8" />
+                  <th className="px-2 py-3 w-8"><span className="sr-only">Reordenar</span></th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">ETM</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Descripción</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Código</th>
@@ -405,9 +406,9 @@ export function QuotationEditor() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSave={handleModalSave}
-        existingEtms={items
-          .filter((i) => isProductItem(i) && i._id !== selectedItem?._id)
-          .map((i) => i.etm)}
+        existingEtms={items.flatMap((i) =>
+          isProductItem(i) && i._id !== selectedItem?._id ? [i.etm] : []
+        )}
       />
     </div>
   )

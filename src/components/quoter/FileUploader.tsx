@@ -87,7 +87,7 @@ export function FileUploader({ onFileSelected, isLoading }: FileUploaderProps) {
           {file ? (
             <div className="flex flex-col items-center gap-4">
               <div className="flex items-center gap-3">
-                <FileSpreadsheet className="h-12 w-12 text-green-600" />
+                <FileSpreadsheet className="size-12 text-green-600" />
                 <div>
                   <p className="font-medium text-lg">{file.name}</p>
                   <p className="text-sm text-muted-foreground">
@@ -101,14 +101,14 @@ export function FileUploader({ onFileSelected, isLoading }: FileUploaderProps) {
                   onClick={handleClear}
                   disabled={isLoading}
                 >
-                  <X className="h-4 w-4" />
+                  <X className="size-4" />
                 </Button>
               </div>
               <Button onClick={handleProcess} disabled={isLoading} size="lg">
                 {isLoading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Procesando...
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Procesando…
                   </>
                 ) : (
                   'Procesar archivo'
@@ -117,7 +117,7 @@ export function FileUploader({ onFileSelected, isLoading }: FileUploaderProps) {
             </div>
           ) : (
             <>
-              <Upload className="mb-4 h-12 w-12 text-muted-foreground" />
+              <Upload className="mb-4 size-12 text-muted-foreground" />
               <p className="mb-2 text-lg font-medium">
                 Arrastra un archivo Excel aqui
               </p>
@@ -136,6 +136,7 @@ export function FileUploader({ onFileSelected, isLoading }: FileUploaderProps) {
           <input
             ref={fileInputRef}
             type="file"
+            aria-label="Seleccionar archivo Excel"
             accept=".xlsx,.xls,.xlsm"
             onChange={handleFileSelect}
             className="hidden"
