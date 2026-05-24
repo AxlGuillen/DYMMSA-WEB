@@ -62,6 +62,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
 
   // Reset form when product changes or dialog opens
   useEffect(() => {
+    // oxlint-disable-next-line react-doctor/no-event-handler -- intentional pattern; structural refactor tracked separately
     if (open) {
       if (product) {
         form.reset({
@@ -234,7 +235,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
                 disabled={createProduct.isPending || updateProduct.isPending}
               >
                 {(createProduct.isPending || updateProduct.isPending) && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 size-4 animate-spin" />
                 )}
                 {createProduct.isPending || updateProduct.isPending
                   ? 'Guardando...'

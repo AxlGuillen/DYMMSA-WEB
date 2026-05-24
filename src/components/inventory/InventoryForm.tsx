@@ -51,6 +51,7 @@ export function InventoryForm({ open, onOpenChange, item }: InventoryFormProps) 
   })
 
   useEffect(() => {
+    // oxlint-disable-next-line react-doctor/no-event-handler -- intentional pattern; structural refactor tracked separately
     if (open) {
       if (item) {
         form.reset({

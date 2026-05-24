@@ -52,7 +52,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
       <TableRow>
         <TableHead className="w-[220px]">Código Modelo</TableHead>
         <TableHead className="w-[160px]">
-          <button
+          <button type="button"
             onClick={onSortQuantity}
             className="flex items-center gap-1.5 hover:text-foreground transition-colors font-medium"
           >
@@ -107,7 +107,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                 <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                <TableCell><Skeleton className="size-8 rounded-md" /></TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -119,14 +119,14 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center rounded-md border">
-        <Package className="h-12 w-12 text-muted-foreground/40 mb-4" />
+        <Package className="size-12 text-muted-foreground/40 mb-4" />
         <p className="font-medium text-muted-foreground">No hay productos en el inventario</p>
         <p className="text-sm text-muted-foreground/70 mt-1">
           Agrega productos manualmente o importa desde Excel.
         </p>
         {onAdd && (
           <Button className="mt-4" onClick={onAdd}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 size-4" />
             Agregar Producto
           </Button>
         )}
@@ -154,19 +154,19 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
+                        <MoreHorizontal className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => onEdit(item)}>
-                        <Pencil className="mr-2 h-4 w-4" />
+                        <Pencil className="mr-2 size-4" />
                         Editar
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
                         onClick={() => setDeleteId(item.id)}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="mr-2 size-4" />
                         Eliminar
                       </DropdownMenuItem>
                     </DropdownMenuContent>
