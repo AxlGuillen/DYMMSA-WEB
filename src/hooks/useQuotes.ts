@@ -12,6 +12,9 @@ interface LookupResponse {
  * Hook para buscar ETMs en la base de datos
  */
 export function useLookupEtms() {
+  // Lookup-only mutation: it reads matching ETMs and mutates no server state,
+  // so there is no cache to invalidate.
+  // oxlint-disable-next-line react-doctor/query-mutation-missing-invalidation
   return useMutation({
     mutationFn: async (etmCodes: string[]): Promise<LookupResponse> => {
       const response = await fetch('/api/quotes/lookup', {

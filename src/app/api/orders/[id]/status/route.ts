@@ -33,6 +33,7 @@ export async function PATCH(
       .eq('id', id)
       .single()
 
+    // oxlint-disable-next-line react-doctor/nextjs-no-redirect-in-try-catch -- custom notFound() helper returns a NextResponse, not Next navigation
     if (!order) return notFound('Orden no encontrada')
 
     const { data, error } = await supabase
