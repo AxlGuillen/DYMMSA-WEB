@@ -110,7 +110,7 @@ export async function POST(
     // Recalculate order total
     const { data: allItems } = await supabase
       .from('order_items')
-      .select('unit_price, quantity_approved')
+      .select('unit_price, quantity_approved, item_type')
       .eq('order_id', id)
 
     const newTotal = calculateOrderTotal(allItems ?? [])

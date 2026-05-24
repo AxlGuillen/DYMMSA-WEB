@@ -49,6 +49,7 @@ export async function POST(
 
     // Sequential: items may share model_code — parallel reads would cause inventory race conditions
     for (const item of input.items) {
+      // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
       const { data: currentItem } = await supabase
         .from('order_items')
         .select('model_code')
@@ -94,7 +95,7 @@ export async function POST(
     // - quantity_received: only if not marked as not_supplied
     const { data: allItems } = await supabase
       .from('order_items')
-      .select('quantity_in_stock, quantity_received, urrea_status, unit_price')
+      .select('quantity_in_stock, quantity_received, urrea_status, unit_price, item_type')
       .eq('order_id', orderId)
 
     if (allItems) {

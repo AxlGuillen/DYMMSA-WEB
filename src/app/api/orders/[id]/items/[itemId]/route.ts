@@ -39,7 +39,7 @@ async function recalculateTotal(
 ) {
   const { data: allItems } = await supabase
     .from('order_items')
-    .select('unit_price, quantity_approved')
+    .select('unit_price, quantity_approved, item_type')
     .eq('order_id', orderId)
 
   const newTotal = calculateOrderTotal(allItems ?? [])
@@ -85,6 +85,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return NextResponse.json({ message: 'Sin cambios' }, { status: 400 })
     }
 
+    // The write must complete before responding; nothing to defer past a guard.
+    // oxlint-disable-next-line react-doctor/async-defer-await
     await supabase.from('order_items').update(updates).eq('id', itemId)
 
     if (updates.unit_price != null) {
