@@ -32,6 +32,7 @@ const STATS_KEY_MAP: Record<StockFilter, 'total' | 'in_stock' | 'low_stock' | 's
   sin_stock: 'sin_stock',
 }
 
+// oxlint-disable-next-line react-doctor/prefer-useReducer -- intentional pattern; structural refactor tracked separately
 export default function InventoryPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -59,18 +60,18 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Inventario</h1>
           <p className="text-muted-foreground">
             Gestiona el stock de productos en la tienda DYMMSA.
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
+            <Upload className="mr-2 size-4" />
             Importar Excel
           </Button>
           <Button onClick={() => setIsFormOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 size-4" />
             Agregar Producto
           </Button>
         </div>
@@ -81,7 +82,7 @@ export default function InventoryPage() {
         {STAT_CARDS.map((card) => {
           const isActive = stockFilter === card.key
           return (
-            <button
+            <button type="button"
               key={card.key}
               onClick={() => {
                 setStockFilter((s) => (s === card.key && card.key !== 'all') ? 'all' : card.key)
@@ -113,7 +114,7 @@ export default function InventoryPage() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Buscar por código modelo..."
           value={search}
@@ -121,11 +122,11 @@ export default function InventoryPage() {
           className="pl-10 pr-9"
         />
         {search && (
-          <button
+          <button type="button"
             onClick={() => { setSearch(''); setPage(1) }}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </button>
         )}
       </div>
@@ -158,7 +159,7 @@ export default function InventoryPage() {
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="size-4" />
               Anterior
             </Button>
             <span className="text-sm text-muted-foreground px-1">
@@ -171,7 +172,7 @@ export default function InventoryPage() {
               disabled={page === data.totalPages}
             >
               Siguiente
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>

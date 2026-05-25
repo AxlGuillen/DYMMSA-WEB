@@ -21,6 +21,7 @@ export function ThemeToggle() {
       return
     }
 
+    // oxlint-disable-next-line react-doctor/no-document-start-view-transition -- intentional View Transitions API for theme toggle animation
     const transition = document.startViewTransition(() => {
       setTheme(newTheme)
     })
@@ -49,8 +50,8 @@ export function ThemeToggle() {
       onClick={toggleTheme}
       aria-label="Cambiar tema"
     >
-      <Sun className="h-5 w-5 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-      <Moon className="absolute h-5 w-5 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+      <Sun className="size-5 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+      <Moon className="absolute size-5 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
     </Button>
   )
 }

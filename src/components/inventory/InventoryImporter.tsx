@@ -94,7 +94,7 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
             <input {...getInputProps()} />
             {file ? (
               <div className="flex flex-col items-center gap-2">
-                <FileSpreadsheet className="h-10 w-10 text-green-600" />
+                <FileSpreadsheet className="size-10 text-green-600" />
                 <p className="font-medium">{file.name}</p>
                 <p className="text-sm text-muted-foreground">
                   {(file.size / 1024).toFixed(1)} KB
@@ -102,7 +102,7 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2">
-                <Upload className="h-10 w-10 text-muted-foreground" />
+                <Upload className="size-10 text-muted-foreground" />
                 <p>Arrastra un archivo Excel o haz click para seleccionar</p>
                 <p className="text-sm text-muted-foreground">
                   .xlsx, .xls, .xlsm
@@ -115,7 +115,7 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
           <div className="space-y-3">
             <Label className="text-base">Modo de importacion</Label>
             <RadioGroup value={mode} onValueChange={(v: string) => setMode(v as 'upsert' | 'replace')}>
-              <div className="flex items-start space-x-3 rounded-md border p-3">
+              <div className="flex items-start gap-x-3 rounded-md border p-3">
                 <RadioGroupItem value="upsert" id="upsert" className="mt-1" />
                 <div className="space-y-1">
                   <Label htmlFor="upsert" className="font-medium cursor-pointer">
@@ -126,12 +126,12 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
                   </p>
                 </div>
               </div>
-              <div className="flex items-start space-x-3 rounded-md border border-yellow-200 bg-yellow-50/50 p-3">
+              <div className="flex items-start gap-x-3 rounded-md border border-yellow-200 bg-yellow-50/50 p-3">
                 <RadioGroupItem value="replace" id="replace" className="mt-1" />
                 <div className="space-y-1">
                   <Label htmlFor="replace" className="font-medium cursor-pointer flex items-center gap-2">
                     Reemplazar todo
-                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                    <AlertTriangle className="size-4 text-yellow-600" />
                   </Label>
                   <p className="text-sm text-muted-foreground">
                     Elimina todo el inventario actual y lo reemplaza con el archivo

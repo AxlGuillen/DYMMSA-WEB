@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const { push, refresh } = useRouter()
   const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -37,16 +37,16 @@ export default function LoginPage() {
     }
 
     toast.success('Sesion iniciada correctamente')
-    router.push('/dashboard')
-    router.refresh()
+    push('/dashboard')
+    refresh()
   }
 
   return (
     <div className="login-page-bg relative flex min-h-screen items-center justify-center overflow-hidden p-4">
       {/* Ambient glows — light: soft rose / dark: deep red */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-56 -top-56 h-[580px] w-[580px] rounded-full bg-rose-300/15 blur-[180px] dark:bg-red-950/35" />
-        <div className="absolute -bottom-56 -right-56 h-[580px] w-[580px] rounded-full bg-red-200/20 blur-[180px] dark:bg-red-900/20" />
+        <div className="absolute -left-56 -top-56 size-[580px] rounded-full bg-rose-300/15 blur-[180px] dark:bg-red-950/35" />
+        <div className="absolute -bottom-56 -right-56 size-[580px] rounded-full bg-red-200/20 blur-[180px] dark:bg-red-900/20" />
       </div>
 
       {/* Card with rotating border */}
@@ -97,7 +97,7 @@ export default function LoginPage() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 hover:cursor-pointer"
                     aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
                 </div>
               </div>

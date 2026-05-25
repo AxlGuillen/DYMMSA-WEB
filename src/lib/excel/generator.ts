@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
+import { sanitizeFilename, formatISODate } from '@/lib/format'
 import type { EtmProduct, OrderItem } from '@/types/database'
 
 /**
@@ -324,8 +325,8 @@ export function downloadDeliveryExcel(blob: Blob, customerName: string) {
   const link = document.createElement('a')
   link.href = url
 
-  const date = new Date().toISOString().split('T')[0]
-  const safeName = customerName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  const date = formatISODate()
+  const safeName = sanitizeFilename(customerName)
   link.download = `entrega_${safeName}_${date}.xlsx`
 
   document.body.appendChild(link)
@@ -342,8 +343,8 @@ export function downloadUrreaOrder(blob: Blob, customerName: string) {
   const link = document.createElement('a')
   link.href = url
 
-  const date = new Date().toISOString().split('T')[0]
-  const safeName = customerName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  const date = formatISODate()
+  const safeName = sanitizeFilename(customerName)
   link.download = `pedido_urrea_${safeName}_${date}.xlsm`
 
   document.body.appendChild(link)

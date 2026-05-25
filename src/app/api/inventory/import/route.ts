@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/api-helpers'
 
 interface ExcelRow {
   MODEL_CODE?: string
@@ -11,14 +12,8 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Verify user is authenticated
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json(
-        { message: 'No autorizado' },
-        { status: 401 }
-      )
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
 
     const formData = await request.formData()
     const file = formData.get('file') as File
@@ -90,6 +85,7 @@ export async function POST(request: NextRequest) {
 
       if (mode === 'replace') {
         // In replace mode, just insert all
+        // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { error } = await supabase
           .from('store_inventory')
           .insert({ model_code: modelCode, quantity: safeQuantity })

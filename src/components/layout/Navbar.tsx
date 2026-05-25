@@ -101,7 +101,7 @@ export function Navbar() {
                     isLinkActive(link.href, link.exact) && 'bg-accent'
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="size-4" />
                   {link.label}
                 </Link>
               )
@@ -110,14 +110,14 @@ export function Navbar() {
             {/* ETM - URREA Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <button type="button"
                   className={cn(
                     'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
                     isEtmUrreaActive && 'bg-accent'
                   )}
                 >
                   ETM - Catálogo
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="size-4" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -133,7 +133,7 @@ export function Navbar() {
                           isActive && 'bg-accent'
                         )}
                       >
-                        <Icon className="h-4 w-4" />
+                        <Icon className="size-4" />
                         {link.label}
                       </Link>
                     </DropdownMenuItem>
@@ -149,12 +149,12 @@ export function Navbar() {
           <ThemeToggle />
           <Button variant="ghost" size="icon" asChild>
             <Link href="/dashboard/docs">
-              <CircleHelp className="h-5 w-5" />
+              <CircleHelp className="size-5" />
               <span className="sr-only">Documentacion</span>
             </Link>
           </Button>
           <Button variant="outline" size="sm" onClick={() => setConfirmOpen(true)}>
-            <LogOut className="mr-2 h-4 w-4" />
+            <LogOut className="mr-2 size-4" />
             Cerrar sesión
           </Button>
         </div>
@@ -163,7 +163,7 @@ export function Navbar() {
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="md:hidden">
             <Button variant="ghost" size="icon">
-              <Menu className="h-6 w-6" />
+              <Menu className="size-6" />
               <span className="sr-only">Abrir menu</span>
             </Button>
           </SheetTrigger>
@@ -185,7 +185,7 @@ export function Navbar() {
                       isLinkActive(link.href, link.exact) && 'bg-accent'
                     )}
                   >
-                    <Icon className="h-5 w-5" />
+                    <Icon className="size-5" />
                     {link.label}
                   </Link>
                 )
@@ -199,7 +199,7 @@ export function Navbar() {
                   pathname.startsWith('/dashboard/docs') && 'bg-accent'
                 )}
               >
-                <CircleHelp className="h-5 w-5" />
+                <CircleHelp className="size-5" />
                 Documentacion
               </Link>
 
@@ -220,7 +220,7 @@ export function Navbar() {
                         pathname.startsWith(link.href) && 'bg-accent'
                       )}
                     >
-                      <Icon className="h-5 w-5" />
+                      <Icon className="size-5" />
                       {link.label}
                     </Link>
                   )
@@ -241,7 +241,7 @@ export function Navbar() {
                     setConfirmOpen(true)
                   }}
                 >
-                  <LogOut className="mr-2 h-4 w-4" />
+                  <LogOut className="mr-2 size-4" />
                   Cerrar sesión
                 </Button>
               </div>

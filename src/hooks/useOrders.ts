@@ -170,19 +170,19 @@ export function useCreateOrder() {
 
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient()
-  const supabase = createClient()
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: OrderStatus }) => {
-      const { data, error } = await supabase
-        .from('orders')
-        .update({ status })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
+      const response = await fetch(`/api/orders/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al actualizar el estado')
+      }
+      return response.json()
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
@@ -235,6 +235,24 @@ export function useCancelOrder() {
     onSuccess: (_, orderId) => {
       queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
       queryClient.invalidateQueries({ queryKey: [...ORDERS_KEY, orderId] })
+    },
+  })
+}
+
+export function useDeleteOrder() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const response = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al eliminar orden')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
     },
   })
 }
@@ -355,18 +373,12 @@ export function useRemoveOrderItem() {
 }
 
 export function useOrderByQuotationId(quotationId: string, enabled: boolean) {
-  const supabase = createClient()
-
   return useQuery({
     queryKey: [...ORDERS_KEY, 'by-quotation', quotationId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('id, name, status')
-        .eq('quotation_id', quotationId)
-        .single()
-      if (error) return null
-      return data as { id: string; name: string; status: string } | null
+      const response = await fetch(`/api/orders/by-quotation/${quotationId}`)
+      if (!response.ok) return null
+      return response.json() as Promise<{ id: string; name: string; status: string } | null>
     },
     enabled: !!quotationId && enabled,
   })
@@ -396,6 +408,8 @@ export function useUpdateOrderOdooId() {
 }
 
 export function useAutoLearn() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: async (products: CreateOrderInput['products']) => {
       const response = await fetch('/api/orders/auto-learn', {
@@ -410,6 +424,10 @@ export function useAutoLearn() {
       }
 
       return response.json()
+    },
+    onSuccess: () => {
+      // Auto-learn updates etm_products; invalidate catalog so DB page stays fresh
+      queryClient.invalidateQueries({ queryKey: ['products'] })
     },
   })
 }

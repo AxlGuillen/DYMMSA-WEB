@@ -94,6 +94,7 @@ async function execSQLDirect(label: string, sql: string): Promise<boolean> {
   ]
 
   for (const endpoint of endpoints) {
+    // oxlint-disable-next-line react-doctor/async-await-in-loop -- one-off migration script (not app code); sequential by design
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -110,6 +111,7 @@ async function execSQLDirect(label: string, sql: string): Promise<boolean> {
     }
 
     const body = await response.text()
+    // oxlint-disable-next-line react-doctor/js-set-map-lookups -- one-off migration script (not app code); sequential by design
     if (!body.includes('invalid') && !body.includes('not found')) {
       console.error(`  [FAIL] ${label} (via ${endpoint})`)
       console.error(`         ${body}`)
@@ -209,6 +211,7 @@ ALTER TABLE order_items ADD COLUMN IF NOT EXISTS description_es TEXT;`
   console.log('Attempting execution via direct SQL endpoint...\n')
   for (const block of blocks) {
     console.log(`Running: ${block.label}`)
+    // oxlint-disable-next-line react-doctor/async-await-in-loop -- one-off migration script (not app code); sequential by design
     await execSQLDirect(block.label, block.sql)
   }
 }

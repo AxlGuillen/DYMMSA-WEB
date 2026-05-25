@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { allocateInventory, calculateOrderTotal } from '@/lib/business-rules'
+import { requireAuth } from '@/lib/api-helpers'
 
 interface AddOrderItemInput {
   etm: string
@@ -18,8 +20,9 @@ export async function POST(
     const { id } = await params
     const supabase = await createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     const { data: order } = await supabase
       .from('orders')
@@ -57,8 +60,9 @@ export async function POST(
         .single()
 
       if (inv) {
-        quantityInStock = Math.min(quantity_approved, inv.quantity)
-        quantityToOrder = quantity_approved - quantityInStock
+        const allocation = allocateInventory(quantity_approved, inv.quantity)
+        quantityInStock = allocation.inStock
+        quantityToOrder = allocation.toOrder
 
         if (quantityInStock > 0) {
           await supabase
@@ -106,13 +110,10 @@ export async function POST(
     // Recalculate order total
     const { data: allItems } = await supabase
       .from('order_items')
-      .select('unit_price, quantity_approved')
+      .select('unit_price, quantity_approved, item_type')
       .eq('order_id', id)
 
-    const newTotal = (allItems ?? []).reduce(
-      (sum, i) => sum + i.unit_price * i.quantity_approved,
-      0
-    )
+    const newTotal = calculateOrderTotal(allItems ?? [])
     await supabase.from('orders').update({ total_amount: newTotal }).eq('id', id)
 
     return NextResponse.json({ item: newItem, total_amount: newTotal })

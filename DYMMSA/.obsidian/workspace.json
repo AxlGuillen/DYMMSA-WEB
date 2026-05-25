@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "1bcff6bb39866459",
+        "id": "3b4eea01ac0ae4d1",
         "type": "tabs",
         "children": [
           {
-            "id": "e2ee505dfd81a310",
+            "id": "27d5b59d6bf02911",
             "type": "leaf",
             "state": {
-              "type": "graph",
+              "type": "empty",
               "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Vista gráfica"
+              "icon": "lucide-file",
+              "title": "Nueva pestaña"
             }
           }
         ]
@@ -176,11 +176,12 @@
       "bases:Crear nueva base": false
     }
   },
-  "active": "e2ee505dfd81a310",
+  "active": "27d5b59d6bf02911",
   "lastOpenFiles": [
+    "Sin título.base",
+    "00-Inicio/README.md",
     "01-Negocio/Flujo-Operacional.md",
     "01-Negocio/Contexto-DYMMSA.md",
-    "00-Inicio/README.md",
     "Bienvenido.md",
     "06-Changelog/2026-04.md",
     "05-Fases/Fase-6-Mejoras.md",
@@ -203,7 +204,6 @@
     "03-Modulos/Catalogo-ETM.md",
     "03-Modulos/Autenticacion.md",
     "02-Arquitectura/API-Routes.md",
-    "02-Arquitectura/Base-de-Datos.md",
     "06-Changelog",
     "05-Fases",
     "04-Decisiones-Tecnicas",

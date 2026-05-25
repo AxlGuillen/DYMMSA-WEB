@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { calculateDeliveredTotal } from '@/lib/business-rules'
+import { requireAuth } from '@/lib/api-helpers'
 import type { ConfirmReceptionInput } from '@/types/database'
 
 export async function POST(
@@ -10,13 +12,8 @@ export async function POST(
     const { id: orderId } = await context.params
     const supabase = await createClient()
 
-    // Get authenticated user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
 
     const input = (await request.json()) as ConfirmReceptionInput
 
@@ -50,9 +47,9 @@ export async function POST(
 
     let inventoryUpdated = 0
 
-    // Update each item
+    // Sequential: items may share model_code — parallel reads would cause inventory race conditions
     for (const item of input.items) {
-      // Get current item to find model_code
+      // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
       const { data: currentItem } = await supabase
         .from('order_items')
         .select('model_code')
@@ -61,7 +58,6 @@ export async function POST(
 
       if (!currentItem) continue
 
-      // Update order item
       await supabase
         .from('order_items')
         .update({
@@ -70,9 +66,7 @@ export async function POST(
         })
         .eq('id', item.id)
 
-      // If received quantity > 0, add to inventory
       if (item.quantity_received > 0) {
-        // Check if item exists in inventory
         const { data: inventory } = await supabase
           .from('store_inventory')
           .select('id, quantity')
@@ -80,13 +74,11 @@ export async function POST(
           .single()
 
         if (inventory) {
-          // Update existing
           await supabase
             .from('store_inventory')
             .update({ quantity: inventory.quantity + item.quantity_received })
             .eq('id', inventory.id)
         } else {
-          // Create new inventory entry
           await supabase
             .from('store_inventory')
             .insert({
@@ -103,17 +95,11 @@ export async function POST(
     // - quantity_received: only if not marked as not_supplied
     const { data: allItems } = await supabase
       .from('order_items')
-      .select('quantity_in_stock, quantity_received, urrea_status, unit_price')
+      .select('quantity_in_stock, quantity_received, urrea_status, unit_price, item_type')
       .eq('order_id', orderId)
 
     if (allItems) {
-      const newTotal = allItems.reduce((sum, item) => {
-        let quantityDelivered = item.quantity_in_stock
-        if (item.urrea_status !== 'not_supplied') {
-          quantityDelivered += item.quantity_received
-        }
-        return sum + quantityDelivered * item.unit_price
-      }, 0)
+      const newTotal = calculateDeliveredTotal(allItems)
 
       await supabase
         .from('orders')

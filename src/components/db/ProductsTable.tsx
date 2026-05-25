@@ -66,7 +66,7 @@ function SortableHead({
   const isActive = currentSort === col
   return (
     <TableHead className={className}>
-      <button
+      <button type="button"
         onClick={() => onSort?.(col)}
         className={`flex items-center gap-1 select-none transition-colors hover:text-foreground ${
           isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
@@ -75,12 +75,12 @@ function SortableHead({
         {children}
         {isActive ? (
           currentDir === 'asc' ? (
-            <ArrowUp className="h-3.5 w-3.5" />
+            <ArrowUp className="size-3.5" />
           ) : (
-            <ArrowDown className="h-3.5 w-3.5" />
+            <ArrowDown className="size-3.5" />
           )
         ) : (
-          <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
+          <ArrowUpDown className="size-3.5 opacity-30" />
         )}
       </button>
     </TableHead>
@@ -127,7 +127,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 <TableCell className="text-right"><Skeleton className="h-4 w-14 ml-auto" /></TableCell>
-                <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                <TableCell><Skeleton className="size-8 rounded-md" /></TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -153,7 +153,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
           </TableHeader>
         </Table>
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-          <PackageSearch className="h-10 w-10 text-muted-foreground/40" />
+          <PackageSearch className="size-10 text-muted-foreground/40" />
           <p className="text-sm font-medium text-muted-foreground">No se encontraron productos</p>
           <p className="text-xs text-muted-foreground/70">Intenta con otro término de búsqueda o agrega un producto nuevo.</p>
         </div>
@@ -184,7 +184,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="block truncate cursor-default">
-                        {product.description_es || <span className="text-muted-foreground/50">—</span>}
+                        {product.description_es || <span className="text-muted-foreground/50">{'\u2014'}</span>}
                       </span>
                     </TooltipTrigger>
                     {product.description_es && (
@@ -198,7 +198,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="block truncate cursor-default text-muted-foreground">
-                        {product.description || <span className="text-muted-foreground/50">—</span>}
+                        {product.description || <span className="text-muted-foreground/50">{'\u2014'}</span>}
                       </span>
                     </TooltipTrigger>
                     {product.description && (
@@ -221,19 +221,19 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                         size="icon"
                         className="opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        <MoreHorizontal className="h-4 w-4" />
+                        <MoreHorizontal className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => onEdit(product)}>
-                        <Pencil className="mr-2 h-4 w-4" />
+                        <Pencil className="mr-2 size-4" />
                         Editar
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={() => setDeleteTarget(product)}
                       >
-                        <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                        <Trash2 className="mr-2 size-4 text-destructive" />
                         Eliminar
                       </DropdownMenuItem>
                     </DropdownMenuContent>

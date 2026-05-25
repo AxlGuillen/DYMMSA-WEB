@@ -16,9 +16,9 @@ export function DiscreteModeToggle() {
       title={isDiscreteMode ? 'Modo discreto activo — precios ocultos' : 'Activar modo discreto'}
     >
       {isDiscreteMode ? (
-        <EyeOff className="h-5 w-5" />
+        <EyeOff className="size-5" />
       ) : (
-        <Eye className="h-5 w-5" />
+        <Eye className="size-5" />
       )}
     </Button>
   )

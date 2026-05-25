@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Trash2, FileText } from 'lucide-react'
+import { Trash2, FileText, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Table,
@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -28,30 +27,8 @@ import {
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { useDeleteQuotation } from '@/hooks/useQuotations'
 import { useCurrency } from '@/hooks/useCurrency'
+import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { QuotationWithCount } from '@/types/database'
-
-function formatRelative(dateStr: string): string {
-  const diff  = Date.now() - new Date(dateStr).getTime()
-  const mins  = Math.floor(diff / 60_000)
-  const hours = Math.floor(diff / 3_600_000)
-  const days  = Math.floor(diff / 86_400_000)
-  if (mins  <  2) return 'hace un momento'
-  if (mins  < 60) return `hace ${mins} min`
-  if (hours < 24) return `hace ${hours}h`
-  if (days  ===1) return 'ayer'
-  if (days  <  7) return `hace ${days} días`
-  if (days  < 30) return `hace ${Math.floor(days / 7)} sem`
-  return new Date(dateStr).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  })
-}
-
-function formatAbsolute(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
 
 interface QuotationsTableProps {
   quotations: QuotationWithCount[]
@@ -59,7 +36,7 @@ interface QuotationsTableProps {
 }
 
 export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps) {
-  const router = useRouter()
+  const { push } = useRouter()
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const deleteQuotation = useDeleteQuotation()
   const fmt = useCurrency()
@@ -112,7 +89,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
     return (
       <div className="rounded-md border p-16 flex flex-col items-center gap-4 text-center">
         <div className="rounded-full bg-muted p-4">
-          <FileText className="h-8 w-8 text-muted-foreground" />
+          <FileText className="size-8 text-muted-foreground" />
         </div>
         <div>
           <p className="font-medium">No hay cotizaciones</p>
@@ -147,7 +124,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
               <TableRow
                 key={q.id}
                 className="group cursor-pointer hover:bg-muted/50"
-                onClick={() => router.push(`/dashboard/quotations/${q.id}`)}
+                onClick={() => push(`/dashboard/quotations/${q.id}`)}
               >
                 <TableCell>
                   <span className="font-medium">{q.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}</span>
@@ -170,7 +147,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                 <TableCell className="text-right tabular-nums">
                   {q.total_amount > 0
                     ? fmt(q.total_amount)
-                    : <span className="text-muted-foreground text-sm">—</span>
+                    : <span className="text-muted-foreground text-sm">{'\u2014'}</span>
                   }
                 </TableCell>
                 <TableCell
@@ -180,17 +157,16 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                   {formatRelative(q.created_at)}
                 </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
-                  {q.status !== 'converted_to_order' && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => setDeletingId(q.id)}
-                      title="Eliminar cotización"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setDeletingId(q.id)}
+                    title="Eliminar cotización"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -198,7 +174,10 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
         </Table>
       </div>
 
-      <AlertDialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null) }}>
+      <AlertDialog
+        open={!!deletingId}
+        onOpenChange={(o) => { if (!o && !deleteQuotation.isPending) setDeletingId(null) }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar esta cotización?</AlertDialogTitle>
@@ -207,14 +186,16 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground"
+            <AlertDialogCancel disabled={deleteQuotation.isPending}>Cancelar</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
               onClick={handleDelete}
               disabled={deleteQuotation.isPending}
             >
+              {deleteQuotation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               Sí, eliminar
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

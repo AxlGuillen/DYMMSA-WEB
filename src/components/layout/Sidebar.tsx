@@ -77,7 +77,7 @@ function NavLink({
           : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
       )}
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      <Icon className="size-4 shrink-0" />
       {label}
     </Link>
   )
@@ -115,7 +115,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
           <div className="space-y-1">
             <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-              ETM — Catálogo
+              ETM {'—'} Catálogo
             </p>
             {etmUrreaLinks.map((link) => (
               <NavLink key={link.href} {...link} onClick={onNavigate} />
@@ -150,7 +150,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           className="w-full justify-start text-muted-foreground hover:text-foreground"
           onClick={() => setConfirmOpen(true)}
         >
-          <LogOut className="mr-2 h-4 w-4" />
+          <LogOut className="mr-2 size-4" />
           Cerrar sesión
         </Button>
       </div>
@@ -185,7 +185,7 @@ export function Sidebar() {
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon">
-              <Menu className="h-5 w-5" />
+              <Menu className="size-5" />
               <span className="sr-only">Abrir menu</span>
             </Button>
           </SheetTrigger>

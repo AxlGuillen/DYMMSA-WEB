@@ -79,7 +79,7 @@ export function QuotePreview({
           <CardHeader className="pb-2">
             <CardDescription>Archivo</CardDescription>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+              <FileSpreadsheet className="size-5 text-muted-foreground" />
               <span className="truncate" title={filename}>
                 {filename}
               </span>
@@ -98,7 +98,7 @@ export function QuotePreview({
           <CardHeader className="pb-2">
             <CardDescription>Encontrados en BD</CardDescription>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="size-5 text-green-600" />
               <span className="text-2xl">{matchedProducts.length}</span>
               <Badge
                 variant="outline"
@@ -114,7 +114,7 @@ export function QuotePreview({
           <CardHeader className="pb-2">
             <CardDescription>Valor Total</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
-              <DollarSign className="h-5 w-5 text-green-600" />
+              <DollarSign className="size-5 text-green-600" />
               {fmt(total)}
             </CardTitle>
           </CardHeader>
@@ -125,20 +125,20 @@ export function QuotePreview({
       {unmatchedEtms.length > 0 && (
         <Card className="border-yellow-200 bg-yellow-50/50">
           <CardHeader className="pb-2">
-            <button
+            <button type="button"
               onClick={() => setShowUnmatched(!showUnmatched)}
               className="flex w-full items-center justify-between text-left"
             >
               <div className="flex items-center gap-2">
-                <XCircle className="h-5 w-5 text-yellow-600" />
+                <XCircle className="size-5 text-yellow-600" />
                 <CardTitle className="text-base">
                   {unmatchedEtms.length} ETMs no encontrados
                 </CardTitle>
               </div>
               {showUnmatched ? (
-                <ChevronUp className="h-5 w-5" />
+                <ChevronUp className="size-5" />
               ) : (
-                <ChevronDown className="h-5 w-5" />
+                <ChevronDown className="size-5" />
               )}
             </button>
           </CardHeader>
@@ -153,7 +153,7 @@ export function QuotePreview({
                   ))}
                 </div>
                 <Button variant="outline" size="sm" onClick={handleCopyUnmatched}>
-                  <Copy className="mr-2 h-4 w-4" />
+                  <Copy className="mr-2 size-4" />
                   Copiar
                 </Button>
               </div>
@@ -207,7 +207,7 @@ export function QuotePreview({
       {/* Acciones */}
       <div className="flex justify-end gap-4">
         <Button variant="outline" onClick={onReset}>
-          <RotateCcw className="mr-2 h-4 w-4" />
+          <RotateCcw className="mr-2 size-4" />
           Subir otro archivo
         </Button>
         <Button
@@ -215,7 +215,7 @@ export function QuotePreview({
           disabled={matchedProducts.length === 0}
           size="lg"
         >
-          <Download className="mr-2 h-4 w-4" />
+          <Download className="mr-2 size-4" />
           Descargar Cotizacion
         </Button>
       </div>

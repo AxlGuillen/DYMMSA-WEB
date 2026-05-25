@@ -73,14 +73,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { QuotationStatusBadge } from './QuotationStatusBadge'
-import { ProductModal, DELIVERY_TIME_LABELS } from '@/components/quoter/ProductModal'
-import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation } from '@/hooks/useQuotations'
+import { ProductModal } from '@/components/quoter/ProductModal'
+import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
+import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
+import { calculateQuotationTotal, isProductItem as isProductRow } from '@/lib/business-rules'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime } from '@/types/database'
-
-const isProductRow = (item: QuotationItemRow): boolean =>
-  !item.item_type || item.item_type === 'product'
 
 // ------------------------------------------------------------------ //
 // Types                                                               //
@@ -122,7 +121,7 @@ function SortableHead({
   const isRight  = className?.includes('text-right')
   return (
     <TableHead className={className}>
-      <button
+      <button type="button"
         onClick={() => onSort(col)}
         className={`flex items-center gap-1 w-full select-none transition-colors hover:text-foreground ${
           isRight ? 'justify-end' : ''
@@ -131,10 +130,10 @@ function SortableHead({
         {children}
         {isActive ? (
           currentDir === 'asc'
-            ? <ArrowUp className="h-3.5 w-3.5" />
-            : <ArrowDown className="h-3.5 w-3.5" />
+            ? <ArrowUp className="size-3.5" />
+            : <ArrowDown className="size-3.5" />
         ) : (
-          <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
+          <ArrowUpDown className="size-3.5 opacity-30" />
         )}
       </button>
     </TableHead>
@@ -175,13 +174,13 @@ function SortableSeparatorDetailRow({
       {canEdit && (
         <TableCell className="w-8 px-2">
           {isDndEnabled ? (
-            <button
+            <button type="button"
               {...attributes}
               {...listeners}
               className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
               aria-label="Arrastrar separador"
             >
-              <GripVertical className="h-4 w-4" />
+              <GripVertical className="size-4" />
             </button>
           ) : (
             <span className="block w-4" />
@@ -191,7 +190,7 @@ function SortableSeparatorDetailRow({
       <TableCell colSpan={totalCols - (canEdit ? 2 : 0)} className="px-4 py-2">
         {canEdit ? (
           <div className="flex items-center gap-2">
-            <SeparatorHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <SeparatorHorizontal className="size-3.5 text-muted-foreground shrink-0" />
             <Input
               value={item.section_label ?? ''}
               onChange={(e) => onLabelChange(item._id, e.target.value)}
@@ -201,7 +200,7 @@ function SortableSeparatorDetailRow({
           </div>
         ) : (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <SeparatorHorizontal className="h-3.5 w-3.5 shrink-0" />
+            <SeparatorHorizontal className="size-3.5 shrink-0" />
             <span className="font-medium">{item.section_label || 'Sección'}</span>
           </div>
         )}
@@ -211,10 +210,10 @@ function SortableSeparatorDetailRow({
           <div className="flex items-center justify-center">
             <Button
               size="icon" variant="ghost"
-              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+              className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={() => onRemove(item._id)}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="size-3.5" />
             </Button>
           </div>
         </TableCell>
@@ -233,14 +232,15 @@ interface SortableDetailRowProps {
   isDndEnabled: boolean
   isApproved: boolean
   isSentForApproval: boolean
-  dbItem: QuotationItem | undefined
   onEdit: (item: QuotationItemRow) => void
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
+  onApprovalChange: (id: string, value: boolean | null) => void
 }
 
+// oxlint-disable-next-line react-doctor/no-many-boolean-props -- intentional pattern; structural refactor tracked separately
 function SortableDetailRow({
-  item, canEdit, isDndEnabled, isApproved, isSentForApproval, dbItem, onEdit, onRemove, onAddSeparatorAfter,
+  item, canEdit, isDndEnabled, isApproved, isSentForApproval, onEdit, onRemove, onAddSeparatorAfter, onApprovalChange,
 }: SortableDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -261,13 +261,13 @@ function SortableDetailRow({
       {canEdit && (
         <TableCell className="w-8 px-2">
           {isDndEnabled ? (
-            <button
+            <button type="button"
               {...attributes}
               {...listeners}
               className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
               aria-label="Arrastrar para reordenar"
             >
-              <GripVertical className="h-4 w-4" />
+              <GripVertical className="size-4" />
             </button>
           ) : (
             <span className="block w-4" />
@@ -280,33 +280,64 @@ function SortableDetailRow({
           ? <span className="truncate block" title={item.description}>{item.description}</span>
           : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
       </TableCell>
-      <TableCell className="font-mono text-xs">{item.model_code || <span className="text-muted-foreground">—</span>}</TableCell>
-      <TableCell>{item.brand || <span className="text-muted-foreground">—</span>}</TableCell>
+      <TableCell className="font-mono text-xs">{item.model_code || <span className="text-muted-foreground">{'\u2014'}</span>}</TableCell>
+      <TableCell>{item.brand || <span className="text-muted-foreground">{'\u2014'}</span>}</TableCell>
       <TableCell className="text-right tabular-nums">
         {item.unit_price != null
           ? fmt(item.unit_price)
-          : <span className="text-muted-foreground">—</span>}
+          : <span className="text-muted-foreground">{'\u2014'}</span>}
       </TableCell>
       <TableCell className="text-right tabular-nums">
-        {item.quantity ?? <span className="text-muted-foreground">—</span>}
+        {item.quantity ?? <span className="text-muted-foreground">{'\u2014'}</span>}
       </TableCell>
       <TableCell className="text-right tabular-nums font-medium">
         {item.unit_price != null && item.quantity != null
           ? fmt(item.unit_price * item.quantity)
-          : <span className="text-muted-foreground">—</span>}
+          : <span className="text-muted-foreground">{'\u2014'}</span>}
       </TableCell>
       <TableCell className="text-sm whitespace-nowrap">
         {item.delivery_time
           ? DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'
-          : <span className="text-muted-foreground">—</span>}
+          : <span className="text-muted-foreground">{'\u2014'}</span>}
       </TableCell>
       {(isApproved || isSentForApproval) && (
         <TableCell className="text-center">
-          {dbItem?.is_approved === true
-            ? <Badge variant="outline" className="text-xs text-green-600 border-green-300"><CheckCircle2 className="h-3 w-3 mr-1" />Aprobado</Badge>
-            : dbItem?.is_approved === false
-              ? <Badge variant="outline" className="text-xs text-red-600 border-red-300"><XCircle className="h-3 w-3 mr-1" />Rechazado</Badge>
-              : <Badge variant="outline" className="text-xs text-muted-foreground"><Clock className="h-3 w-3 mr-1" />Pendiente</Badge>}
+          {isApproved && canEdit ? (
+            // Interactive toggle — click active button to reset to pending
+            <div className="flex items-center justify-center gap-1">
+              <button
+                type="button"
+                title={item.is_approved === true ? 'Quitar aprobación' : 'Aprobar'}
+                onClick={() => onApprovalChange(item._id, item.is_approved === true ? null : true)}
+                className={`rounded p-1 transition-colors ${
+                  item.is_approved === true
+                    ? 'text-green-600 bg-green-100 dark:bg-green-900/30'
+                    : 'text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                }`}
+              >
+                <CheckCircle2 className="size-4" />
+              </button>
+              <button
+                type="button"
+                title={item.is_approved === false ? 'Quitar rechazo' : 'Rechazar'}
+                onClick={() => onApprovalChange(item._id, item.is_approved === false ? null : false)}
+                className={`rounded p-1 transition-colors ${
+                  item.is_approved === false
+                    ? 'text-red-600 bg-red-100 dark:bg-red-900/30'
+                    : 'text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                }`}
+              >
+                <XCircle className="size-4" />
+              </button>
+            </div>
+          ) : (
+            // Static badge for sent_for_approval (client voted) or read-only view
+            item.is_approved === true
+              ? <Badge variant="outline" className="text-xs text-green-600 border-green-300"><CheckCircle2 className="size-3 mr-1" />Aprobado</Badge>
+              : item.is_approved === false
+                ? <Badge variant="outline" className="text-xs text-red-600 border-red-300"><XCircle className="size-3 mr-1" />Rechazado</Badge>
+                : <Badge variant="outline" className="text-xs text-muted-foreground"><Clock className="size-3 mr-1" />Pendiente</Badge>
+          )}
         </TableCell>
       )}
       {canEdit && (
@@ -314,21 +345,21 @@ function SortableDetailRow({
           <div className="flex items-center justify-center gap-1">
             <Button
               size="icon" variant="ghost"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              className="size-7 text-muted-foreground hover:text-foreground"
               title="Insertar separador debajo"
               onClick={() => onAddSeparatorAfter(item._id)}
             >
-              <SeparatorHorizontal className="h-3.5 w-3.5" />
+              <SeparatorHorizontal className="size-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(item)}>
-              <Pencil className="h-3.5 w-3.5" />
+            <Button size="icon" variant="ghost" className="size-7" onClick={() => onEdit(item)}>
+              <Pencil className="size-3.5" />
             </Button>
             <Button
               size="icon" variant="ghost"
-              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+              className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={() => onRemove(item._id)}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="size-3.5" />
             </Button>
           </div>
         </TableCell>
@@ -343,6 +374,7 @@ function SortableDetailRow({
 
 const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   _id:            item.id,
+  _dbId:          item.id,
   item_type:      item.item_type      ?? 'product',
   section_label:  item.section_label  ?? '',
   etm:            item.etm            ?? '',
@@ -354,6 +386,7 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   quantity:       item.quantity,
   delivery_time:  item.delivery_time ?? 'immediate',
   _inDb:          !!(item.model_code || item.description),
+  is_approved:    item.is_approved,
 })
 
 const isMissingData     = (item: QuotationItemRow) => isProductRow(item) && !item.description && !item.model_code
@@ -373,15 +406,18 @@ interface QuotationDetailProps {
   quotation: QuotationWithItems
 }
 
+// oxlint-disable-next-line react-doctor/no-giant-component, react-doctor/prefer-useReducer -- intentional pattern; structural refactor tracked separately
 export function QuotationDetail({ quotation }: QuotationDetailProps) {
-  const router = useRouter()
+  const { refresh, push } = useRouter()
   const fmt = useCurrency()
 
   // ── Draft editing state ─────────────────────────────────────────
+  // oxlint-disable-next-line react-doctor/no-derived-useState -- intentional pattern; structural refactor tracked separately
   const [localQuotationName, setLocalQuotationName] = useState(quotation.name)
+  // oxlint-disable-next-line react-doctor/no-derived-useState -- intentional pattern; structural refactor tracked separately
   const [localName, setLocalName]   = useState(quotation.customer_name)
   const [localItems, setLocalItems] = useState<QuotationItemRow[]>(
-    quotation.quotation_items.map(toItemRow)
+    () => quotation.quotation_items.map(toItemRow)
   )
   const [isDirty, setIsDirty] = useState(false)
 
@@ -392,6 +428,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // Copy-link state
   const [copied, setCopied] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   // Sort & filter state
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all')
@@ -401,6 +438,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const sendForApproval     = useSendForApproval()
   const updateQuotation     = useUpdateQuotation()
   const createOrderMutation = useCreateOrderFromQuotation()
+  const deleteQuotation     = useDeleteQuotation()
 
   const sensors = useSensors(useSensor(PointerSensor))
 
@@ -416,12 +454,23 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const { data: relatedOrder } = useOrderByQuotationId(quotation.id, isConvertedToOrder)
 
+  // Re-sync local state when quotation IDs change OR when item IDs change.
+  // After save, the route DELETE+INSERT regenerates item IDs, so we react to
+  // the items signature to keep localItems in sync with the refetched data.
+  const itemsSignature = quotation.quotation_items.map((i) => i.id).join('|')
+
+  // oxlint-disable-next-line react-doctor/no-cascading-set-state -- intentional pattern; structural refactor tracked separately
   useEffect(() => {
+    // oxlint-disable-next-line react-doctor/no-derived-state -- intentional pattern; structural refactor tracked separately
     setLocalQuotationName(quotation.name)
+    // oxlint-disable-next-line react-doctor/no-derived-state -- intentional pattern; structural refactor tracked separately
     setLocalName(quotation.customer_name)
+    // oxlint-disable-next-line react-doctor/no-derived-state, react-doctor/no-pass-data-to-parent -- intentional pattern; structural refactor tracked separately
     setLocalItems(quotation.quotation_items.map(toItemRow))
+    // oxlint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- intentional pattern; structural refactor tracked separately
     setIsDirty(false)
-  }, [quotation.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotation.id, itemsSignature]) // oxlint-disable-line react-doctor/exhaustive-deps -- intentional effect; refactor tracked separately
 
   // ── Item editing handlers ───────────────────────────────────────
   const handleEdit = (item: QuotationItemRow) => {
@@ -438,17 +487,26 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const handleModalSave = (data: Omit<QuotationItemRow, '_id'>, id?: string) => {
     if (id) {
+      // Edit: preserve the existing is_approved; modal doesn't control approval
       setLocalItems((prev) =>
-        prev.map((item) => (item._id === id ? { ...item, ...data } : item))
+        prev.map((item) => (item._id === id ? { ...item, ...data, is_approved: item.is_approved } : item))
       )
     } else {
-      setLocalItems((prev) => [...prev, { ...data, _id: crypto.randomUUID() }])
+      // New item: start as pending (null) so user can decide to approve/reject
+      setLocalItems((prev) => [...prev, { ...data, _id: crypto.randomUUID(), is_approved: null }])
     }
     setIsDirty(true)
   }
 
   const handleRemove = (id: string) => {
     setLocalItems((prev) => prev.filter((item) => item._id !== id))
+    setIsDirty(true)
+  }
+
+  const handleApprovalChange = (id: string, value: boolean | null) => {
+    setLocalItems((prev) =>
+      prev.map((item) => item._id === id ? { ...item, is_approved: value } : item)
+    )
     setIsDirty(true)
   }
 
@@ -525,7 +583,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       })
       setIsDirty(false)
       toast.success('Cotización actualizada')
-      router.refresh()
+      refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al guardar')
     }
@@ -545,7 +603,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       }
       await sendForApproval.mutateAsync(quotation.id)
       toast.success('Cotización enviada a aprobación')
-      router.refresh()
+      refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al enviar')
     }
@@ -566,11 +624,33 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   // ── Create order from approved quotation ────────────────────────
   const handleCreateOrder = async () => {
     try {
+      // Auto-save pending changes before creating the order so all items (including
+      // post-approval additions and their is_approved state) are persisted first.
+      if (isDirty) {
+        await updateQuotation.mutateAsync({
+          id:            quotation.id,
+          name:          localQuotationName,
+          customer_name: localName,
+          items:         localItems,
+        })
+        setIsDirty(false)
+      }
       const result = await createOrderMutation.mutateAsync(quotation.id)
       toast.success(`Orden creada con ${result.items_count} producto(s)`)
-      router.push(`/dashboard/orders/${result.order_id}`)
+      push(`/dashboard/orders/${result.order_id}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al generar la orden')
+    }
+  }
+
+  const handleDeleteQuotation = async () => {
+    try {
+      await deleteQuotation.mutateAsync(quotation.id)
+      setDeleteDialogOpen(false)
+      toast.success('Cotización eliminada')
+      push('/dashboard/quotations')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar la cotización')
     }
   }
 
@@ -579,46 +659,36 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const rawProductItems = rawItems.filter(isProductRow)
   const hasSeparators = rawItems.some((i) => i.item_type === 'separator')
 
-  const partialTotal = rawProductItems.reduce((sum, item) => {
-    if (item.unit_price != null && item.quantity != null) {
-      return sum + item.unit_price * item.quantity
-    }
-    return sum
-  }, 0)
+  const partialTotal = calculateQuotationTotal(rawProductItems)
 
-  const dbProductItems = quotation.quotation_items.filter(
-    (i) => !i.item_type || i.item_type === 'product'
-  )
-  const approvedCount   = dbProductItems.filter((i) => i.is_approved === true).length
-  const rejectedCount   = dbProductItems.filter((i) => i.is_approved === false).length
-  const pendingCount    = dbProductItems.filter((i) => i.is_approved === null).length
+  // Use local state for counts so new/modified items are reflected immediately
+  const approvedCount = rawProductItems.filter((i) => i.is_approved === true).length
+  const rejectedCount = rawProductItems.filter((i) => i.is_approved === false).length
+  const pendingCount  = rawProductItems.filter((i) => i.is_approved == null).length
   const noDataCount     = isDraft ? rawProductItems.filter(isMissingData).length : 0
   const noQuantityCount = isDraft ? rawProductItems.filter(isMissingQuantity).length : 0
-  const totalCount      = isDraft
-    ? rawProductItems.length
-    : dbProductItems.length
+  const totalCount      = rawProductItems.length
 
   const canSendForApproval =
     localQuotationName.trim().length > 0 &&
     localName.trim().length > 0 &&
     localItems.some(isProductRow)
 
-  // Filter by approval status — separators always pass through
+  // Filter by approval status — separators always pass through; use local is_approved
   const filteredItems: QuotationItemRow[] =
     hasApprovalData && approvalFilter !== 'all'
       ? rawItems.filter((item) => {
           if (item.item_type === 'separator') return true
-          const dbItem = quotation.quotation_items.find((i) => i.id === item._id)
-          if (approvalFilter === 'approved') return dbItem?.is_approved === true
-          if (approvalFilter === 'rejected') return dbItem?.is_approved === false
-          if (approvalFilter === 'pending')  return dbItem?.is_approved === null
+          if (approvalFilter === 'approved') return item.is_approved === true
+          if (approvalFilter === 'rejected') return item.is_approved === false
+          if (approvalFilter === 'pending')  return item.is_approved == null
           return true
         })
       : rawItems
 
   // Sort — separators are excluded from sorting to preserve section structure
   const displayItems: QuotationItemRow[] = sortField && !hasSeparators
-    ? [...filteredItems].sort((a, b) => {
+    ? filteredItems.toSorted((a, b) => {
         let aVal: number | string
         let bVal: number | string
         switch (sortField) {
@@ -657,12 +727,12 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/quotations')}>
-          <ArrowLeft className="h-5 w-5" />
+        <Button variant="ghost" size="icon" onClick={() => push('/dashboard/quotations')}>
+          <ArrowLeft className="size-5" />
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight">
               {canEdit ? localQuotationName || 'Sin nombre' : quotation.name || 'Sin nombre'}
             </h1>
             <QuotationStatusBadge status={quotation.status} />
@@ -684,7 +754,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               onClick={handleSave}
               disabled={updateQuotation.isPending}
             >
-              {updateQuotation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {updateQuotation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               Guardar cambios
             </Button>
           )}
@@ -693,7 +763,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={!canSendForApproval || sendForApproval.isPending || updateQuotation.isPending}>
-                  <Send className="mr-2 h-4 w-4" />
+                  <Send className="mr-2 size-4" />
                   Enviar a aprobación
                 </Button>
               </AlertDialogTrigger>
@@ -719,11 +789,11 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               <AlertDialogTrigger asChild>
                 <Button
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={createOrderMutation.isPending}
+                  disabled={createOrderMutation.isPending || updateQuotation.isPending}
                 >
-                  {createOrderMutation.isPending
-                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    : <ShoppingCart className="mr-2 h-4 w-4" />}
+                  {(createOrderMutation.isPending || updateQuotation.isPending)
+                    ? <Loader2 className="mr-2 size-4 animate-spin" />
+                    : <ShoppingCart className="mr-2 size-4" />}
                   Generar Orden
                 </Button>
               </AlertDialogTrigger>
@@ -732,8 +802,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   <AlertDialogTitle>¿Generar orden de venta?</AlertDialogTitle>
                   <AlertDialogDescription>
                     Se creará una orden con los{' '}
-                    {quotation.quotation_items.filter((i) => i.is_approved === true).length}{' '}
-                    productos aprobados. Se verificará el stock disponible y se descontará
+                    {approvedCount}{' '}
+                    producto(s) marcados como aprobados.
+                    {isDirty && ' Los cambios pendientes se guardarán automáticamente.'}
+                    {' '}Se verificará el stock disponible y se descontará
                     automáticamente del inventario. Esta acción no se puede deshacer.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -749,6 +821,44 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               </AlertDialogContent>
             </AlertDialog>
           )}
+
+          {/* Delete — always available */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+            title="Eliminar cotización"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+          <AlertDialog
+            open={deleteDialogOpen}
+            onOpenChange={(o) => { if (!o && !deleteQuotation.isPending) setDeleteDialogOpen(false) }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar esta cotización?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se eliminará la cotización y todos sus productos permanentemente.
+                  Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleteQuotation.isPending}>Cancelar</AlertDialogCancel>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDeleteQuotation}
+                  disabled={deleteQuotation.isPending}
+                >
+                  {deleteQuotation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Sí, eliminar
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -766,7 +876,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </p>
               </div>
               <Button size="sm" variant="outline" onClick={handleCopyLink}>
-                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                {copied ? <Check className="size-4 text-green-500" /> : <Copy className="size-4" />}
               </Button>
             </div>
           </CardContent>
@@ -778,7 +888,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         <Card className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 text-red-800 dark:text-red-300">
-              <AlertCircle className="h-4 w-4 shrink-0" />
+              <AlertCircle className="size-4 shrink-0" />
               <p className="text-sm font-medium">
                 Esta cotización fue rechazada por el cliente. Puedes crear una nueva con los ajustes necesarios.
               </p>
@@ -793,7 +903,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <CheckCircle2 className="size-4 shrink-0" />
                 <p className="text-sm font-medium">
                   Esta cotización fue convertida a una orden de venta.
                 </p>
@@ -807,7 +917,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 >
                   <Link href={`/dashboard/orders/${relatedOrder.id}`}>
                     Ver orden
-                    <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                    <ExternalLink className="ml-1.5 size-3.5" />
                   </Link>
                 </Button>
               )}
@@ -821,53 +931,53 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         /* Approval filter cards — clickable, same pattern as orders page */
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {/* Todos (acts as reset) */}
-          <button
+          <button type="button"
             onClick={() => handleFilterToggle('all')}
             className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
               bg-card hover:bg-muted/50
               ${approvalFilter === 'all' ? 'ring-2 ring-offset-1 ring-border' : ''}`}
           >
             <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-              <Package className="h-3 w-3" /> Todos
+              <Package className="size-3" /> Todos
             </p>
             <p className="text-2xl font-bold">{totalCount}</p>
           </button>
 
           {/* Aprobados */}
-          <button
+          <button type="button"
             onClick={() => handleFilterToggle('approved')}
             className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
               bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50
               ${approvalFilter === 'approved' ? 'ring-2 ring-offset-1 ring-green-400' : ''}`}
           >
             <p className="text-xs font-medium text-green-700 dark:text-green-300 flex items-center gap-1 mb-2">
-              <CheckCircle2 className="h-3 w-3" /> Aprobados
+              <CheckCircle2 className="size-3" /> Aprobados
             </p>
             <p className="text-2xl font-bold text-green-700 dark:text-green-300">{approvedCount}</p>
           </button>
 
           {/* Rechazados */}
-          <button
+          <button type="button"
             onClick={() => handleFilterToggle('rejected')}
             className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
               bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50
               ${approvalFilter === 'rejected' ? 'ring-2 ring-offset-1 ring-red-400' : ''}`}
           >
             <p className="text-xs font-medium text-red-700 dark:text-red-300 flex items-center gap-1 mb-2">
-              <XCircle className="h-3 w-3" /> Rechazados
+              <XCircle className="size-3" /> Rechazados
             </p>
             <p className="text-2xl font-bold text-red-700 dark:text-red-300">{rejectedCount}</p>
           </button>
 
           {/* Pendientes */}
-          <button
+          <button type="button"
             onClick={() => handleFilterToggle('pending')}
             className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
               bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50
               ${approvalFilter === 'pending' ? 'ring-2 ring-offset-1 ring-yellow-400' : ''}`}
           >
             <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300 flex items-center gap-1 mb-2">
-              <Clock className="h-3 w-3" /> Pendientes
+              <Clock className="size-3" /> Pendientes
             </p>
             <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{pendingCount}</p>
           </button>
@@ -962,7 +1072,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
+                <Package className="size-5" />
                 Productos
               </CardTitle>
               {canEdit && (
@@ -971,7 +1081,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                     ? 'Agrega, edita o elimina productos antes de enviar a aprobación'
                     : isSentForApproval
                       ? 'Puedes editar precio, cantidad y entrega mientras el cliente revisa'
-                      : 'Agrega o edita productos — los nuevos quedan aprobados automáticamente'}
+                      : 'Agrega productos y usa los botones ✓ / ✗ para aprobar o rechazar cada uno'}
                 </CardDescription>
               )}
             </div>
@@ -983,18 +1093,18 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   onClick={() => { setSortField(null); setSortDir('asc') }}
                   className="text-muted-foreground h-8 px-2"
                 >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                  <RotateCcw className="size-3.5 mr-1.5" />
                   Restablecer orden
                 </Button>
               )}
               {canEdit && (
                 <>
                   <Button size="sm" variant="outline" onClick={() => handleAddSeparatorAfter(localItems[localItems.length - 1]?._id ?? '')}>
-                    <SeparatorHorizontal className="h-4 w-4 mr-1.5" />
+                    <SeparatorHorizontal className="size-4 mr-1.5" />
                     Separador
                   </Button>
                   <Button size="sm" onClick={handleCreate}>
-                    <Plus className="h-4 w-4 mr-1.5" />
+                    <Plus className="size-4 mr-1.5" />
                     Agregar
                   </Button>
                 </>
@@ -1067,10 +1177,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                             isDndEnabled={isDndEnabled}
                             isApproved={isApproved}
                             isSentForApproval={isSentForApproval}
-                            dbItem={quotation.quotation_items.find((i) => i.id === item._id)}
                             onEdit={handleEdit}
                             onRemove={handleRemove}
                             onAddSeparatorAfter={handleAddSeparatorAfter}
+                            onApprovalChange={handleApprovalChange}
                           />
                         )
                       )

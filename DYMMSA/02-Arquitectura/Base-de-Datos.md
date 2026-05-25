@@ -154,7 +154,7 @@ store_inventory  (independiente, vinculada por model_code en lógica de negocio)
 | `description` | text | Sí | — | | |
 | `description_es` | text | Sí | — | | |
 | `brand` | text | No | `''` | | |
-| `quantity_approved` | integer | No | — | `> 0` | Total aprobado por cliente |
+| `quantity_approved` | integer | No | — | `> 0 OR item_type='separator'` | Total aprobado (0 en separadores) |
 | `quantity_in_stock` | integer | No | `0` | `>= 0` | Apartado del inventario DYMMSA |
 | `quantity_to_order` | integer | No | `0` | `>= 0` | A pedir a URREA |
 | `quantity_received` | integer | No | `0` | `>= 0` | Recibido de URREA (input manual) |
@@ -164,6 +164,7 @@ store_inventory  (independiente, vinculada por model_code en lógica de negocio)
 | `created_at` | timestamptz | Sí | `now()` | | |
 
 **Constraint implícito:** `quantity_in_stock + quantity_to_order = quantity_approved`
+**Constraint `quantity_approved`:** `> 0` para productos; `= 0` permitido en separadores (migración `allow_separators_in_order_items_quantity`, 2026-05-24).
 
 ---
 

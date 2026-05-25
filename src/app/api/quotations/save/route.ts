@@ -1,114 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
+import { requireAuth } from '@/lib/api-helpers'
+import { processAutoLearn } from '@/lib/auto-learn'
 import type { QuotationItemRow } from '@/types/database'
 
 interface SaveQuotationInput {
   name: string
   customer_name: string
   items: QuotationItemRow[]
-}
-
-interface AutoLearnResult {
-  added: number
-  updated: number
-  skipped: number
-}
-
-// ------------------------------------------------------------------ //
-// Auto-learn: INSERT new ETMs, UPDATE existing ones if data changed   //
-// ------------------------------------------------------------------ //
-async function processAutoLearn(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  userId: string,
-  items: QuotationItemRow[]
-): Promise<AutoLearnResult> {
-  const result: AutoLearnResult = { added: 0, updated: 0, skipped: 0 }
-
-  // Only process product items that have etm + at least model_code or description
-  const eligible = items.filter(
-    (item) =>
-      (!item.item_type || item.item_type === 'product') &&
-      item.etm &&
-      (item.model_code || item.description)
-  )
-  if (eligible.length === 0) return result
-
-  // Fetch all existing records in one query
-  const etmCodes = eligible.map((i) => i.etm)
-  const { data: existingProducts } = await supabase
-    .from('etm_products')
-    .select('id, etm, description, description_es, model_code, price, brand')
-    .in('etm', etmCodes)
-
-  const existingMap = new Map(
-    (existingProducts ?? []).map((p: { etm: string; [key: string]: unknown }) => [p.etm, p])
-  )
-
-  for (const item of eligible) {
-    const existing = existingMap.get(item.etm) as {
-      id: string
-      etm: string
-      description: string
-      description_es: string
-      model_code: string
-      price: number
-      brand: string
-    } | undefined
-
-    if (!existing) {
-      // ── INSERT ──────────────────────────────────────────────────────
-      const { error } = await supabase.from('etm_products').insert({
-        etm:            item.etm,
-        description:    item.description    || '',
-        description_es: item.description_es || '',
-        model_code:     item.model_code     || '',
-        price:          item.unit_price     ?? 0,
-        brand:          item.brand          || (item.model_code ? 'URREA' : null),
-        created_by:     userId,
-      })
-
-      if (error) {
-        console.error('Auto-learn insert error:', error)
-        result.skipped++
-      } else {
-        result.added++
-      }
-    } else {
-      // ── UPDATE: only non-empty fields that actually changed ─────────
-      const updates: Record<string, unknown> = {}
-
-      if (item.description    && item.description    !== existing.description)
-        updates.description = item.description
-      if (item.description_es && item.description_es !== existing.description_es)
-        updates.description_es = item.description_es
-      if (item.model_code     && item.model_code     !== existing.model_code)
-        updates.model_code = item.model_code
-      if (item.brand          && item.brand          !== existing.brand)
-        updates.brand = item.brand
-      if (item.unit_price != null && item.unit_price !== existing.price)
-        updates.price = item.unit_price
-
-      if (Object.keys(updates).length === 0) {
-        result.skipped++ // nothing changed
-        continue
-      }
-
-      const { error } = await supabase
-        .from('etm_products')
-        .update(updates)
-        .eq('etm', item.etm)
-
-      if (error) {
-        console.error('Auto-learn update error:', error)
-        result.skipped++
-      } else {
-        result.updated++
-      }
-    }
-  }
-
-  return result
 }
 
 // ------------------------------------------------------------------ //
@@ -118,12 +18,9 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     const { name, customer_name, items } = (await request.json()) as SaveQuotationInput
 
@@ -139,7 +36,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    const hasProduct = items?.some((i) => !i.item_type || i.item_type === 'product')
+    const hasProduct = items?.some(isProductItem)
     if (!hasProduct) {
       return NextResponse.json(
         { message: 'Se requiere al menos un producto' },
@@ -147,17 +44,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Total parcial: solo productos con precio y cantidad (skip separadores)
-    const total_amount = items.reduce((sum, item) => {
-      if (
-        (!item.item_type || item.item_type === 'product') &&
-        item.unit_price != null &&
-        item.quantity != null
-      ) {
-        return sum + item.unit_price * item.quantity
-      }
-      return sum
-    }, 0)
+    // Total parcial: solo productos con precio y cantidad (separadores excluidos)
+    const total_amount = calculateQuotationTotal(items)
 
     // ── 1. Crear quotation ──────────────────────────────────────────
     const { data: quotation, error: quotationError } = await supabase

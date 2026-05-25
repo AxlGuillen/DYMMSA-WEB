@@ -28,11 +28,11 @@ export default async function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
+          <h2 className="text-2xl font-semibold tracking-tight">
             Bienvenido, {username}
           </h2>
           <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CalendarDays className="h-3.5 w-3.5" />
+            <CalendarDays className="size-3.5" />
             {formattedDate}
           </div>
         </div>
@@ -41,19 +41,19 @@ export default async function DashboardPage() {
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">
             <Link href="/dashboard/quoter">
-              <PlusCircle className="mr-1.5 h-3.5 w-3.5" />
+              <PlusCircle className="mr-1.5 size-3.5" />
               Nueva cotizacion
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/dashboard/quotations">
-              <FileText className="mr-1.5 h-3.5 w-3.5" />
+              <FileText className="mr-1.5 size-3.5" />
               Cotizaciones
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/dashboard/orders">
-              <ShoppingCart className="mr-1.5 h-3.5 w-3.5" />
+              <ShoppingCart className="mr-1.5 size-3.5" />
               Ordenes
             </Link>
           </Button>

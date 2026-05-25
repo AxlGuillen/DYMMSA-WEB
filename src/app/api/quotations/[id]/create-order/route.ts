@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/api-helpers'
+import { allocateInventory } from '@/lib/business-rules'
+import type { QuotationItem, OrderItemInsert } from '@/types/database'
 
 interface StockResult {
   model_code: string
   newQty: number
 }
+
+type OrderItemPayload = Omit<OrderItemInsert, 'order_id'>
 
 export async function POST(
   _req: NextRequest,
@@ -14,12 +19,9 @@ export async function POST(
     const { id } = await params
     const supabase = await createClient()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
-    }
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     console.log(`[create-order] START quotationId=${id} userId=${user.id}`)
 
@@ -43,17 +45,15 @@ export async function POST(
       )
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allItems = (quotation.quotation_items as any[])
+    const allItems = (quotation.quotation_items as QuotationItem[])
       .slice()
-      .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
+      .sort((a, b) => a.sort_order - b.sort_order)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const approvedProducts = allItems.filter((i: any) =>
-      (i.item_type === 'product' || !i.item_type) && i.is_approved === true
+    const approvedProducts = allItems.filter(
+      (i) => (i.item_type === 'product' || !i.item_type) && i.is_approved === true
     )
 
-    const seps = allItems.filter((i: { item_type: string }) => i.item_type === 'separator').length
+    const seps = allItems.filter((i) => i.item_type === 'separator').length
     console.log(`[create-order] items total=${allItems.length} separators=${seps} approved=${approvedProducts.length}`)
 
     if (approvedProducts.length === 0) {
@@ -68,12 +68,10 @@ export async function POST(
     let totalAmount = 0
     let sortIndex = 0
     const inventoryUpdates: StockResult[] = []
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const orderItemsPayload: any[] = []
+    const orderItemsPayload: OrderItemPayload[] = []
 
     // Approved product IDs for quick lookup
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const approvedIds = new Set(approvedProducts.map((i: any) => i.id))
+    const approvedIds = new Set(approvedProducts.map((i) => i.id))
 
     for (const item of allItems) {
       const isSep = item.item_type === 'separator'
@@ -107,6 +105,7 @@ export async function POST(
       let quantityToOrder = quantityApproved
 
       if (item.model_code) {
+        // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { data: inv } = await supabase
           .from('store_inventory')
           .select('quantity')
@@ -114,8 +113,9 @@ export async function POST(
           .single()
 
         if (inv) {
-          quantityInStock = Math.min(quantityApproved, inv.quantity)
-          quantityToOrder = quantityApproved - quantityInStock
+          const allocation = allocateInventory(quantityApproved, inv.quantity)
+          quantityInStock = allocation.inStock
+          quantityToOrder = allocation.toOrder
 
           if (quantityInStock > 0) {
             inventoryUpdates.push({
@@ -177,14 +177,16 @@ export async function POST(
       return NextResponse.json({ message: 'Error al guardar los productos de la orden' }, { status: 500 })
     }
 
-    // Deduct inventory
-    for (const upd of inventoryUpdates) {
-      await supabase
-        .from('store_inventory')
-        .update({ quantity: upd.newQty })
-        .eq('model_code', upd.model_code)
-      console.log(`[create-order] inventory deducted model=${upd.model_code} newQty=${upd.newQty}`)
-    }
+    // Deduct inventory in parallel (independent writes per model_code)
+    await Promise.all(
+      inventoryUpdates.map(async (upd) => {
+        await supabase
+          .from('store_inventory')
+          .update({ quantity: upd.newQty })
+          .eq('model_code', upd.model_code)
+        console.log(`[create-order] inventory deducted model=${upd.model_code} newQty=${upd.newQty}`)
+      })
+    )
 
     // Mark quotation as converted
     await supabase

@@ -18,7 +18,7 @@ export default function QuotationDetailPage({
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="size-9 rounded-md" />
           <div className="space-y-2">
             <Skeleton className="h-7 w-64" />
             <Skeleton className="h-4 w-40" />

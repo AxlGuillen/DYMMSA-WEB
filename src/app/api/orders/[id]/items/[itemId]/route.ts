@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { calculateOrderTotal } from '@/lib/business-rules'
+import { requireAuth } from '@/lib/api-helpers'
 
 type Params = { params: Promise<{ id: string; itemId: string }> }
 
@@ -37,13 +39,10 @@ async function recalculateTotal(
 ) {
   const { data: allItems } = await supabase
     .from('order_items')
-    .select('unit_price, quantity_approved')
+    .select('unit_price, quantity_approved, item_type')
     .eq('order_id', orderId)
 
-  const newTotal = (allItems ?? []).reduce(
-    (sum, i) => sum + i.unit_price * i.quantity_approved,
-    0
-  )
+  const newTotal = calculateOrderTotal(allItems ?? [])
   await supabase.from('orders').update({ total_amount: newTotal }).eq('id', orderId)
   return newTotal
 }
@@ -56,8 +55,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const { id, itemId } = await params
     const supabase = await createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     const result = await getOrderAndItem(supabase, id, itemId)
     if ('error' in result) {
@@ -85,6 +85,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return NextResponse.json({ message: 'Sin cambios' }, { status: 400 })
     }
 
+    // The write must complete before responding; nothing to defer past a guard.
+    // oxlint-disable-next-line react-doctor/async-defer-await
     await supabase.from('order_items').update(updates).eq('id', itemId)
 
     if (updates.unit_price != null) {
@@ -105,8 +107,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const { id, itemId } = await params
     const supabase = await createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+    const { user } = auth
 
     const result = await getOrderAndItem(supabase, id, itemId)
     if ('error' in result) {

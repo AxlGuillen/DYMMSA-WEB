@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "es_MX",
     siteName: "DYMMSA",
-    title: "DYMMSA - Sistema de Cotizaciones",
+    title: "DYMMSA - Sistema Modular",
     description:
       "Sistema de cotizaciones y gestión de inventario para DYMMSA, distribuidor autorizado de herramientas URREA.",
   },
