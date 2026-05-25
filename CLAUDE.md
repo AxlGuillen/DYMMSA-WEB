@@ -37,7 +37,7 @@ Supabase project: `wjlklwtvjewhtghlskbt` · us-west-2 · RLS habilitado en todas
 draft | sent_for_approval | approved | rejected | converted_to_order
 ```
 - `canEdit = isDraft || isApproved` (Fase 5.5: cotizaciones aprobadas son editables)
-- Ítems nuevos agregados en estado `approved` → `is_approved = true` (aprobación interna DYMMSA)
+- Ítems nuevos agregados en estado `approved` → `is_approved = null` (pendiente); el usuario DYMMSA los aprueba/rechaza manualmente con los botones ✓/✗ en `QuotationDetail`
 - `approval_token UUID UNIQUE` — se usa en `/approve/[token]` sin auth
 
 **`quotation_items`** — campos clave:
