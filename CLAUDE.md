@@ -97,6 +97,26 @@ Estas reglas generan bugs si se ignoran al escribir código:
 
 ---
 
+## Testing
+
+Tests con el runner integrado de Bun (`bun:test`), sin dependencias extra. Viven en `tests/` (raíz del repo, espeja `src/`):
+
+```
+tests/
+├── helpers/   # supabase-mock.ts (fake del query builder) + request.ts (makeRequest, makeExcelRequest)
+├── lib/       # funciones puras de src/lib/* (104 tests)
+└── api/       # route handlers reales con Supabase mockeado (smoke, auth-guards, quotations, orders, imports)
+```
+
+- **Comando:** `bun test` (177 tests). Watch: `bun test:watch`. Coverage: `bun test:coverage`.
+- **Backend = unit con mock de Supabase** (sin BD real). El mock reproduce el query builder chainable y registra llamadas para assertions de auth, validación, rollback y side effects de inventario.
+- **Patrón:** `mock.module('@/lib/supabase/server', …)` al tope + `await import()` dinámico del handler + variable `activeClient` por test. `/approve/[token]` mockea `@/lib/supabase/admin`.
+- **Al agregar/cambiar lógica de negocio o un route handler, agregar o actualizar su test.**
+
+> 📚 Detalle y rationale: `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md`
+
+---
+
 ## CI/CD y Code Review
 
 ### GitHub Actions — Claude PR Reviewer
@@ -147,7 +167,8 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 |--------|---------------------|
 | Nueva o modificada **ruta API** | `DYMMSA/02-Arquitectura/API-Routes.md` |
 | Nueva **tabla o columna** en Supabase | `DYMMSA/02-Arquitectura/Base-de-Datos.md` (verificar con MCP Supabase) + este CLAUDE.md |
-| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-006) |
+| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-007) |
+| Nueva lógica de negocio o **route handler** | Agregar/actualizar su test en `tests/` (ver `ADR-007-Estrategia-Testing.md`) |
 | **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
 | Nuevo **enum o estado** | `DYMMSA/00-Inicio/Glosario.md` + tabla de BD en este CLAUDE.md |
