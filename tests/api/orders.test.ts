@@ -107,6 +107,8 @@ describe('POST /orders/create', () => {
     }))
     expect(res.status).toBe(500)
     expect(activeClient.didCall('orders', 'delete')).toBe(true)
+    // garantía de rollback: el stock NO se descontó (el fallo ocurre antes del update de inventario)
+    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
   })
 })
 

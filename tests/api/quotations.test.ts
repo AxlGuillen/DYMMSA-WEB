@@ -171,6 +171,25 @@ describe('PATCH /quotations/[id]/update', () => {
     expect(res.status).toBe(400)
   })
 
+  test('sent_for_approval es editable (200) — el API lo permite aunque el UI canEdit no', async () => {
+    // canEdit del UI = isDraft || isApproved, pero el route admite además sent_for_approval.
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'sent_for_approval' }, error: null },
+        'quotation_items.select': { data: [], error: null },
+        'quotation_items.delete': { data: null, error: null },
+        'quotation_items.insert': { data: null, error: null },
+        'quotations.update': { data: null, error: null },
+      },
+    })
+    const res = await update.PATCH(
+      makeRequest({ name: 'Q', customer_name: 'ACME', items: [product()] }),
+      makeParams({ id: 'q1' }),
+    )
+    expect(res.status).toBe(200)
+  })
+
   test('REGLA: en aprobada, preserva is_approved del item (true/false) y deja null a los nuevos', async () => {
     activeClient = createMockSupabase({
       user: AUTH,

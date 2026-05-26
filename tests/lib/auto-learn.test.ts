@@ -57,7 +57,7 @@ describe('isEligibleForAutoLearn', () => {
     expect(isEligibleForAutoLearn(makeItem({ model_code: '' }))).toBe(true)
   })
 
-  test('eligible: product with etm + description_es only', () => {
+  test('NOT eligible: etm + description_es only (no description, no model_code)', () => {
     expect(isEligibleForAutoLearn(makeItem({
       model_code:  '',
       description: '',
