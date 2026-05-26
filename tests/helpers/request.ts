@@ -55,7 +55,7 @@ export function makeExcelRequest(
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
-    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
     fd.set('file', new File([buf], 'data.xlsx'))
   }
   if (opts.mode) fd.set('mode', opts.mode)
