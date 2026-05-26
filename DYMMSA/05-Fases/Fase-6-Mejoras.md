@@ -135,3 +135,4 @@ Resultado: **177 tests, 0 fallos** (~250 ms). 7 commits atómicos en `stg`.
 - **Integration tests** de route handlers contra Supabase local/branch (constraints, RLS, triggers reales).
 - **Component tests** con Testing Library; **E2E** con Playwright.
 - Tests de los parsers de Excel en `src/lib/excel/*`.
+- **Divergencia API vs UI en `sent_for_approval`** (a evaluar): `PATCH /api/quotations/[id]/update` admite editar `sent_for_approval`, pero el UI usa `canEdit = isDraft || isApproved` y no expone la edición en ese estado. No es alcanzable por el producto, pero editar vía API mientras el cliente revisa el link regenera los IDs de `quotation_items` (DELETE+INSERT) y el `POST /approve/[token]` actualizaría por IDs obsoletos. Decisión actual: dejarlo (documentado en `tests/api/quotations.test.ts`). Evaluar si conviene alinear el guard del API con `canEdit`.
