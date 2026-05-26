@@ -117,7 +117,21 @@ GitHub Action que revisa automáticamente cada PR contra las reglas de negocio d
 - `use_sticky_comment`: un comment consolidado por PR, se actualiza en cada push
 - `@claude` disponible en comentarios para consultas on-demand
 
+## Testing — unit + mock de Supabase ✅
+
+> 2026-05-25 · [[04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing]]
+
+Fase 1 y 2 de QA con el runner integrado de Bun (`bun:test`), sin dependencias nuevas.
+
+- **Fase 1 — funciones puras** (`tests/lib/*`, 104 tests): format, business-rules, auto-learn, inventory.
+- **Fase 2 — route handlers** (`tests/api/*`, 73 tests): handlers reales con Supabase mockeado vía `tests/helpers/supabase-mock.ts`. Smoke, auth-guards (18 rutas → 401), quotations, orders, imports (con `.xlsx` real).
+- Reglas de negocio críticas cubiertas: separadores excluidos, deducción de stock al crear orden, rollback, preservación de `is_approved`, auto-learn URREA, `requireAuth`, invariante de allocation.
+- Scripts: `bun test` / `test:watch` / `test:coverage` → `tests/`.
+
+Resultado: **177 tests, 0 fallos** (~250 ms). 7 commits atómicos en `stg`.
+
 ## Pendiente / Próximo
 
-- **Fase 1 de QA:** Instalar Bun test y escribir tests unitarios sobre `src/lib/*` puras (ver ADR-006).
-- **Fase 2+ QA:** Integration tests de route handlers, component tests con Testing Library, E2E con Playwright.
+- **Integration tests** de route handlers contra Supabase local/branch (constraints, RLS, triggers reales).
+- **Component tests** con Testing Library; **E2E** con Playwright.
+- Tests de los parsers de Excel en `src/lib/excel/*`.

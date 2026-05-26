@@ -98,6 +98,30 @@ src/
     └── index.ts                  # Re-exporta desde database.ts
 ```
 
+## Tests (`tests/`, fuera de `src/`)
+
+La carpeta `tests/` vive en la raíz del repo y espeja la estructura de `src/`. Ver [[04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing]].
+
+```
+tests/
+├── helpers/
+│   ├── supabase-mock.ts          # Fake del query builder de Supabase (chainable + thenable)
+│   └── request.ts                # makeRequest, makeParams, makeExcelRequest, readJson
+├── lib/                          # Tests de funciones puras (src/lib/*)
+│   ├── format.test.ts
+│   ├── business-rules.test.ts
+│   ├── auto-learn.test.ts
+│   └── inventory.test.ts
+└── api/                          # Tests de route handlers (Supabase mockeado)
+    ├── smoke.test.ts             # Valida el approach (mock.module + alias + NextResponse)
+    ├── auth-guards.test.ts       # 18 rutas → 401 sin auth; /approve público
+    ├── quotations.test.ts        # save, update, create-order
+    ├── orders.test.ts            # create, [id] PATCH/DELETE, cancel, confirm-reception
+    └── imports.test.ts           # inventory/import, products/import, auto-learn
+```
+
+Comando: `bun test tests/` (177 tests). Watch: `bun test:watch`. Coverage: `bun test:coverage`.
+
 ## Convenciones importantes
 
 - **Páginas** son Server Components por defecto; se agregan `"use client"` solo donde se necesita interactividad.

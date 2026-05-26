@@ -51,6 +51,9 @@ Términos clave: ETM, model_code, URREA, separadores, DYMMSA-codes, approval_tok
 | [[04-Decisiones-Tecnicas/ADR-002-DYMMSA-codes\|ADR-002]] | Productos sin ETM → código DYMMSA-{n} |
 | [[04-Decisiones-Tecnicas/ADR-003-sort_order\|ADR-003]] | Campo sort_order para preservar orden de ítems |
 | [[04-Decisiones-Tecnicas/ADR-004-Aprobacion-Flexible\|ADR-004]] | Cotizaciones aprobadas editables por DYMMSA |
+| [[04-Decisiones-Tecnicas/ADR-005-Modo-Discreto\|ADR-005]] | Modo discreto: enmascarar valores monetarios |
+| [[04-Decisiones-Tecnicas/ADR-006-Refactor-Utils-Phase-0\|ADR-006]] | Extracción de lógica duplicada a `src/lib/*` |
+| [[04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing\|ADR-007]] | Estrategia de testing: unit + mock de Supabase |
 
 ---
 
@@ -72,12 +75,13 @@ Términos clave: ETM, model_code, URREA, separadores, DYMMSA-codes, approval_tok
 | Mes | Entradas |
 |-----|----------|
 | [[06-Changelog/2026-04\|Abril 2026]] | Separadores, delivery_time, sort_order, rename statuses |
+| [[06-Changelog/2026-05\|Mayo 2026]] | Modo discreto, refactor utils, Claude PR Reviewer, fix separadores, testing |
 
 ---
 
 ## Estado actual del proyecto
 
 - **Fase:** 6 — Mejoras y Optimización
-- **Última actualización:** 2026-04-25
+- **Última actualización:** 2026-05-25
 - **BD (Supabase):** ACTIVE_HEALTHY · us-west-2 · PostgreSQL 17.6
 - **Filas actuales:** etm_products 564 · store_inventory 195 · quotations 9 · quotation_items 365 · orders 8 · order_items 182
