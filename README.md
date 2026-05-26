@@ -263,11 +263,38 @@ bun dev
 ## Scripts
 
 ```bash
-bun dev      # Development server
-bun build    # Production build
-bun start    # Start production server
-bun lint     # Run ESLint
+bun dev            # Development server
+bun build          # Production build
+bun start          # Start production server
+bun lint           # Run ESLint
+bun test           # Run the test suite
+bun test:watch     # Run tests in watch mode
+bun test:coverage  # Run tests with coverage
 ```
+
+## Testing
+
+Unit tests run on Bun's built-in runner (`bun:test`) — no extra dependencies. Tests live in a top-level `tests/` folder that mirrors `src/`:
+
+```
+tests/
+├── helpers/        # Supabase mock + request builders (makeRequest, makeExcelRequest)
+├── lib/            # Pure functions (format, business-rules, auto-learn, inventory)
+└── api/            # Route handlers with a mocked Supabase client
+    ├── smoke.test.ts
+    ├── auth-guards.test.ts
+    ├── quotations.test.ts
+    ├── orders.test.ts
+    └── imports.test.ts
+```
+
+Backend handlers are tested as **unit tests with a mocked Supabase client** (no real database): the mock reproduces the chainable query builder and records calls, so tests can assert auth guards, validation, rollback and inventory side effects. This covers the critical business rules (separators excluded from totals, stock deducted on order creation, rollback on failed inserts, `is_approved` preservation, auto-learn brand rules, `requireAuth` on every route, allocation invariant).
+
+```bash
+bun test           # 177 tests, ~250 ms
+```
+
+See `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md` for the full rationale.
 
 ## Deployment
 
