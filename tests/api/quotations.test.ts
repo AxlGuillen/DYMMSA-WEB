@@ -8,18 +8,20 @@
  *   - create-order: solo productos aprobados + separadores, deduce stock, rollback.
  */
 
-import { describe, test, expect, mock } from 'bun:test'
+import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, type CallRecord } from '../helpers/supabase-mock'
 import { makeRequest, makeParams } from '../helpers/request'
+import { createClient } from '@/lib/supabase/server'
+import * as save from '@/app/api/quotations/save/route'
+import * as update from '@/app/api/quotations/[id]/update/route'
+import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
+
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
-mock.module('@/lib/supabase/server', () => ({
-  createClient: async () => activeClient,
-}))
-
-const save        = await import('@/app/api/quotations/save/route')
-const update      = await import('@/app/api/quotations/[id]/update/route')
-const createOrder = await import('@/app/api/quotations/[id]/create-order/route')
+beforeEach(() => {
+  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
+})
 
 const AUTH = { id: 'user-1' }
 

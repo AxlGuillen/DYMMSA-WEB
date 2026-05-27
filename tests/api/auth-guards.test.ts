@@ -8,41 +8,44 @@
  * sin auth) y se valida por separado.
  */
 
-import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
 import { makeRequest, makeParams } from '../helpers/request'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+// ── Import estático de TODOS los handlers (vi.mock se hoista por encima) ──
+import * as quotationsSave from '@/app/api/quotations/save/route'
+import * as quotationDelete from '@/app/api/quotations/[id]/route'
+import * as quotationUpdate from '@/app/api/quotations/[id]/update/route'
+import * as sendForApproval from '@/app/api/quotations/[id]/send-for-approval/route'
+import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
+import * as ordersCreate from '@/app/api/orders/create/route'
+import * as orderByIdRoute from '@/app/api/orders/[id]/route'
+import * as orderCancel from '@/app/api/orders/[id]/cancel/route'
+import * as confirmReception from '@/app/api/orders/[id]/confirm-reception/route'
+import * as orderItems from '@/app/api/orders/[id]/items/route'
+import * as orderItemById from '@/app/api/orders/[id]/items/[itemId]/route'
+import * as orderStatus from '@/app/api/orders/[id]/status/route'
+import * as autoLearn from '@/app/api/orders/auto-learn/route'
+import * as ordersByQuotation from '@/app/api/orders/by-quotation/[quotationId]/route'
+import * as quotesLookup from '@/app/api/quotes/lookup/route'
+import * as productsImport from '@/app/api/products/import/route'
+import * as nextDymmsaCode from '@/app/api/products/next-dymmsa-code/route'
+import * as inventoryImport from '@/app/api/inventory/import/route'
+import * as approve from '@/app/api/approve/[token]/route'
 
 // ── Mocks de los módulos de Supabase ────────────────────────────────────
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
+
 let activeClient: MockSupabaseClient
 let adminClient: MockSupabaseClient
 
-mock.module('@/lib/supabase/server', () => ({
-  createClient: async () => activeClient,
-}))
-mock.module('@/lib/supabase/admin', () => ({
-  createAdminClient: () => adminClient,
-}))
-
-// ── Import dinámico de TODOS los handlers tras registrar los mocks ───────
-const quotationsSave        = await import('@/app/api/quotations/save/route')
-const quotationDelete       = await import('@/app/api/quotations/[id]/route')
-const quotationUpdate       = await import('@/app/api/quotations/[id]/update/route')
-const sendForApproval       = await import('@/app/api/quotations/[id]/send-for-approval/route')
-const createOrder           = await import('@/app/api/quotations/[id]/create-order/route')
-const ordersCreate          = await import('@/app/api/orders/create/route')
-const orderByIdRoute        = await import('@/app/api/orders/[id]/route')
-const orderCancel           = await import('@/app/api/orders/[id]/cancel/route')
-const confirmReception      = await import('@/app/api/orders/[id]/confirm-reception/route')
-const orderItems            = await import('@/app/api/orders/[id]/items/route')
-const orderItemById         = await import('@/app/api/orders/[id]/items/[itemId]/route')
-const orderStatus           = await import('@/app/api/orders/[id]/status/route')
-const autoLearn             = await import('@/app/api/orders/auto-learn/route')
-const ordersByQuotation     = await import('@/app/api/orders/by-quotation/[quotationId]/route')
-const quotesLookup          = await import('@/app/api/quotes/lookup/route')
-const productsImport        = await import('@/app/api/products/import/route')
-const nextDymmsaCode        = await import('@/app/api/products/next-dymmsa-code/route')
-const inventoryImport       = await import('@/app/api/inventory/import/route')
-const approve               = await import('@/app/api/approve/[token]/route')
+beforeEach(() => {
+  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
+  vi.mocked(createAdminClient).mockImplementation(() => adminClient as never)
+})
 
 // ── Tabla de rutas protegidas: nombre + invocación con user:null ─────────
 const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = [

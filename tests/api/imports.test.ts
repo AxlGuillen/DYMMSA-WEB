@@ -9,18 +9,20 @@
  *                        siempre inserta brand='URREA'.
  */
 
-import { describe, test, expect, mock } from 'bun:test'
+import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
-import { makeRequest, makeParams, makeExcelRequest } from '../helpers/request'
+import { makeRequest, makeExcelRequest } from '../helpers/request'
+import { createClient } from '@/lib/supabase/server'
+import * as inventoryImport from '@/app/api/inventory/import/route'
+import * as productsImport from '@/app/api/products/import/route'
+import * as autoLearn from '@/app/api/orders/auto-learn/route'
+
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
-mock.module('@/lib/supabase/server', () => ({
-  createClient: async () => activeClient,
-}))
-
-const inventoryImport = await import('@/app/api/inventory/import/route')
-const productsImport   = await import('@/app/api/products/import/route')
-const autoLearn        = await import('@/app/api/orders/auto-learn/route')
+beforeEach(() => {
+  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
+})
 
 const AUTH = { id: 'user-1' }
 

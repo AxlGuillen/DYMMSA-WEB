@@ -1,27 +1,27 @@
 /**
  * SMOKE TEST (Fase 0) — valida que el approach de testing de backend funciona:
- *   1. mock.module() intercepta @/lib/supabase/server
+ *   1. vi.mock() intercepta @/lib/supabase/server
  *   2. el alias @/ resuelve los handlers reales
- *   3. NextResponse / NextRequest funcionan bajo `bun test`
+ *   3. NextResponse / NextRequest funcionan bajo Vitest
  *   4. el mock de Supabase inyecta auth y resuelve queries
  *
  * Si esto pasa, el resto de las fases (auth-guards, quotations, orders, inventory)
  * se construyen sobre la misma base.
  */
 
-import { describe, test, expect, mock } from 'bun:test'
+import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, type MockSupabaseClient } from '../helpers/supabase-mock'
 import { makeRequest } from '../helpers/request'
+import { createClient } from '@/lib/supabase/server'
+import { POST } from '@/app/api/quotations/save/route'
 
-// El cliente activo se intercambia por test; el factory lo cierra por referencia.
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
+
+// El cliente activo se intercambia por test; el mock lee la variable viva.
 let activeClient: MockSupabaseClient
-
-mock.module('@/lib/supabase/server', () => ({
-  createClient: async () => activeClient,
-}))
-
-// Import dinámico DESPUÉS de registrar el mock del módulo.
-const { POST } = await import('@/app/api/quotations/save/route')
+beforeEach(() => {
+  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
+})
 
 describe('smoke: infraestructura de testing de backend', () => {
   test('handler real devuelve 401 cuando no hay usuario autenticado', async () => {

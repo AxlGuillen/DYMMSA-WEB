@@ -9,19 +9,21 @@
  *   - [id]/confirm-reception: actualiza items, suma a inventario, recalcula total.
  */
 
-import { describe, test, expect, mock } from 'bun:test'
+import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, type CallRecord } from '../helpers/supabase-mock'
 import { makeRequest, makeParams } from '../helpers/request'
+import { createClient } from '@/lib/supabase/server'
+import * as create from '@/app/api/orders/create/route'
+import * as orderById from '@/app/api/orders/[id]/route'
+import * as cancel from '@/app/api/orders/[id]/cancel/route'
+import * as confirmReception from '@/app/api/orders/[id]/confirm-reception/route'
+
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
-mock.module('@/lib/supabase/server', () => ({
-  createClient: async () => activeClient,
-}))
-
-const create           = await import('@/app/api/orders/create/route')
-const orderById        = await import('@/app/api/orders/[id]/route')
-const cancel           = await import('@/app/api/orders/[id]/cancel/route')
-const confirmReception = await import('@/app/api/orders/[id]/confirm-reception/route')
+beforeEach(() => {
+  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
+})
 
 const AUTH = { id: 'user-1' }
 
