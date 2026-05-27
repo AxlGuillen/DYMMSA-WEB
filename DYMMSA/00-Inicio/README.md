@@ -75,7 +75,7 @@ Términos clave: ETM, model_code, URREA, separadores, DYMMSA-codes, approval_tok
 | Mes | Entradas |
 |-----|----------|
 | [[06-Changelog/2026-04\|Abril 2026]] | Separadores, delivery_time, sort_order, rename statuses |
-| [[06-Changelog/2026-05\|Mayo 2026]] | Modo discreto, refactor utils, Claude PR Reviewer, fix separadores, testing |
+| [[06-Changelog/2026-05\|Mayo 2026]] | Modo discreto, refactor utils, Claude PR Reviewer, fix separadores, testing (Vitest) |
 
 ---
 

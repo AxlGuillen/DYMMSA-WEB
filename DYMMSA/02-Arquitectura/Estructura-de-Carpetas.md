@@ -100,27 +100,30 @@ src/
 
 ## Tests (`tests/`, fuera de `src/`)
 
-La carpeta `tests/` vive en la raíz del repo y espeja la estructura de `src/`. Ver [[04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing]].
+La carpeta `tests/` vive en la raíz del repo y espeja la estructura de `src/`. Runner: **Vitest** (`vitest.config.ts`, en la raíz), entornos `node` (lib/api) y `jsdom` (componentes). Ver [[04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing]].
 
 ```
 tests/
 ├── helpers/
 │   ├── supabase-mock.ts          # Fake del query builder de Supabase (chainable + thenable)
 │   └── request.ts                # makeRequest, makeParams, makeExcelRequest, readJson
-├── lib/                          # Tests de funciones puras (src/lib/*)
+├── lib/                          # Funciones puras (src/lib/*) — node
 │   ├── format.test.ts
 │   ├── business-rules.test.ts
 │   ├── auto-learn.test.ts
 │   └── inventory.test.ts
-└── api/                          # Tests de route handlers (Supabase mockeado)
-    ├── smoke.test.ts             # Valida el approach (mock.module + alias + NextResponse)
-    ├── auth-guards.test.ts       # 18 rutas → 401 sin auth; /approve público
-    ├── quotations.test.ts        # save, update, create-order
-    ├── orders.test.ts            # create, [id] PATCH/DELETE, cancel, confirm-reception
-    └── imports.test.ts           # inventory/import, products/import, auto-learn
+├── api/                          # Route handlers (Supabase mockeado) — node
+│   ├── smoke.test.ts             # Valida el approach (vi.mock + alias + NextResponse)
+│   ├── auth-guards.test.ts       # 18 rutas → 401 sin auth; /approve público
+│   ├── quotations.test.ts        # save, update, create-order
+│   ├── orders.test.ts            # create, [id] PATCH/DELETE, cancel, confirm-reception
+│   └── imports.test.ts           # inventory/import, products/import, auto-learn
+└── components/                   # Componentes React (jsdom + Testing Library)
+    ├── setup.ts                  # jest-dom + cleanup + polyfills
+    └── smoke.test.tsx            # Valida el harness jsdom + React 19
 ```
 
-Comando: `bun test tests/` (177 tests). Watch: `bun test:watch`. Coverage: `bun test:coverage`.
+Comando: `bun run test` (180 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`. ⚠️ Usar `bun run test`, no `bun test`.
 
 ## Convenciones importantes
 

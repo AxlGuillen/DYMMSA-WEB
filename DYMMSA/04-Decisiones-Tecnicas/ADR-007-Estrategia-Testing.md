@@ -1,8 +1,8 @@
-# ADR-007: Estrategia de Testing — unit + mock de Supabase
+# ADR-007: Estrategia de Testing — Vitest + mock de Supabase
 
-> **Estado:** Implementado 2026-05-25
+> **Estado:** Implementado 2026-05-25 · **Revisado 2026-05-26** (migrado a Vitest)
 > **Fase:** 6 — Mejoras (Fase 1 y 2 de QA)
-> **Archivos clave:** `tests/helpers/supabase-mock.ts`, `tests/helpers/request.ts`, `tests/lib/*`, `tests/api/*`, `package.json`
+> **Archivos clave:** `vitest.config.ts`, `tests/helpers/supabase-mock.ts`, `tests/helpers/request.ts`, `tests/lib/*`, `tests/api/*`, `tests/components/*`, `package.json`
 
 ---
 
@@ -10,7 +10,7 @@
 
 Tras el refactor de ADR-006 (lógica pura extraída a `src/lib/*`), el proyecto quedó listo para introducir tests. Las decisiones a tomar:
 
-1. **Test runner** — el proyecto ya usa Bun, que trae un runner integrado compatible con la API de Jest (`bun:test`). Cero dependencias nuevas.
+1. **Test runner** — la primera iteración (2026-05-25) usó `bun:test` (runner integrado de Bun, cero deps). Se migró a **Vitest** el 2026-05-26 para tener un runner único que cubra también los tests de componentes (React 19 + jsdom). Ver "Historia" más abajo.
 2. **Cómo probar el backend** — los route handlers dependen del cliente de Supabase. Opciones: mockear Supabase (unit), levantar una BD real (integration), o ambos.
 3. **Ubicación de los tests** — co-locados (`__tests__` junto al código) vs. carpeta raíz `tests/` que espeja `src/`.
 
@@ -18,14 +18,18 @@ Tras el refactor de ADR-006 (lógica pura extraída a `src/lib/*`), el proyecto 
 
 ## Decisión
 
-### 1. Runner: Bun test
+### 1. Runner: Vitest (un solo runner, dos entornos)
+
+`vitest.config.ts` con `test.projects`: entorno **node** para `tests/lib` + `tests/api`, entorno **jsdom** para `tests/components`. Alias `@/` resuelto nativamente desde `tsconfig.json` (`resolve.tsconfigPaths`).
 
 ```jsonc
 // package.json
-"test":          "bun test tests/",
-"test:watch":    "bun test --watch tests/",
-"test:coverage": "bun test --coverage tests/"
+"test":          "vitest run",
+"test:watch":    "vitest",
+"test:coverage": "vitest run --coverage"
 ```
+
+> ⚠️ Usar `bun run test`, no `bun test`: el segundo invoca el runner integrado de Bun y falla con los imports de `vitest`.
 
 ### 2. Backend: unit con mock de Supabase (sin BD real)
 
@@ -43,15 +47,18 @@ tests/
 │   ├── business-rules.test.ts
 │   ├── auto-learn.test.ts
 │   └── inventory.test.ts
-└── api/                   # tests de route handlers
-    ├── smoke.test.ts
-    ├── auth-guards.test.ts
-    ├── quotations.test.ts
-    ├── orders.test.ts
-    └── imports.test.ts
+├── api/                   # tests de route handlers (node)
+│   ├── smoke.test.ts
+│   ├── auth-guards.test.ts
+│   ├── quotations.test.ts
+│   ├── orders.test.ts
+│   └── imports.test.ts
+└── components/            # tests de componentes React (jsdom)
+    ├── setup.ts           # jest-dom + cleanup + polyfills (matchMedia, ResizeObserver)
+    └── smoke.test.tsx
 ```
 
-Separar `tests/` de `src/` mantiene el código de producción limpio y escala cuando se agreguen tests de componentes/hooks.
+Separar `tests/` de `src/` mantiene el código de producción limpio y escala para tests de componentes/hooks. `tests/tsconfig.json` da IntelliSense sin afectar el build de Next (que excluye `tests`).
 
 ---
 
@@ -64,7 +71,7 @@ Separar `tests/` de `src/` mantiene el código de producción limpio y escala cu
 - **Registro de llamadas** (`_calls`, `callsTo`, `didCall`) para hacer assertions sobre side effects: que el rollback borró el padre, que se descontó/restauró el inventario, que el payload insertado tiene los campos correctos.
 - **`auth.getUser()`** configurable (`user` / `null`) para probar los guards.
 
-Se inyecta con `mock.module('@/lib/supabase/server', …)` de `bun:test`. **Patrón clave:** registrar el `mock.module` al tope del archivo y luego hacer `await import()` dinámico del handler; una variable `activeClient` se intercambia por test.
+Se inyecta con `vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))`. **Patrón clave:** en `beforeEach`, `vi.mocked(createClient).mockImplementation(async () => activeClient)` lee la variable viva (se intercambia por test); los handlers se importan **estáticamente** (Vitest hoista `vi.mock` por encima de los imports).
 
 La ruta pública `/approve/[token]` usa `createAdminClient` de `@/lib/supabase/admin`, por lo que se mockea ese módulo aparte.
 
@@ -80,7 +87,8 @@ La ruta pública `/approve/[token]` usa `createAdminClient` de `@/lib/supabase/a
 | Cotizaciones | `api/quotations.test.ts` | 16 | validación, `sort_order`, `is_approved`, separadores, rollback |
 | Órdenes | `api/orders.test.ts` | 17 | deduce stock al crear, `allocateInventory`, cancel/delete/reception |
 | Imports | `api/imports.test.ts` | 15 | Excel real, upsert/replace, auto-learn (brand URREA) |
-| | **Total** | **177** | 0 fallos |
+| Componentes | `components/smoke.test.tsx` | 2 | harness jsdom + React 19 (render de `QuotationStatusBadge`) |
+| | **Total** | **180** | 0 fallos |
 
 ### Reglas de negocio del CLAUDE.md ahora cubiertas por tests
 - Separadores excluidos de totales/auto-learn/conteos.
@@ -95,9 +103,10 @@ La ruta pública `/approve/[token]` usa `createAdminClient` de `@/lib/supabase/a
 
 ## Consecuencias
 
-- **Cero dependencias nuevas** — Bun test ya estaba disponible.
-- **Tests rápidos** (~250 ms la suite completa) — sin red ni Docker.
-- **`NextRequest.formData()` con `.xlsx` real funciona bajo `bun test`** — el helper `makeExcelRequest` genera el archivo con SheetJS.
+- **Un solo runner (Vitest)** cubre backend (`node`) y componentes (`jsdom`); coverage con `@vitest/coverage-v8`.
+- **Tests rápidos** (~1.3 s la suite completa) — sin red ni Docker.
+- **`NextRequest.formData()` con `.xlsx` real funciona bajo Vitest (node)** — el helper `makeExcelRequest` genera el archivo con SheetJS.
+- **Gotcha:** el `bun test` integrado no se puede deshabilitar; siempre usar `bun run test` / `bunx vitest`.
 - **No cubre** constraints de Postgres, RLS ni triggers reales — es un trade-off consciente del enfoque unit. Integration/E2E quedan como trabajo futuro.
 
 ---
@@ -105,8 +114,15 @@ La ruta pública `/approve/[token]` usa `createAdminClient` de `@/lib/supabase/a
 ## NO incluido (intencionalmente)
 
 - Integration tests contra Supabase local/branch.
-- Component tests (Testing Library) y E2E (Playwright).
+- Batería completa de component tests (el harness jsdom + un smoke ya existen; la batería es la fase siguiente) y E2E (Playwright).
 - Tests de los parsers de Excel en `src/lib/excel/*` (candidato siguiente).
+
+---
+
+## Historia
+
+- **2026-05-25 — `bun:test`:** primera iteración con el runner integrado de Bun (cero deps, ~250 ms). Patrón de inyección: `mock.module(...)` + `await import()` dinámico + variable `activeClient`.
+- **2026-05-26 — Migración a Vitest:** al decidir agregar tests de componentes (React 19 + jsdom), se optó por **un solo runner** en vez de mantener `bun:test` + Vitest en paralelo. La suite era joven (178 tests) y la migración fue mecánica: imports `bun:test`→`vitest`, `mock`→`vi`, y el patrón de inyección pasó a `vi.mock` + `vi.fn()` + `mockImplementation` (más limpio, permite imports estáticos). Bun se mantiene como package manager/runtime.
 
 ---
 

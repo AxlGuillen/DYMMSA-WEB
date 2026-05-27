@@ -99,18 +99,20 @@ Estas reglas generan bugs si se ignoran al escribir código:
 
 ## Testing
 
-Tests con el runner integrado de Bun (`bun:test`), sin dependencias extra. Viven en `tests/` (raíz del repo, espeja `src/`):
+Runner único: **Vitest** (`vitest.config.ts`), dos entornos — `node` (backend) y `jsdom` (componentes React). Los tests viven en `tests/` (raíz del repo, espeja `src/`):
 
 ```
 tests/
-├── helpers/   # supabase-mock.ts (fake del query builder) + request.ts (makeRequest, makeExcelRequest)
-├── lib/       # funciones puras de src/lib/* (104 tests)
-└── api/       # route handlers reales con Supabase mockeado (smoke, auth-guards, quotations, orders, imports)
+├── helpers/     # supabase-mock.ts (fake del query builder) + request.ts (makeRequest, makeExcelRequest)
+├── lib/         # funciones puras de src/lib/* (node, 104 tests)
+├── api/         # route handlers reales con Supabase mockeado (node)
+└── components/  # componentes React (jsdom + Testing Library)
 ```
 
-- **Comando:** `bun test` (177 tests). Watch: `bun test:watch`. Coverage: `bun test:coverage`.
+- **Comando:** `bun run test` (180 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
+- ⚠️ **Usar `bun run test`, NO `bun test`** — `bun test` invoca el runner integrado de Bun y falla al toparse con imports de `vitest`.
 - **Backend = unit con mock de Supabase** (sin BD real). El mock reproduce el query builder chainable y registra llamadas para assertions de auth, validación, rollback y side effects de inventario.
-- **Patrón:** `mock.module('@/lib/supabase/server', …)` al tope + `await import()` dinámico del handler + variable `activeClient` por test. `/approve/[token]` mockea `@/lib/supabase/admin`.
+- **Patrón:** `vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))` + en `beforeEach` `vi.mocked(createClient).mockImplementation(async () => activeClient)` (la variable se intercambia por test). `/approve/[token]` mockea `@/lib/supabase/admin`.
 - **Al agregar/cambiar lógica de negocio o un route handler, agregar o actualizar su test.**
 
 > 📚 Detalle y rationale: `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md`
