@@ -280,7 +280,7 @@ Single runner: **Vitest** (`vitest.config.ts`) with two environments — `node` 
 
 ```
 tests/
-├── helpers/        # Supabase mock + request builders (makeRequest, makeExcelRequest)
+├── helpers/        # Supabase mock + injectSupabaseServer + factories + request builders
 ├── lib/            # Pure functions (format, business-rules, auto-learn, inventory) — node
 ├── api/            # Route handlers with a mocked Supabase client — node
 │   ├── smoke.test.ts
@@ -289,12 +289,15 @@ tests/
 │   ├── orders.test.ts
 │   └── imports.test.ts
 └── components/     # React components — jsdom + Testing Library
+    ├── helpers/    # render (QueryClientProvider), resetStores, fixtures
+    ├── badges / MetricCard / useCurrency / DiscreteModeToggle / QuotePreview
+    └── ProductModal / QuotationEditor / QuotationDetail (approval toggle)
 ```
 
-Backend handlers are tested as **unit tests with a mocked Supabase client** (no real database): the mock reproduces the chainable query builder and records calls, so tests can assert auth guards, validation, rollback and inventory side effects. This covers the critical business rules (separators excluded from totals, stock deducted on order creation, rollback on failed inserts, `is_approved` preservation, auto-learn brand rules, `requireAuth` on every route, allocation invariant).
+Backend handlers are tested as **unit tests with a mocked Supabase client** (no real database): the mock reproduces the chainable query builder and records calls, so tests can assert auth guards, validation, rollback and inventory side effects. This covers the critical business rules (separators excluded from totals, stock deducted on order creation, rollback on failed inserts, `is_approved` preservation, auto-learn brand rules, `requireAuth` on every route, allocation invariant). Components are tested in jsdom; TanStack Query hooks are mocked at the module level and Zustand stores reset between tests.
 
 ```bash
-bun run test           # 180 tests
+bun run test           # 226 tests
 ```
 
 See `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md` for the full rationale.

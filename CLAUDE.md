@@ -103,16 +103,18 @@ Runner único: **Vitest** (`vitest.config.ts`), dos entornos — `node` (backend
 
 ```
 tests/
-├── helpers/     # supabase-mock.ts (fake del query builder) + request.ts (makeRequest, makeExcelRequest)
+├── helpers/     # supabase-mock.ts + setup.ts (injectSupabaseServer) + factories.ts + request.ts
 ├── lib/         # funciones puras de src/lib/* (node, 104 tests)
 ├── api/         # route handlers reales con Supabase mockeado (node)
 └── components/  # componentes React (jsdom + Testing Library)
+    └── helpers/ # render (QueryClientProvider), stores (resetStores), fixtures
 ```
 
-- **Comando:** `bun run test` (180 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
+- **Comando:** `bun run test` (226 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
 - ⚠️ **Usar `bun run test`, NO `bun test`** — `bun test` invoca el runner integrado de Bun y falla al toparse con imports de `vitest`.
 - **Backend = unit con mock de Supabase** (sin BD real). El mock reproduce el query builder chainable y registra llamadas para assertions de auth, validación, rollback y side effects de inventario.
-- **Patrón:** `vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))` + en `beforeEach` `vi.mocked(createClient).mockImplementation(async () => activeClient)` (la variable se intercambia por test). `/approve/[token]` mockea `@/lib/supabase/admin`.
+- **Patrón backend:** `vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))` + `injectSupabaseServer(() => activeClient)` (helper que registra el `beforeEach`; la variable se intercambia por test). `/approve/[token]` mockea `@/lib/supabase/admin`.
+- **Componentes:** jsdom + Testing Library. Hooks de TanStack se mockean a nivel de módulo (`vi.mock('@/hooks/*')` → `{ mutateAsync: vi.fn(), isPending: false }`); los stores Zustand se resetean con `resetStores()`. DnD (drag&drop) y flujos completos quedan para E2E.
 - **Al agregar/cambiar lógica de negocio o un route handler, agregar o actualizar su test.**
 
 > 📚 Detalle y rationale: `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md`

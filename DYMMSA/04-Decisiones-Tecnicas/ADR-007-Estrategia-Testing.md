@@ -40,7 +40,9 @@ Se mockea el cliente de Supabase y se ejercita el handler real. No se levanta Po
 ```
 tests/
 ├── helpers/
-│   ├── supabase-mock.ts   # fake del query builder de Supabase
+│   ├── supabase-mock.ts   # fake del query builder + matchers (hasFilter) + payload accessors
+│   ├── setup.ts           # injectSupabaseServer / injectSupabaseAdmin (DRY del beforeEach)
+│   ├── factories.ts       # AUTH, quotationItem, separator, orderProduct (payloads de API)
 │   └── request.ts         # makeRequest, makeParams, makeExcelRequest, readJson
 ├── lib/                   # tests de funciones puras (ADR-006)
 │   ├── format.test.ts
@@ -54,8 +56,10 @@ tests/
 │   ├── orders.test.ts
 │   └── imports.test.ts
 └── components/            # tests de componentes React (jsdom)
-    ├── setup.ts           # jest-dom + cleanup + polyfills (matchMedia, ResizeObserver)
-    └── smoke.test.tsx
+    ├── setup.ts           # jest-dom + cleanup + polyfills (matchMedia, ResizeObserver, crypto, clipboard)
+    ├── helpers/           # render (QueryClientProvider), stores (resetStores), fixtures (shape UI)
+    ├── smoke / badges / MetricCard / useCurrency / DiscreteModeToggle / QuotePreview
+    └── ProductModal / QuotationEditor / QuotationDetail
 ```
 
 Separar `tests/` de `src/` mantiene el código de producción limpio y escala para tests de componentes/hooks. `tests/tsconfig.json` da IntelliSense sin afectar el build de Next (que excluye `tests`).
@@ -87,8 +91,16 @@ La ruta pública `/approve/[token]` usa `createAdminClient` de `@/lib/supabase/a
 | Cotizaciones | `api/quotations.test.ts` | 16 | validación, `sort_order`, `is_approved`, separadores, rollback |
 | Órdenes | `api/orders.test.ts` | 17 | deduce stock al crear, `allocateInventory`, cancel/delete/reception |
 | Imports | `api/imports.test.ts` | 15 | Excel real, upsert/replace, auto-learn (brand URREA) |
-| Componentes | `components/smoke.test.tsx` | 2 | harness jsdom + React 19 (render de `QuotationStatusBadge`) |
-| | **Total** | **180** | 0 fallos |
+| Comp. smoke | `components/smoke.test.tsx` | 2 | harness jsdom + React 19 |
+| Comp. badges | `components/badges.test.tsx` | 11 | labels de QuotationStatusBadge y OrderStatusBadge |
+| Comp. MetricCard | `components/MetricCard.test.tsx` | 4 | value/description/isLoading/icon |
+| Comp. useCurrency | `components/useCurrency.test.tsx` | 4 | formato es-MX, modo discreto, null |
+| Comp. toggle | `components/DiscreteModeToggle.test.tsx` | 3 | alterna store + aria-label |
+| Comp. QuotePreview | `components/QuotePreview.test.tsx` | 9 | % match/color, total, copiar ETMs, callbacks |
+| Comp. ProductModal | `components/ProductModal.test.tsx` | 4 | submit → payload, validación ETM (local/catálogo/edit) |
+| Comp. QuotationEditor | `components/QuotationEditor.test.tsx` | 6 | cards de resumen, add/remove, separador (DnD omitido) |
+| Comp. QuotationDetail | `components/QuotationDetail.test.tsx` | 5 | toggle aprobación ✓/✗, contadores, save → mutateAsync |
+| | **Total** | **226** | 0 fallos |
 
 ### Reglas de negocio del CLAUDE.md ahora cubiertas por tests
 - Separadores excluidos de totales/auto-learn/conteos.
@@ -111,10 +123,23 @@ La ruta pública `/approve/[token]` usa `createAdminClient` de `@/lib/supabase/a
 
 ---
 
+## Component tests (batería de alto valor)
+
+Cubre la lógica interactiva propia, no los componentes de shadcn/ui (terceros). Helpers en `tests/components/helpers/`:
+- **`render.tsx`** — `renderWithProviders` (QueryClientProvider nuevo por test, retry off).
+- **`stores.ts`** — `resetStores()` (Zustand singletons + `localStorage.clear()`); `seedQuotationItems()`.
+- **`fixtures.ts`** — builders con shape de UI (`quotationItemRow`, `quotationWithItems`, `etmProduct`).
+- **`setup.ts`** — polyfills jsdom: `crypto.randomUUID`, `navigator.clipboard`.
+
+**Estrategia para hooks:** los hooks de TanStack se mockean a nivel de módulo (`vi.mock('@/hooks/*')` → `{ mutateAsync: vi.fn(), isPending: false }`); sin red ni QueryClient real, se assertea que `mutateAsync` fue llamado. **Gotcha (ProductModal):** el campo ETM tiene `onBlur` que deshabilita el submit mientras valida; tras editarlo, usar `fireEvent.submit(form)` en vez de click para evitar la carrera. react-hook-form no valida `required` poblado solo vía `reset()` hasta recibir un evento de cambio.
+
+---
+
 ## NO incluido (intencionalmente)
 
 - Integration tests contra Supabase local/branch.
-- Batería completa de component tests (el harness jsdom + un smoke ya existen; la batería es la fase siguiente) y E2E (Playwright).
+- **Drag & drop** (reorder en QuotationEditor) y flujos completos de QuotationDetail/OrderDetail (send → approve → convert) → **E2E con Playwright**.
+- Tablas de datos, formularios e importadores (segunda batería de componentes).
 - Tests de los parsers de Excel en `src/lib/excel/*` (candidato siguiente).
 
 ---

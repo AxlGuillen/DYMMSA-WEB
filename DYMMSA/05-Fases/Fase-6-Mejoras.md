@@ -125,15 +125,16 @@ Fase 1 y 2 de QA. Runner único **Vitest** (`vitest.config.ts`), entornos `node`
 
 - **Fase 1 — funciones puras** (`tests/lib/*`, 104 tests): format, business-rules, auto-learn, inventory.
 - **Fase 2 — route handlers** (`tests/api/*`, 73 tests): handlers reales con Supabase mockeado vía `tests/helpers/supabase-mock.ts`. Smoke, auth-guards (18 rutas → 401), quotations, orders, imports (con `.xlsx` real).
-- **Harness de componentes** (`tests/components/*`, jsdom + Testing Library): smoke validado (3 tests con la batería completa pendiente).
+- **Batería de componentes** (`tests/components/*`, jsdom + Testing Library, 2026-05-27): badges, MetricCard, useCurrency, DiscreteModeToggle, QuotePreview (presentacional/estado); ProductModal, QuotationEditor (interactivos); QuotationDetail (toggle de aprobación ✓/✗ con hooks mockeados). DnD y flujos completos → E2E.
 - Reglas de negocio críticas cubiertas: separadores excluidos, deducción de stock al crear orden, rollback, preservación de `is_approved`, auto-learn URREA, `requireAuth`, invariante de allocation.
 - Scripts: `bun run test` / `test:watch` / `test:coverage`. ⚠️ Usar `bun run test`, no `bun test`.
 
-Resultado: **180 tests, 0 fallos** (~1.3 s).
+Resultado: **226 tests, 0 fallos** (~5 s). Coverage de la superficie con tests ≈ 72% stmts.
 
 ## Pendiente / Próximo
 
-- **Batería de component tests** (Testing Library) sobre los componentes con lógica interactiva (ProductModal, QuotationDetail, etc.) — el harness jsdom ya está listo.
+- **Segunda batería de componentes**: tablas de datos (QuotationsTable/OrdersTable/InventoryTable), formularios e importadores.
+- **E2E** con Playwright: drag&drop (reorder) y flujos completos (send → approve → convert). Entorno de BD por decidir.
 - **Integration tests** de route handlers contra Supabase local/branch (constraints, RLS, triggers reales).
 - **E2E** con Playwright (entorno de BD por decidir).
 - Tests de los parsers de Excel en `src/lib/excel/*`.
