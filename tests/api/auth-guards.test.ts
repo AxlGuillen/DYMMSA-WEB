@@ -10,9 +10,8 @@
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
+import { injectSupabaseServer, injectSupabaseAdmin } from '../helpers/setup'
 import { makeRequest, makeParams } from '../helpers/request'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 // ── Import estático de TODOS los handlers (vi.mock se hoista por encima) ──
 import * as quotationsSave from '@/app/api/quotations/save/route'
@@ -42,10 +41,8 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 let activeClient: MockSupabaseClient
 let adminClient: MockSupabaseClient
 
-beforeEach(() => {
-  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
-  vi.mocked(createAdminClient).mockImplementation(() => adminClient as never)
-})
+injectSupabaseServer(() => activeClient)
+injectSupabaseAdmin(() => adminClient)
 
 // ── Tabla de rutas protegidas: nombre + invocación con user:null ─────────
 const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
