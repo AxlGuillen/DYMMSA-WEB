@@ -9,10 +9,11 @@
  *                        siempre inserta brand='URREA'.
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest'
+import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
+import { injectSupabaseServer } from '../helpers/setup'
+import { AUTH } from '../helpers/factories'
 import { makeRequest, makeExcelRequest } from '../helpers/request'
-import { createClient } from '@/lib/supabase/server'
 import * as inventoryImport from '@/app/api/inventory/import/route'
 import * as productsImport from '@/app/api/products/import/route'
 import * as autoLearn from '@/app/api/orders/auto-learn/route'
@@ -20,11 +21,7 @@ import * as autoLearn from '@/app/api/orders/auto-learn/route'
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
-beforeEach(() => {
-  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
-})
-
-const AUTH = { id: 'user-1' }
+injectSupabaseServer(() => activeClient)
 
 // ─── inventory/import ──────────────────────────────────────────────────────
 
@@ -85,7 +82,7 @@ describe('POST /inventory/import', () => {
       },
     })
     await inventoryImport.POST(makeExcelRequest([{ MODEL_CODE: 'MC3', QUANTITY: -5 }]))
-    const payload = activeClient.callsTo('store_inventory', 'insert')[0].payload as Record<string, unknown>
+    const payload = activeClient.insertPayload<Record<string, unknown>>('store_inventory')
     expect(payload.quantity).toBe(0)
   })
 
@@ -127,7 +124,7 @@ describe('POST /products/import', () => {
     const res = await productsImport.POST(makeExcelRequest([{ ETM: 'E1', MODEL_CODE: 'MC1', DESCRIPTION: 'Prod', PRICE: 100 }]))
     const body = await res.json()
     expect(body.imported).toBe(1)
-    const payload = activeClient.callsTo('etm_products', 'insert')[0].payload as Record<string, unknown>
+    const payload = activeClient.insertPayload<Record<string, unknown>>('etm_products')
     expect(payload.brand).toBe('URREA')
     expect(payload.created_by).toBe('user-1')
   })
@@ -144,7 +141,7 @@ describe('POST /products/import', () => {
     const body = await res.json()
     expect(body.updated).toBe(1)
     // respeta brand explícito
-    const payload = activeClient.callsTo('etm_products', 'update')[0].payload as Record<string, unknown>
+    const payload = activeClient.updatePayload('etm_products')
     expect(payload.brand).toBe('TRUPER')
   })
 
@@ -209,7 +206,7 @@ describe('POST /orders/auto-learn', () => {
     }))
     const body = await res.json()
     expect(body.added).toBe(1)
-    const payload = activeClient.callsTo('etm_products', 'insert')[0].payload as Record<string, unknown>
+    const payload = activeClient.insertPayload<Record<string, unknown>>('etm_products')
     expect(payload.brand).toBe('URREA')
     expect(payload.created_by).toBe('user-1')
   })
