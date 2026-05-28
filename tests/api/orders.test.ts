@@ -9,10 +9,11 @@
  *   - [id]/confirm-reception: actualiza items, suma a inventario, recalcula total.
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { createMockSupabase, MockSupabaseClient, type CallRecord } from '../helpers/supabase-mock'
+import { describe, test, expect, vi } from 'vitest'
+import { createMockSupabase, MockSupabaseClient, hasFilter } from '../helpers/supabase-mock'
+import { injectSupabaseServer } from '../helpers/setup'
+import { AUTH, orderProduct } from '../helpers/factories'
 import { makeRequest, makeParams } from '../helpers/request'
-import { createClient } from '@/lib/supabase/server'
 import * as create from '@/app/api/orders/create/route'
 import * as orderById from '@/app/api/orders/[id]/route'
 import * as cancel from '@/app/api/orders/[id]/cancel/route'
@@ -21,16 +22,7 @@ import * as confirmReception from '@/app/api/orders/[id]/confirm-reception/route
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
-beforeEach(() => {
-  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
-})
-
-const AUTH = { id: 'user-1' }
-
-function insertPayload(client: MockSupabaseClient, table: string): Record<string, unknown>[] {
-  const call = client.callsTo(table, 'insert')[0] as CallRecord
-  return call.payload as Record<string, unknown>[]
-}
+injectSupabaseServer(() => activeClient)
 
 // ─── orders/create ───────────────────────────────────────────────────────
 
@@ -53,7 +45,7 @@ describe('POST /orders/create', () => {
     })
     const res = await create.POST(makeRequest({
       customer_name: 'ACME',
-      products: [{ model_code: 'MC1', quantity: 4, price: 100, etm: 'E1', brand: 'URREA', description: 'P' }],
+      products: [orderProduct({ quantity: 4, price: 100 })],
     }))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -63,10 +55,10 @@ describe('POST /orders/create', () => {
     expect(body.inventory_updated).toBe(1)
 
     // se descontó stock: 10 - 4 = 6
-    const upd = activeClient.callsTo('store_inventory', 'update')[0].payload as Record<string, unknown>
+    const upd = activeClient.updatePayload('store_inventory')
     expect(upd.quantity).toBe(6)
 
-    const items = insertPayload(activeClient, 'order_items')
+    const items = activeClient.insertPayload('order_items')
     expect(items[0].quantity_in_stock).toBe(4)
     expect(items[0].quantity_to_order).toBe(0)
   })
@@ -83,11 +75,11 @@ describe('POST /orders/create', () => {
     })
     const res = await create.POST(makeRequest({
       customer_name: 'ACME',
-      products: [{ model_code: 'MC1', quantity: 10, price: 50, etm: 'E1', brand: 'URREA', description: 'P' }],
+      products: [orderProduct({ quantity: 10, price: 50 })],
     }))
     const body = await res.json()
     expect(body.items_to_order).toBe(1)
-    const items = insertPayload(activeClient, 'order_items')
+    const items = activeClient.insertPayload('order_items')
     expect(items[0].quantity_in_stock).toBe(3)
     expect(items[0].quantity_to_order).toBe(7)   // 10 - 3
     // invariante in_stock + to_order = approved
@@ -105,7 +97,7 @@ describe('POST /orders/create', () => {
     })
     const res = await create.POST(makeRequest({
       customer_name: 'ACME',
-      products: [{ model_code: 'MC1', quantity: 1, price: 10, etm: 'E1', brand: 'URREA', description: 'P' }],
+      products: [orderProduct({ quantity: 1, price: 10 })],
     }))
     expect(res.status).toBe(500)
     expect(activeClient.didCall('orders', 'delete')).toBe(true)
@@ -147,7 +139,7 @@ describe('PATCH /orders/[id]', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.odoo_id).toBe('ODOO-99')
-    const upd = activeClient.callsTo('orders', 'update')[0].payload as Record<string, unknown>
+    const upd = activeClient.updatePayload('orders')
     expect(upd.odoo_id).toBe('ODOO-99')
   })
 })
@@ -182,7 +174,7 @@ describe('DELETE /orders/[id]', () => {
     const body = await res.json()
     expect(body.success).toBe(true)
     // restauró stock: 5 + 3 = 8
-    const upd = activeClient.callsTo('store_inventory', 'update')[0].payload as Record<string, unknown>
+    const upd = activeClient.updatePayload('store_inventory')
     expect(upd.quantity).toBe(8)
     expect(activeClient.didCall('order_items', 'delete')).toBe(true)
     expect(activeClient.didCall('orders', 'delete')).toBe(true)
@@ -233,9 +225,9 @@ describe('POST /orders/[id]/cancel', () => {
     expect(body.success).toBe(true)
     expect(body.inventory_restored).toBe(1)
     // restauró 4 + (2+1) = 7
-    const upd = activeClient.callsTo('store_inventory', 'update')[0].payload as Record<string, unknown>
+    const upd = activeClient.updatePayload('store_inventory')
     expect(upd.quantity).toBe(7)
-    const ordUpd = activeClient.callsTo('orders', 'update')[0].payload as Record<string, unknown>
+    const ordUpd = activeClient.updatePayload('orders')
     expect(ordUpd.status).toBe('cancelled')
   })
 })
@@ -277,10 +269,10 @@ describe('POST /orders/[id]/confirm-reception', () => {
       user: AUTH,
       responses: {
         'orders.select': { data: { id: 'o1', status: 'received' }, error: null },
-        // order_items.select se usa por-item (eq id) y al final (eq order_id) → ramificar por filtro
+        // order_items.select se usa por-item (eq id) y al final (eq order_id) → ramificar por filtro.
+        // hasFilter() busca por columna, no por posición: robusto a reordenamientos del handler.
         'order_items.select': (rec) => {
-          const key = (rec.filters[0]?.args[0]) as string
-          if (key === 'id') return { data: { model_code: 'MC1' }, error: null }
+          if (hasFilter(rec, 'id')) return { data: { model_code: 'MC1' }, error: null }
           // final: lista para calculateDeliveredTotal
           return {
             data: [{ quantity_in_stock: 2, quantity_received: 3, urrea_status: 'supplied', unit_price: 100, item_type: 'product' }],
@@ -302,11 +294,11 @@ describe('POST /orders/[id]/confirm-reception', () => {
     expect(body.inventory_updated).toBe(1)
 
     // sumó al inventario existente: 5 + 3 = 8
-    const invUpd = activeClient.callsTo('store_inventory', 'update')[0].payload as Record<string, unknown>
+    const invUpd = activeClient.updatePayload('store_inventory')
     expect(invUpd.quantity).toBe(8)
 
     // recalculó total: (in_stock 2 + received 3) * 100 = 500
-    const ordUpd = activeClient.callsTo('orders', 'update')[0].payload as Record<string, unknown>
+    const ordUpd = activeClient.updatePayload('orders')
     expect(ordUpd.total_amount).toBe(500)
   })
 })
