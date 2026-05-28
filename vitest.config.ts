@@ -12,14 +12,27 @@ export default defineConfig({
     // Excluye componentes (solo smoke por ahora) para no falsear el porcentaje.
     coverage: {
       provider: 'v8',
-      include: ['src/lib/**', 'src/app/api/**'],
+      // Solo la superficie con tests: funciones puras, route handlers, y los
+      // componentes/hook con batería propia. Los componentes aún sin test
+      // (tablas, forms, layout) quedan fuera para no falsear el porcentaje.
+      include: [
+        'src/lib/**',
+        'src/app/api/**',
+        'src/hooks/useCurrency.ts',
+        'src/components/quotations/QuotationStatusBadge.tsx',
+        'src/components/orders/OrderStatusBadge.tsx',
+        'src/components/dashboard/MetricCard.tsx',
+        'src/components/discrete-mode-toggle.tsx',
+        'src/components/quoter/QuotePreview.tsx',
+        'src/components/quoter/ProductModal.tsx',
+        'src/components/quoter/QuotationEditor.tsx',
+      ],
       // Gaps deferidos (documentados en ADR-007): parsers de Excel y factories
       // de cliente Supabase (mockeadas, no se ejercitan en unit). No cuentan.
       exclude: ['src/lib/excel/**', 'src/lib/supabase/**', 'src/lib/delivery.ts'],
-      // Piso de regresión sobre el total (lib + api). Actual ≈ 68/63/81/68;
-      // floors con holgura para no romper ante refactors menores. Subir al
-      // agregar la batería de componentes / tests de los routes con baja cobertura.
-      thresholds: { statements: 64, branches: 58, functions: 75, lines: 63 },
+      // Piso de regresión sobre el total. Actual ≈ 72/69/81/72; floors con
+      // holgura para no romper ante refactors menores; subir al ampliar la batería.
+      thresholds: { statements: 67, branches: 63, functions: 77, lines: 66 },
     },
     projects: [
       {
