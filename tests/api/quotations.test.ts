@@ -8,10 +8,11 @@
  *   - create-order: solo productos aprobados + separadores, deduce stock, rollback.
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { createMockSupabase, MockSupabaseClient, type CallRecord } from '../helpers/supabase-mock'
+import { describe, test, expect, vi } from 'vitest'
+import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
+import { injectSupabaseServer } from '../helpers/setup'
+import { AUTH, quotationItem as product, separator } from '../helpers/factories'
 import { makeRequest, makeParams } from '../helpers/request'
-import { createClient } from '@/lib/supabase/server'
 import * as save from '@/app/api/quotations/save/route'
 import * as update from '@/app/api/quotations/[id]/update/route'
 import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
@@ -19,31 +20,7 @@ import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
-beforeEach(() => {
-  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
-})
-
-const AUTH = { id: 'user-1' }
-
-function product(overrides: Record<string, unknown> = {}) {
-  return {
-    _id: 'i' + Math.random().toString(36).slice(2, 6),
-    item_type: 'product',
-    etm: 'ETM-1', description: 'Producto', description_es: 'Producto',
-    model_code: 'MC1', brand: 'URREA', unit_price: 100, quantity: 2,
-    delivery_time: 'immediate',
-    ...overrides,
-  }
-}
-function separator(overrides: Record<string, unknown> = {}) {
-  return { _id: 's1', item_type: 'separator', section_label: 'Sección A', ...overrides }
-}
-
-/** Devuelve el payload (array de items) del primer insert a una tabla. */
-function insertPayload(client: MockSupabaseClient, table: string): Record<string, unknown>[] {
-  const call = client.callsTo(table, 'insert')[0] as CallRecord
-  return call.payload as Record<string, unknown>[]
-}
+injectSupabaseServer(() => activeClient)
 
 // ─── quotations/save ───────────────────────────────────────────────────
 
@@ -102,7 +79,7 @@ describe('POST /quotations/save', () => {
       name: 'Q', customer_name: 'ACME',
       items: [product(), separator(), product()],
     }))
-    const items = insertPayload(activeClient, 'quotation_items')
+    const items = activeClient.insertPayload('quotation_items')
     expect(items).toHaveLength(3)
     // sort_order = posición en el array
     expect(items.map((i) => i.sort_order)).toEqual([0, 1, 2])
@@ -214,7 +191,7 @@ describe('PATCH /quotations/[id]/update', () => {
       }),
       makeParams({ id: 'q1' }),
     )
-    const items = insertPayload(activeClient, 'quotation_items')
+    const items = activeClient.insertPayload('quotation_items')
     expect(items.map((i) => i.is_approved)).toEqual([true, false, null])
     expect(items.map((i) => i.sort_order)).toEqual([0, 1, 2])
   })
@@ -311,7 +288,7 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(body.items_count).toBe(1)       // 1 producto aprobado
     expect(body.total_amount).toBe(300)    // 100*3 (p2 rechazado excluido)
 
-    const items = insertPayload(activeClient, 'order_items')
+    const items = activeClient.insertPayload('order_items')
     expect(items).toHaveLength(2)          // separador + p1 aprobado
     expect(items.map((i) => i.item_type)).toEqual(['separator', 'product'])
     const p1 = items.find((i) => i.item_type === 'product')!
@@ -321,7 +298,7 @@ describe('POST /quotations/[id]/create-order', () => {
 
     // dedujo inventario y marcó la cotización como convertida
     expect(activeClient.didCall('store_inventory', 'update')).toBe(true)
-    const upd = activeClient.callsTo('quotations', 'update')[0].payload as Record<string, unknown>
+    const upd = activeClient.updatePayload('quotations')
     expect(upd.status).toBe('converted_to_order')
   })
 
