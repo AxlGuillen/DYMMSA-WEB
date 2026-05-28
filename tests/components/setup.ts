@@ -26,3 +26,18 @@ if (!globalThis.ResizeObserver) {
     disconnect() {}
   }
 }
+
+// crypto.randomUUID — lo usan addItem/addSeparatorAfter del quotationStore.
+if (!globalThis.crypto?.randomUUID) {
+  const c = (globalThis.crypto ??= {} as Crypto)
+  ;(c as { randomUUID: () => `${string}-${string}-${string}-${string}-${string}` }).randomUUID =
+    () => `test-${Math.random().toString(16).slice(2)}-${Date.now().toString(16)}` as never
+}
+
+// navigator.clipboard — lo usa QuotePreview (handleCopyUnmatched).
+if (!navigator.clipboard) {
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    configurable: true,
+  })
+}
