@@ -17,6 +17,9 @@
  * Las respuestas se configuran por `tabla` o `tabla.operacion`
  * (insert | select | update | delete | upsert). Todas las llamadas quedan
  * registradas en `_calls` para hacer assertions (rollback, deducción de stock, etc.).
+ *
+ * NO modelado (extender si algún handler lo usa): `.rpc()`, `.throwOnError()`,
+ * `storage.*`. Hoy ningún route handler de DYMMSA los necesita.
  */
 
 export type MockResult = { data?: unknown; error?: unknown }
@@ -144,8 +147,34 @@ export class MockSupabaseClient {
   didCall(table: string, op: Op): boolean {
     return this.callsTo(table, op).length > 0
   }
+  /** Payload del primer insert a `table` (por defecto tipado como array de filas). */
+  insertPayload<T = Record<string, unknown>[]>(table: string): T {
+    return this.callsTo(table, 'insert')[0]?.payload as T
+  }
+  /** Payload del primer update a `table` (por defecto una sola fila). */
+  updatePayload<T = Record<string, unknown>>(table: string): T {
+    return this.callsTo(table, 'update')[0]?.payload as T
+  }
 }
 
 export function createMockSupabase(config: MockConfig = {}): MockSupabaseClient {
   return new MockSupabaseClient(config)
+}
+
+// ── Matchers de filtros (por columna, no por posición) ─────────────────
+// Para respuestas-función que ramifican según el filtro aplicado. Buscar por
+// columna en vez de `rec.filters[0]` evita que el test se rompa si el handler
+// reordena sus `.eq()` o agrega un `.order()`/filtro extra.
+
+/** Encuentra un filtro encadenado por columna (y método, default 'eq'). */
+export function findFilter(rec: CallRecord, column: string, method = 'eq') {
+  return rec.filters.find((f) => f.method === method && f.args[0] === column)
+}
+/** ¿El registro filtró por `column` (con `method`, default 'eq')? */
+export function hasFilter(rec: CallRecord, column: string, method = 'eq'): boolean {
+  return findFilter(rec, column, method) !== undefined
+}
+/** Valor del filtro por `column` (segundo argumento de eq/in/etc.). */
+export function filterValue(rec: CallRecord, column: string, method = 'eq'): unknown {
+  return findFilter(rec, column, method)?.args[1]
 }
