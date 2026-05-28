@@ -9,19 +9,18 @@
  * se construyen sobre la misma base.
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest'
+import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, type MockSupabaseClient } from '../helpers/supabase-mock'
+import { injectSupabaseServer } from '../helpers/setup'
+import { AUTH, quotationItem } from '../helpers/factories'
 import { makeRequest } from '../helpers/request'
-import { createClient } from '@/lib/supabase/server'
 import { POST } from '@/app/api/quotations/save/route'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 // El cliente activo se intercambia por test; el mock lee la variable viva.
 let activeClient: MockSupabaseClient
-beforeEach(() => {
-  vi.mocked(createClient).mockImplementation(async () => activeClient as never)
-})
+injectSupabaseServer(() => activeClient)
 
 describe('smoke: infraestructura de testing de backend', () => {
   test('handler real devuelve 401 cuando no hay usuario autenticado', async () => {
@@ -33,7 +32,7 @@ describe('smoke: infraestructura de testing de backend', () => {
   })
 
   test('pasa el guard de auth con usuario y llega a la validación (400 sin productos)', async () => {
-    activeClient = createMockSupabase({ user: { id: 'user-1' } })
+    activeClient = createMockSupabase({ user: AUTH })
     // items vacío → no hay producto → 400. Demuestra que superó requireAuth().
     const res = await POST(
       makeRequest({ name: 'Test', customer_name: 'Cliente', items: [] }),
@@ -43,7 +42,7 @@ describe('smoke: infraestructura de testing de backend', () => {
 
   test('crea cotización y registra inserts cuando todo es válido', async () => {
     activeClient = createMockSupabase({
-      user: { id: 'user-1' },
+      user: AUTH,
       responses: {
         'quotations.insert':      { data: { id: 'quote-1' }, error: null },
         'quotation_items.insert': { data: null, error: null },
@@ -54,14 +53,7 @@ describe('smoke: infraestructura de testing de backend', () => {
       makeRequest({
         name: 'Cotización demo',
         customer_name: 'ACME',
-        items: [
-          {
-            _id: 'i1', item_type: 'product', etm: 'ETM-1',
-            description: 'Producto', description_es: 'Producto',
-            model_code: 'MC1', brand: 'URREA', unit_price: 100, quantity: 2,
-            delivery_time: 'immediate',
-          },
-        ],
+        items: [quotationItem({ _id: 'i1' })],
       }),
     )
     expect(res.status).toBe(200)
