@@ -98,6 +98,37 @@ src/
     └── index.ts                  # Re-exporta desde database.ts
 ```
 
+## Tests (`tests/`, fuera de `src/`)
+
+La carpeta `tests/` vive en la raíz del repo y espeja la estructura de `src/`. Runner: **Vitest** (`vitest.config.ts`, en la raíz), entornos `node` (lib/api) y `jsdom` (componentes). Ver [[04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing]].
+
+```
+tests/
+├── helpers/
+│   ├── supabase-mock.ts          # Fake del query builder (chainable+thenable) + matchers + accessors
+│   ├── setup.ts                  # injectSupabaseServer / injectSupabaseAdmin (DRY del beforeEach)
+│   ├── factories.ts              # AUTH, quotationItem, separator, orderProduct (payloads de API)
+│   └── request.ts                # makeRequest, makeParams, makeExcelRequest, readJson
+├── lib/                          # Funciones puras (src/lib/*) — node
+│   ├── format.test.ts
+│   ├── business-rules.test.ts
+│   ├── auto-learn.test.ts
+│   └── inventory.test.ts
+├── api/                          # Route handlers (Supabase mockeado) — node
+│   ├── smoke.test.ts             # Valida el approach (vi.mock + alias + NextResponse)
+│   ├── auth-guards.test.ts       # 18 rutas → 401 sin auth; /approve público
+│   ├── quotations.test.ts        # save, update, create-order
+│   ├── orders.test.ts            # create, [id] PATCH/DELETE, cancel, confirm-reception
+│   └── imports.test.ts           # inventory/import, products/import, auto-learn
+└── components/                   # Componentes React (jsdom + Testing Library)
+    ├── setup.ts                  # jest-dom + cleanup + polyfills (matchMedia, ResizeObserver, crypto, clipboard)
+    ├── helpers/                  # render (QueryClientProvider), stores (resetStores), fixtures (shape UI)
+    ├── smoke / badges / MetricCard / useCurrency / DiscreteModeToggle / QuotePreview
+    └── ProductModal / QuotationEditor / QuotationDetail   # interactivos (userEvent, mock de hooks)
+```
+
+Comando: `bun run test` (226 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`. ⚠️ Usar `bun run test`, no `bun test`.
+
 ## Convenciones importantes
 
 - **Páginas** son Server Components por defecto; se agregan `"use client"` solo donde se necesita interactividad.

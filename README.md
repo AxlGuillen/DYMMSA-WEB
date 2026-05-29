@@ -263,11 +263,44 @@ bun dev
 ## Scripts
 
 ```bash
-bun dev      # Development server
-bun build    # Production build
-bun start    # Start production server
-bun lint     # Run ESLint
+bun dev                # Development server
+bun build              # Production build
+bun start              # Start production server
+bun lint               # Run ESLint
+bun run test           # Run the test suite (Vitest)
+bun run test:watch     # Run tests in watch mode
+bun run test:coverage  # Run tests with coverage
 ```
+
+> Use `bun run test` (not `bun test`): the latter invokes Bun's built-in runner and fails on `vitest` imports.
+
+## Testing
+
+Single runner: **Vitest** (`vitest.config.ts`) with two environments — `node` (backend) and `jsdom` (React components via Testing Library). Tests live in a top-level `tests/` folder that mirrors `src/`:
+
+```
+tests/
+├── helpers/        # Supabase mock + injectSupabaseServer + factories + request builders
+├── lib/            # Pure functions (format, business-rules, auto-learn, inventory) — node
+├── api/            # Route handlers with a mocked Supabase client — node
+│   ├── smoke.test.ts
+│   ├── auth-guards.test.ts
+│   ├── quotations.test.ts
+│   ├── orders.test.ts
+│   └── imports.test.ts
+└── components/     # React components — jsdom + Testing Library
+    ├── helpers/    # render (QueryClientProvider), resetStores, fixtures
+    ├── badges / MetricCard / useCurrency / DiscreteModeToggle / QuotePreview
+    └── ProductModal / QuotationEditor / QuotationDetail (approval toggle)
+```
+
+Backend handlers are tested as **unit tests with a mocked Supabase client** (no real database): the mock reproduces the chainable query builder and records calls, so tests can assert auth guards, validation, rollback and inventory side effects. This covers the critical business rules (separators excluded from totals, stock deducted on order creation, rollback on failed inserts, `is_approved` preservation, auto-learn brand rules, `requireAuth` on every route, allocation invariant). Components are tested in jsdom; TanStack Query hooks are mocked at the module level and Zustand stores reset between tests.
+
+```bash
+bun run test           # 226 tests
+```
+
+See `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md` for the full rationale.
 
 ## Deployment
 
