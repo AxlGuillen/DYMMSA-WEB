@@ -10,6 +10,56 @@ import type {
   QuotationStatus,
 } from '@/types/database'
 
+/**
+ * Error enriquecido para mutations: además del mensaje del backend, expone
+ * `offendingEtm` (ETM del ítem culpable, cuando aplica) y `code` para que el
+ * caller distinga AUTH_EXPIRED / NETWORK / VALIDATION del resto.
+ */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: 'AUTH_EXPIRED' | 'NETWORK' | 'VALIDATION' | 'SERVER',
+    public readonly offendingEtm?: string,
+    public readonly status?: number,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+/**
+ * Wrapper de fetch que normaliza errores en ApiError. Detecta:
+ *  - 401 → ApiError('Tu sesión expiró...', 'AUTH_EXPIRED')
+ *  - TypeError (red caída / DNS) → ApiError('Sin conexión...', 'NETWORK')
+ *  - 4xx/5xx con body { message, offendingEtm } → ApiError con el payload
+ */
+async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(url, init)
+  } catch {
+    // TypeError (red caída, CORS, DNS) o AbortError
+    throw new ApiError(
+      'No se pudo conectar al servidor. Revisa tu conexión e intenta de nuevo.',
+      'NETWORK',
+    )
+  }
+  if (response.status === 401) {
+    throw new ApiError('Tu sesión expiró. Inicia sesión de nuevo.', 'AUTH_EXPIRED', undefined, 401)
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    const code = response.status >= 400 && response.status < 500 ? 'VALIDATION' : 'SERVER'
+    throw new ApiError(
+      body?.message ?? `Error ${response.status}`,
+      code,
+      typeof body?.offendingEtm === 'string' ? body.offendingEtm : undefined,
+      response.status,
+    )
+  }
+  return response.json() as Promise<T>
+}
+
 // ------------------------------------------------------------------ //
 // Keys                                                                //
 // ------------------------------------------------------------------ //
@@ -161,16 +211,8 @@ export function useSendForApproval() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (id: string): Promise<{ approval_token: string }> => {
-      const response = await fetch(`/api/quotations/${id}/send-for-approval`, {
-        method: 'POST',
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Error al enviar a aprobación')
-      }
-      return response.json()
-    },
+    mutationFn: (id: string): Promise<{ approval_token: string }> =>
+      fetchJson(`/api/quotations/${id}/send-for-approval`, { method: 'POST' }),
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
       queryClient.invalidateQueries({ queryKey: [...QUOTATIONS_KEY, id] })
@@ -193,18 +235,12 @@ export function useUpdateQuotation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, name, customer_name, items }: UpdateQuotationInput) => {
-      const response = await fetch(`/api/quotations/${id}/update`, {
+    mutationFn: ({ id, name, customer_name, items }: UpdateQuotationInput) =>
+      fetchJson(`/api/quotations/${id}/update`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, customer_name, items }),
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Error al actualizar la cotización')
-      }
-      return response.json()
-    },
+      }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
       queryClient.invalidateQueries({ queryKey: [...QUOTATIONS_KEY, variables.id] })
@@ -241,22 +277,12 @@ export function useSaveQuotation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (
-      input: SaveQuotationInput
-    ): Promise<SaveQuotationResponse> => {
-      const response = await fetch('/api/quotations/save', {
+    mutationFn: (input: SaveQuotationInput): Promise<SaveQuotationResponse> =>
+      fetchJson('/api/quotations/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Error al guardar la cotización')
-      }
-
-      return response.json()
-    },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
     },
@@ -277,14 +303,8 @@ export function useDeleteQuotation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/quotations/${id}`, { method: 'DELETE' })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Error al eliminar la cotización')
-      }
-      return response.json()
-    },
+    mutationFn: (id: string) =>
+      fetchJson(`/api/quotations/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
     },
@@ -295,16 +315,8 @@ export function useCreateOrderFromQuotation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (quotationId: string): Promise<CreateOrderFromQuotationResponse> => {
-      const response = await fetch(`/api/quotations/${quotationId}/create-order`, {
-        method: 'POST',
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Error al generar la orden')
-      }
-      return response.json()
-    },
+    mutationFn: (quotationId: string): Promise<CreateOrderFromQuotationResponse> =>
+      fetchJson(`/api/quotations/${quotationId}/create-order`, { method: 'POST' }),
     onSuccess: (_, quotationId) => {
       queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
       queryClient.invalidateQueries({ queryKey: [...QUOTATIONS_KEY, quotationId] })
