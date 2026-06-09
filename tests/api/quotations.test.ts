@@ -16,6 +16,7 @@ import { makeRequest, makeParams } from '../helpers/request'
 import * as save from '@/app/api/quotations/save/route'
 import * as update from '@/app/api/quotations/[id]/update/route'
 import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
+import * as autoLearnModule from '@/lib/auto-learn'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
@@ -120,6 +121,86 @@ describe('POST /quotations/save', () => {
     const res = await save.POST(makeRequest({ name: 'Q', customer_name: 'ACME', items: [product()] }))
     expect(res.status).toBe(500)
     expect(activeClient.didCall('quotations', 'delete')).toBe(true)
+  })
+
+  test('REGLA: constraint quantity_check → 400 con offendingEtm y mensaje específico', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.insert': { data: { id: 'q1' }, error: null },
+        'quotation_items.insert': {
+          data: null,
+          error: {
+            code: '23514',
+            message: 'new row violates check constraint "quotation_items_quantity_check"',
+          },
+        },
+      },
+    })
+    const res = await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [
+        product({ etm: 'OK-1', quantity: 5 }),
+        product({ etm: 'BAD-1', quantity: 0 }), // ofensor
+      ],
+    }))
+    expect(res.status).toBe(400) // violación de regla, no 500
+    const body = await res.json()
+    expect(body.offendingEtm).toBe('BAD-1')
+    expect(body.message).toContain('BAD-1')
+    expect(body.message).toMatch(/cantidad/i)
+    expect(activeClient.didCall('quotations', 'delete')).toBe(true) // rollback igual
+  })
+
+  test('REGLA: constraint price_check → 400 con offendingEtm', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.insert': { data: { id: 'q1' }, error: null },
+        'quotation_items.insert': {
+          data: null,
+          error: {
+            code: '23514',
+            message: 'new row violates check constraint "quotation_items_price_check"',
+          },
+        },
+      },
+    })
+    const res = await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [product({ etm: 'NEG-1', unit_price: -5, quantity: 1 })],
+    }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.offendingEtm).toBe('NEG-1')
+    expect(body.message).toMatch(/precio negativo/i)
+  })
+
+  test('REGLA: save sobrevive a fallo de auto-learn (warning, NO 500)', async () => {
+    // El try/catch en torno a processAutoLearn protege el save: si auto-learn
+    // tira excepción, la cotización YA está guardada → 200 + warning.
+    const spy = vi.spyOn(autoLearnModule, 'processAutoLearn')
+      .mockRejectedValueOnce(new Error('auto-learn boom'))
+    try {
+      activeClient = createMockSupabase({
+        user: AUTH,
+        responses: {
+          'quotations.insert': { data: { id: 'q1' }, error: null },
+          'quotation_items.insert': { data: null, error: null },
+        },
+      })
+      const res = await save.POST(makeRequest({
+        name: 'Q', customer_name: 'ACME', items: [product()],
+      }))
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.quotation_id).toBe('q1')
+      expect(body.warning).toBe('auto_learn_failed')
+      // No se ejecutó rollback: la cotización está bien guardada.
+      expect(activeClient.didCall('quotations', 'delete')).toBe(false)
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 
@@ -322,5 +403,38 @@ describe('POST /quotations/[id]/create-order', () => {
     const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
     expect(res.status).toBe(500)
     expect(activeClient.didCall('orders', 'delete')).toBe(true)
+  })
+
+  test('REGLA: constraint quantity_approved_check → 400 con offendingEtm', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': {
+          data: {
+            id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
+            quotation_items: [
+              // Aprobado con quantity 0 → violará quantity_approved_check al insertar order_items
+              { id: 'p1', item_type: 'product', is_approved: true, sort_order: 0, model_code: 'MC1', quantity: 0, unit_price: 10, etm: 'BAD-1', brand: 'URREA' },
+            ],
+          },
+          error: null,
+        },
+        'orders.insert': { data: { id: 'o1' }, error: null },
+        'order_items.insert': {
+          data: null,
+          error: {
+            code: '23514',
+            message: 'violates check constraint "order_items_quantity_approved_check"',
+          },
+        },
+      },
+    })
+    const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(400) // violación de regla, no 500
+    const body = await res.json()
+    expect(body.offendingEtm).toBe('BAD-1')
+    expect(body.message).toContain('BAD-1')
+    expect(body.message).toMatch(/cantidad/i)
+    expect(activeClient.didCall('orders', 'delete')).toBe(true) // rollback igual
   })
 })

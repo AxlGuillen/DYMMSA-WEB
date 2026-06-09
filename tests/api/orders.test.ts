@@ -104,6 +104,34 @@ describe('POST /orders/create', () => {
     // garantía de rollback: el stock NO se descontó (el fallo ocurre antes del update de inventario)
     expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
   })
+
+  test('REGLA: constraint unit_price_check (precio negativo) → 400 con offendingEtm', async () => {
+    // Nota: orders/create hace `quantity || 1` (fallback) → quantity=0 no llega a la BD.
+    // El precio sí se preserva, así que probamos con precio negativo.
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'store_inventory.select': { data: null, error: null },
+        'orders.insert': { data: { id: 'o1', customer_name: 'ACME' }, error: null },
+        'order_items.insert': {
+          data: null,
+          error: {
+            code: '23514',
+            message: 'violates check constraint "order_items_unit_price_check"',
+          },
+        },
+      },
+    })
+    const res = await create.POST(makeRequest({
+      customer_name: 'ACME',
+      products: [orderProduct({ etm: 'NEG-ORDER', quantity: 1, price: -5 })],
+    }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.offendingEtm).toBe('NEG-ORDER')
+    expect(body.message).toContain('NEG-ORDER')
+    expect(activeClient.didCall('orders', 'delete')).toBe(true)
+  })
 })
 
 // ─── orders/[id] PATCH (odoo_id) ──────────────────────────────────────────

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { allocateInventory } from '@/lib/business-rules'
 import { requireAuth } from '@/lib/api-helpers'
+import { explainPgError } from '@/lib/supabase-errors'
 import type { CreateOrderInput, OrderItemInsert } from '@/types/database'
 
 export async function POST(request: NextRequest) {
@@ -106,9 +107,10 @@ export async function POST(request: NextRequest) {
       console.error('Error creating order items:', itemsError)
       // Rollback: delete the order
       await supabase.from('orders').delete().eq('id', order.id)
+      const info = explainPgError(itemsError, orderItems)
       return NextResponse.json(
-        { message: 'Error al crear items de orden' },
-        { status: 500 }
+        { message: info.userMessage, offendingEtm: info.offendingEtm },
+        { status: info.isConstraintViolation ? 400 : 500 }
       )
     }
 

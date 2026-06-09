@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
 import { requireAuth } from '@/lib/api-helpers'
 import { processAutoLearn } from '@/lib/auto-learn'
+import { explainPgError } from '@/lib/supabase-errors'
 import type { QuotationItemRow } from '@/types/database'
 
 interface UpdateQuotationInput {
@@ -122,7 +123,11 @@ export async function PATCH(
       if (existingItems?.length) {
         await supabase.from('quotation_items').insert(existingItems)
       }
-      return NextResponse.json({ message: 'Error al guardar los productos' }, { status: 500 })
+      const info = explainPgError(insertError, items)
+      return NextResponse.json(
+        { message: info.userMessage, offendingEtm: info.offendingEtm },
+        { status: info.isConstraintViolation ? 400 : 500 }
+      )
     }
 
     // Update quotation header
@@ -131,10 +136,21 @@ export async function PATCH(
       .update({ name: name.trim(), customer_name: customer_name.trim(), total_amount })
       .eq('id', id)
 
-    // Auto-learn
-    await processAutoLearn(supabase, user.id, items)
+    // Auto-learn aislado: si falla, la actualización ya está hecha; warning en vez de 500.
+    let autoLearnFailed = false
+    try {
+      await processAutoLearn(supabase, user.id, items)
+    } catch (err) {
+      console.error('Auto-learn failed (quotation already updated):', err)
+      autoLearnFailed = true
+    }
 
-    return NextResponse.json({ quotation_id: id, total_amount, items_count: items.length })
+    return NextResponse.json({
+      quotation_id: id,
+      total_amount,
+      items_count: items.length,
+      ...(autoLearnFailed && { warning: 'auto_learn_failed' }),
+    })
   } catch (error) {
     console.error('Update quotation error:', error)
     return NextResponse.json({ message: 'Error al actualizar la cotización' }, { status: 500 })
