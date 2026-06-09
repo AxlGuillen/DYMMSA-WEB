@@ -75,10 +75,12 @@ import {
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal } from '@/components/quoter/ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
-import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation } from '@/hooks/useQuotations'
+import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation, ApiError } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { calculateQuotationTotal, isProductItem as isProductRow } from '@/lib/business-rules'
+import { getBlockingIssues } from '@/lib/quotation-validation'
+import { scrollToRow } from '@/lib/dom-helpers'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime } from '@/types/database'
 
 // ------------------------------------------------------------------ //
@@ -232,6 +234,7 @@ interface SortableDetailRowProps {
   isDndEnabled: boolean
   isApproved: boolean
   isSentForApproval: boolean
+  hasError?: boolean
   onEdit: (item: QuotationItemRow) => void
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
@@ -240,7 +243,7 @@ interface SortableDetailRowProps {
 
 // oxlint-disable-next-line react-doctor/no-many-boolean-props -- intentional pattern; structural refactor tracked separately
 function SortableDetailRow({
-  item, canEdit, isDndEnabled, isApproved, isSentForApproval, onEdit, onRemove, onAddSeparatorAfter, onApprovalChange,
+  item, canEdit, isDndEnabled, isApproved, isSentForApproval, hasError = false, onEdit, onRemove, onAddSeparatorAfter, onApprovalChange,
 }: SortableDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -256,7 +259,10 @@ function SortableDetailRow({
     <TableRow
       ref={setNodeRef}
       style={style}
-      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''}`}
+      data-row-id={item._id}
+      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''} ${
+        hasError ? 'outline outline-2 -outline-offset-1 outline-red-500 bg-red-50 dark:bg-red-950/30' : ''
+      }`}
     >
       {canEdit && (
         <TableCell className="w-8 px-2">
@@ -435,6 +441,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDir, setSortDir]     = useState<SortDir>('asc')
 
+  // _id de filas con error pre-flight o reportadas por el backend (offendingEtm).
+  const [errorItemIds, setErrorItemIds] = useState<ReadonlySet<string>>(new Set())
+
   const sendForApproval     = useSendForApproval()
   const updateQuotation     = useUpdateQuotation()
   const createOrderMutation = useCreateOrderFromQuotation()
@@ -574,6 +583,22 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // ── Save changes ────────────────────────────────────────────────
   const handleSave = async () => {
+    // Pre-flight: atrapar errores conocidos antes del request.
+    const blocking = getBlockingIssues(localItems)
+    if (blocking.length > 0) {
+      const first = blocking[0]
+      setErrorItemIds(new Set(blocking.map((i) => i.itemId)))
+      toast.error(first.message, {
+        description:
+          blocking.length > 1
+            ? `Y ${blocking.length - 1} problema${blocking.length - 1 !== 1 ? 's' : ''} más.`
+            : undefined,
+      })
+      scrollToRow(first.itemId)
+      return
+    }
+    setErrorItemIds(new Set())
+
     try {
       await updateQuotation.mutateAsync({
         id:            quotation.id,
@@ -585,8 +610,29 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       toast.success('Cotización actualizada')
       refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al guardar')
+      handleApiError(error, localItems, 'Error al guardar')
     }
+  }
+
+  /** Manejo centralizado de errores: 401 → login, offendingEtm → resaltar, fallback. */
+  const handleApiError = (error: unknown, lookupItems: QuotationItemRow[], fallbackMsg: string) => {
+    if (error instanceof ApiError) {
+      if (error.code === 'AUTH_EXPIRED') {
+        toast.error(error.message)
+        push('/login')
+        return
+      }
+      if (error.offendingEtm) {
+        const offending = lookupItems.find((i) => i.etm === error.offendingEtm)
+        if (offending) {
+          setErrorItemIds(new Set([offending._id]))
+          scrollToRow(offending._id)
+        }
+      }
+      toast.error(error.message)
+      return
+    }
+    toast.error(error instanceof Error ? error.message : fallbackMsg)
   }
 
   // ── Send for approval ───────────────────────────────────────────
@@ -623,6 +669,22 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // ── Create order from approved quotation ────────────────────────
   const handleCreateOrder = async () => {
+    // Pre-flight: solo valida ítems APROBADOS (los que terminarán en la orden).
+    const blocking = getBlockingIssues(localItems, { onlyApproved: true })
+    if (blocking.length > 0) {
+      const first = blocking[0]
+      setErrorItemIds(new Set(blocking.map((i) => i.itemId)))
+      toast.error(first.message, {
+        description:
+          blocking.length > 1
+            ? `Y ${blocking.length - 1} problema${blocking.length - 1 !== 1 ? 's' : ''} más en productos aprobados.`
+            : 'No se puede generar la orden hasta corregirlo.',
+      })
+      scrollToRow(first.itemId)
+      return
+    }
+    setErrorItemIds(new Set())
+
     try {
       // Auto-save pending changes before creating the order so all items (including
       // post-approval additions and their is_approved state) are persisted first.
@@ -639,7 +701,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       toast.success(`Orden creada con ${result.items_count} producto(s)`)
       push(`/dashboard/orders/${result.order_id}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al generar la orden')
+      handleApiError(error, localItems, 'Error al generar la orden')
     }
   }
 
@@ -1177,6 +1239,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                             isDndEnabled={isDndEnabled}
                             isApproved={isApproved}
                             isSentForApproval={isSentForApproval}
+                            hasError={errorItemIds.has(item._id)}
                             onEdit={handleEdit}
                             onRemove={handleRemove}
                             onAddSeparatorAfter={handleAddSeparatorAfter}

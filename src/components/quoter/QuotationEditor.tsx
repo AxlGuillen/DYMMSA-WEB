@@ -133,10 +133,11 @@ interface SortableRowProps {
   onEdit: (item: QuotationItemRow) => void
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
+  hasError?: boolean
 }
 
 const SortableRow = memo(function SortableRow({
-  item, onEdit, onRemove, onAddSeparatorAfter,
+  item, onEdit, onRemove, onAddSeparatorAfter, hasError = false,
 }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -152,7 +153,10 @@ const SortableRow = memo(function SortableRow({
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''}`}
+      data-row-id={item._id}
+      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''} ${
+        hasError ? 'outline outline-2 -outline-offset-1 outline-red-500 bg-red-50 dark:bg-red-950/30' : ''
+      }`}
     >
       <td className="px-2 py-3 w-8">
         <button type="button"
@@ -236,7 +240,12 @@ const SortableRow = memo(function SortableRow({
 
 // --- component --------------------------------------------------------
 
-export function QuotationEditor() {
+interface QuotationEditorProps {
+  /** _id de filas con error pre-flight para resaltarlas. */
+  errorItemIds?: ReadonlySet<string>
+}
+
+export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
   // Selectores slice: el editor solo re-renderiza cuando cambia su slice;
   // tipear en name/customer_name no lo afecta. Las acciones de Zustand son
   // refs estables, así que los selectores de acción no causan re-renders.
@@ -425,6 +434,7 @@ export function QuotationEditor() {
                           onEdit={handleEdit}
                           onRemove={removeItem}
                           onAddSeparatorAfter={addSeparatorAfter}
+                          hasError={errorItemIds?.has(item._id) ?? false}
                         />
                       )
                     )}
