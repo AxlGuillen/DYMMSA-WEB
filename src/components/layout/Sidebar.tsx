@@ -33,6 +33,7 @@ import {
   Database,
   GitCompare,
   CircleHelp,
+  Sparkles,
   LogOut,
   Menu,
 } from 'lucide-react'
@@ -123,6 +124,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
 
           <div className="space-y-1">
+            <NavLink
+              href="/dashboard/changelog"
+              label="Novedades"
+              icon={Sparkles}
+              onClick={onNavigate}
+            />
             <NavLink
               href="/dashboard/docs"
               label="Documentacion"
