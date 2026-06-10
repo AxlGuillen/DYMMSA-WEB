@@ -36,7 +36,7 @@ Supabase project: `wjlklwtvjewhtghlskbt` · us-west-2 · RLS habilitado en todas
 ```
 draft | sent_for_approval | approved | rejected | converted_to_order
 ```
-- `canEdit = isDraft || isApproved` (Fase 5.5: cotizaciones aprobadas son editables)
+- `canEdit = isDraft || isSentForApproval || isApproved` (Fase 5.5: cotizaciones aprobadas y en revisión son editables — permite ajustar precio/cantidad/entrega mientras el cliente revisa)
 - Ítems nuevos agregados en estado `approved` → `is_approved = null` (pendiente); el usuario DYMMSA los aprueba/rechaza manualmente con los botones ✓/✗ en `QuotationDetail`
 - `approval_token UUID UNIQUE` — se usa en `/approve/[token]` sin auth
 

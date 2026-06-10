@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -637,6 +637,21 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // ── Send for approval ───────────────────────────────────────────
   const handleSendForApproval = async () => {
+    // Pre-flight: si hay cambios pendientes, validar antes de auto-guardar
+    if (isDirty) {
+      const blocking = getBlockingIssues(localItems)
+      if (blocking.length > 0) {
+        const first = blocking[0]
+        setErrorItemIds(new Set(blocking.map((i) => i.itemId)))
+        toast.error(first.message, {
+          description: blocking.length > 1 ? `Y ${blocking.length - 1} problema${blocking.length - 1 !== 1 ? 's' : ''} más.` : undefined,
+        })
+        scrollToRow(first.itemId)
+        return
+      }
+    }
+    setErrorItemIds(new Set())
+
     try {
       if (isDirty) {
         await updateQuotation.mutateAsync({
@@ -651,7 +666,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       toast.success('Cotización enviada a aprobación')
       refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al enviar')
+      handleApiError(error, localItems, 'Error al enviar a aprobación')
     }
   }
 
@@ -776,6 +791,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         return 0
       })
     : filteredItems
+
+  const displayItemIds = useMemo(() => displayItems.map((i) => i._id), [displayItems])
 
   const totalCols =
     (canEdit ? 1 : 0) +
@@ -1206,7 +1223,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </TableRow>
               </TableHeader>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={displayItems.map((i) => i._id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={displayItemIds} strategy={verticalListSortingStrategy}>
                   <TableBody>
                     {displayItems.length === 0 ? (
                       <TableRow>
