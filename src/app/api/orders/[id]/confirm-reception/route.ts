@@ -97,6 +97,7 @@ export async function POST(
       .from('order_items')
       .select('quantity_in_stock, quantity_received, urrea_status, unit_price, item_type')
       .eq('order_id', orderId)
+      .limit(3000)
 
     if (allItems) {
       const newTotal = calculateDeliveredTotal(allItems)

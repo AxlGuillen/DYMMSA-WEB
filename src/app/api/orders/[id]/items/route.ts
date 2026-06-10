@@ -112,6 +112,7 @@ export async function POST(
       .from('order_items')
       .select('unit_price, quantity_approved, item_type')
       .eq('order_id', id)
+      .limit(3000)
 
     const newTotal = calculateOrderTotal(allItems ?? [])
     await supabase.from('orders').update({ total_amount: newTotal }).eq('id', id)
