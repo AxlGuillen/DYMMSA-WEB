@@ -178,6 +178,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
 | Nuevo **enum o estado** | `DYMMSA/00-Inicio/Glosario.md` + tabla de BD en este CLAUDE.md |
 | **Migración de BD** | `DYMMSA/06-Changelog/YYYY-MM.md` (fecha + migración + descripción + motivo) |
+| **Cambio visible para el usuario** (feature/fix que el usuario nota) | `CHANGELOG.md` (raíz) en lenguaje simple — lo renderiza la página `/dashboard/changelog`. Formato: `## YYYY-MM-DD` → `### Nuevo\|Mejorado\|Corregido` → `- entrada`. La bóveda `06-Changelog/` sigue siendo el detalle técnico. |
 | Cambio en **flujo de negocio** | `DYMMSA/01-Negocio/Flujo-Operacional.md` |
 | Cambio en **estructura de carpetas** | `DYMMSA/02-Arquitectura/Estructura-de-Carpetas.md` |
 
