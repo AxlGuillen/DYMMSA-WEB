@@ -194,7 +194,7 @@ export function useQuotation(id: string) {
         .select('*, quotation_items(*)')
         .eq('id', id)
         .order('sort_order', { foreignTable: 'quotation_items', ascending: true })
-        .limit(3000, { foreignTable: 'quotation_items' })
+        .limit(5000, { foreignTable: 'quotation_items' })
         .single()
 
       if (error) throw error

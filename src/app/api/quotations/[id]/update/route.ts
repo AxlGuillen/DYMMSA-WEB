@@ -67,7 +67,7 @@ export async function PATCH(
       .from('quotation_items')
       .select('*')
       .eq('quotation_id', id)
-      .limit(3000)
+      .limit(5000)
 
     const approvalMap = new Map<string, boolean | null>()
     if (quotation.status === 'approved') {
