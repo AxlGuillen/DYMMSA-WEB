@@ -31,6 +31,7 @@ export async function POST(
       .from('quotations')
       .select('*, quotation_items(*)')
       .eq('id', id)
+      .limit(3000, { foreignTable: 'quotation_items' })
       .single()
 
     if (fetchError || !quotation) {
