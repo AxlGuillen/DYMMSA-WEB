@@ -3,7 +3,7 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
-## 2026-06-10
+## 2026-06-16
 
 ### Nuevo
 - Ahora puedes cambiar el estado de una cotización en cualquier momento desde su
