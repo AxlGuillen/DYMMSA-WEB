@@ -3,6 +3,15 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-06-10
+
+### Nuevo
+- Ahora puedes cambiar el estado de una cotización en cualquier momento desde su
+  detalle (por ejemplo, regresar una de "En aprobación" a "Borrador" para volver a
+  trabajarla) sin tener que crearla de nuevo. Las decisiones que el cliente ya marcó
+  por producto se conservan. Para reabrir una cotización que ya se convirtió en orden,
+  primero cancela o elimina su orden vinculada.
+
 ## 2026-06-09
 
 ### Corregido
