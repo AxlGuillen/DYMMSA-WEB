@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const username = user?.email?.split('@')[0] ?? 'usuario'
+  const username = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split('@')[0] || 'usuario'
   const today = new Date().toLocaleDateString('es-MX', {
     weekday: 'long',
     year: 'numeric',

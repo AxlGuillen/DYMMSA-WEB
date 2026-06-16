@@ -1,0 +1,70 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { requireAuth, notFound, badRequest, serverError } from '@/lib/api-helpers'
+import { MANUAL_QUOTATION_STATUSES } from '@/lib/quotation-status'
+import type { QuotationStatus } from '@/types/database'
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+
+    const { status } = (await request.json()) as { status: QuotationStatus }
+
+    // converted_to_order no es un destino manual: solo se asigna al generar la orden.
+    if (!MANUAL_QUOTATION_STATUSES.includes(status)) {
+      return badRequest('El estado "Convertida a orden" solo se asigna al generar la orden')
+    }
+
+    const { data: quotation, error: fetchError } = await supabase
+      .from('quotations')
+      .select('id, status')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !quotation) {
+      return notFound('Cotización no encontrada')
+    }
+
+    // Guarda: para reabrir una cotización convertida, su orden vinculada debe estar
+    // cancelada o eliminada (cancelar/eliminar la orden restaura el inventario).
+    if (quotation.status === 'converted_to_order') {
+      const { data: activeOrders } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('quotation_id', id)
+        .neq('status', 'cancelled')
+        .limit(1)
+
+      if (activeOrders && activeOrders.length > 0) {
+        return badRequest(
+          'Cancela o elimina la orden vinculada antes de reabrir esta cotización.'
+        )
+      }
+    }
+
+    // No se tocan los quotation_items → is_approved se preserva.
+    const { data: updated, error: updateError } = await supabase
+      .from('quotations')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (updateError || !updated) {
+      console.error('Update quotation status error:', updateError)
+      return serverError('Error al actualizar el estado')
+    }
+
+    return NextResponse.json(updated)
+  } catch (error) {
+    console.error('PATCH quotation status error:', error)
+    return serverError()
+  }
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -61,9 +61,18 @@ interface SortableSeparatorRowProps {
   colSpan: number
 }
 
-function SortableSeparatorRow({ item, onLabelChange, onRemove, colSpan }: SortableSeparatorRowProps) {
+const SortableSeparatorRow = memo(function SortableSeparatorRow({
+  item, onLabelChange, onRemove, colSpan,
+}: SortableSeparatorRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
+
+  // Estado local del input: cada keystroke ya no llama updateItem (que
+  // re-renderiza todas las filas y escribe a localStorage). Commit en blur.
+  const [localLabel, setLocalLabel] = useState(item.section_label ?? '')
+  useEffect(() => {
+    setLocalLabel(item.section_label ?? '')
+  }, [item.section_label])
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -91,8 +100,13 @@ function SortableSeparatorRow({ item, onLabelChange, onRemove, colSpan }: Sortab
         <div className="flex items-center gap-2">
           <SeparatorHorizontal className="size-3.5 text-muted-foreground shrink-0" />
           <Input
-            value={item.section_label ?? ''}
-            onChange={(e) => onLabelChange(item._id, e.target.value)}
+            value={localLabel}
+            onChange={(e) => setLocalLabel(e.target.value)}
+            onBlur={() => {
+              if (localLabel !== (item.section_label ?? '')) {
+                onLabelChange(item._id, localLabel)
+              }
+            }}
             placeholder="Nombre de la sección (opcional)..."
             className="h-7 text-xs bg-transparent border-dashed focus-visible:border-solid"
           />
@@ -110,7 +124,7 @@ function SortableSeparatorRow({ item, onLabelChange, onRemove, colSpan }: Sortab
       </td>
     </tr>
   )
-}
+})
 
 // --- sortable row -----------------------------------------------------
 
@@ -119,9 +133,12 @@ interface SortableRowProps {
   onEdit: (item: QuotationItemRow) => void
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
+  hasError?: boolean
 }
 
-function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRowProps) {
+const SortableRow = memo(function SortableRow({
+  item, onEdit, onRemove, onAddSeparatorAfter, hasError = false,
+}: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
   const fmt = useCurrency()
@@ -136,7 +153,10 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''}`}
+      data-row-id={item._id}
+      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''} ${
+        hasError ? 'outline outline-2 -outline-offset-1 outline-red-500 bg-red-50 dark:bg-red-950/30' : ''
+      }`}
     >
       <td className="px-2 py-3 w-8">
         <button type="button"
@@ -216,12 +236,26 @@ function SortableRow({ item, onEdit, onRemove, onAddSeparatorAfter }: SortableRo
       </td>
     </tr>
   )
-}
+})
 
 // --- component --------------------------------------------------------
 
-export function QuotationEditor() {
-  const { items, addItem, updateItem, addSeparatorAfter, removeItem, reorderItems } = useQuotationStore()
+interface QuotationEditorProps {
+  /** _id de filas con error pre-flight para resaltarlas. */
+  errorItemIds?: ReadonlySet<string>
+}
+
+export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
+  // Selectores slice: el editor solo re-renderiza cuando cambia su slice;
+  // tipear en name/customer_name no lo afecta. Las acciones de Zustand son
+  // refs estables, así que los selectores de acción no causan re-renders.
+  const items = useQuotationStore((s) => s.items)
+  const addItem = useQuotationStore((s) => s.addItem)
+  const updateItem = useQuotationStore((s) => s.updateItem)
+  const addSeparatorAfter = useQuotationStore((s) => s.addSeparatorAfter)
+  const removeItem = useQuotationStore((s) => s.removeItem)
+  const reorderItems = useQuotationStore((s) => s.reorderItems)
+
   const fmt = useCurrency()
   const productItems = items.filter(isProductItem)
 
@@ -231,32 +265,43 @@ export function QuotationEditor() {
 
   const sensors = useSensors(useSensor(PointerSensor))
 
-  const handleEdit = (item: QuotationItemRow) => {
+  // Callbacks memoizados — habilita React.memo en SortableRow/SortableSeparatorRow:
+  // sin ref estable de los handlers, memo no evita re-render alguno.
+  const handleEdit = useCallback((item: QuotationItemRow) => {
     setSelectedItem(item)
     setModalMode('edit')
     setModalOpen(true)
-  }
+  }, [])
 
-  const handleCreate = () => {
+  const handleCreate = useCallback(() => {
     setSelectedItem(undefined)
     setModalMode('create')
     setModalOpen(true)
-  }
+  }, [])
 
-  const handleModalSave = (data: Omit<QuotationItemRow, '_id'>, id?: string) => {
+  const handleModalSave = useCallback((data: Omit<QuotationItemRow, '_id'>, id?: string) => {
     if (id) {
       updateItem(id, data)
     } else {
       addItem(data)
     }
-  }
+  }, [updateItem, addItem])
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     if (over && active.id !== over.id) {
       reorderItems(String(active.id), String(over.id))
     }
-  }
+  }, [reorderItems])
+
+  const handleLabelChange = useCallback((id: string, label: string) => {
+    updateItem(id, { section_label: label })
+  }, [updateItem])
+
+  // IDs estables para SortableContext: items.map(...) creaba un array nuevo cada
+  // render → @dnd-kit reinicializaba 1000 sortables. Con useMemo solo cambia
+  // cuando items cambia.
+  const itemIds = useMemo(() => items.map((i) => i._id), [items])
 
   // --- stats (only product rows) ---
   const noDataCount     = productItems.filter(isMissingData).length
@@ -371,7 +416,7 @@ export function QuotationEditor() {
                 </tr>
               </thead>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={items.map((i) => i._id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
                   <tbody>
                     {items.map((item) =>
                       item.item_type === 'separator' ? (
@@ -379,7 +424,7 @@ export function QuotationEditor() {
                           key={item._id}
                           item={item}
                           colSpan={11}
-                          onLabelChange={(id, label) => updateItem(id, { section_label: label })}
+                          onLabelChange={handleLabelChange}
                           onRemove={removeItem}
                         />
                       ) : (
@@ -389,6 +434,7 @@ export function QuotationEditor() {
                           onEdit={handleEdit}
                           onRemove={removeItem}
                           onAddSeparatorAfter={addSeparatorAfter}
+                          hasError={errorItemIds?.has(item._id) ?? false}
                         />
                       )
                     )}

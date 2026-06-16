@@ -132,6 +132,7 @@ export function useOrder(id: string) {
         .select('*')
         .eq('order_id', id)
         .order('sort_order', { ascending: true })
+        .limit(5000)
 
       if (itemsError) throw itemsError
 

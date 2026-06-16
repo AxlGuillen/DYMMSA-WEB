@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -72,14 +72,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal } from '@/components/quoter/ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
-import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation } from '@/hooks/useQuotations'
+import { QUOTATION_STATUS_LABELS, MANUAL_QUOTATION_STATUSES } from '@/lib/quotation-status'
+import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation, useChangeQuotationStatus, ApiError } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { calculateQuotationTotal, isProductItem as isProductRow } from '@/lib/business-rules'
-import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime } from '@/types/database'
+import { getBlockingIssues } from '@/lib/quotation-validation'
+import { scrollToRow } from '@/lib/dom-helpers'
+import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime, QuotationStatus } from '@/types/database'
 
 // ------------------------------------------------------------------ //
 // Types                                                               //
@@ -232,6 +242,7 @@ interface SortableDetailRowProps {
   isDndEnabled: boolean
   isApproved: boolean
   isSentForApproval: boolean
+  hasError?: boolean
   onEdit: (item: QuotationItemRow) => void
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
@@ -240,7 +251,7 @@ interface SortableDetailRowProps {
 
 // oxlint-disable-next-line react-doctor/no-many-boolean-props -- intentional pattern; structural refactor tracked separately
 function SortableDetailRow({
-  item, canEdit, isDndEnabled, isApproved, isSentForApproval, onEdit, onRemove, onAddSeparatorAfter, onApprovalChange,
+  item, canEdit, isDndEnabled, isApproved, isSentForApproval, hasError = false, onEdit, onRemove, onAddSeparatorAfter, onApprovalChange,
 }: SortableDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -256,7 +267,10 @@ function SortableDetailRow({
     <TableRow
       ref={setNodeRef}
       style={style}
-      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''}`}
+      data-row-id={item._id}
+      className={`border-b border-border/60 ${getRowClass(item)} ${isDragging ? 'shadow-lg' : ''} ${
+        hasError ? 'outline outline-2 -outline-offset-1 outline-red-500 bg-red-50 dark:bg-red-950/30' : ''
+      }`}
     >
       {canEdit && (
         <TableCell className="w-8 px-2">
@@ -435,10 +449,17 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDir, setSortDir]     = useState<SortDir>('asc')
 
+  // _id de filas con error pre-flight o reportadas por el backend (offendingEtm).
+  const [errorItemIds, setErrorItemIds] = useState<ReadonlySet<string>>(new Set())
+
   const sendForApproval     = useSendForApproval()
   const updateQuotation     = useUpdateQuotation()
   const createOrderMutation = useCreateOrderFromQuotation()
   const deleteQuotation     = useDeleteQuotation()
+  const changeStatus        = useChangeQuotationStatus()
+
+  // Estado destino pendiente de confirmar en el dialog de cambio de estado.
+  const [pendingStatus, setPendingStatus] = useState<QuotationStatus | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor))
 
@@ -574,6 +595,22 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // ── Save changes ────────────────────────────────────────────────
   const handleSave = async () => {
+    // Pre-flight: atrapar errores conocidos antes del request.
+    const blocking = getBlockingIssues(localItems)
+    if (blocking.length > 0) {
+      const first = blocking[0]
+      setErrorItemIds(new Set(blocking.map((i) => i.itemId)))
+      toast.error(first.message, {
+        description:
+          blocking.length > 1
+            ? `Y ${blocking.length - 1} problema${blocking.length - 1 !== 1 ? 's' : ''} más.`
+            : undefined,
+      })
+      scrollToRow(first.itemId)
+      return
+    }
+    setErrorItemIds(new Set())
+
     try {
       await updateQuotation.mutateAsync({
         id:            quotation.id,
@@ -585,12 +622,67 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       toast.success('Cotización actualizada')
       refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al guardar')
+      handleApiError(error, localItems, 'Error al guardar')
+    }
+  }
+
+  /** Manejo centralizado de errores: 401 → login, offendingEtm → resaltar, fallback. */
+  const handleApiError = (error: unknown, lookupItems: QuotationItemRow[], fallbackMsg: string) => {
+    if (error instanceof ApiError) {
+      if (error.code === 'AUTH_EXPIRED') {
+        toast.error(error.message)
+        push('/login')
+        return
+      }
+      if (error.offendingEtm) {
+        const offending = lookupItems.find((i) => i.etm === error.offendingEtm)
+        if (offending) {
+          setErrorItemIds(new Set([offending._id]))
+          scrollToRow(offending._id)
+        }
+      }
+      toast.error(error.message)
+      return
+    }
+    toast.error(error instanceof Error ? error.message : fallbackMsg)
+  }
+
+  // ── Manual status change (revert / lateral move) ────────────────
+  const handleConfirmStatusChange = async () => {
+    if (!pendingStatus) return
+    const target = pendingStatus
+    setPendingStatus(null)
+    try {
+      await changeStatus.mutateAsync({ id: quotation.id, status: target })
+      toast.success(`Estado cambiado a "${QUOTATION_STATUS_LABELS[target]}"`)
+      refresh()
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'AUTH_EXPIRED') {
+        toast.error(error.message)
+        push('/login')
+        return
+      }
+      toast.error(error instanceof Error ? error.message : 'Error al cambiar el estado')
     }
   }
 
   // ── Send for approval ───────────────────────────────────────────
   const handleSendForApproval = async () => {
+    // Pre-flight: si hay cambios pendientes, validar antes de auto-guardar
+    if (isDirty) {
+      const blocking = getBlockingIssues(localItems)
+      if (blocking.length > 0) {
+        const first = blocking[0]
+        setErrorItemIds(new Set(blocking.map((i) => i.itemId)))
+        toast.error(first.message, {
+          description: blocking.length > 1 ? `Y ${blocking.length - 1} problema${blocking.length - 1 !== 1 ? 's' : ''} más.` : undefined,
+        })
+        scrollToRow(first.itemId)
+        return
+      }
+    }
+    setErrorItemIds(new Set())
+
     try {
       if (isDirty) {
         await updateQuotation.mutateAsync({
@@ -605,7 +697,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       toast.success('Cotización enviada a aprobación')
       refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al enviar')
+      handleApiError(error, localItems, 'Error al enviar a aprobación')
     }
   }
 
@@ -623,6 +715,22 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   // ── Create order from approved quotation ────────────────────────
   const handleCreateOrder = async () => {
+    // Pre-flight: solo valida ítems APROBADOS (los que terminarán en la orden).
+    const blocking = getBlockingIssues(localItems, { onlyApproved: true })
+    if (blocking.length > 0) {
+      const first = blocking[0]
+      setErrorItemIds(new Set(blocking.map((i) => i.itemId)))
+      toast.error(first.message, {
+        description:
+          blocking.length > 1
+            ? `Y ${blocking.length - 1} problema${blocking.length - 1 !== 1 ? 's' : ''} más en productos aprobados.`
+            : 'No se puede generar la orden hasta corregirlo.',
+      })
+      scrollToRow(first.itemId)
+      return
+    }
+    setErrorItemIds(new Set())
+
     try {
       // Auto-save pending changes before creating the order so all items (including
       // post-approval additions and their is_approved state) are persisted first.
@@ -639,7 +747,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       toast.success(`Orden creada con ${result.items_count} producto(s)`)
       push(`/dashboard/orders/${result.order_id}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al generar la orden')
+      handleApiError(error, localItems, 'Error al generar la orden')
     }
   }
 
@@ -673,6 +781,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     localQuotationName.trim().length > 0 &&
     localName.trim().length > 0 &&
     localItems.some(isProductRow)
+
+  // Para reabrir una cotización convertida, su orden vinculada debe estar cancelada/eliminada.
+  const hasBlockingOrder =
+    isConvertedToOrder && !!relatedOrder && relatedOrder.status !== 'cancelled'
 
   // Filter by approval status — separators always pass through; use local is_approved
   const filteredItems: QuotationItemRow[] =
@@ -715,6 +827,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       })
     : filteredItems
 
+  const displayItemIds = useMemo(() => displayItems.map((i) => i._id), [displayItems])
+
   const totalCols =
     (canEdit ? 1 : 0) +
     7 +
@@ -748,6 +862,36 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
+          {/* Manual status control */}
+          <div className="flex flex-col items-end gap-0.5">
+            <Select
+              value={quotation.status}
+              onValueChange={(value) => setPendingStatus(value as QuotationStatus)}
+              disabled={changeStatus.isPending || hasBlockingOrder}
+            >
+              <SelectTrigger className="h-9 w-40" aria-label="Cambiar estado">
+                <SelectValue>{QUOTATION_STATUS_LABELS[quotation.status]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {MANUAL_QUOTATION_STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {QUOTATION_STATUS_LABELS[s]}
+                  </SelectItem>
+                ))}
+                {isConvertedToOrder && (
+                  <SelectItem value="converted_to_order" disabled>
+                    {QUOTATION_STATUS_LABELS.converted_to_order}
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {hasBlockingOrder && (
+              <span className="text-[11px] text-muted-foreground">
+                Cancela la orden vinculada para reabrir
+              </span>
+            )}
+          </div>
+
           {canEdit && isDirty && (
             <Button
               variant="outline"
@@ -855,6 +999,35 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 >
                   {deleteQuotation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Sí, eliminar
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Confirm manual status change */}
+          <AlertDialog
+            open={pendingStatus !== null}
+            onOpenChange={(o) => { if (!o && !changeStatus.isPending) setPendingStatus(null) }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Cambiar el estado de la cotización?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Pasará de{' '}
+                  <strong>{QUOTATION_STATUS_LABELS[quotation.status]}</strong> a{' '}
+                  <strong>{pendingStatus ? QUOTATION_STATUS_LABELS[pendingStatus] : ''}</strong>.
+                  {' '}Las decisiones de aprobación de cada producto se conservan.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={changeStatus.isPending}>Cancelar</AlertDialogCancel>
+                <Button
+                  type="button"
+                  onClick={handleConfirmStatusChange}
+                  disabled={changeStatus.isPending}
+                >
+                  {changeStatus.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Sí, cambiar
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -1144,7 +1317,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </TableRow>
               </TableHeader>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={displayItems.map((i) => i._id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={displayItemIds} strategy={verticalListSortingStrategy}>
                   <TableBody>
                     {displayItems.length === 0 ? (
                       <TableRow>
@@ -1177,6 +1350,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                             isDndEnabled={isDndEnabled}
                             isApproved={isApproved}
                             isSentForApproval={isSentForApproval}
+                            hasError={errorItemIds.has(item._id)}
                             onEdit={handleEdit}
                             onRemove={handleRemove}
                             onAddSeparatorAfter={handleAddSeparatorAfter}

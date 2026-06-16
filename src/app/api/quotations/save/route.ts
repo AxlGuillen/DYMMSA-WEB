@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
 import { requireAuth } from '@/lib/api-helpers'
 import { processAutoLearn } from '@/lib/auto-learn'
+import { explainPgError } from '@/lib/supabase-errors'
 import type { QuotationItemRow } from '@/types/database'
 
 interface SaveQuotationInput {
@@ -93,20 +94,32 @@ export async function POST(request: NextRequest) {
       console.error('Error creating quotation items:', itemsError)
       // Rollback: eliminar la cotización recién creada
       await supabase.from('quotations').delete().eq('id', quotation.id)
+      // Mapear el error de Postgres a un mensaje accionable identificando el ítem ofensor.
+      const info = explainPgError(itemsError, items)
       return NextResponse.json(
-        { message: 'Error al guardar los productos' },
-        { status: 500 }
+        { message: info.userMessage, offendingEtm: info.offendingEtm },
+        { status: info.isConstraintViolation ? 400 : 500 }
       )
     }
 
     // ── 3. Auto-aprendizaje en etm_products ─────────────────────────
-    const autoLearn = await processAutoLearn(supabase, user.id, items)
+    // Aislado: si falla, la cotización ya está guardada; reportamos warning
+    // en vez de tirar 500 y confundir al usuario.
+    let autoLearn = { added: 0, updated: 0, skipped: 0 }
+    let autoLearnFailed = false
+    try {
+      autoLearn = await processAutoLearn(supabase, user.id, items)
+    } catch (err) {
+      console.error('Auto-learn failed (quotation already saved):', err)
+      autoLearnFailed = true
+    }
 
     return NextResponse.json({
       quotation_id: quotation.id,
       total_amount,
       items_count:  items.length,
       auto_learn:   autoLearn,
+      ...(autoLearnFailed && { warning: 'auto_learn_failed' }),
     })
   } catch (error) {
     console.error('Save quotation error:', error)

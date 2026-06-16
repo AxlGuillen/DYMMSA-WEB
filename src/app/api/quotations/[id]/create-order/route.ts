@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
 import { allocateInventory } from '@/lib/business-rules'
+import { explainPgError } from '@/lib/supabase-errors'
 import type { QuotationItem, OrderItemInsert } from '@/types/database'
 
 interface StockResult {
@@ -30,6 +31,7 @@ export async function POST(
       .from('quotations')
       .select('*, quotation_items(*)')
       .eq('id', id)
+      .limit(5000, { foreignTable: 'quotation_items' })
       .single()
 
     if (fetchError || !quotation) {
@@ -174,7 +176,12 @@ export async function POST(
     if (itemsError) {
       await supabase.from('orders').delete().eq('id', order.id)
       console.error(`[create-order] items insert error rolling back orderId=${order.id}`, itemsError)
-      return NextResponse.json({ message: 'Error al guardar los productos de la orden' }, { status: 500 })
+      // El payload de orderItemsPayload tiene etm/quantity_approved/unit_price → scaneable.
+      const info = explainPgError(itemsError, orderItemsPayload)
+      return NextResponse.json(
+        { message: info.userMessage, offendingEtm: info.offendingEtm },
+        { status: info.isConstraintViolation ? 400 : 500 }
+      )
     }
 
     // Deduct inventory in parallel (independent writes per model_code)

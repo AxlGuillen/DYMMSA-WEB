@@ -6,9 +6,11 @@ import { RotateCcw } from 'lucide-react'
 import { FileUploader } from '@/components/quoter/FileUploader'
 import { QuotationEditor } from '@/components/quoter/QuotationEditor'
 import { useLookupEtms } from '@/hooks/useQuotes'
-import { useSaveQuotation } from '@/hooks/useQuotations'
+import { useSaveQuotation, ApiError } from '@/hooks/useQuotations'
 import { extractProductRowsFromExcel } from '@/lib/excel/parser'
 import { useQuotationStore } from '@/stores/quotationStore'
+import { getBlockingIssues } from '@/lib/quotation-validation'
+import { scrollToRow } from '@/lib/dom-helpers'
 import type { QuotationItemRow } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +22,8 @@ type Step = 'upload' | 'editor'
 export default function QuoterPage() {
   const { push } = useRouter()
   const [step, setStep] = useState<Step>('upload')
+  /** _id de filas con error pre-flight o reportadas por el backend (offendingEtm). */
+  const [errorItemIds, setErrorItemIds] = useState<ReadonlySet<string>>(new Set())
 
   const { name, customer_name, items, setName, setCustomerName, setItems, reset } =
     useQuotationStore()
@@ -118,6 +122,23 @@ export default function QuoterPage() {
   }
 
   const handleSave = async () => {
+    // ── 1. Pre-flight: atrapar errores conocidos antes de pegar al servidor ─
+    const blocking = getBlockingIssues(items)
+    if (blocking.length > 0) {
+      const first = blocking[0]
+      setErrorItemIds(new Set(blocking.map((i) => i.itemId)))
+      toast.error(first.message, {
+        description:
+          blocking.length > 1
+            ? `Y ${blocking.length - 1} problema${blocking.length - 1 !== 1 ? 's' : ''} más.`
+            : undefined,
+      })
+      scrollToRow(first.itemId)
+      return
+    }
+    setErrorItemIds(new Set())
+
+    // ── 2. Request al backend ───────────────────────────────────────────
     try {
       const result = await saveMutation.mutateAsync({ name, customer_name, items })
 
@@ -135,10 +156,32 @@ export default function QuoterPage() {
       reset()
       push('/dashboard/quotations')
     } catch (error) {
-      toast.error('Error al guardar', {
-        description: error instanceof Error ? error.message : 'Error desconocido',
-      })
+      handleSaveError(error)
     }
+  }
+
+  /** Manejo centralizado de errores: 401, red, validación con ETM, fallback. */
+  const handleSaveError = (error: unknown) => {
+    if (error instanceof ApiError) {
+      if (error.code === 'AUTH_EXPIRED') {
+        toast.error(error.message)
+        push('/login')
+        return
+      }
+      // Resaltar el ítem ofensor reportado por el backend.
+      if (error.offendingEtm) {
+        const offending = items.find((i) => i.etm === error.offendingEtm)
+        if (offending) {
+          setErrorItemIds(new Set([offending._id]))
+          scrollToRow(offending._id)
+        }
+      }
+      toast.error(error.message)
+      return
+    }
+    toast.error('Error al guardar', {
+      description: error instanceof Error ? error.message : 'Error desconocido',
+    })
   }
 
   const canSave =
@@ -205,7 +248,7 @@ export default function QuoterPage() {
           </div>
 
           {/* Editable product table */}
-          <QuotationEditor />
+          <QuotationEditor errorItemIds={errorItemIds} />
 
           {/* Save */}
           <div className="flex justify-end pt-2 border-t">

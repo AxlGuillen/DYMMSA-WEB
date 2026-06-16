@@ -18,6 +18,7 @@ export async function GET(
       .from('quotations')
       .select('id, customer_name, status, total_amount, created_at, quotation_items(*)')
       .eq('approval_token', token)
+      .limit(5000, { foreignTable: 'quotation_items' })
       .single()
 
     if (error || !data) {
