@@ -72,16 +72,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal } from '@/components/quoter/ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
-import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation, ApiError } from '@/hooks/useQuotations'
+import { QUOTATION_STATUS_LABELS, MANUAL_QUOTATION_STATUSES } from '@/lib/quotation-status'
+import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation, useChangeQuotationStatus, ApiError } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { calculateQuotationTotal, isProductItem as isProductRow } from '@/lib/business-rules'
 import { getBlockingIssues } from '@/lib/quotation-validation'
 import { scrollToRow } from '@/lib/dom-helpers'
-import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime } from '@/types/database'
+import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime, QuotationStatus } from '@/types/database'
 
 // ------------------------------------------------------------------ //
 // Types                                                               //
@@ -448,6 +456,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const updateQuotation     = useUpdateQuotation()
   const createOrderMutation = useCreateOrderFromQuotation()
   const deleteQuotation     = useDeleteQuotation()
+  const changeStatus        = useChangeQuotationStatus()
+
+  // Estado destino pendiente de confirmar en el dialog de cambio de estado.
+  const [pendingStatus, setPendingStatus] = useState<QuotationStatus | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor))
 
@@ -635,6 +647,25 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     toast.error(error instanceof Error ? error.message : fallbackMsg)
   }
 
+  // ── Manual status change (revert / lateral move) ────────────────
+  const handleConfirmStatusChange = async () => {
+    if (!pendingStatus) return
+    const target = pendingStatus
+    setPendingStatus(null)
+    try {
+      await changeStatus.mutateAsync({ id: quotation.id, status: target })
+      toast.success(`Estado cambiado a "${QUOTATION_STATUS_LABELS[target]}"`)
+      refresh()
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'AUTH_EXPIRED') {
+        toast.error(error.message)
+        push('/login')
+        return
+      }
+      toast.error(error instanceof Error ? error.message : 'Error al cambiar el estado')
+    }
+  }
+
   // ── Send for approval ───────────────────────────────────────────
   const handleSendForApproval = async () => {
     // Pre-flight: si hay cambios pendientes, validar antes de auto-guardar
@@ -751,6 +782,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     localName.trim().length > 0 &&
     localItems.some(isProductRow)
 
+  // Para reabrir una cotización convertida, su orden vinculada debe estar cancelada/eliminada.
+  const hasBlockingOrder =
+    isConvertedToOrder && !!relatedOrder && relatedOrder.status !== 'cancelled'
+
   // Filter by approval status — separators always pass through; use local is_approved
   const filteredItems: QuotationItemRow[] =
     hasApprovalData && approvalFilter !== 'all'
@@ -827,6 +862,36 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
+          {/* Manual status control */}
+          <div className="flex flex-col items-end gap-0.5">
+            <Select
+              value={quotation.status}
+              onValueChange={(value) => setPendingStatus(value as QuotationStatus)}
+              disabled={changeStatus.isPending || hasBlockingOrder}
+            >
+              <SelectTrigger className="h-9 w-40" aria-label="Cambiar estado">
+                <SelectValue>{QUOTATION_STATUS_LABELS[quotation.status]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {MANUAL_QUOTATION_STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {QUOTATION_STATUS_LABELS[s]}
+                  </SelectItem>
+                ))}
+                {isConvertedToOrder && (
+                  <SelectItem value="converted_to_order" disabled>
+                    {QUOTATION_STATUS_LABELS.converted_to_order}
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {hasBlockingOrder && (
+              <span className="text-[11px] text-muted-foreground">
+                Cancela la orden vinculada para reabrir
+              </span>
+            )}
+          </div>
+
           {canEdit && isDirty && (
             <Button
               variant="outline"
@@ -934,6 +999,35 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 >
                   {deleteQuotation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Sí, eliminar
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Confirm manual status change */}
+          <AlertDialog
+            open={pendingStatus !== null}
+            onOpenChange={(o) => { if (!o && !changeStatus.isPending) setPendingStatus(null) }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Cambiar el estado de la cotización?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Pasará de{' '}
+                  <strong>{QUOTATION_STATUS_LABELS[quotation.status]}</strong> a{' '}
+                  <strong>{pendingStatus ? QUOTATION_STATUS_LABELS[pendingStatus] : ''}</strong>.
+                  {' '}Las decisiones de aprobación de cada producto se conservan.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={changeStatus.isPending}>Cancelar</AlertDialogCancel>
+                <Button
+                  type="button"
+                  onClick={handleConfirmStatusChange}
+                  disabled={changeStatus.isPending}
+                >
+                  {changeStatus.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Sí, cambiar
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>

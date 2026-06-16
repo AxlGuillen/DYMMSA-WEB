@@ -7,11 +7,12 @@ import { quotationWithItems, quotationItem } from './helpers/fixtures'
 import { QuotationDetail } from '@/components/quotations/QuotationDetail'
 
 // Spies de los mutation hooks (hoisted para usarlos dentro de vi.mock).
-const { updateAsync, sendAsync, createAsync, deleteAsync } = vi.hoisted(() => ({
+const { updateAsync, sendAsync, createAsync, deleteAsync, changeStatusAsync } = vi.hoisted(() => ({
   updateAsync: vi.fn().mockResolvedValue(undefined),
   sendAsync: vi.fn().mockResolvedValue(undefined),
   createAsync: vi.fn().mockResolvedValue({ id: 'o1' }),
   deleteAsync: vi.fn().mockResolvedValue(undefined),
+  changeStatusAsync: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/hooks/useQuotations', () => ({
@@ -19,6 +20,8 @@ vi.mock('@/hooks/useQuotations', () => ({
   useUpdateQuotation: () => ({ mutateAsync: updateAsync, isPending: false }),
   useCreateOrderFromQuotation: () => ({ mutateAsync: createAsync, isPending: false }),
   useDeleteQuotation: () => ({ mutateAsync: deleteAsync, isPending: false }),
+  useChangeQuotationStatus: () => ({ mutateAsync: changeStatusAsync, isPending: false }),
+  ApiError: class ApiError extends Error {},
 }))
 
 vi.mock('@/hooks/useOrders', () => ({

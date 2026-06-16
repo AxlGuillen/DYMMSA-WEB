@@ -16,6 +16,7 @@ import { makeRequest, makeParams } from '../helpers/request'
 import * as save from '@/app/api/quotations/save/route'
 import * as update from '@/app/api/quotations/[id]/update/route'
 import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
+import * as status from '@/app/api/quotations/[id]/status/route'
 import * as autoLearnModule from '@/lib/auto-learn'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -436,5 +437,77 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(body.message).toContain('BAD-1')
     expect(body.message).toMatch(/cantidad/i)
     expect(activeClient.didCall('orders', 'delete')).toBe(true) // rollback igual
+  })
+})
+
+// ─── quotations/[id]/status (cambio manual de estado) ────────────────────
+
+describe('PATCH /quotations/[id]/status', () => {
+  test('401 sin usuario autenticado', async () => {
+    activeClient = createMockSupabase({ user: null })
+    const res = await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(401)
+  })
+
+  test('400 si el target es converted_to_order (no es destino manual)', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await status.PATCH(
+      makeRequest({ status: 'converted_to_order' }),
+      makeParams({ id: 'q1' }),
+    )
+    expect(res.status).toBe(400)
+  })
+
+  test('404 si la cotización no existe', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'quotations.select': { data: null, error: { message: 'nf' } } },
+    })
+    const res = await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(404)
+  })
+
+  test('revierte sent_for_approval → draft (200) sin tocar los items', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'sent_for_approval' }, error: null },
+        'quotations.update': { data: { id: 'q1', status: 'draft' }, error: null },
+      },
+    })
+    const res = await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('quotations')).toMatchObject({ status: 'draft' })
+    expect(activeClient.didCall('quotation_items', 'delete')).toBe(false)
+    expect(activeClient.didCall('quotation_items', 'update')).toBe(false)
+  })
+
+  test('GUARDA: converted_to_order con orden activa → 400', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'converted_to_order' }, error: null },
+        'orders.select': { data: [{ id: 'o1' }], error: null },
+      },
+    })
+    const res = await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.message).toMatch(/orden vinculada/i)
+    expect(activeClient.didCall('quotations', 'update')).toBe(false)
+  })
+
+  test('converted_to_order sin orden activa (cancelada/eliminada) → 200', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'converted_to_order' }, error: null },
+        'orders.select': { data: [], error: null },
+        'quotations.update': { data: { id: 'q1', status: 'draft' }, error: null },
+      },
+    })
+    const res = await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('quotations')).toMatchObject({ status: 'draft' })
   })
 })

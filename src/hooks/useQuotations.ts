@@ -222,6 +222,27 @@ export function useSendForApproval() {
 }
 
 // ------------------------------------------------------------------ //
+// Change status (manual revert / lateral move)                        //
+// ------------------------------------------------------------------ //
+
+export function useChangeQuotationStatus() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: QuotationStatus }) =>
+      fetchJson<Quotation>(`/api/quotations/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
+      queryClient.invalidateQueries({ queryKey: [...QUOTATIONS_KEY, variables.id] })
+    },
+  })
+}
+
+// ------------------------------------------------------------------ //
 // Update quotation (draft only)                                      //
 // ------------------------------------------------------------------ //
 
