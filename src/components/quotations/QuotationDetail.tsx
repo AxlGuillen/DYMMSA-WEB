@@ -79,6 +79,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { ProductModal } from '@/components/quoter/ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
@@ -786,6 +792,12 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const hasBlockingOrder = isConvertedToOrder && !!relatedOrder
   // El cambio de estado se bloquea con cambios sin guardar (evita perderlos en el refresh).
   const statusChangeBlocked = changeStatus.isPending || hasBlockingOrder || isDirty
+  // Razón por la que el dropdown está deshabilitado (para tooltip + hint).
+  const statusHint = hasBlockingOrder
+    ? 'Esta cotización ya tiene una orden creada. Elimina esa orden para poder reabrirla y volver a trabajarla.'
+    : isDirty
+      ? 'Guarda los cambios pendientes para poder cambiar el estado.'
+      : null
 
   // Filter by approval status — separators always pass through; use local is_approved
   const filteredItems: QuotationItemRow[] =
@@ -865,27 +877,41 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         <div className="flex items-center gap-2">
           {/* Manual status control */}
           <div className="flex flex-col items-end gap-0.5">
-            <Select
-              value={quotation.status}
-              onValueChange={(value) => setPendingStatus(value as QuotationStatus)}
-              disabled={statusChangeBlocked}
-            >
-              <SelectTrigger className="h-9 w-40" aria-label="Cambiar estado">
-                <SelectValue>{QUOTATION_STATUS_LABELS[quotation.status]}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {MANUAL_QUOTATION_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {QUOTATION_STATUS_LABELS[s]}
-                  </SelectItem>
-                ))}
-                {isConvertedToOrder && (
-                  <SelectItem value="converted_to_order" disabled>
-                    {QUOTATION_STATUS_LABELS.converted_to_order}
-                  </SelectItem>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* Span envolvente: un Select deshabilitado no dispara hover por sí solo. */}
+                  <span className="inline-flex" tabIndex={statusHint ? 0 : -1}>
+                    <Select
+                      value={quotation.status}
+                      onValueChange={(value) => setPendingStatus(value as QuotationStatus)}
+                      disabled={statusChangeBlocked}
+                    >
+                      <SelectTrigger className="h-9 w-40" aria-label="Cambiar estado">
+                        <SelectValue>{QUOTATION_STATUS_LABELS[quotation.status]}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MANUAL_QUOTATION_STATUSES.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {QUOTATION_STATUS_LABELS[s]}
+                          </SelectItem>
+                        ))}
+                        {isConvertedToOrder && (
+                          <SelectItem value="converted_to_order" disabled>
+                            {QUOTATION_STATUS_LABELS.converted_to_order}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </span>
+                </TooltipTrigger>
+                {statusHint && (
+                  <TooltipContent side="bottom" className="max-w-[260px]">
+                    {statusHint}
+                  </TooltipContent>
                 )}
-              </SelectContent>
-            </Select>
+              </Tooltip>
+            </TooltipProvider>
             {hasBlockingOrder ? (
               <span className="text-[11px] text-muted-foreground">
                 Elimina la orden vinculada para reabrir
@@ -1080,11 +1106,17 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         <Card className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
-                <CheckCircle2 className="size-4 shrink-0" />
-                <p className="text-sm font-medium">
-                  Esta cotización fue convertida a una orden de venta.
-                </p>
+              <div className="flex items-start gap-2 text-green-800 dark:text-green-300">
+                <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">
+                    Esta cotización fue convertida a una orden de venta.
+                  </p>
+                  <p className="text-xs text-green-700 dark:text-green-400">
+                    Para reabrirla y volver a trabajarla, primero elimina la orden vinculada
+                    desde su detalle.
+                  </p>
+                </div>
               </div>
               {relatedOrder && (
                 <Button

@@ -11,7 +11,8 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   trabajarla) sin tener que crearla de nuevo. Las decisiones que el cliente ya marcó
   por producto se conservan. El cambio de estado se habilita solo cuando no hay cambios
   sin guardar. Para reabrir una cotización que ya se convirtió en orden, primero elimina
-  su orden vinculada.
+  su orden vinculada — el sistema te lo indica con un aviso en la cotización y un mensaje
+  al pasar el cursor sobre el control de estado.
 
 ## 2026-06-09
 
