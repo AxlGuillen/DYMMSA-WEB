@@ -73,6 +73,29 @@ entregados
 
 ---
 
+## Reapertura (retrabajar una cotización)
+
+Una cotización puede regresarse a un estado anterior con el dropdown de estado en
+`QuotationDetail` (`PATCH /api/quotations/[id]/status`), sin recrearla:
+
+```
+Cotización en sent_for_approval / approved / rejected
+→ Dropdown de estado → draft (u otro estado no terminal)
+  regenera approval_token (el link viejo muere → 404)
+  is_approved se preserva (las decisiones del cliente se conservan)
+→ DYMMSA edita / agrega ítems nuevos (quedan is_approved=null)
+→ Reenvía a aprobación (link nuevo)
+  el cliente ve los ya aprobados pre-seleccionados y solo decide los nuevos
+
+Cotización en converted_to_order
+→ Primero ELIMINAR la orden vinculada (restaura inventario)
+→ luego el dropdown permite reabrirla
+```
+
+Ver [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]].
+
+---
+
 ## Reglas de negocio clave
 
 | Regla | Detalle | Ver |
@@ -81,6 +104,8 @@ entregados
 | Separadores no cuentan | `item_type='separator'` excluido de totales, auto-learn, aprobación, Excel URREA | [[04-Decisiones-Tecnicas/ADR-001-Separadores]] |
 | Stock se aparta al crear orden | No al confirmar recepción — evita doble promesa al cliente | [[01-Negocio/Decisiones-de-Negocio#Por qué deducir inventario al crear la orden]] |
 | Cancelar restaura inventario | `quantity_in_stock` vuelve al store al cancelar la orden | [[03-Modulos/Inventario#Movimientos automáticos de inventario]] |
+| Reabrir convertida exige eliminar la orden | Para regresar una `converted_to_order` a un estado editable, su orden vinculada debe eliminarse (restaura inventario; garantiza ≤1 orden por cotización) | [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]] |
+| Cambiar de estado regenera el link de aprobación | Cada `PATCH /status` regenera `approval_token`; el link compartido antes queda muerto (404) | [[03-Modulos/Aprobacion-por-Token#Seguridad y acceso]] |
 | Auto-learn solo actualiza con datos no vacíos | No sobreescribe datos buenos con campos vacíos | [[03-Modulos/Catalogo-ETM#Auto-learn]] |
 | brand=URREA requerido para Excel URREA | Productos de otras marcas se excluyen con notificación | [[03-Modulos/Ordenes#Generar Excel URREA]] |
 | Comunicación URREA fuera del sistema | WhatsApp — el sistema solo genera el Excel | [[01-Negocio/Decisiones-de-Negocio#Por qué la comunicación con URREA sigue siendo por WhatsApp]] |
