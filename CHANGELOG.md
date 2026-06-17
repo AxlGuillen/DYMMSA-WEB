@@ -6,6 +6,12 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-06-16
 
 ### Nuevo
+- El menú lateral ahora se puede **colapsar** a solo iconos con un botón, para ganar
+  espacio de trabajo. Al pasar el cursor sobre cada icono aparece su nombre, y el menú
+  recuerda si lo dejaste colapsado. Además se reorganizó en secciones más claras
+  (Inventario quedó bajo "DYMMSA", y "Novedades" y "Documentación" bajo "Recursos").
+- Nueva página de **Novedades** (esta misma): un historial de mejoras y correcciones
+  del sistema, accesible desde el menú lateral.
 - Ahora puedes cambiar el estado de una cotización en cualquier momento desde su
   detalle (por ejemplo, regresar una de "En aprobación" a "Borrador" para volver a
   trabajarla) sin tener que crearla de nuevo. Las decisiones que el cliente ya marcó
