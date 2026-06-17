@@ -482,22 +482,23 @@ describe('PATCH /quotations/[id]/status', () => {
     expect(activeClient.didCall('quotation_items', 'update')).toBe(false)
   })
 
-  test('GUARDA: converted_to_order con orden activa → 400', async () => {
+  test('GUARDA: converted_to_order con orden vinculada (cualquier estado) → 400', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
         'quotations.select': { data: { id: 'q1', status: 'converted_to_order' }, error: null },
+        // La orden existe (incluso cancelada bloquea: hay que eliminarla).
         'orders.select': { data: [{ id: 'o1' }], error: null },
       },
     })
     const res = await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.message).toMatch(/orden vinculada/i)
+    expect(body.message).toMatch(/elimina la orden vinculada/i)
     expect(activeClient.didCall('quotations', 'update')).toBe(false)
   })
 
-  test('converted_to_order sin orden activa (cancelada/eliminada) → 200', async () => {
+  test('converted_to_order sin orden vinculada (eliminada) → 200', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {

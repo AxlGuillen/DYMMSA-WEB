@@ -782,9 +782,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     localName.trim().length > 0 &&
     localItems.some(isProductRow)
 
-  // Para reabrir una cotización convertida, su orden vinculada debe estar cancelada/eliminada.
-  const hasBlockingOrder =
-    isConvertedToOrder && !!relatedOrder && relatedOrder.status !== 'cancelled'
+  // Para reabrir una cotización convertida, su orden vinculada debe estar ELIMINADA.
+  const hasBlockingOrder = isConvertedToOrder && !!relatedOrder
+  // El cambio de estado se bloquea con cambios sin guardar (evita perderlos en el refresh).
+  const statusChangeBlocked = changeStatus.isPending || hasBlockingOrder || isDirty
 
   // Filter by approval status — separators always pass through; use local is_approved
   const filteredItems: QuotationItemRow[] =
@@ -867,7 +868,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <Select
               value={quotation.status}
               onValueChange={(value) => setPendingStatus(value as QuotationStatus)}
-              disabled={changeStatus.isPending || hasBlockingOrder}
+              disabled={statusChangeBlocked}
             >
               <SelectTrigger className="h-9 w-40" aria-label="Cambiar estado">
                 <SelectValue>{QUOTATION_STATUS_LABELS[quotation.status]}</SelectValue>
@@ -885,11 +886,15 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 )}
               </SelectContent>
             </Select>
-            {hasBlockingOrder && (
+            {hasBlockingOrder ? (
               <span className="text-[11px] text-muted-foreground">
-                Cancela la orden vinculada para reabrir
+                Elimina la orden vinculada para reabrir
               </span>
-            )}
+            ) : isDirty ? (
+              <span className="text-[11px] text-muted-foreground">
+                Guarda los cambios para cambiar el estado
+              </span>
+            ) : null}
           </div>
 
           {canEdit && isDirty && (

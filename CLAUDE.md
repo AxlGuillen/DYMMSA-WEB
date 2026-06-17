@@ -39,7 +39,7 @@ draft | sent_for_approval | approved | rejected | converted_to_order
 - `canEdit = isDraft || isSentForApproval || isApproved` (Fase 5.5: cotizaciones aprobadas y en revisión son editables — permite ajustar precio/cantidad/entrega mientras el cliente revisa)
 - Ítems nuevos agregados en estado `approved` → `is_approved = null` (pendiente); el usuario DYMMSA los aprueba/rechaza manualmente con los botones ✓/✗ en `QuotationDetail`
 - `approval_token UUID UNIQUE` — se usa en `/approve/[token]` sin auth
-- **Cambio manual de estado** (`PATCH /api/quotations/[id]/status`): el usuario puede mover la cotización entre `draft`/`sent_for_approval`/`approved`/`rejected` libremente desde el dropdown en `QuotationDetail` (preserva `is_approved`). `converted_to_order` NO es destino manual. Para **reabrir** una cotización convertida, su orden vinculada debe estar `cancelled` o eliminada (si hay orden activa → 400); cancelar/eliminar la orden ya restaura el inventario.
+- **Cambio manual de estado** (`PATCH /api/quotations/[id]/status`): el usuario puede mover la cotización entre `draft`/`sent_for_approval`/`approved`/`rejected` libremente desde el dropdown en `QuotationDetail` (preserva `is_approved`). El dropdown se deshabilita si hay cambios sin guardar (`isDirty`). `converted_to_order` NO es destino manual. Para **reabrir** una cotización convertida, su orden vinculada debe estar **eliminada** (si existe cualquier orden vinculada → 400); eliminar la orden restaura el inventario y garantiza ≤1 orden por cotización.
 
 **`quotation_items`** — campos clave:
 ```

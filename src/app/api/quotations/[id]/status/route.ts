@@ -33,18 +33,18 @@ export async function PATCH(
     }
 
     // Guarda: para reabrir una cotización convertida, su orden vinculada debe estar
-    // cancelada o eliminada (cancelar/eliminar la orden restaura el inventario).
+    // ELIMINADA (eliminar la orden restaura el inventario). Esto además garantiza que
+    // una cotización tenga a lo sumo una orden a la vez (evita órdenes huérfanas).
     if (quotation.status === 'converted_to_order') {
-      const { data: activeOrders } = await supabase
+      const { data: linkedOrders } = await supabase
         .from('orders')
         .select('id')
         .eq('quotation_id', id)
-        .neq('status', 'cancelled')
         .limit(1)
 
-      if (activeOrders && activeOrders.length > 0) {
+      if (linkedOrders && linkedOrders.length > 0) {
         return badRequest(
-          'Cancela o elimina la orden vinculada antes de reabrir esta cotización.'
+          'Elimina la orden vinculada antes de reabrir esta cotización.'
         )
       }
     }
