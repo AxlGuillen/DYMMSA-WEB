@@ -278,6 +278,31 @@ describe('PATCH /quotations/[id]/update', () => {
     expect(items.map((i) => i.sort_order)).toEqual([0, 1, 2])
   })
 
+  test('REGLA: preserva is_approved también en draft (reabierta) — no solo en aprobada', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'draft' }, error: null },
+        'quotation_items.select': { data: [], error: null },
+        'quotation_items.delete': { data: null, error: null },
+        'quotation_items.insert': { data: null, error: null },
+        'quotations.update': { data: null, error: null },
+      },
+    })
+    await update.PATCH(
+      makeRequest({
+        name: 'Q', customer_name: 'ACME',
+        items: [
+          product({ is_approved: true }),  // aprobado antes de reabrir → se conserva
+          product({ is_approved: null }),  // nuevo agregado tras reabrir → pendiente
+        ],
+      }),
+      makeParams({ id: 'q1' }),
+    )
+    const items = activeClient.insertPayload('quotation_items')
+    expect(items.map((i) => i.is_approved)).toEqual([true, null])
+  })
+
   test('REGLA: rollback — si falla insert, re-inserta los items originales', async () => {
     const existing = [{ id: 'db1', quotation_id: 'q1', item_type: 'product', is_approved: true }]
     activeClient = createMockSupabase({
@@ -480,6 +505,20 @@ describe('PATCH /quotations/[id]/status', () => {
     expect(activeClient.updatePayload('quotations')).toMatchObject({ status: 'draft' })
     expect(activeClient.didCall('quotation_items', 'delete')).toBe(false)
     expect(activeClient.didCall('quotation_items', 'update')).toBe(false)
+  })
+
+  test('regenera approval_token al cambiar de estado (mata el link viejo)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
+        'quotations.update': { data: { id: 'q1', status: 'draft' }, error: null },
+      },
+    })
+    await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
+    const payload = activeClient.updatePayload<{ approval_token?: string }>('quotations')
+    expect(typeof payload.approval_token).toBe('string')
+    expect(payload.approval_token).toMatch(/[0-9a-f-]{36}/i)
   })
 
   test('GUARDA: converted_to_order con orden vinculada (cualquier estado) → 400', async () => {

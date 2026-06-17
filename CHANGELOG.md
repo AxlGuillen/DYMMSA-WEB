@@ -13,6 +13,10 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   sin guardar. Para reabrir una cotización que ya se convirtió en orden, primero elimina
   su orden vinculada — el sistema te lo indica con un aviso en la cotización y un mensaje
   al pasar el cursor sobre el control de estado.
+- Al reabrir una cotización para retrabajarla, el link de aprobación anterior deja de
+  funcionar automáticamente (por seguridad, para que nadie apruebe con un link viejo).
+  Las aprobaciones que el cliente ya hizo se conservan: si agregas productos nuevos y
+  vuelves a enviar, el cliente solo tiene que aprobar los nuevos, no todo otra vez.
 
 ## 2026-06-09
 

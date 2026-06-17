@@ -49,10 +49,13 @@ export async function PATCH(
       }
     }
 
+    // Regenerar approval_token en cada cambio manual de estado: invalida cualquier
+    // link de aprobación compartido previamente (p. ej. al reabrir una cotización ya
+    // enviada/aprobada, el link viejo deja de funcionar).
     // No se tocan los quotation_items → is_approved se preserva.
     const { data: updated, error: updateError } = await supabase
       .from('quotations')
-      .update({ status })
+      .update({ status, approval_token: crypto.randomUUID() })
       .eq('id', id)
       .select()
       .single()
