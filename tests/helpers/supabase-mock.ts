@@ -155,6 +155,10 @@ export class MockSupabaseClient {
   updatePayload<T = Record<string, unknown>>(table: string): T {
     return this.callsTo(table, 'update')[0]?.payload as T
   }
+  /** Payload del primer upsert a `table` (por defecto array de filas). */
+  upsertPayload<T = Record<string, unknown>[]>(table: string): T {
+    return this.callsTo(table, 'upsert')[0]?.payload as T
+  }
 }
 
 export function createMockSupabase(config: MockConfig = {}): MockSupabaseClient {
