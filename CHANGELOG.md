@@ -6,6 +6,11 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-06-16
 
 ### Nuevo
+- Nuevo módulo **URREA → Catálogo**: registra el catálogo de URREA con su código,
+  descripción, STD (unidades por paquete, p. ej. paquetes de 6) y precio de catálogo.
+  Puedes buscar, ordenar (por descripción, precio o unidades), agregar/editar/eliminar
+  productos e importar el catálogo desde Excel (columnas: codigo, descripcion, std, precio),
+  ya sea actualizando/agregando o reemplazando todo el catálogo.
 - El menú lateral ahora se puede **colapsar** a solo iconos con un botón, para ganar
   espacio de trabajo. Al pasar el cursor sobre cada icono aparece su nombre, y el menú
   recuerda si lo dejaste colapsado. Además se reorganizó en secciones más claras

@@ -66,6 +66,7 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `POST` | `/api/inventory/import` | ✅ | Importar inventario desde Excel (format: model_code + quantity, skiprows=13) |
+| `POST` | `/api/urrea-catalog/import` | ✅ | Importar catálogo URREA desde Excel (`codigo, descripcion, std, precio`). Modo `upsert` (onConflict `code`) o `replace` (borra todo + inserta). Tabla aislada `urrea_catalog` |
 
 ---
 

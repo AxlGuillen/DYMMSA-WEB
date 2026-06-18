@@ -69,6 +69,8 @@ Constraint implícito: `quantity_in_stock + quantity_to_order = quantity_approve
 
 **`store_inventory`** — `model_code TEXT UNIQUE`, `quantity INTEGER CHECK >= 0`
 
+**`urrea_catalog`** — catálogo de URREA, **tabla aislada** (sin FK ni relaciones con el resto por ahora; no usada por flujos de cotización/orden). `code TEXT UNIQUE` (equiv. a `model_code`), `description TEXT`, `std INTEGER DEFAULT 1 CHECK > 0` (unidades por paquete), `price NUMERIC(12,2)`, `created_at/updated_at` (trigger `moddatetime`). Módulo en sidebar **URREA → Catálogo** (`/dashboard/urrea/catalog`). Import por Excel (`codigo, descripcion, std, precio`) en modo upsert (onConflict `code`) o replace.
+
 ---
 
 ## Reglas de negocio críticas
