@@ -41,6 +41,7 @@ import {
   GitCompare,
   CircleHelp,
   Sparkles,
+  Library,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -68,6 +69,10 @@ const etmUrreaLinks: LinkItem[] = [
 
 const dymmsaLinks: LinkItem[] = [
   { href: '/dashboard/inventory', label: 'Inventario', icon: Warehouse },
+]
+
+const urreaLinks: LinkItem[] = [
+  { href: '/dashboard/urrea/catalog', label: 'Catálogo', icon: Library },
 ]
 
 const recursosLinks: LinkItem[] = [
@@ -212,6 +217,7 @@ function SidebarContent({
           <NavSection links={mainLinks} collapsed={collapsed} onNavigate={onNavigate} />
           <NavSection title="ETM — Catálogo" links={etmUrreaLinks} collapsed={collapsed} onNavigate={onNavigate} />
           <NavSection title="DYMMSA" links={dymmsaLinks} collapsed={collapsed} onNavigate={onNavigate} />
+          <NavSection title="URREA" links={urreaLinks} collapsed={collapsed} onNavigate={onNavigate} />
           <NavSection title="Recursos" links={recursosLinks} collapsed={collapsed} onNavigate={onNavigate} />
         </div>
       </nav>
