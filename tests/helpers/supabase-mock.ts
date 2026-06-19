@@ -22,7 +22,7 @@
  * `storage.*`. Hoy ningún route handler de DYMMSA los necesita.
  */
 
-export type MockResult = { data?: unknown; error?: unknown }
+export type MockResult = { data?: unknown; error?: unknown; count?: number }
 export type ResponseValue = MockResult | ((rec: CallRecord) => MockResult)
 
 export type Op = 'insert' | 'select' | 'update' | 'delete' | 'upsert'
@@ -90,6 +90,7 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   is(...a: unknown[])    { return this.filter('is', a) }
   like(...a: unknown[])  { return this.filter('like', a) }
   ilike(...a: unknown[]) { return this.filter('ilike', a) }
+  or(...a: unknown[])    { return this.filter('or', a) }
   order(...a: unknown[]) { return this.filter('order', a) }
   limit(...a: unknown[]) { return this.filter('limit', a) }
   range(...a: unknown[]) { return this.filter('range', a) }
