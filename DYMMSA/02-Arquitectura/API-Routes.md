@@ -65,8 +65,27 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
+| `GET` | `/api/inventory` | ✅ | Lista paginada. Query: `page, pageSize, search (ilike model_code), stockFilter (all/in_stock/low_stock/sin_stock), quantitySort (asc/desc)`. Devuelve `{ data, count, page, pageSize, totalPages }` |
+| `GET` | `/api/inventory/stats` | ✅ | Conteos por rango de stock: `{ total, in_stock, low_stock, sin_stock }` |
+| `POST` | `/api/inventory` | ✅ | Crear producto. Body: `{ model_code, quantity }`. Normaliza `quantity` a ≥ 0 |
+| `PATCH` | `/api/inventory/[id]` | ✅ | Editar `model_code`/`quantity` |
+| `DELETE` | `/api/inventory/[id]` | ✅ | Eliminar producto |
 | `POST` | `/api/inventory/import` | ✅ | Importar inventario desde Excel (format: model_code + quantity, skiprows=13) |
-| `POST` | `/api/urrea-catalog/import` | ✅ | Importar catálogo URREA desde Excel (`codigo, descripcion, std, precio`). Modo `upsert` (onConflict `code`) o `replace` (borra todo + inserta). Tabla aislada `urrea_catalog` |
+
+---
+
+## Catálogo URREA
+
+> Módulo: [[03-Modulos/Catalogo-URREA]] · Tabla aislada `urrea_catalog`
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/urrea-catalog` | ✅ | Lista paginada. Query: `page, pageSize, search (.or code/description), sortField (code/description/price/std, whitelist), sortDir`. Devuelve `{ data, count, page, pageSize, totalPages }` |
+| `GET` | `/api/urrea-catalog/stats` | ✅ | Total de productos: `{ total }` |
+| `POST` | `/api/urrea-catalog` | ✅ | Crear producto. Body: `{ code, description?, std?, price? }`. `std` default 1; `code` duplicado → 400 |
+| `PATCH` | `/api/urrea-catalog/[id]` | ✅ | Editar `code`/`description`/`std`/`price` |
+| `DELETE` | `/api/urrea-catalog/[id]` | ✅ | Eliminar producto |
+| `POST` | `/api/urrea-catalog/import` | ✅ | Importar desde Excel (`codigo, descripcion, std, precio`). Modo `upsert` (onConflict `code`) o `replace` (borra todo + inserta) |
 
 ---
 

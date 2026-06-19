@@ -94,7 +94,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 
 - **Todo en inglés:** código, variables, nombres de BD, API routes.
 - **TypeScript estricto.** Types centralizados en `src/types/database.ts`.
-- **Hooks = TanStack Query + fetch a API Routes propias.** No llamar Supabase directo desde el cliente.
+- **Hooks = TanStack Query + fetch a API Routes propias.** No llamar Supabase directo desde el cliente — ni lecturas ni CRUD. Wrapper compartido `fetchJson`/`ApiError` en `src/lib/fetch-json.ts`. (Inventario y catálogo URREA migrados a este patrón el 2026-06-19; antes hacían CRUD directo con el browser client.)
 - **API Routes:** usar `createClient()` de `@supabase/ssr` + verificar `auth.getUser()` al inicio.
 - **Páginas:** Server Components por defecto; `"use client"` solo donde hay interactividad.
 - **Zustand store:** `dymmsa-quotation-draft` en localStorage. Llamar `reset()` al guardar exitosamente.
