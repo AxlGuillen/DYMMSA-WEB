@@ -9,11 +9,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Upload, FileSpreadsheet, AlertTriangle } from 'lucide-react'
-import { useImportUrreaCatalog } from '@/hooks/useUrreaCatalog'
+import { useImportUrreaCatalog, useUrreaCatalogStats } from '@/hooks/useUrreaCatalog'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -25,7 +35,9 @@ interface CatalogImporterProps {
 export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
   const [file, setFile] = useState<File | null>(null)
   const [mode, setMode] = useState<'upsert' | 'replace'>('upsert')
+  const [confirmReplace, setConfirmReplace] = useState(false)
   const importMutation = useImportUrreaCatalog()
+  const { data: stats } = useUrreaCatalogStats()
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) setFile(acceptedFiles[0])
@@ -41,8 +53,18 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
     maxFiles: 1,
   })
 
+  const handleImportClick = () => {
+    if (!file) return
+    if (mode === 'replace') {
+      setConfirmReplace(true)
+      return
+    }
+    handleImport()
+  }
+
   const handleImport = async () => {
     if (!file) return
+    setConfirmReplace(false)
     const formData = new FormData()
     formData.append('file', file)
     formData.append('mode', mode)
@@ -62,6 +84,7 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
   const handleClose = () => {
     setFile(null)
     setMode('upsert')
+    setConfirmReplace(false)
     onOpenChange(false)
   }
 
@@ -134,12 +157,34 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
             <Button variant="outline" onClick={handleClose}>
               Cancelar
             </Button>
-            <Button onClick={handleImport} disabled={!file || importMutation.isPending}>
+            <Button onClick={handleImportClick} disabled={!file || importMutation.isPending}>
               {importMutation.isPending ? 'Importando...' : 'Importar'}
             </Button>
           </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={confirmReplace} onOpenChange={setConfirmReplace}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Reemplazar todo el catálogo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminarán{' '}
+              {stats?.total ? <strong>{stats.total} productos</strong> : 'todos los productos'}{' '}
+              del catálogo URREA y se reemplazarán con el contenido del archivo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleImport}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Reemplazar todo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }
