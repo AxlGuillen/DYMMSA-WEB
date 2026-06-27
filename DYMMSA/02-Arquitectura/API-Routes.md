@@ -11,8 +11,11 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
+| `GET` | `/api/quotations` | ✅ | Lista paginada. Query: `page, pageSize, search (.or customer_name/name, saneado), status (whitelist o all)`. Devuelve `{ data: QuotationWithCount[] (con items_count), count, page, pageSize, totalPages }` |
+| `GET` | `/api/quotations/stats` | ✅ | Conteo por status: `{ draft, sent_for_approval, approved, rejected, converted_to_order }` |
 | `POST` | `/api/quotations/save` | ✅ | Crear cotización nueva + auto-learn etm_products. Body: `{ name, customer_name, items: QuotationItemRow[] }` |
-| `GET` | `/api/quotations/[id]` | ✅ | Obtener cotización con sus ítems |
+| `GET` | `/api/quotations/[id]` | ✅ | Obtener cotización con sus ítems (`quotation_items(*)` ordenados por `sort_order`, `limit(5000)` contra truncamiento). 404 si no existe |
+| `DELETE` | `/api/quotations/[id]` | ✅ | Eliminar cotización + sus ítems (cualquier estado) |
 | `PATCH` | `/api/quotations/[id]/update` | ✅ | Editar cotización en estado `draft` o `approved`. Body: `{ name?, customer_name?, items?, status?, notes? }` |
 | `POST` | `/api/quotations/[id]/send-for-approval` | ✅ | Genera `approval_token` UUID + cambia status a `sent_for_approval` |
 | `POST` | `/api/quotations/[id]/create-order` | ✅ | Crear orden desde cotización `approved`. Stock check + deducción inventario. Status → `converted_to_order` |
