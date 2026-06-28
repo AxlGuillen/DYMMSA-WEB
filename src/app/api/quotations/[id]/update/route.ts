@@ -62,7 +62,8 @@ export async function PATCH(
     const total_amount = calculateQuotationTotal(items)
 
     // Read existing items before the destructive delete: used to preserve
-    // is_approved on approved quotations AND to roll back if the re-insert fails.
+    // is_approved (las decisiones del cliente sobreviven a reaperturas/ediciones,
+    // sin importar el estado) AND to roll back if the re-insert fails.
     const { data: existingItems } = await supabase
       .from('quotation_items')
       .select('*')
@@ -70,10 +71,8 @@ export async function PATCH(
       .limit(5000)
 
     const approvalMap = new Map<string, boolean | null>()
-    if (quotation.status === 'approved') {
-      for (const ei of existingItems ?? []) {
-        approvalMap.set(ei.id, ei.is_approved)
-      }
+    for (const ei of existingItems ?? []) {
+      approvalMap.set(ei.id, ei.is_approved)
     }
 
     // Delete existing items and re-insert
@@ -89,10 +88,11 @@ export async function PATCH(
     const newItems = items.map((item, index) => {
       const isSep = item.item_type === 'separator'
       let is_approved: boolean | null = null
-      if (!isSep && quotation.status === 'approved') {
-        // Use the approval value set by the user in the UI (null=pending, true=approved, false=rejected).
-        // is_approved is always present on QuotationItemRow for approved quotations (set via toItemRow or
-        // defaulted to null for new items). Fallback to approvalMap for legacy clients that don't send it.
+      if (!isSep) {
+        // Preservar la decisión del cliente (null=pendiente, true=aprobado, false=rechazado)
+        // en cualquier estado: al reabrir una cotización y agregar ítems nuevos, los que ya
+        // fueron aprobados se conservan y el cliente solo decide los nuevos. Se usa el valor
+        // que manda la UI; fallback al valor en BD para clientes que no lo envían.
         if (item.is_approved !== undefined) {
           is_approved = item.is_approved ?? null
         } else {

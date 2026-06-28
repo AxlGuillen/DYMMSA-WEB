@@ -8,11 +8,13 @@
 
 import { useQuotationStore } from '@/stores/quotationStore'
 import { useDiscreteModeStore } from '@/stores/discreteModeStore'
+import { useSidebarStore } from '@/stores/sidebarStore'
 import type { QuotationItemRow } from '@/types/database'
 
 export function resetStores() {
   useQuotationStore.setState({ name: '', customer_name: '', items: [] })
   useDiscreteModeStore.setState({ isDiscreteMode: false })
+  useSidebarStore.setState({ collapsed: false })
   localStorage.clear()
 }
 

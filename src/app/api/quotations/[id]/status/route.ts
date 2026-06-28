@@ -33,26 +33,29 @@ export async function PATCH(
     }
 
     // Guarda: para reabrir una cotización convertida, su orden vinculada debe estar
-    // cancelada o eliminada (cancelar/eliminar la orden restaura el inventario).
+    // ELIMINADA (eliminar la orden restaura el inventario). Esto además garantiza que
+    // una cotización tenga a lo sumo una orden a la vez (evita órdenes huérfanas).
     if (quotation.status === 'converted_to_order') {
-      const { data: activeOrders } = await supabase
+      const { data: linkedOrders } = await supabase
         .from('orders')
         .select('id')
         .eq('quotation_id', id)
-        .neq('status', 'cancelled')
         .limit(1)
 
-      if (activeOrders && activeOrders.length > 0) {
+      if (linkedOrders && linkedOrders.length > 0) {
         return badRequest(
-          'Cancela o elimina la orden vinculada antes de reabrir esta cotización.'
+          'Elimina la orden vinculada antes de reabrir esta cotización.'
         )
       }
     }
 
+    // Regenerar approval_token en cada cambio manual de estado: invalida cualquier
+    // link de aprobación compartido previamente (p. ej. al reabrir una cotización ya
+    // enviada/aprobada, el link viejo deja de funcionar).
     // No se tocan los quotation_items → is_approved se preserva.
     const { data: updated, error: updateError } = await supabase
       .from('quotations')
-      .update({ status })
+      .update({ status, approval_token: crypto.randomUUID() })
       .eq('id', id)
       .select()
       .single()

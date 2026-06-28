@@ -6,11 +6,28 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-06-16
 
 ### Nuevo
+- Nuevo módulo **URREA → Catálogo**: registra el catálogo de URREA con su código,
+  descripción, STD (unidades por paquete, p. ej. paquetes de 6) y precio de catálogo.
+  Puedes buscar, ordenar (por descripción, precio o unidades), agregar/editar/eliminar
+  productos e importar el catálogo desde Excel (columnas: codigo, descripcion, std, precio),
+  ya sea actualizando/agregando o reemplazando todo el catálogo.
+- El menú lateral ahora se puede **colapsar** a solo iconos con un botón, para ganar
+  espacio de trabajo. Al pasar el cursor sobre cada icono aparece su nombre, y el menú
+  recuerda si lo dejaste colapsado. Además se reorganizó en secciones más claras
+  (Inventario quedó bajo "DYMMSA", y "Novedades" y "Documentación" bajo "Recursos").
+- Nueva página de **Novedades** (esta misma): un historial de mejoras y correcciones
+  del sistema, accesible desde el menú lateral.
 - Ahora puedes cambiar el estado de una cotización en cualquier momento desde su
   detalle (por ejemplo, regresar una de "En aprobación" a "Borrador" para volver a
   trabajarla) sin tener que crearla de nuevo. Las decisiones que el cliente ya marcó
-  por producto se conservan. Para reabrir una cotización que ya se convirtió en orden,
-  primero cancela o elimina su orden vinculada.
+  por producto se conservan. El cambio de estado se habilita solo cuando no hay cambios
+  sin guardar. Para reabrir una cotización que ya se convirtió en orden, primero elimina
+  su orden vinculada — el sistema te lo indica con un aviso en la cotización y un mensaje
+  al pasar el cursor sobre el control de estado.
+- Al reabrir una cotización para retrabajarla, el link de aprobación anterior deja de
+  funcionar automáticamente (por seguridad, para que nadie apruebe con un link viejo).
+  Las aprobaciones que el cliente ya hizo se conservan: si agregas productos nuevos y
+  vuelves a enviar, el cliente solo tiene que aprobar los nuevos, no todo otra vez.
 
 ## 2026-06-09
 

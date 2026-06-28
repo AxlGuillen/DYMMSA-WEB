@@ -44,6 +44,16 @@ DYMMSA ve resultado en dashboard
 - Si el token no existe en BD → 404.
 - Si `status !== 'sent_for_approval'` → banner informativo con el estado actual (ya aprobada, rechazada, etc.) — no permite re-aprobar.
 - Solo se exponen campos necesarios al cliente (nombre, descripción, precio, cantidad) — no se expone `created_by`, `approval_token` interno, etc.
+- **Reapertura / cambio de estado** (Fase 6, [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]]): cada cambio manual de estado (`PATCH /api/quotations/[id]/status`) **regenera `approval_token`**. El link compartido antes deja de matchear → 404. Así, si se reabre una cotización a `draft`/`sent_for_approval` para retrabajarla, el cliente no puede aprobar con un link viejo.
+
+## Reapertura y aprobaciones preservadas
+
+Al reabrir una cotización (vía dropdown de estado) y volver a enviarla:
+- `is_approved` se **preserva** en todos los estados (`PATCH /update`); los ítems ya
+  aprobados conservan su decisión, los nuevos quedan `null` (pendientes).
+- La página pre-selecciona los `is_approved === true` (`ApprovalClient` L63-68), por lo que
+  el cliente **solo decide los ítems nuevos**, no re-aprueba todo.
+- El embed de `quotation_items` en `page.tsx` usa `.limit(5000)` (evita truncar cotizaciones grandes).
 
 ## Aprobación parcial
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
+import { fetchJson } from '@/lib/fetch-json'
 import type { StoreInventory, StoreInventoryInsert, StoreInventoryUpdate } from '@/types/database'
 
 const INVENTORY_KEY = ['inventory']
@@ -27,65 +27,32 @@ interface InventoryResponse {
 
 export function useInventory(params: InventoryParams = {}) {
   const { page = 1, pageSize = 20, search = '', stockFilter = 'all', quantitySort = null } = params
-  const supabase = createClient()
 
   return useQuery({
     queryKey: [...INVENTORY_KEY, { page, pageSize, search, stockFilter, quantitySort }],
     queryFn: async (): Promise<InventoryResponse> => {
-      let query = supabase
-        .from('store_inventory')
-        .select('*', { count: 'exact' })
-
-      if (search) {
-        query = query.ilike('model_code', `%${search}%`)
-      }
-
-      if (stockFilter === 'sin_stock') {
-        query = query.eq('quantity', 0)
-      } else if (stockFilter === 'low_stock') {
-        query = query.gt('quantity', 0).lte('quantity', 5)
-      } else if (stockFilter === 'in_stock') {
-        query = query.gt('quantity', 5)
-      }
-
-      const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
-
-      const orderCol = quantitySort ? 'quantity' : 'model_code'
-      const ascending = quantitySort ? quantitySort === 'asc' : true
-
-      const { data, error, count } = await query
-        .order(orderCol, { ascending })
-        .range(from, to)
-
-      if (error) throw error
-
-      return {
-        data: data || [],
-        count: count || 0,
-        page,
-        pageSize,
-        totalPages: Math.ceil((count || 0) / pageSize),
-      }
+      const qs = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+        stockFilter,
+      })
+      if (search) qs.set('search', search)
+      if (quantitySort) qs.set('quantitySort', quantitySort)
+      return fetchJson<InventoryResponse>(`/api/inventory?${qs.toString()}`)
     },
   })
 }
 
 export function useCreateInventoryItem() {
   const queryClient = useQueryClient()
-  const supabase = createClient()
 
   return useMutation({
-    mutationFn: async (item: StoreInventoryInsert) => {
-      const { data, error } = await supabase
-        .from('store_inventory')
-        .insert(item)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    },
+    mutationFn: async (item: StoreInventoryInsert) =>
+      fetchJson<StoreInventory>('/api/inventory', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(item),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: INVENTORY_KEY })
     },
@@ -94,20 +61,14 @@ export function useCreateInventoryItem() {
 
 export function useUpdateInventoryItem() {
   const queryClient = useQueryClient()
-  const supabase = createClient()
 
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: StoreInventoryUpdate }) => {
-      const { data, error } = await supabase
-        .from('store_inventory')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    },
+    mutationFn: async ({ id, updates }: { id: string; updates: StoreInventoryUpdate }) =>
+      fetchJson<StoreInventory>(`/api/inventory/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(updates),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: INVENTORY_KEY })
     },
@@ -116,17 +77,10 @@ export function useUpdateInventoryItem() {
 
 export function useDeleteInventoryItem() {
   const queryClient = useQueryClient()
-  const supabase = createClient()
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('store_inventory')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-    },
+    mutationFn: async (id: string) =>
+      fetchJson<{ ok: true }>(`/api/inventory/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: INVENTORY_KEY })
     },
@@ -141,25 +95,10 @@ interface InventoryStats {
 }
 
 export function useInventoryStats() {
-  const supabase = createClient()
-
   return useQuery({
     queryKey: [...INVENTORY_KEY, 'stats'],
-    queryFn: async (): Promise<InventoryStats> => {
-      const { data, error } = await supabase
-        .from('store_inventory')
-        .select('quantity')
-
-      if (error) throw error
-
-      const items = data || []
-      return {
-        total:     items.length,
-        sin_stock: items.filter((i) => i.quantity === 0).length,
-        low_stock: items.filter((i) => i.quantity > 0 && i.quantity <= 5).length,
-        in_stock:  items.filter((i) => i.quantity > 5).length,
-      }
-    },
+    queryFn: async (): Promise<InventoryStats> =>
+      fetchJson<InventoryStats>('/api/inventory/stats'),
   })
 }
 

@@ -39,7 +39,8 @@ draft | sent_for_approval | approved | rejected | converted_to_order
 - `canEdit = isDraft || isSentForApproval || isApproved` (Fase 5.5: cotizaciones aprobadas y en revisión son editables — permite ajustar precio/cantidad/entrega mientras el cliente revisa)
 - Ítems nuevos agregados en estado `approved` → `is_approved = null` (pendiente); el usuario DYMMSA los aprueba/rechaza manualmente con los botones ✓/✗ en `QuotationDetail`
 - `approval_token UUID UNIQUE` — se usa en `/approve/[token]` sin auth
-- **Cambio manual de estado** (`PATCH /api/quotations/[id]/status`): el usuario puede mover la cotización entre `draft`/`sent_for_approval`/`approved`/`rejected` libremente desde el dropdown en `QuotationDetail` (preserva `is_approved`). `converted_to_order` NO es destino manual. Para **reabrir** una cotización convertida, su orden vinculada debe estar `cancelled` o eliminada (si hay orden activa → 400); cancelar/eliminar la orden ya restaura el inventario.
+- **Cambio manual de estado** (`PATCH /api/quotations/[id]/status`): el usuario puede mover la cotización entre `draft`/`sent_for_approval`/`approved`/`rejected` libremente desde el dropdown en `QuotationDetail` (preserva `is_approved`). El dropdown se deshabilita si hay cambios sin guardar (`isDirty`). **Cada cambio de estado regenera `approval_token`** → el link de aprobación compartido previamente queda muerto (404). `converted_to_order` NO es destino manual. Para **reabrir** una cotización convertida, su orden vinculada debe estar **eliminada** (si existe cualquier orden vinculada → 400); eliminar la orden restaura el inventario y garantiza ≤1 orden por cotización.
+- **`is_approved` se preserva en `update` en cualquier estado** (no solo `approved`): al reabrir una cotización y agregar ítems nuevos, los ya aprobados se conservan (la página `/approve/[token]` los pre-selecciona) y el cliente solo decide los nuevos.
 
 **`quotation_items`** — campos clave:
 ```
@@ -68,6 +69,8 @@ Constraint implícito: `quantity_in_stock + quantity_to_order = quantity_approve
 
 **`store_inventory`** — `model_code TEXT UNIQUE`, `quantity INTEGER CHECK >= 0`
 
+**`urrea_catalog`** — catálogo de URREA, **tabla aislada** (sin FK ni relaciones con el resto por ahora; no usada por flujos de cotización/orden). `code TEXT UNIQUE` (equiv. a `model_code`), `description TEXT`, `std INTEGER DEFAULT 1 CHECK > 0` (unidades por paquete), `price NUMERIC(12,2)`, `created_at/updated_at` (trigger `moddatetime`). Módulo en sidebar **URREA → Catálogo** (`/dashboard/urrea/catalog`). Import por Excel (`codigo, descripcion, std, precio`) en modo upsert (onConflict `code`) o replace.
+
 ---
 
 ## Reglas de negocio críticas
@@ -91,7 +94,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 
 - **Todo en inglés:** código, variables, nombres de BD, API routes.
 - **TypeScript estricto.** Types centralizados en `src/types/database.ts`.
-- **Hooks = TanStack Query + fetch a API Routes propias.** No llamar Supabase directo desde el cliente.
+- **Hooks = TanStack Query + fetch a API Routes propias.** No llamar Supabase directo desde el cliente — ni lecturas ni CRUD. Wrapper compartido `fetchJson`/`ApiError` en `src/lib/fetch-json.ts`. Excepción legítima: `useAuth`/`login` usan el browser client para la sesión. **Migrados (2026-06-19):** cotizaciones (incl. lista/stats/detalle), inventario, catálogo URREA. **Pendientes (aún con lecturas directas):** `useOrders`, `useDashboard`, `useProducts` → migrar a su `GET /api/*` cuando se toquen.
 - **API Routes:** usar `createClient()` de `@supabase/ssr` + verificar `auth.getUser()` al inicio.
 - **Páginas:** Server Components por defecto; `"use client"` solo donde hay interactividad.
 - **Zustand store:** `dymmsa-quotation-draft` en localStorage. Llamar `reset()` al guardar exitosamente.
@@ -173,7 +176,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 |--------|---------------------|
 | Nueva o modificada **ruta API** | `DYMMSA/02-Arquitectura/API-Routes.md` |
 | Nueva **tabla o columna** en Supabase | `DYMMSA/02-Arquitectura/Base-de-Datos.md` (verificar con MCP Supabase) + este CLAUDE.md |
-| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-007) |
+| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-010) |
 | Nueva lógica de negocio o **route handler** | Agregar/actualizar su test en `tests/` (ver `ADR-007-Estrategia-Testing.md`) |
 | **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
@@ -202,6 +205,6 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 
 ---
 
-**Última actualización:** 2026-05-17  
+**Última actualización:** 2026-06-10  
 **BD:** Supabase `wjlklwtvjewhtghlskbt` · PostgreSQL 17.6 · us-west-2  
 **Filas (2026-04-25):** etm_products 564 · store_inventory 195 · quotations 9 · quotation_items 365 · orders 8 · order_items 182

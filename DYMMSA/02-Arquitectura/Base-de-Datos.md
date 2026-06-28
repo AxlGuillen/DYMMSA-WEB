@@ -18,6 +18,7 @@ auth.users
     └──(created_by)──→ orders
     
 store_inventory  (independiente, vinculada por model_code en lógica de negocio)
+urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA → Catálogo)
 ```
 
 > Estados y enums explicados en: [[00-Inicio/Glosario]] · Módulos que usan estas tablas: [[03-Modulos/Catalogo-ETM]], [[03-Modulos/Inventario]], [[03-Modulos/Cotizador]], [[03-Modulos/Ordenes]]
@@ -57,6 +58,26 @@ store_inventory  (independiente, vinculada por model_code en lógica de negocio)
 | `model_code` | text | No | — | UNIQUE | Código URREA |
 | `quantity` | integer | No | `0` | `>= 0` | Stock disponible |
 | `updated_at` | timestamptz | Sí | `now()` | | |
+
+---
+
+## Tabla: `urrea_catalog`
+
+**Propósito:** Catálogo de productos URREA (código, descripción, STD, precio).  
+**Módulo:** [[03-Modulos/Catalogo-URREA]]  
+**Aislamiento:** tabla **independiente** — sin FK ni relaciones con `etm_products`/órdenes por ahora; no usada por flujos de producción. Creada el 2026-06-16 (migración `create_urrea_catalog`).
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | No depende del código |
+| `code` | text | No | — | UNIQUE | Código URREA (equiv. a `model_code`) |
+| `description` | text | Sí | — | | Descripción de URREA (más completa) |
+| `std` | integer | No | `1` | `> 0` | Unidades por paquete (p. ej. 6) |
+| `price` | numeric(12,2) | Sí | — | | Precio de catálogo (informativo) |
+| `created_at` | timestamptz | No | `now()` | | |
+| `updated_at` | timestamptz | No | `now()` | | Trigger `moddatetime` |
+
+RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true`).
 
 ---
 

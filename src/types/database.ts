@@ -38,6 +38,20 @@ export interface StoreInventory {
 export type StoreInventoryInsert = Omit<StoreInventory, 'id' | 'updated_at'>
 export type StoreInventoryUpdate = Partial<Omit<StoreInventory, 'id' | 'updated_at'>>
 
+// URREA Catalog (tabla aislada — sin relaciones con etm_products/órdenes por ahora)
+export interface UrreaCatalogItem {
+  id: string
+  code: string
+  description: string | null
+  std: number
+  price: number | null
+  created_at: string
+  updated_at: string
+}
+
+export type UrreaCatalogInsert = Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at'>
+export type UrreaCatalogUpdate = Partial<UrreaCatalogInsert>
+
 // Excel row type for inventory import
 export interface ExcelInventoryRow {
   MODEL_CODE: string
