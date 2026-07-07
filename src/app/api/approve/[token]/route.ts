@@ -34,12 +34,17 @@ export async function GET(
 
 // ------------------------------------------------------------------ //
 // POST /api/approve/[token]                                          //
-// Public: submit item-level decisions and update quotation status   //
+// Público. Persiste las decisiones del cliente.                      //
+//   - finalize=false → "guardar avance": aprobados=true, el resto=null
+//     (pendiente), y el status NO cambia (el link sigue vivo).       //
+//   - finalize=true  → "enviar aprobación": el resto=false (rechazo),
+//     status→approved/rejected + approved_at.                        //
+// Eficiente: 2-3 queries fijas (no una por ítem).                    //
 // ------------------------------------------------------------------ //
 
-interface Decision {
-  item_id: string
-  is_approved: boolean
+interface ApprovePayload {
+  approvedIds?: string[]
+  finalize?: boolean
 }
 
 export async function POST(
@@ -50,7 +55,6 @@ export async function POST(
     const { token } = await params
     const supabase = createAdminClient()
 
-    // Verify quotation exists and is still awaiting approval
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
       .select('id, status')
@@ -62,43 +66,59 @@ export async function POST(
     }
 
     if (quotation.status !== 'sent_for_approval') {
-      return NextResponse.json(
-        { message: 'Esta cotización ya fue procesada' },
-        { status: 400 }
-      )
+      return NextResponse.json({ message: 'Esta cotización ya fue procesada' }, { status: 400 })
     }
 
-    const body = (await request.json()) as { decisions: Decision[] }
-    const { decisions } = body
-
-    if (!decisions?.length) {
-      return NextResponse.json({ message: 'No se enviaron decisiones' }, { status: 400 })
+    const { approvedIds = [], finalize = false } = (await request.json()) as ApprovePayload
+    if (!Array.isArray(approvedIds)) {
+      return NextResponse.json({ message: 'Payload inválido' }, { status: 400 })
     }
 
-    // Update all quotation items in parallel (independent writes)
-    await Promise.all(
-      decisions.map((decision) =>
-        supabase
-          .from('quotation_items')
-          .update({ is_approved: decision.is_approved })
-          .eq('id', decision.item_id)
-          .eq('quotation_id', quotation.id)
-          .then(({ error }) => {
-            if (error) console.error('Error updating item:', decision.item_id, error)
-          })
-      )
-    )
+    // 1. Reset de productos aprobables: pendiente (guardar) o rechazado (finalizar).
+    //    Excluye los "No disponible" (is_sold=false) para no marcarlos.
+    const resetValue = finalize ? false : null
+    const { error: resetError } = await supabase
+      .from('quotation_items')
+      .update({ is_approved: resetValue })
+      .eq('quotation_id', quotation.id)
+      .eq('item_type', 'product')
+      .or('is_sold.is.null,is_sold.eq.true')
 
-    // Determine new quotation status
-    const hasApproved = decisions.some((d) => d.is_approved)
-    const newStatus = hasApproved ? 'approved' : 'rejected'
+    if (resetError) {
+      console.error('Error resetting approvals:', resetError)
+      return NextResponse.json({ message: 'Error al guardar las decisiones' }, { status: 500 })
+    }
 
+    // 2. Aprobar los seleccionados.
+    if (approvedIds.length > 0) {
+      const { error: approveError } = await supabase
+        .from('quotation_items')
+        .update({ is_approved: true })
+        .eq('quotation_id', quotation.id)
+        .in('id', approvedIds)
+
+      if (approveError) {
+        console.error('Error approving items:', approveError)
+        return NextResponse.json({ message: 'Error al guardar las decisiones' }, { status: 500 })
+      }
+    }
+
+    // 3. Guardar avance → no toca el status.
+    if (!finalize) {
+      return NextResponse.json({ saved: true, finalized: false, approvedCount: approvedIds.length })
+    }
+
+    // 4. Finalizar → status + approved_at.
+    const newStatus = approvedIds.length > 0 ? 'approved' : 'rejected'
     await supabase
       .from('quotations')
-      .update({ status: newStatus })
+      .update({
+        status: newStatus,
+        approved_at: newStatus === 'approved' ? new Date().toISOString() : null,
+      })
       .eq('id', quotation.id)
 
-    return NextResponse.json({ status: newStatus })
+    return NextResponse.json({ saved: true, finalized: true, status: newStatus })
   } catch (error) {
     console.error('Approve POST error:', error)
     return NextResponse.json({ message: 'Error interno' }, { status: 500 })
