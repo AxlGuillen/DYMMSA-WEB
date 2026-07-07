@@ -51,8 +51,10 @@ export async function POST(
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
 
+    // Excluye "no lo vendemos" (is_sold === false): nunca entran a la orden ni al Excel URREA.
+    // Defensa en profundidad — un item así tampoco debería estar is_approved===true.
     const approvedProducts = allItems.filter(
-      (i) => (i.item_type === 'product' || !i.item_type) && i.is_approved === true
+      (i) => (i.item_type === 'product' || !i.item_type) && i.is_approved === true && i.is_sold !== false
     )
 
     const seps = allItems.filter((i) => i.item_type === 'separator').length

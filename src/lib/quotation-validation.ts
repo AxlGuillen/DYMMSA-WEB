@@ -17,7 +17,7 @@
  */
 
 import type { QuotationItemRow } from '@/types/database'
-import { isProductItem } from '@/lib/business-rules'
+import { isProductItem, isNotSold } from '@/lib/business-rules'
 
 export type ValidationField = 'quantity' | 'unit_price' | 'etm' | 'model_code'
 export type ValidationSeverity = 'error' | 'warning'
@@ -48,6 +48,9 @@ export function validateQuotationItems(
 
   for (const item of items) {
     if (!isProductItem(item)) continue
+    // Ítems "no lo vendemos": no exigimos precio/cantidad/ETM — el cotizador
+    // los salta a propósito, así que no deben bloquear el guardado.
+    if (isNotSold(item)) continue
     if (options.onlyApproved && item.is_approved !== true) continue
 
     const tag = item.etm || '(sin ETM)'
