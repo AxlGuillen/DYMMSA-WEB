@@ -86,6 +86,30 @@ describe('POST /inventory/import', () => {
     expect(payload.quantity).toBe(0)
   })
 
+  test('parsea la columna ubicacion (alias) al insertar', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'store_inventory.select': { data: null, error: null },
+        'store_inventory.insert': { data: null, error: null },
+      },
+    })
+    await inventoryImport.POST(makeExcelRequest([{ MODEL_CODE: 'MC9', QUANTITY: 2, ubicacion: 'A-7' }]))
+    expect(activeClient.insertPayload<Record<string, unknown>>('store_inventory').location).toBe('A-7')
+  })
+
+  test('upsert sin columna ubicacion NO pisa la existente', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'store_inventory.select': { data: { id: 'inv1' }, error: null },
+        'store_inventory.update': { data: null, error: null },
+      },
+    })
+    await inventoryImport.POST(makeExcelRequest([{ MODEL_CODE: 'MC1', QUANTITY: 9 }]))
+    expect(activeClient.updatePayload<Record<string, unknown>>('store_inventory')).not.toHaveProperty('location')
+  })
+
   test('modo replace: borra todo e inserta', async () => {
     activeClient = createMockSupabase({
       user: AUTH,

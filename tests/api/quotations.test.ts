@@ -457,6 +457,33 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(items.every((i) => i.etm !== 'E2')).toBe(true)
   })
 
+  test('REGLA: snapshot de location desde store_inventory al order_item', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': {
+          data: {
+            id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
+            quotation_items: [
+              { id: 'p1', item_type: 'product', is_approved: true, sort_order: 0, model_code: 'MC1', quantity: 2, unit_price: 100, etm: 'E1', brand: 'URREA' },
+            ],
+          },
+          error: null,
+        },
+        'store_inventory.select': { data: { quantity: 10, location: 'A-12' }, error: null },
+        'orders.insert': { data: { id: 'o1' }, error: null },
+        'order_items.insert': { data: null, error: null },
+        'store_inventory.update': { data: null, error: null },
+        'quotations.update': { data: null, error: null },
+      },
+    })
+    const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(200)
+    const items = activeClient.insertPayload('order_items')
+    const p1 = items.find((i) => i.item_type === 'product')!
+    expect(p1.location).toBe('A-12')
+  })
+
   test('REGLA: rollback — si falla insert de order_items, borra la orden', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
@@ -567,6 +594,28 @@ describe('PATCH /quotations/[id]/status', () => {
     const payload = activeClient.updatePayload<{ approval_token?: string }>('quotations')
     expect(typeof payload.approval_token).toBe('string')
     expect(payload.approval_token).toMatch(/[0-9a-f-]{36}/i)
+  })
+
+  test('sella approved_at al pasar a approved; lo limpia en otros estados', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'sent_for_approval' }, error: null },
+        'quotations.update': { data: { id: 'q1', status: 'approved' }, error: null },
+      },
+    })
+    await status.PATCH(makeRequest({ status: 'approved' }), makeParams({ id: 'q1' }))
+    expect(activeClient.updatePayload<{ approved_at?: string | null }>('quotations').approved_at).toBeTruthy()
+
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
+        'quotations.update': { data: { id: 'q1', status: 'draft' }, error: null },
+      },
+    })
+    await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
+    expect(activeClient.updatePayload<{ approved_at?: string | null }>('quotations').approved_at).toBeNull()
   })
 
   test('GUARDA: converted_to_order con orden vinculada (cualquier estado) → 400', async () => {
