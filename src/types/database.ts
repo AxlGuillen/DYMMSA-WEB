@@ -8,13 +8,16 @@ export interface EtmProduct {
   model_code: string
   price: number
   brand: string
+  is_sold: boolean | null // tri-state: null = sin definir, true = lo vendemos, false = no lo vendemos
   created_at: string
   updated_at: string
   created_by: string | null
 }
 
-// Insert types (without auto-generated fields)
-export type EtmProductInsert = Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>
+// Insert types (without auto-generated fields). is_sold es opcional: la columna
+// admite NULL por defecto, así que los inserts que no la especifican son válidos.
+export type EtmProductInsert =
+  Omit<EtmProduct, 'id' | 'created_at' | 'updated_at' | 'is_sold'> & { is_sold?: boolean | null }
 export type EtmProductUpdate = Partial<Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>>
 
 // Excel row type for import
@@ -204,6 +207,7 @@ export interface QuotationItem {
   unit_price: number | null
   quantity: number | null
   is_approved: boolean | null
+  is_sold: boolean | null // tri-state heredado de etm_products; null = sin definir, false = no lo vendemos
   notes: string | null
   delivery_time: DeliveryTime | null
   sort_order: number
@@ -234,6 +238,7 @@ export interface QuotationItemRow {
   delivery_time: DeliveryTime
   _inDb: boolean     // true if ETM was matched in etm_products
   is_approved?: boolean | null  // local approval state; null = pending, true = approved, false = rejected
+  is_sold?: boolean | null      // ¿lo vendemos? null = sin definir, true = sí, false = no lo vendemos
 }
 
 // Raw row extracted from Excel before DB lookup
