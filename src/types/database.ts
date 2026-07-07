@@ -35,10 +35,13 @@ export interface StoreInventory {
   id: string
   model_code: string
   quantity: number
+  location: string | null // ubicación física (gaveta), texto libre; se conserva aunque quantity=0
   updated_at: string
 }
 
-export type StoreInventoryInsert = Omit<StoreInventory, 'id' | 'updated_at'>
+// location es opcional en el insert (columna nullable en BD).
+export type StoreInventoryInsert =
+  Omit<StoreInventory, 'id' | 'updated_at' | 'location'> & { location?: string | null }
 export type StoreInventoryUpdate = Partial<Omit<StoreInventory, 'id' | 'updated_at'>>
 
 // URREA Catalog (tabla aislada — sin relaciones con etm_products/órdenes por ahora)
@@ -118,10 +121,13 @@ export interface OrderItem {
   urrea_status: UrreaStatus
   delivery_time: DeliveryTime
   unit_price: number
+  location: string | null // snapshot de store_inventory.location al crear la orden
   created_at: string
 }
 
-export type OrderItemInsert = Omit<OrderItem, 'id' | 'created_at'>
+// location es opcional en el insert (columna nullable; separadores no la llevan).
+export type OrderItemInsert =
+  Omit<OrderItem, 'id' | 'created_at' | 'location'> & { location?: string | null }
 export type OrderItemUpdate = Partial<Omit<OrderItem, 'id' | 'created_at' | 'order_id'>>
 
 // Order with items for detail view
@@ -186,12 +192,13 @@ export interface Quotation {
   total_amount: number
   notes: string | null
   original_file_url: string | null
+  approved_at: string | null // fecha/hora de aprobación (cliente finaliza o staff marca approved)
   created_at: string
   updated_at: string
   created_by: string | null
 }
 
-export type QuotationInsert = Omit<Quotation, 'id' | 'created_at' | 'updated_at' | 'approval_token'>
+export type QuotationInsert = Omit<Quotation, 'id' | 'created_at' | 'updated_at' | 'approval_token' | 'approved_at'>
 export type QuotationUpdate = Partial<Omit<Quotation, 'id' | 'created_at' | 'updated_at'>>
 
 export interface QuotationItem {
