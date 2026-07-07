@@ -28,7 +28,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, Pencil, Trash2, Package, Plus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, Package, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteInventoryItem } from '@/hooks/useInventory'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'

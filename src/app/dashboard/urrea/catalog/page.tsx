@@ -8,7 +8,7 @@ import { CatalogForm } from '@/components/urrea-catalog/CatalogForm'
 import { CatalogImporter } from '@/components/urrea-catalog/CatalogImporter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Upload, Search, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Upload, Search, X, ChevronLeft, ChevronRight } from '@/components/icons'
 import type { UrreaCatalogItem } from '@/types/database'
 
 export default function UrreaCatalogPage() {

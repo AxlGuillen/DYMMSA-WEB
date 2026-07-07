@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import { Ban, Check } from 'lucide-react'
+import { Ban, Check } from '@/components/icons'
 import type { SoldValue } from '@/lib/sold-status'
 
 /**

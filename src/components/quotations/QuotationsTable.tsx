@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Trash2, FileText, Loader2 } from 'lucide-react'
+import { Trash2, FileText, Loader2 } from '@/components/icons'
 import { toast } from 'sonner'
 import {
   Table,

@@ -28,7 +28,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-} from 'lucide-react'
+} from '@/components/icons'
 import type { EtmProduct } from '@/types/database'
 import { toast } from 'sonner'
 import { useCurrency } from '@/hooks/useCurrency'

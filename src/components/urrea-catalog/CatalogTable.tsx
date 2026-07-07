@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, Pencil, Trash2, Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteCatalogItem } from '@/hooks/useUrreaCatalog'
 import type { CatalogSortField, SortDir } from '@/hooks/useUrreaCatalog'
 import { useCurrency } from '@/hooks/useCurrency'

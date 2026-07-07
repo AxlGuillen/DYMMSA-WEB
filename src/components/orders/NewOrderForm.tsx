@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDropzone } from 'react-dropzone'
-import { Upload, FileSpreadsheet, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, FileSpreadsheet, Loader2, AlertCircle, CheckCircle } from '@/components/icons'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

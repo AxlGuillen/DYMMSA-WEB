@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PackageSearch, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { PackageSearch, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/icons'
 import { useDeleteProduct } from '@/hooks/useProducts'
 import type { ProductSortBy, SortDir } from '@/hooks/useProducts'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'

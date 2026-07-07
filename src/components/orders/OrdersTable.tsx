@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ShoppingCart, Trash2, Loader2 } from 'lucide-react'
+import { ShoppingCart, Trash2, Loader2 } from '@/components/icons'
 import { toast } from 'sonner'
 import {
   Table,

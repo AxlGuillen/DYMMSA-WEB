@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Package, Warehouse, ShoppingCart, DollarSign, ArrowRight } from 'lucide-react'
+import { Package, Warehouse, ShoppingCart, DollarSign, ArrowRight } from '@/components/icons'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge'

@@ -21,7 +21,7 @@ import {
   Check,
   Info,
   SeparatorHorizontal,
-} from 'lucide-react'
+} from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {

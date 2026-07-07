@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, Pencil, Trash2, AlertTriangle, AlertCircle, CheckCircle2, GripVertical, SeparatorHorizontal } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertTriangle, AlertCircle, CheckCircle2, GripVertical, SeparatorHorizontal } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'

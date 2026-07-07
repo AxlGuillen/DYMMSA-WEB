@@ -40,7 +40,7 @@ import {
   FileText,
   Menu,
   CircleHelp,
-} from 'lucide-react'
+} from '@/components/icons'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { cn } from '@/lib/utils'
 

@@ -17,7 +17,7 @@ import {
   ExternalLink,
   Package,
   Download,
-} from 'lucide-react'
+} from '@/components/icons'
 import {
   Card,
   CardContent,

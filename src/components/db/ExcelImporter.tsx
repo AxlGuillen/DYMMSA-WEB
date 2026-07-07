@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Upload, FileSpreadsheet, X, RefreshCw, Plus, Loader2 } from 'lucide-react'
+import { Upload, FileSpreadsheet, X, RefreshCw, Plus, Loader2 } from '@/components/icons'
 import { useImportProducts } from '@/hooks/useProducts'
 import { toast } from 'sonner'
 

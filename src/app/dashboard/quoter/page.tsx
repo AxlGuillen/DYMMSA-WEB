@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw } from '@/components/icons'
 import { FileUploader } from '@/components/quoter/FileUploader'
 import { QuotationEditor } from '@/components/quoter/QuotationEditor'
 import { useLookupEtms } from '@/hooks/useQuotes'

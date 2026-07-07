@@ -22,7 +22,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
-import { Upload, FileSpreadsheet, AlertTriangle } from 'lucide-react'
+import { Upload, FileSpreadsheet, AlertTriangle } from '@/components/icons'
 import { useImportUrreaCatalog, useUrreaCatalogStats } from '@/hooks/useUrreaCatalog'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'

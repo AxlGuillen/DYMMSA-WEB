@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
+import { Loader2 } from '@/components/icons'
 import { parseNumber, parseInteger } from '@/lib/format'
 import type { QuotationItemRow, DeliveryTime } from '@/types/database'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'

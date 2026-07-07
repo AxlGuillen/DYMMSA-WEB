@@ -9,7 +9,7 @@ import { ExcelImporter } from '@/components/db/ExcelImporter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Upload, Search, ChevronLeft, ChevronRight, X, Database } from 'lucide-react'
+import { Plus, Upload, Search, ChevronLeft, ChevronRight, X, Database } from '@/components/icons'
 import type { EtmProduct } from '@/types/database'
 
 const PAGE_SIZE = 20
