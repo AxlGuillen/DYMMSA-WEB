@@ -91,6 +91,7 @@ export default function QuoterPage() {
           quantity:       row.quantity,
           delivery_time:  'immediate',
           _inDb:          !!db,
+          is_sold:        db?.is_sold ?? null, // hereda el flag del catálogo; null si no está en catálogo
         }
       })
 
