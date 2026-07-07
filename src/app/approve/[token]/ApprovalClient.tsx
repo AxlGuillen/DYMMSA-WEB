@@ -56,8 +56,12 @@ interface Props {
 export function ApprovalClient({ quotation, token }: Props) {
   const isEditable = quotation.status === 'sent_for_approval'
 
-  // Only product items get approval decisions (separators are visual only)
-  const productItems = filterProductItems(quotation.quotation_items)
+  // Only product items get approval decisions (separators are visual only).
+  // Los "no lo vendemos" (is_sold === false) se muestran como "No disponible":
+  // no reciben decisión, no cuentan ni suman al total.
+  const productItems = filterProductItems(quotation.quotation_items).filter(
+    (item) => item.is_sold !== false
+  )
 
   // Default: everything starts as NOT approved — client only clicks what they want
   const [decisions, setDecisions] = useState<ItemDecision[]>(
@@ -331,6 +335,35 @@ export function ApprovalClient({ quotation, token }: Props) {
                               <SeparatorHorizontal className="size-3.5 shrink-0" />
                               <span className="font-medium">{item.section_label || 'Sección'}</span>
                             </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    }
+
+                    // "No lo vendemos": fila informativa read-only, sin precio ni aprobación.
+                    if (item.is_sold === false) {
+                      return (
+                        <TableRow
+                          key={item.id}
+                          className="border-b border-slate-100 dark:border-zinc-800 bg-zinc-100/70 dark:bg-zinc-800/40 text-muted-foreground"
+                        >
+                          <TableCell className="font-mono text-xs">{item.etm || '—'}</TableCell>
+                          <TableCell className="max-w-52">
+                            {item.description
+                              ? <span className="truncate block" title={item.description}>{item.description}</span>
+                              : item.description_es
+                                ? <span className="truncate block italic" title={item.description_es}>{item.description_es}</span>
+                                : <span className="text-xs italic">{'—'}</span>}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{item.model_code || '—'}</TableCell>
+                          <TableCell className="text-sm">{item.brand || '—'}</TableCell>
+                          <TableCell colSpan={4} className="text-center text-xs italic">
+                            No disponible
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="text-xs text-muted-foreground border-slate-300 dark:border-zinc-600">
+                              No disponible
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       )

@@ -23,7 +23,9 @@ import { ProductModal } from './ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { useQuotationStore } from '@/stores/quotationStore'
 import { useCurrency } from '@/hooks/useCurrency'
-import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
+import { calculateQuotationTotal, isProductItem, isNotSold } from '@/lib/business-rules'
+import { notSoldRowClass } from '@/lib/sold-status'
+import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import type { QuotationItemRow } from '@/types/database'
 
 // --- helpers ----------------------------------------------------------
@@ -41,6 +43,8 @@ const isComplete = (item: QuotationItemRow): boolean =>
   !!item.model_code && item.quantity != null && item.unit_price != null
 
 const getRowClass = (item: QuotationItemRow): string => {
+  // "No lo vendemos" tiene prioridad: no importa que falten datos, se salta.
+  if (isNotSold(item)) return notSoldRowClass(item.is_sold)
   if (isMissingData(item))
     return 'bg-orange-50 dark:bg-orange-950/20 hover:bg-orange-100 dark:hover:bg-orange-950/30'
   if (hasNoModelCode(item))
@@ -208,6 +212,9 @@ const SortableRow = memo(function SortableRow({
         ) : (
           <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Nuevo</Badge>
         )}
+      </td>
+      <td className="px-4 py-3 text-center">
+        <SoldStatusBadge value={item.is_sold} />
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-center gap-1">
@@ -412,6 +419,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">Subtotal</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Entrega</th>
                   <th className="px-4 py-3 text-center font-medium text-muted-foreground">Origen</th>
+                  <th className="px-4 py-3 text-center font-medium text-muted-foreground">Venta</th>
                   <th className="px-4 py-3 text-center font-medium text-muted-foreground">Acciones</th>
                 </tr>
               </thead>
@@ -423,7 +431,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                         <SortableSeparatorRow
                           key={item._id}
                           item={item}
-                          colSpan={11}
+                          colSpan={12}
                           onLabelChange={handleLabelChange}
                           onRemove={removeItem}
                         />

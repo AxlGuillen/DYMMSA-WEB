@@ -92,7 +92,9 @@ import { QUOTATION_STATUS_LABELS, MANUAL_QUOTATION_STATUSES } from '@/lib/quotat
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation, useChangeQuotationStatus, ApiError } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
-import { calculateQuotationTotal, isProductItem as isProductRow } from '@/lib/business-rules'
+import { calculateQuotationTotal, isProductItem as isProductRow, isNotSold } from '@/lib/business-rules'
+import { notSoldRowClass } from '@/lib/sold-status'
+import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import { getBlockingIssues } from '@/lib/quotation-validation'
 import { scrollToRow } from '@/lib/dom-helpers'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime, QuotationStatus } from '@/types/database'
@@ -320,6 +322,9 @@ function SortableDetailRow({
           ? DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'
           : <span className="text-muted-foreground">{'\u2014'}</span>}
       </TableCell>
+      <TableCell className="text-center">
+        <SoldStatusBadge value={item.is_sold} />
+      </TableCell>
       {(isApproved || isSentForApproval) && (
         <TableCell className="text-center">
           {isApproved && canEdit ? (
@@ -407,12 +412,14 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   delivery_time:  item.delivery_time ?? 'immediate',
   _inDb:          !!(item.model_code || item.description),
   is_approved:    item.is_approved,
+  is_sold:        item.is_sold,
 })
 
 const isMissingData     = (item: QuotationItemRow) => isProductRow(item) && !item.description && !item.model_code
 const isMissingQuantity = (item: QuotationItemRow) => isProductRow(item) && !isMissingData(item) && item.quantity == null
 
 const getRowClass = (item: QuotationItemRow) => {
+  if (isNotSold(item))         return notSoldRowClass(item.is_sold)
   if (isMissingData(item))     return 'bg-orange-50 dark:bg-orange-950/20'
   if (isMissingQuantity(item)) return 'bg-yellow-50 dark:bg-yellow-950/20'
   return ''
@@ -845,7 +852,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const totalCols =
     (canEdit ? 1 : 0) +
     7 +
-    1 +
+    1 +          // Entrega
+    1 +          // Venta (¿lo vendemos?)
     (hasApprovalData ? 1 : 0) +
     (canEdit ? 1 : 0)
 
@@ -1345,6 +1353,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   <SortableHead col="delivery_time" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
                     Entrega
                   </SortableHead>
+                  <TableHead className="text-center">Venta</TableHead>
                   {hasApprovalData && (
                     <TableHead className="text-center">Aprobación</TableHead>
                   )}
@@ -1410,6 +1419,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                       {fmt(partialTotal)}
                     </TableCell>
                     <TableCell /> {/* Entrega */}
+                    <TableCell /> {/* Venta */}
                     {hasApprovalData && <TableCell />} {/* Aprobación */}
                     {canEdit && <TableCell />} {/* Acciones */}
                   </TableRow>
