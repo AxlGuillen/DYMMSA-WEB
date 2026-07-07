@@ -19,7 +19,7 @@
 | `PATCH` | `/api/quotations/[id]/update` | ✅ | Editar cotización en estado `draft` o `approved`. Body: `{ name?, customer_name?, items?, status?, notes? }` |
 | `POST` | `/api/quotations/[id]/send-for-approval` | ✅ | Genera `approval_token` UUID + cambia status a `sent_for_approval` |
 | `POST` | `/api/quotations/[id]/create-order` | ✅ | Crear orden desde cotización `approved`. Stock check + deducción inventario. Status → `converted_to_order` |
-| `PATCH` | `/api/quotations/[id]/status` | ✅ | Cambio manual de estado entre `draft`/`sent_for_approval`/`approved`/`rejected`. Body: `{ status }`. Preserva `is_approved`. `converted_to_order` no es destino manual (400). Revertir desde `converted_to_order` exige que la orden vinculada esté **eliminada** (si existe cualquier orden vinculada → 400) |
+| `PATCH` | `/api/quotations/[id]/status` | ✅ | Cambio manual de estado entre `draft`/`sent_for_approval`/`approved`/`rejected`. Body: `{ status }`. Preserva `is_approved`. Sella `approved_at` al pasar a `approved`, lo limpia en otros estados. `converted_to_order` no es destino manual (400). Revertir desde `converted_to_order` exige que la orden vinculada esté **eliminada** (si existe cualquier orden vinculada → 400) |
 
 ---
 
@@ -30,7 +30,7 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `GET` | `/api/approve/[token]` | ❌ | Obtener datos de cotización por approval_token (solo campos públicos) |
-| `POST` | `/api/approve/[token]` | ❌ | Enviar decisiones de aprobación. Body: `{ decisions: { id: string, is_approved: boolean }[] }` |
+| `POST` | `/api/approve/[token]` | ❌ | Persistir decisiones. Body: `{ approvedIds: string[], finalize: boolean }`. `finalize=false` → **guardar avance** (aprobados=`true`, resto=`null` pendiente; **status NO cambia** → link sigue vivo). `finalize=true` → **enviar** (resto=`false`, status `approved`/`rejected` + `approved_at`). Solo si status `sent_for_approval`. Excluye `is_sold=false`. Eficiente: 2-3 queries |
 
 ---
 
@@ -70,10 +70,10 @@
 |--------|------|------|-------------|
 | `GET` | `/api/inventory` | ✅ | Lista paginada. Query: `page, pageSize, search (ilike model_code), stockFilter (all/in_stock/low_stock/sin_stock), quantitySort (asc/desc)`. Devuelve `{ data, count, page, pageSize, totalPages }` |
 | `GET` | `/api/inventory/stats` | ✅ | Conteos por rango de stock: `{ total, in_stock, low_stock, sin_stock }` |
-| `POST` | `/api/inventory` | ✅ | Crear producto. Body: `{ model_code, quantity }`. Normaliza `quantity` a ≥ 0 |
-| `PATCH` | `/api/inventory/[id]` | ✅ | Editar `model_code`/`quantity` |
+| `POST` | `/api/inventory` | ✅ | Crear producto. Body: `{ model_code, quantity, location? }`. Normaliza `quantity` a ≥ 0; `location` vacío → null |
+| `PATCH` | `/api/inventory/[id]` | ✅ | Editar `model_code`/`quantity`/`location` (solo se toca lo que viene en el body) |
 | `DELETE` | `/api/inventory/[id]` | ✅ | Eliminar producto |
-| `POST` | `/api/inventory/import` | ✅ | Importar inventario desde Excel (format: model_code + quantity, skiprows=13) |
+| `POST` | `/api/inventory/import` | ✅ | Importar inventario desde Excel. Columnas `MODEL_CODE`, `QUANTITY` y opcional **`ubicacion`** (alias `ubicación`/`location`/`gaveta`). Upsert **no** pisa la ubicación existente si el archivo no la trae |
 
 ---
 

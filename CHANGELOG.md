@@ -3,6 +3,22 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-07
+
+### Nuevo
+- En la **aprobación de cotizaciones** grandes, el cliente ahora puede **guardar su avance** sin
+  enviar todavía: aprueba lo que alcanzó a revisar, guarda, y más tarde continúa desde el mismo
+  enlace justo donde se quedó (le aparece un aviso con cuánto lleva aprobado). Al enviar la
+  aprobación definitiva se le pide una **confirmación** para evitar envíos por error.
+- En el **detalle de la cotización** ahora se muestra la **fecha y hora en que fue aprobada**.
+- El **inventario** ahora tiene un campo de **Ubicación (gaveta)**: un texto libre para anotar dónde
+  se guarda físicamente cada producto en la tienda, y así encontrarlo o verificar su existencia más
+  rápido. Solo se muestra cuando hay stock del producto. También puedes cargarlo por Excel agregando
+  una columna **`ubicacion`** (opcional). En las **órdenes** aparece una columna con la ubicación de
+  los productos que se toman del inventario, para facilitar su recolección.
+  La ubicación se conserva aunque el stock llegue a 0 (por ejemplo, al cancelar una orden que
+  restablece el stock), así no tienes que volver a capturarla.
+
 ## 2026-07-06
 
 ### Mejorado
