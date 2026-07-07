@@ -3,6 +3,17 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-06
+
+### Nuevo
+- Ahora puedes marcar un producto como **"No lo vendemos"**. Al editar un producto —tanto en el
+  cotizador como en el módulo **Catálogo ETM**— hay un selector **¿Lo vendemos?** (Sin definir /
+  Sí / No) y una columna **Venta** que muestra su estado. Los productos marcados como "No lo vendemos" se pintan de un color
+  distinto para que los saltes de un vistazo, no piden precio ni cantidad, no suman al total,
+  no se incluyen en el pedido a URREA, y al cliente le aparecen como **"No disponible"** en la
+  página de aprobación. Además, la marca **se recuerda**: la próxima vez que ese producto
+  aparezca en otra cotización, ya llega marcado — no tienes que volver a revisarlo.
+
 ## 2026-06-16
 
 ### Nuevo

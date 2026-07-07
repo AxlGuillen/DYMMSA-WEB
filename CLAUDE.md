@@ -46,6 +46,7 @@ draft | sent_for_approval | approved | rejected | converted_to_order
 ```
 item_type: 'product' | 'separator'
 is_approved: null (pendiente) | true | false
+is_sold: null (sin definir) | true (lo vendemos) | false (no lo vendemos)  -- snapshot de etm_products.is_sold
 delivery_time: 'immediate' | '2_3_days' | '3_5_days' | '1_week' | '2_weeks' | 'indefinite'
 sort_order: INTEGER  -- preserva orden del array al guardar
 ```
@@ -65,7 +66,7 @@ quantity_approved, quantity_in_stock, quantity_to_order, quantity_received
 ```
 Constraint implícito: `quantity_in_stock + quantity_to_order = quantity_approved`
 
-**`etm_products`** — `etm TEXT UNIQUE`, `model_code TEXT`, `brand TEXT DEFAULT 'URREA'`
+**`etm_products`** — `etm TEXT UNIQUE`, `model_code TEXT`, `brand TEXT DEFAULT 'URREA'`, `is_sold BOOLEAN` (tri-estado; `null`=sin definir, `true`=lo vendemos, `false`=no lo vendemos — persistido por auto-learn)
 
 **`store_inventory`** — `model_code TEXT UNIQUE`, `quantity INTEGER CHECK >= 0`
 
@@ -80,6 +81,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 | Regla | Detalle |
 |-------|---------|
 | **Separadores excluidos de todo** | `item_type='separator'` nunca se incluye en: totales, auto-learn, conteos, is_approved, Excel URREA |
+| **Productos "no lo vendemos" (`is_sold=false`)** | Tri-estado (`null` sin definir / `true` sí / `false` no). Solo `false`: excluido de totales (`calculateQuotationTotal`), Excel URREA/órdenes (`create-order`), y **exento de validación** (`quotation-validation` no exige precio/cantidad/ETM). En `/approve/[token]` se muestra "No disponible" (read-only, no aprobable). Se **persiste a `etm_products` vía auto-learn** solo si es explícito (`true`/`false`); `null` nunca pisa el catálogo. Helper: `isNotSold()` en `business-rules.ts`. |
 | **Stock se deduce al CREAR la orden** | No al confirmar recepción. Cancelar restaura `quantity_in_stock`. |
 | **Excel URREA** | Solo ítems: `item_type='product'` AND `brand='URREA'` AND `quantity_to_order > 0` |
 | **Auto-learn** | Solo actualiza campos no vacíos. No asigna `brand='URREA'` si `model_code` está vacío. |

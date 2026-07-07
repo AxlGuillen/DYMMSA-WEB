@@ -40,6 +40,7 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `model_code` | text | No | — | | Código URREA (ej. `7420MT`) |
 | `price` | numeric | Sí | — | | Precio en MXN |
 | `brand` | text | Sí | `'URREA'` | | Marca del producto |
+| `is_sold` | boolean | Sí | — | | Tri-estado ¿lo vendemos? `null`=sin definir, `true`=sí, `false`=no. Persistido por auto-learn |
 | `created_at` | timestamptz | Sí | `now()` | | |
 | `updated_at` | timestamptz | Sí | `now()` | | |
 | `created_by` | uuid | Sí | — | FK → `auth.users.id` | |
@@ -126,6 +127,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `unit_price` | numeric | Sí | — | `IS NULL OR >= 0` | |
 | `quantity` | integer | Sí | — | `IS NULL OR > 0` | |
 | `is_approved` | boolean | Sí | — | | null=pendiente, true=aprobado, false=rechazado |
+| `is_sold` | boolean | Sí | — | | Snapshot de `etm_products.is_sold`. null=sin definir, true=lo vendemos, false=no lo vendemos |
 | `notes` | text | Sí | — | | |
 | `delivery_time` | text | Sí | `'immediate'` | | Ver valores en [[Glosario]] |
 | `created_at` | timestamptz | Sí | `now()` | | |
@@ -202,3 +204,4 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `20260401042130` | `add_sort_order_to_order_items` | Campo sort_order en order_items |
 | `20260401050143` | `link_orders_to_quotations_and_fix_sort_order` | FK quotation_id en orders + fix sort_order |
 | `20260409055423` | `rename_order_statuses_to_generic` | Renombra estados: `pending_urrea_order→ordered`, `received_from_urrea→received`, etc. |
+| `add_is_sold_to_etm_and_quotation_items` | (2026-07-06) | Columna `is_sold boolean` (nullable, sin default) en `etm_products` y `quotation_items` — tri-estado "¿lo vendemos?" |
