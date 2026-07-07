@@ -703,6 +703,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   <TableHead className="max-w-[200px]">Descripción</TableHead>
                   <TableHead className="text-right">Aprobados</TableHead>
                   <TableHead className="text-right">En Stock</TableHead>
+                  <TableHead>Ubicación</TableHead>
                   <TableHead className="text-right">A Pedir</TableHead>
                   <TableHead className="text-right">Recibidos</TableHead>
                   <TableHead>Estado de envío</TableHead>
@@ -720,7 +721,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   if (item.item_type === 'separator') {
                     return (
                       <TableRow key={item.id} className="border-b border-dashed border-border/60 bg-muted/30 hover:bg-muted/30">
-                        <TableCell colSpan={isCompleted || isCancelled ? 12 : 13} className="px-4 py-2">
+                        <TableCell colSpan={isCompleted || isCancelled ? 13 : 14} className="px-4 py-2">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <SeparatorHorizontal className="size-3.5 shrink-0" />
                             <span className="font-medium">{item.section_label || 'Sección'}</span>
@@ -747,6 +748,11 @@ export function OrderDetail({ order }: OrderDetailProps) {
                       <TableCell className="text-right">{item.quantity_approved}</TableCell>
                       <TableCell className="text-right text-blue-600">
                         {item.quantity_in_stock}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {item.quantity_in_stock > 0 && item.location
+                          ? item.location
+                          : <span className="text-muted-foreground">{'—'}</span>}
                       </TableCell>
                       <TableCell className="text-right text-orange-600">
                         {item.quantity_to_order}
@@ -903,7 +909,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <TableFooter>
                 <TableRow>
                   <TableCell
-                    colSpan={!isCompleted && !isCancelled ? 12 : 11}
+                    colSpan={!isCompleted && !isCancelled ? 13 : 12}
                     className="text-right font-bold"
                   >
                     Total:

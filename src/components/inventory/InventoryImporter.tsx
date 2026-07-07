@@ -77,7 +77,9 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
         <DialogHeader>
           <DialogTitle>Importar Inventario</DialogTitle>
           <DialogDescription>
-            Sube un archivo Excel con columnas MODEL_CODE y QUANTITY
+            Sube un archivo Excel con columnas <strong>MODEL_CODE</strong> y{' '}
+            <strong>QUANTITY</strong>. Opcional: <strong>ubicacion</strong> (gaveta) para
+            registrar dónde se guarda cada producto.
           </DialogDescription>
         </DialogHeader>
 

@@ -27,6 +27,7 @@ import type { StoreInventory } from '@/types/database'
 const inventorySchema = z.object({
   model_code: z.string().min(1, 'Codigo modelo es requerido'),
   quantity: z.number().min(0, 'Cantidad debe ser mayor o igual a 0'),
+  location: z.string(), // ubicación (gaveta), opcional; '' → null
 })
 
 type InventoryFormValues = z.infer<typeof inventorySchema>
@@ -47,6 +48,7 @@ export function InventoryForm({ open, onOpenChange, item }: InventoryFormProps) 
     defaultValues: {
       model_code: '',
       quantity: 0,
+      location: '',
     },
   })
 
@@ -57,26 +59,29 @@ export function InventoryForm({ open, onOpenChange, item }: InventoryFormProps) 
         form.reset({
           model_code: item.model_code || '',
           quantity: item.quantity || 0,
+          location: item.location ?? '',
         })
       } else {
         form.reset({
           model_code: '',
           quantity: 0,
+          location: '',
         })
       }
     }
   }, [open, item, form])
 
   const onSubmit = async (values: InventoryFormValues) => {
+    const location = values.location.trim() || null
     try {
       if (isEditing && item) {
         await updateItem.mutateAsync({
           id: item.id,
-          updates: { quantity: values.quantity },
+          updates: { quantity: values.quantity, location },
         })
         toast.success('Inventario actualizado')
       } else {
-        await createItem.mutateAsync(values)
+        await createItem.mutateAsync({ ...values, location })
         toast.success('Producto agregado al inventario')
       }
       onOpenChange(false)
@@ -97,7 +102,7 @@ export function InventoryForm({ open, onOpenChange, item }: InventoryFormProps) 
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Editar Cantidad' : 'Agregar al Inventario'}
+            {isEditing ? 'Editar producto' : 'Agregar al Inventario'}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
@@ -135,6 +140,22 @@ export function InventoryForm({ open, onOpenChange, item }: InventoryFormProps) 
                       onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="location"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ubicación (gaveta)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ej: A-12 (opcional)" {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Dónde se guarda en la tienda. Solo se muestra cuando hay stock.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

@@ -79,10 +79,11 @@ export async function POST(request: NextRequest) {
     if (!modelCode) return badRequest('El código modelo es obligatorio')
 
     const quantity = typeof body.quantity === 'number' ? Math.max(0, Math.trunc(body.quantity)) : 0
+    const location = typeof body.location === 'string' ? (body.location.trim() || null) : null
 
     const { data, error } = await supabase
       .from('store_inventory')
-      .insert({ model_code: modelCode, quantity })
+      .insert({ model_code: modelCode, quantity, location })
       .select()
       .single()
 

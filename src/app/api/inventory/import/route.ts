@@ -8,6 +8,16 @@ interface ExcelRow {
   QUANTITY?: number | string
 }
 
+/** Lee la ubicación por varios alias, case-insensitive. `null` si no viene. */
+function pickLocation(row: Record<string, unknown>): string | null {
+  const lower = new Map(Object.keys(row).map((k) => [k.trim().toLowerCase(), row[k]]))
+  for (const key of ['ubicacion', 'ubicación', 'location', 'gaveta']) {
+    const v = lower.get(key)
+    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim()
+  }
+  return null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -82,13 +92,14 @@ export async function POST(request: NextRequest) {
 
       // Ensure quantity is not negative
       const safeQuantity = Math.max(0, quantity)
+      const location = pickLocation(row as Record<string, unknown>)
 
       if (mode === 'replace') {
         // In replace mode, just insert all
         // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { error } = await supabase
           .from('store_inventory')
-          .insert({ model_code: modelCode, quantity: safeQuantity })
+          .insert({ model_code: modelCode, quantity: safeQuantity, location })
 
         if (error) {
           console.error(`Error inserting ${modelCode}:`, error.message)
@@ -105,10 +116,13 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (existing) {
-          // Update
+          // Update. La ubicación solo se toca si el archivo la trae → una carga
+          // de solo cantidades NO borra la gaveta existente.
+          const upd: { quantity: number; location?: string } = { quantity: safeQuantity }
+          if (location !== null) upd.location = location
           const { error } = await supabase
             .from('store_inventory')
-            .update({ quantity: safeQuantity })
+            .update(upd)
             .eq('model_code', modelCode)
 
           if (error) {
@@ -120,7 +134,7 @@ export async function POST(request: NextRequest) {
           // Insert
           const { error } = await supabase
             .from('store_inventory')
-            .insert({ model_code: modelCode, quantity: safeQuantity })
+            .insert({ model_code: modelCode, quantity: safeQuantity, location })
 
           if (error) {
             errors++

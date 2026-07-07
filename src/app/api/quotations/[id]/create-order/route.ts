@@ -107,16 +107,18 @@ export async function POST(
 
       let quantityInStock = 0
       let quantityToOrder = quantityApproved
+      let itemLocation: string | null = null
 
       if (item.model_code) {
         // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { data: inv } = await supabase
           .from('store_inventory')
-          .select('quantity')
+          .select('quantity, location')
           .eq('model_code', item.model_code)
           .single()
 
         if (inv) {
+          itemLocation = inv.location ?? null
           const allocation = allocateInventory(quantityApproved, inv.quantity)
           quantityInStock = allocation.inStock
           quantityToOrder = allocation.toOrder
@@ -147,6 +149,7 @@ export async function POST(
         urrea_status:      'pending',
         delivery_time:     item.delivery_time  || 'immediate',
         unit_price:        unitPrice,
+        location:          itemLocation,
       })
     }
 
