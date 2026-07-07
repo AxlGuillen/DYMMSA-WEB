@@ -5,6 +5,11 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-07-06
 
+### Mejorado
+- Los **iconos** de toda la aplicación ahora son animados: reaccionan con un pequeño movimiento
+  al pasar el cursor, para una interfaz más viva. Respetan la preferencia de "reducir movimiento"
+  del sistema para quien la tenga activada.
+
 ### Nuevo
 - Ahora puedes marcar un producto como **"No lo vendemos"**. Al editar un producto —tanto en el
   cotizador como en el módulo **Catálogo ETM**— hay un selector **¿Lo vendemos?** (Sin definir /

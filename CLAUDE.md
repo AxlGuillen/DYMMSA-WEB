@@ -100,6 +100,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 - **API Routes:** usar `createClient()` de `@supabase/ssr` + verificar `auth.getUser()` al inicio.
 - **Páginas:** Server Components por defecto; `"use client"` solo donde hay interactividad.
 - **Zustand store:** `dymmsa-quotation-draft` en localStorage. Llamar `reset()` al guardar exitosamente.
+- **Iconos:** importar desde `@/components/icons` (animados, `@animateicons/react`), **no** de `lucide-react` directo. El adaptador (`src/components/icons.tsx`) reexpone los nombres de lucide mapeados a su versión animada — o a una **relacionada** si la librería (248 iconos curados) no tiene el exacto — y traduce las clases `size-N`/`h-N` al prop `size`. Agregar un icono nuevo = añadir su export ahí.
 - **Sin comentarios obvios.** Solo comentar WHY cuando no es evidente.
 
 ---
