@@ -2,6 +2,7 @@ import { describe, test, expect } from 'vitest'
 import {
   isSeparator,
   isProductItem,
+  isNotSold,
   filterProductItems,
   calculateLineTotal,
   calculateQuotationTotal,
@@ -18,6 +19,7 @@ function makeQuotationItem(overrides: {
   quantity?: number | null
   item_type?: string | null
   is_approved?: boolean | null
+  is_sold?: boolean | null
 }) {
   return {
     unit_price: 100,
@@ -191,6 +193,26 @@ describe('calculateQuotationTotal', () => {
     ]
     // Without onlyApproved flag, both are included
     expect(calculateQuotationTotal(items)).toBe(500)
+  })
+
+  test('excluye ítems "no lo vendemos" (is_sold === false)', () => {
+    const items = [
+      makeQuotationItem({ unit_price: 100, quantity: 2, is_sold: null }),  // 200
+      makeQuotationItem({ unit_price: 100, quantity: 5, is_sold: false }), // excluido
+      makeQuotationItem({ unit_price: 100, quantity: 1, is_sold: true }),  // 100
+    ]
+    expect(calculateQuotationTotal(items)).toBe(300)
+  })
+})
+
+// ─── isNotSold ───────────────────────────────────────────────────────────────
+
+describe('isNotSold', () => {
+  test('solo true cuando is_sold === false', () => {
+    expect(isNotSold({ is_sold: false })).toBe(true)
+    expect(isNotSold({ is_sold: true })).toBe(false)
+    expect(isNotSold({ is_sold: null })).toBe(false)
+    expect(isNotSold({})).toBe(false)
   })
 })
 

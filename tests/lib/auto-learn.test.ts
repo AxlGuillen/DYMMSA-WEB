@@ -34,6 +34,7 @@ function makeExisting(overrides: Partial<{
   model_code: string
   price: number
   brand: string
+  is_sold: boolean | null
 }> = {}) {
   return {
     etm:            'ETM-001',
@@ -42,6 +43,7 @@ function makeExisting(overrides: Partial<{
     model_code:     'MC001',
     price:          80,
     brand:          'URREA',
+    is_sold:        null,
     ...overrides,
   }
 }
@@ -83,6 +85,19 @@ describe('isEligibleForAutoLearn', () => {
 
   test('NOT eligible: has etm + model_code but is separator', () => {
     expect(isEligibleForAutoLearn(makeItem({ item_type: 'separator' }))).toBe(false)
+  })
+
+  test('eligible: etm-only (sin model_code/description) pero is_sold explícito', () => {
+    // Un "no lo vendemos" suele traer solo ETM → debe persistir el flag igual.
+    expect(isEligibleForAutoLearn(makeItem({
+      model_code: '', description: '', description_es: '', is_sold: false,
+    }))).toBe(true)
+  })
+
+  test('NOT eligible: etm-only con is_sold null (sin definir)', () => {
+    expect(isEligibleForAutoLearn(makeItem({
+      model_code: '', description: '', description_es: '', is_sold: null,
+    }))).toBe(false)
   })
 })
 
@@ -138,6 +153,14 @@ describe('computeNewEtmFields', () => {
     const result = computeNewEtmFields(item as Parameters<typeof computeNewEtmFields>[0])
     expect(result.description).toBe('')
     expect(result.description_es).toBe('')
+  })
+
+  test('is_sold pasa tal cual (false / true / null)', () => {
+    const asArg = (i: QuotationItemRow) => i as Parameters<typeof computeNewEtmFields>[0]
+    expect(computeNewEtmFields(asArg(makeItem({ is_sold: false }))).is_sold).toBe(false)
+    expect(computeNewEtmFields(asArg(makeItem({ is_sold: true }))).is_sold).toBe(true)
+    expect(computeNewEtmFields(asArg(makeItem({ is_sold: null }))).is_sold).toBeNull()
+    expect(computeNewEtmFields(asArg(makeItem())).is_sold).toBeNull() // undefined → null
   })
 })
 
@@ -208,5 +231,28 @@ describe('mergeEtmFields', () => {
     expect(hasChanges).toBe(true)
     expect(updates.description).toBe('New EN')
     expect(updates.model_code).toBe('NEW-MC')
+  })
+
+  // ─── is_sold tri-estado ────────────────────────────────────────────────
+  test('is_sold: valor explícito (false) sobre existente null → actualiza', () => {
+    const existing = makeExisting({ is_sold: null })
+    const incoming = makeItem({ is_sold: false })
+    const { updates, hasChanges } = mergeEtmFields(existing, incoming as Parameters<typeof mergeEtmFields>[1])
+    expect(hasChanges).toBe(true)
+    expect(updates.is_sold).toBe(false)
+  })
+
+  test('REGLA CRÍTICA: is_sold entrante null NO pisa el valor existente', () => {
+    const existing = makeExisting({ is_sold: true })
+    const incoming = makeItem({ is_sold: null })
+    const { updates } = mergeEtmFields(existing, incoming as Parameters<typeof mergeEtmFields>[1])
+    expect(updates.is_sold).toBeUndefined()
+  })
+
+  test('is_sold sin cambio (mismo valor) → no cuenta como cambio', () => {
+    const existing = makeExisting({ is_sold: false, description: 'x', description_es: 'x', model_code: 'MC001', price: 100 })
+    const incoming = makeItem({ is_sold: false, description: 'x', description_es: 'x', model_code: 'MC001', unit_price: 100 })
+    const { updates } = mergeEtmFields(existing, incoming as Parameters<typeof mergeEtmFields>[1])
+    expect(updates.is_sold).toBeUndefined()
   })
 })

@@ -95,6 +95,25 @@ describe('POST /quotations/save', () => {
     expect(sep.section_label).toBe('Sección A')
   })
 
+  test('REGLA: persiste is_sold (false/true/null) y separador con is_sold null', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.insert': { data: { id: 'q1' }, error: null },
+        'quotation_items.insert': { data: null, error: null },
+      },
+    })
+    await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [product({ is_sold: false }), separator(), product({ is_sold: true }), product()],
+    }))
+    const items = activeClient.insertPayload('quotation_items')
+    expect(items[0].is_sold).toBe(false)
+    expect(items[1].is_sold).toBeNull() // separador
+    expect(items[2].is_sold).toBe(true)
+    expect(items[3].is_sold).toBeNull() // sin definir
+  })
+
   test('REGLA: total excluye separadores', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
@@ -407,6 +426,35 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(activeClient.didCall('store_inventory', 'update')).toBe(true)
     const upd = activeClient.updatePayload('quotations')
     expect(upd.status).toBe('converted_to_order')
+  })
+
+  test('REGLA: excluye "no lo vendemos" (is_sold=false) aunque esté is_approved=true', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': {
+          data: {
+            id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
+            quotation_items: [
+              { id: 'p1', item_type: 'product', is_approved: true, is_sold: null,  sort_order: 0, model_code: 'MC1', quantity: 2, unit_price: 100, etm: 'E1', brand: 'URREA' },
+              { id: 'p2', item_type: 'product', is_approved: true, is_sold: false, sort_order: 1, model_code: 'MC2', quantity: 9, unit_price: 999, etm: 'E2', brand: 'URREA' },
+            ],
+          },
+          error: null,
+        },
+        'store_inventory.select': { data: { quantity: 0 }, error: null },
+        'orders.insert': { data: { id: 'o1' }, error: null },
+        'order_items.insert': { data: null, error: null },
+        'quotations.update': { data: null, error: null },
+      },
+    })
+    const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.items_count).toBe(1)     // solo p1; p2 (no vendible) excluido
+    expect(body.total_amount).toBe(200)  // 100*2, sin el 999 de p2
+    const items = activeClient.insertPayload('order_items')
+    expect(items.every((i) => i.etm !== 'E2')).toBe(true)
   })
 
   test('REGLA: rollback — si falla insert de order_items, borra la orden', async () => {
