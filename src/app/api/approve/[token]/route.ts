@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendApprovalNotification } from '@/lib/email/send-approval-notification'
+import { calculateQuotationTotal } from '@/lib/business-rules'
 
 // ------------------------------------------------------------------ //
 // GET /api/approve/[token]                                           //
@@ -138,11 +139,24 @@ export async function POST(
     //    Aislado: un fallo de correo nunca revierte la aprobación (ADR-012).
     if (newStatus === 'approved') {
       try {
+        // Total de lo REALMENTE aprobado: en una aprobación parcial,
+        // quotation.total_amount (toda la cotización) reportaría de más.
+        // calculateQuotationTotal ya excluye separadores e is_sold=false.
+        const { data: approvedItems, error: approvedItemsError } = await supabase
+          .from('quotation_items')
+          .select('unit_price, quantity, item_type, is_approved, is_sold')
+          .eq('quotation_id', quotation.id)
+          .eq('is_approved', true)
+          .limit(5000)
+
+        const hasApprovedItems = !approvedItemsError && approvedItems !== null
         await sendApprovalNotification({
           customerName: quotation.customer_name,
           quotationName: quotation.name,
-          total: quotation.total_amount,
-          approvedCount: approvedIds.length,
+          total: hasApprovedItems
+            ? calculateQuotationTotal(approvedItems, { onlyApproved: true })
+            : quotation.total_amount, // fallback si la lectura falla
+          approvedCount: hasApprovedItems ? approvedItems.length : approvedIds.length,
           quotationId: quotation.id,
         })
       } catch (notifyError) {

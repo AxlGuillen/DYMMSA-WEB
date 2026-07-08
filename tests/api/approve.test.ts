@@ -97,17 +97,44 @@ describe('POST /approve/[token]', () => {
     expect(q.approved_at).toBeNull()
   })
 
-  test('finalizar con aprobados: envía la notificación con los datos correctos', async () => {
-    adminClient = sentClient()
+  test('REGLA: aprobación PARCIAL notifica el total de lo aprobado, no el de toda la cotización', async () => {
+    // total_amount=1500 (cotización completa), pero el cliente solo aprobó 2 ítems
+    // que suman 250 → el correo debe decir 250.
+    adminClient = createMockSupabase({
+      responses: {
+        'quotations.select': {
+          data: { id: 'q1', status: 'sent_for_approval', name: 'COT-001', customer_name: 'ACME', total_amount: 1500 },
+          error: null,
+        },
+        'quotation_items.update': { data: null, error: null },
+        'quotation_items.select': {
+          data: [
+            { unit_price: 100, quantity: 2, item_type: 'product', is_approved: true, is_sold: null },
+            { unit_price: 50, quantity: 1, item_type: 'product', is_approved: true, is_sold: true },
+          ],
+          error: null,
+        },
+        'quotations.update': { data: [{ id: 'q1' }], error: null },
+      },
+    })
     await post({ approvedIds: ['i1', 'i2'], finalize: true })
     expect(mockNotify).toHaveBeenCalledTimes(1)
     expect(mockNotify).toHaveBeenCalledWith({
       customerName: 'ACME',
       quotationName: 'COT-001',
-      total: 1500,
+      total: 250,
       approvedCount: 2,
       quotationId: 'q1',
     })
+  })
+
+  test('si la lectura de ítems aprobados falla, cae al total_amount de la cotización', async () => {
+    // sentClient no configura quotation_items.select → data null → fallback.
+    adminClient = sentClient()
+    await post({ approvedIds: ['i1', 'i2'], finalize: true })
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ total: 1500, approvedCount: 2 }),
+    )
   })
 
   test('guardar avance NO envía notificación', async () => {
