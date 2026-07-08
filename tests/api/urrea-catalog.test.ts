@@ -3,8 +3,8 @@
  *   - validación de archivo/columnas
  *   - upsert por code (onConflict)
  *   - replace (delete all + insert)
- *   - parseo de std (entero ≥ 1, default) y precio (numérico/null)
- *   - acepta encabezados en español (codigo/descripcion/precio)
+ *   - parseo de std (entero ≥ 1, default)
+ *   - acepta encabezados en español (codigo/descripcion)
  */
 
 import { describe, test, expect, vi } from 'vitest'
@@ -46,17 +46,17 @@ describe('POST /urrea-catalog/import', () => {
       responses: { 'urrea_catalog.upsert': { data: null, error: null } },
     })
     const res = await catalogImport.POST(
-      makeExcelRequest([{ codigo: 'C1', descripcion: 'Tornillo', std: 6, precio: 12.5 }]),
+      makeExcelRequest([{ codigo: 'C1', descripcion: 'Tornillo', std: 6 }]),
     )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.imported).toBe(1)
     expect(activeClient.didCall('urrea_catalog', 'upsert')).toBe(true)
     const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
-    expect(payload[0]).toMatchObject({ code: 'C1', description: 'Tornillo', std: 6, price: 12.5 })
+    expect(payload[0]).toMatchObject({ code: 'C1', description: 'Tornillo', std: 6 })
   })
 
-  test('std vacío/0 cae a 1 y precio vacío a null', async () => {
+  test('std vacío/0 cae a 1', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'urrea_catalog.upsert': { data: null, error: null } },
@@ -64,7 +64,6 @@ describe('POST /urrea-catalog/import', () => {
     await catalogImport.POST(makeExcelRequest([{ codigo: 'C2', descripcion: 'X' }]))
     const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
     expect(payload[0].std).toBe(1)
-    expect(payload[0].price).toBeNull()
   })
 
   test('modo replace: borra todo e inserta', async () => {
@@ -76,7 +75,7 @@ describe('POST /urrea-catalog/import', () => {
       },
     })
     const res = await catalogImport.POST(
-      makeExcelRequest([{ codigo: 'C1', precio: 1 }, { codigo: 'C2', precio: 2 }], { mode: 'replace' }),
+      makeExcelRequest([{ codigo: 'C1' }, { codigo: 'C2' }], { mode: 'replace' }),
     )
     const body = await res.json()
     expect(body.mode).toBe('replace')
