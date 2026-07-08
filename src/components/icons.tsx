@@ -120,13 +120,17 @@ function wrap(Cmp: AnimatedIcon) {
     const spanRef = useRef<HTMLSpanElement | null>(null)
 
     // Dispara la animación desde el control interactivo que contiene al icono
-    // (botón/enlace) — o desde el propio icono si está suelto. Pasar el ref al
-    // icono desactiva su auto-hover interno, así que aquí no hay doble disparo.
+    // (botón/enlace); si está suelto, desde el propio icono. Pasar el ref al
+    // componente desactiva su auto-hover interno, así que no hay doble disparo.
     useEffect(() => {
       const span = spanRef.current
       if (!span) return
+      // El <span> es display:contents (sin caja propia) → para el caso "suelto"
+      // escuchamos en el <div> del icono (su primer hijo), que sí tiene caja.
       const trigger =
-        (span.closest('button, a, [role="button"], label') as HTMLElement | null) ?? span
+        (span.closest('button, a, [role="button"], label') as HTMLElement | null) ??
+        (span.firstElementChild as HTMLElement | null) ??
+        span
       const enter = () => handleRef.current?.startAnimation()
       const leave = () => handleRef.current?.stopAnimation()
       trigger.addEventListener('mouseenter', enter)
@@ -137,9 +141,18 @@ function wrap(Cmp: AnimatedIcon) {
       }
     }, [])
 
+    // className y el resto de props van al COMPONENTE animado (raíz `<div>`
+    // inline-flex), NO al <span>: así `animate-spin` (transform) y el color por
+    // `currentColor` aplican bien. El <span> (display:contents) es solo un ancla
+    // en el DOM para localizar el control/icono en el efecto de hover.
     return (
-      <span ref={spanRef} className={className} {...rest}>
-        <Cmp ref={handleRef} size={size ?? sizeFromClass(className)} />
+      <span ref={spanRef} style={{ display: 'contents' }}>
+        <Cmp
+          ref={handleRef}
+          size={size ?? sizeFromClass(className)}
+          className={className}
+          {...rest}
+        />
       </span>
     )
   }

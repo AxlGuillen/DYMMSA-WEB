@@ -1,7 +1,13 @@
 # ADR-012 — Notificaciones por email (Resend)
 
 **Fecha:** 2026-07-07
-**Estado:** Aceptado
+**Estado:** Aceptado — ⚠️ **temporalmente DESHABILITADO** (2026-07-07)
+
+> **Nota:** el envío de correos está apagado por un interruptor en
+> `src/lib/email/send-approval-notification.ts` (`EMAIL_NOTIFICATIONS_ENABLED = false`)
+> hasta configurar Resend en producción (dominio verificado + env vars + decidir
+> destinatarios). El código sigue en su lugar; para reactivar, poner el flag en `true`.
+> Por eso también se retiró la entrada de `CHANGELOG.md` (Novedades) hasta que funcione.
 
 ## Contexto
 
