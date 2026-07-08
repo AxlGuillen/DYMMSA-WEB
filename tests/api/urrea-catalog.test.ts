@@ -13,6 +13,8 @@ import { injectSupabaseServer } from '../helpers/setup'
 import { AUTH } from '../helpers/factories'
 import { makeExcelRequest } from '../helpers/request'
 import * as catalogImport from '@/app/api/urrea-catalog/import/route'
+import * as catalogLookup from '@/app/api/urrea-catalog/lookup/route'
+import { makeRequest } from '../helpers/request'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
@@ -81,5 +83,55 @@ describe('POST /urrea-catalog/import', () => {
     expect(body.imported).toBe(2)
     expect(activeClient.didCall('urrea_catalog', 'delete')).toBe(true)
     expect(activeClient.didCall('urrea_catalog', 'insert')).toBe(true)
+  })
+})
+
+// ─── Normalización del code (llave de cruce Descripción DYMMSA) ──────────────
+
+describe('POST /urrea-catalog/import — normalización de code', () => {
+  test('REGLA: code se guarda normalizado (trim + mayúsculas)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.upsert': { data: null, error: null } },
+    })
+    const res = await catalogImport.POST(
+      makeExcelRequest([{ codigo: '  mc-123 ', descripcion: 'Llave', std: 1 }]),
+    )
+    expect(res.status).toBe(200)
+    const rows = activeClient.upsertPayload('urrea_catalog')
+    expect(rows[0].code).toBe('MC-123')
+  })
+})
+
+// ─── POST /urrea-catalog/lookup ───────────────────────────────────────────────
+
+describe('POST /urrea-catalog/lookup', () => {
+  test('400 si codes no es arreglo o está vacío', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await catalogLookup.POST(makeRequest({ codes: 'x' }))).status).toBe(400)
+    expect((await catalogLookup.POST(makeRequest({ codes: [] }))).status).toBe(400)
+  })
+
+  test('devuelve mapa code→descripción con codes normalizados; omite sin descripción', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'urrea_catalog.select': {
+          data: [
+            { code: 'MC1', description: 'Oficial 1' },
+            { code: 'MC2', description: null },
+          ],
+          error: null,
+        },
+      },
+    })
+    const res = await catalogLookup.POST(makeRequest({ codes: [' mc1 ', 'mc2', ''] }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.descriptions).toEqual({ MC1: 'Oficial 1' })
+    // la query usó los codes normalizados y sin vacíos
+    const call = activeClient.callsTo('urrea_catalog', 'select')[0]
+    const inFilter = call.filters.find((f) => f.method === 'in')
+    expect(inFilter?.args[1]).toEqual(['MC1', 'MC2'])
   })
 })

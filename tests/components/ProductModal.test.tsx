@@ -4,6 +4,12 @@ import userEvent from '@testing-library/user-event'
 import { ProductModal } from '@/components/quoter/ProductModal'
 import type { QuotationItemRow } from '@/types/database'
 
+// TanStack hook mockeado a nivel de módulo (convención del proyecto): sin
+// QueryClient en jsdom; el lookup de catálogo se cubre en tests/api.
+vi.mock('@/hooks/useUrreaCatalog', () => ({
+  useCatalogDescription: () => ({ data: null }),
+}))
+
 /** Mockea fetch /api/quotes/lookup devolviendo `found`. */
 function mockLookup(found: string[]) {
   return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
