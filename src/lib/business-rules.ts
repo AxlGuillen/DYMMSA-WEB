@@ -43,6 +43,61 @@ export function isNotSold(item: { is_sold?: boolean | null }): boolean {
   return item.is_sold === false
 }
 
+// ─── Descripción DYMMSA (jerarquía de catálogo) ────────────────────────
+
+/**
+ * Normaliza la llave de cruce entre `etm_products.model_code` y
+ * `urrea_catalog.code`: trim + mayúsculas. Debe aplicarse en TODOS los
+ * caminos de escritura del catálogo y al armar lookups — un espacio o
+ * minúscula hace fallar el match en silencio.
+ */
+export function normalizeCatalogCode(code: string | null | undefined): string {
+  return (code ?? '').trim().toUpperCase()
+}
+
+export type DymmsaDescriptionSource = 'catalog' | 'dymmsa' | null
+
+type DescriptionResolvable = {
+  item_type?: string | null
+  model_code?: string | null
+  dymmsa_description?: string | null
+}
+
+/**
+ * Resuelve la "Descripción DYMMSA" de un ítem con jerarquía de catálogo:
+ *
+ *   1. Catálogo oficial (match por `model_code` normalizado) — gana siempre;
+ *      no se puede tapar con la curada (si está mal, se corrige reimportando).
+ *   2. Curada DYMMSA (`dymmsa_description`) — solo productos sin catálogo.
+ *   3. `null` — celda vacía para que el cotizador la llene.
+ *
+ * `source` permite a la UI etiquetar el origen y deshabilitar la edición
+ * cuando la descripción viene del catálogo. Separadores siempre `null`.
+ *
+ * @param catalogMap  Map<code normalizado, descripción> (batch por cotización)
+ */
+export function resolveDymmsaDescription(
+  item: DescriptionResolvable,
+  catalogMap: Map<string, string | null>,
+): { value: string | null; source: DymmsaDescriptionSource } {
+  if (!isProductItem(item)) return { value: null, source: null }
+
+  const code = normalizeCatalogCode(item.model_code)
+  if (code) {
+    const catalogDesc = catalogMap.get(code)
+    // Solo gana si el catálogo trae descripción real; una fila sin descripción
+    // no aporta nada oficial y cede el turno a la curada.
+    if (catalogDesc && catalogDesc.trim() !== '') {
+      return { value: catalogDesc.trim(), source: 'catalog' }
+    }
+  }
+
+  const curated = item.dymmsa_description?.trim()
+  if (curated) return { value: curated, source: 'dymmsa' }
+
+  return { value: null, source: null }
+}
+
 // ─── Cálculos de líneas ────────────────────────────────────────────────
 
 /**
