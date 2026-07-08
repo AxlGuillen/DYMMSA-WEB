@@ -277,6 +277,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
   const removeItem = useQuotationStore((s) => s.removeItem)
   const reorderItems = useQuotationStore((s) => s.reorderItems)
   const catalogDescriptions = useQuotationStore((s) => s.catalogDescriptions)
+  const mergeCatalogDescriptions = useQuotationStore((s) => s.mergeCatalogDescriptions)
 
   // Map para resolveDymmsaDescription (catálogo > curada > null)
   const catalogMap = useMemo(
@@ -483,6 +484,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSave={handleModalSave}
+        onCatalogResolved={(code, description) => mergeCatalogDescriptions({ [code]: description })}
         existingEtms={items.flatMap((i) =>
           isProductItem(i) && i._id !== selectedItem?._id ? [i.etm] : []
         )}

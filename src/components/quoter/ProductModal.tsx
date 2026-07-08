@@ -24,6 +24,7 @@ import { Loader2 } from '@/components/icons'
 import { parseNumber, parseInteger } from '@/lib/format'
 import type { QuotationItemRow, DeliveryTime } from '@/types/database'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
+import { normalizeCatalogCode } from '@/lib/business-rules'
 import { useCatalogDescription } from '@/hooks/useUrreaCatalog'
 
 const EMPTY_ETMS: string[] = []
@@ -35,6 +36,11 @@ interface ProductModalProps {
   onOpenChange: (open: boolean) => void
   onSave: (data: Omit<QuotationItemRow, '_id'>, id?: string) => void
   existingEtms?: string[]
+  // Opcional: al guardar un producto cuyo model_code matchea el catálogo URREA,
+  // el caller recibe (code normalizado, descripción oficial) para refrescar su
+  // mapa de catálogo y que la columna "Desc. DYMMSA" resuelva sin recargar.
+  // Solo lo cablea el cotizador (draft store); QuotationDetail lo omite.
+  onCatalogResolved?: (code: string, description: string) => void
 }
 
 interface FormValues {
@@ -56,6 +62,7 @@ export function ProductModal({
   onOpenChange,
   onSave,
   existingEtms = EMPTY_ETMS,
+  onCatalogResolved,
 }: ProductModalProps) {
   const {
     register,
@@ -151,6 +158,13 @@ export function ProductModal({
       return
     }
     setEtmError(null)
+
+    // Si el código matchea el catálogo, avisa al caller para que su mapa resuelva
+    // la columna "Desc. DYMMSA" al instante (best-effort: si el lookup aún no
+    // resolvió por el debounce, el backend igual resuelve al guardar).
+    if (catalogDesc && data.model_code.trim()) {
+      onCatalogResolved?.(normalizeCatalogCode(data.model_code), catalogDesc)
+    }
 
     onSave(
       {

@@ -2,13 +2,16 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProductModal } from '@/components/quoter/ProductModal'
+import { useCatalogDescription } from '@/hooks/useUrreaCatalog'
 import type { QuotationItemRow } from '@/types/database'
 
 // TanStack hook mockeado a nivel de módulo (convención del proyecto): sin
 // QueryClient en jsdom; el lookup de catálogo se cubre en tests/api.
+// vi.fn controlable por test: default sin match (data: null).
 vi.mock('@/hooks/useUrreaCatalog', () => ({
-  useCatalogDescription: () => ({ data: null }),
+  useCatalogDescription: vi.fn(() => ({ data: null })),
 }))
+const mockCatalogDesc = vi.mocked(useCatalogDescription)
 
 /** Mockea fetch /api/quotes/lookup devolviendo `found`. */
 function mockLookup(found: string[]) {
@@ -25,7 +28,10 @@ async function fillRequired(user: ReturnType<typeof userEvent.setup>, etm = 'NEW
 }
 
 describe('ProductModal', () => {
-  beforeEach(() => vi.restoreAllMocks())
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    mockCatalogDesc.mockReturnValue({ data: null } as ReturnType<typeof useCatalogDescription>)
+  })
   afterEach(() => vi.restoreAllMocks())
 
   test('submit válido (create) → onSave con payload transformado + cierra', async () => {
@@ -94,6 +100,32 @@ describe('ProductModal', () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 
+  test('con match de catálogo → onCatalogResolved(code normalizado, descripción) al guardar', async () => {
+    const user = userEvent.setup()
+    mockLookup([]) // ETM no duplicado
+    mockCatalogDesc.mockReturnValue({ data: 'Pinza oficial URREA' } as ReturnType<typeof useCatalogDescription>)
+    const onSave = vi.fn()
+    const onCatalogResolved = vi.fn()
+
+    render(
+      <ProductModal
+        mode="create"
+        open
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+        onCatalogResolved={onCatalogResolved}
+      />,
+    )
+
+    // model_code en minúsculas/espacios: el callback debe recibirlo normalizado.
+    await user.type(screen.getByPlaceholderText('Ej: H7-ET400'), 'NEW-2')
+    await user.type(screen.getByPlaceholderText('Ej: 95040'), '  mc9  ')
+    await user.click(screen.getByRole('button', { name: 'Agregar' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
+    expect(onCatalogResolved).toHaveBeenCalledWith('MC9', 'Pinza oficial URREA')
+  })
+
   test('modo edit con ETM sin cambios → no consulta el catálogo y guarda', async () => {
     const user = userEvent.setup()
     const fetchSpy = mockLookup([])
@@ -105,6 +137,7 @@ describe('ProductModal', () => {
       etm: 'KEEP-1',
       description: 'Existente',
       description_es: 'Existente',
+      dymmsa_description: 'Existente',
       model_code: 'MC1',
       brand: 'URREA',
       unit_price: 100,
