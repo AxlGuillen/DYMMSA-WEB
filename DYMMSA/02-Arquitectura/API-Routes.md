@@ -30,7 +30,7 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `GET` | `/api/approve/[token]` | ❌ | Obtener datos de cotización por approval_token (solo campos públicos) |
-| `POST` | `/api/approve/[token]` | ❌ | Persistir decisiones. Body: `{ approvedIds: string[], finalize: boolean }`. `finalize=false` → **guardar avance** (aprobados=`true`, resto=`null` pendiente; **status NO cambia** → link sigue vivo). `finalize=true` → **enviar** (resto=`false`, status `approved`/`rejected` + `approved_at`). Solo si status `sent_for_approval`. Excluye `is_sold=false`. Eficiente: 2-3 queries |
+| `POST` | `/api/approve/[token]` | ❌ | Persistir decisiones. Body: `{ approvedIds: string[], finalize: boolean }`. `finalize=false` → **guardar avance** (aprobados=`true`, resto=`null` pendiente; **status NO cambia** → link sigue vivo). `finalize=true` → **enviar** (resto=`false`, status `approved`/`rejected` + `approved_at`). Solo si status `sent_for_approval`. Excluye `is_sold=false`. Eficiente: 2-3 queries. **Si finaliza en `approved`** → envía notificación por email a DYMMSA (Resend, `sendApprovalNotification`) en `try/catch` aislado: un fallo de correo nunca revierte la aprobación ni cambia el 200 ([[04-Decisiones-Tecnicas/ADR-012-Notificaciones-Email]]). **Guarda de concurrencia:** la transición de status usa `.eq('status','sent_for_approval')`; si otro request concurrente (misma liga en 2 pestañas/dispositivos) ya finalizó → 409 (no pisa el estado) |
 
 ---
 
