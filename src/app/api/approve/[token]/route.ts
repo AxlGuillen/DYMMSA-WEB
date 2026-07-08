@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendApprovalNotification } from '@/lib/email/send-approval-notification'
 
 // ------------------------------------------------------------------ //
 // GET /api/approve/[token]                                           //
@@ -57,7 +58,7 @@ export async function POST(
 
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
-      .select('id, status')
+      .select('id, status, name, customer_name, total_amount')
       .eq('approval_token', token)
       .single()
 
@@ -108,15 +109,46 @@ export async function POST(
       return NextResponse.json({ saved: true, finalized: false, approvedCount: approvedIds.length })
     }
 
-    // 4. Finalizar → status + approved_at.
+    // 4. Finalizar → status + approved_at, con guarda de concurrencia optimista.
+    //    El `.eq('status', 'sent_for_approval')` garantiza que sólo UN request
+    //    finalice: si otro (misma liga abierta en dos pestañas/dispositivos) ya
+    //    transicionó entre el fetch inicial y aquí, este update matchea 0 filas y
+    //    devolvemos 409 en vez de sellar un estado inconsistente.
     const newStatus = approvedIds.length > 0 ? 'approved' : 'rejected'
-    await supabase
+    const { data: finalized, error: statusError } = await supabase
       .from('quotations')
       .update({
         status: newStatus,
         approved_at: newStatus === 'approved' ? new Date().toISOString() : null,
       })
       .eq('id', quotation.id)
+      .eq('status', 'sent_for_approval')
+      .select('id')
+
+    if (statusError) {
+      console.error('Error finalizing approval:', statusError)
+      return NextResponse.json({ message: 'Error al guardar las decisiones' }, { status: 500 })
+    }
+
+    if (!finalized || finalized.length === 0) {
+      return NextResponse.json({ message: 'Esta cotización ya fue procesada' }, { status: 409 })
+    }
+
+    // 5. Notificar a DYMMSA sólo cuando el cliente aprueba (status approved).
+    //    Aislado: un fallo de correo nunca revierte la aprobación (ADR-012).
+    if (newStatus === 'approved') {
+      try {
+        await sendApprovalNotification({
+          customerName: quotation.customer_name,
+          quotationName: quotation.name,
+          total: quotation.total_amount,
+          approvedCount: approvedIds.length,
+          quotationId: quotation.id,
+        })
+      } catch (notifyError) {
+        console.warn('Approval notification failed (ignored):', notifyError)
+      }
+    }
 
     return NextResponse.json({ saved: true, finalized: true, status: newStatus })
   } catch (error) {
