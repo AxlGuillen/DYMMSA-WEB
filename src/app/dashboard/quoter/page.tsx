@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { RotateCcw } from '@/components/icons'
+import { RotateCcw, Check, Loader2 } from '@/components/icons'
 import { FileUploader } from '@/components/quoter/FileUploader'
 import { QuotationEditor } from '@/components/quoter/QuotationEditor'
 import { useLookupEtms } from '@/hooks/useQuotes'
@@ -155,7 +155,10 @@ export default function QuoterPage() {
       })
 
       reset()
-      push('/dashboard/quotations')
+      // Abre la cotización recién creada; si por algo no vino el id, cae a la lista.
+      push(result.quotation_id
+        ? `/dashboard/quotations/${result.quotation_id}`
+        : '/dashboard/quotations')
     } catch (error) {
       handleSaveError(error)
     }
@@ -258,7 +261,11 @@ export default function QuoterPage() {
               disabled={!canSave}
               onClick={handleSave}
             >
-              {saveMutation.isPending ? 'Guardando...' : 'Guardar cotización'}
+              {saveMutation.isPending ? (
+                <><Loader2 className="mr-2 size-4 animate-spin" />Guardando...</>
+              ) : (
+                <><Check className="mr-2 size-4" />Guardar cotización</>
+              )}
             </Button>
           </div>
         </div>
