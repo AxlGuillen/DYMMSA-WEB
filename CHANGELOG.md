@@ -6,10 +6,6 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-07-07
 
 ### Nuevo
-- Cuando un cliente **aprueba una cotización**, ahora le llega un **correo de aviso** al equipo de
-  DYMMSA para continuar el proceso sin tener que estar revisando el sistema. El correo incluye el
-  cliente, el total aprobado y un botón directo a la cotización. (Solo se envía al aprobar; no cuando
-  el cliente guarda su avance ni si rechaza todo.)
 - En la **aprobación de cotizaciones** grandes, el cliente ahora puede **guardar su avance** sin
   enviar todavía: aprueba lo que alcanzó a revisar, guarda, y más tarde continúa desde el mismo
   enlace justo donde se quedó (le aparece un aviso con cuánto lleva aprobado). Al enviar la

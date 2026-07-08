@@ -12,10 +12,16 @@
  *   que tocar el JSX en cada sitio.
  * - Donde la librería no tiene el icono exacto, se usa uno RELACIONADO
  *   (ver el mapa abajo). Cobertura: 248 iconos curados.
+ * - HOVER: la librería solo auto-anima al pasar el mouse SOBRE el icono. Para
+ *   que un icono dentro de un botón/enlace anime al hacer hover en TODO el
+ *   control, el wrapper pasa un `ref` (esto desactiva el auto-hover interno) y
+ *   dispara `start/stopAnimation` desde el ancestro interactivo más cercano
+ *   (`button`/`a`/`[role=button]`), o desde el propio icono si no hay ancestro.
  */
 
-import type { HTMLAttributes } from 'react'
+import { useEffect, useRef, type HTMLAttributes, type ForwardRefExoticComponent, type RefAttributes } from 'react'
 import {
+  BlocksIcon as _Blocks,
   BookOpenIcon as _BookOpen,
   BrainIcon as _Brain,
   CheckIcon as _Check,
@@ -38,7 +44,6 @@ import {
   EyeOffIcon as _EyeOff,
   GitCompareIcon as _GitCompare,
   InfoIcon as _Info,
-  LayersIcon as _Layers,
   LayoutGridIcon as _LayoutGrid,
   LoaderCircleIcon as _LoaderCircle,
   LogoutIcon as _Logout,
@@ -81,6 +86,13 @@ interface AnimatedIconProps extends Omit<HTMLAttributes<HTMLDivElement>, 'color'
   color?: string
 }
 
+interface IconHandle {
+  startAnimation: () => void
+  stopAnimation: () => void
+}
+
+type AnimatedIcon = ForwardRefExoticComponent<AnimatedIconProps & RefAttributes<IconHandle>>
+
 export type IconProps = Omit<HTMLAttributes<HTMLDivElement>, 'color'> & {
   size?: number
   color?: string
@@ -101,10 +113,35 @@ function sizeFromClass(cls?: string): number {
   return SIZE_PX[m[1]] ?? Number(m[1]) * 4
 }
 
-function wrap(Cmp: React.ComponentType<AnimatedIconProps>) {
+function wrap(Cmp: AnimatedIcon) {
   return function Icon({ className, size, strokeWidth: _sw, ...rest }: IconProps) {
     void _sw // descartado: la librería animada no acepta strokeWidth
-    return <Cmp size={size ?? sizeFromClass(className)} className={className} {...rest} />
+    const handleRef = useRef<IconHandle | null>(null)
+    const spanRef = useRef<HTMLSpanElement | null>(null)
+
+    // Dispara la animación desde el control interactivo que contiene al icono
+    // (botón/enlace) — o desde el propio icono si está suelto. Pasar el ref al
+    // icono desactiva su auto-hover interno, así que aquí no hay doble disparo.
+    useEffect(() => {
+      const span = spanRef.current
+      if (!span) return
+      const trigger =
+        (span.closest('button, a, [role="button"], label') as HTMLElement | null) ?? span
+      const enter = () => handleRef.current?.startAnimation()
+      const leave = () => handleRef.current?.stopAnimation()
+      trigger.addEventListener('mouseenter', enter)
+      trigger.addEventListener('mouseleave', leave)
+      return () => {
+        trigger.removeEventListener('mouseenter', enter)
+        trigger.removeEventListener('mouseleave', leave)
+      }
+    }, [])
+
+    return (
+      <span ref={spanRef} className={className} {...rest}>
+        <Cmp ref={handleRef} size={size ?? sizeFromClass(className)} />
+      </span>
+    )
   }
 }
 
@@ -157,7 +194,7 @@ export const Circle = wrap(_LoaderCircle)
 export const CircleHelp = wrap(_Info)
 export const ClipboardList = wrap(_Clipboard)
 export const Clock = wrap(_LoaderCircle)
-export const Database = wrap(_Layers)
+export const Database = wrap(_Blocks)
 export const FileSpreadsheet = wrap(_LayoutGrid)
 export const FileText = wrap(_Clipboard)
 export const GripVertical = wrap(_EllipsisVertical)
