@@ -11,6 +11,13 @@ import { getResend } from './client'
  *   { ok: false, skipped: true }: se omite en silencio, no es error.
  */
 
+/**
+ * Interruptor temporal: notificaciones por correo DESHABILITADAS hasta configurar
+ * Resend en producción (dominio verificado + env vars, y decidir destinatarios).
+ * Para reactivar: poner en `true` (y tener las env vars configuradas en Vercel).
+ */
+const EMAIL_NOTIFICATIONS_ENABLED: boolean = false
+
 interface ApprovalNotificationInput {
   customerName: string
   quotationName: string
@@ -65,6 +72,10 @@ export function buildHtml(input: ApprovalNotificationInput, quotationUrl: string
 export async function sendApprovalNotification(
   input: ApprovalNotificationInput,
 ): Promise<SendResult> {
+  if (!EMAIL_NOTIFICATIONS_ENABLED) {
+    return { ok: false, skipped: true }
+  }
+
   const resend = getResend()
   const from = process.env.RESEND_FROM_EMAIL
   const to = process.env.NOTIFICATION_EMAIL_TO
