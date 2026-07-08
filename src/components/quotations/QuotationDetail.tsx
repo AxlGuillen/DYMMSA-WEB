@@ -789,6 +789,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const noDataCount     = isDraft ? rawProductItems.filter(isMissingData).length : 0
   const noQuantityCount = isDraft ? rawProductItems.filter(isMissingQuantity).length : 0
   const totalCount      = rawProductItems.length
+  // Desglose por "¿lo vendemos?" (subs de la tarjeta Productos)
+  const soldYesCount   = rawProductItems.filter((i) => i.is_sold === true).length
+  const soldNoCount    = rawProductItems.filter((i) => i.is_sold === false).length
+  const soldUndefCount = rawProductItems.filter((i) => i.is_sold == null).length
 
   const canSendForApproval =
     localQuotationName.trim().length > 0 &&
@@ -1229,6 +1233,20 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <CardContent className="pt-4 pb-4">
               <p className="text-xs text-muted-foreground">Productos</p>
               <p className="text-2xl font-bold">{totalCount}</p>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1" title="Se vende">
+                  <span className="inline-block size-1.5 rounded-full bg-green-500" />
+                  Se vende {soldYesCount}
+                </span>
+                <span className="flex items-center gap-1" title="No se vende">
+                  <span className="inline-block size-1.5 rounded-full bg-rose-500" />
+                  No {soldNoCount}
+                </span>
+                <span className="flex items-center gap-1" title="Sin definir">
+                  <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
+                  Sin definir {soldUndefCount}
+                </span>
+              </div>
             </CardContent>
           </Card>
 
