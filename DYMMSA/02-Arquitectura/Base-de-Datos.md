@@ -37,6 +37,7 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `etm` | text | No | — | UNIQUE | Código ETM genérico del cliente |
 | `description` | text | Sí | — | | Descripción en inglés |
 | `description_es` | text | Sí | — | | Descripción en español |
+| `dymmsa_description` | text | Sí | — | | Descripción curada por DYMMSA. **Vacía si hay match en `urrea_catalog`** (la oficial gana jerarquía y se resuelve en lectura, nunca se copia). Ver [[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]] |
 | `model_code` | text | No | — | | Código URREA (ej. `7420MT`) |
 | `price` | numeric | Sí | — | | Precio en MXN |
 | `brand` | text | Sí | `'URREA'` | | Marca del producto |
@@ -124,6 +125,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `etm` | text | Sí | — | | Código ETM (null en separadores) |
 | `description` | text | Sí | — | | |
 | `description_es` | text | Sí | — | | |
+| `dymmsa_description` | text | Sí | — | | Snapshot del valor **resuelto** al guardar: catálogo URREA ?? curada ?? null. Congelado (documento comercial). Ver [[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]] |
 | `model_code` | text | Sí | — | | |
 | `brand` | text | Sí | — | | |
 | `unit_price` | numeric | Sí | — | `IS NULL OR >= 0` | |
@@ -210,3 +212,4 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `add_is_sold_to_etm_and_quotation_items` | (2026-07-06) | Columna `is_sold boolean` (nullable, sin default) en `etm_products` y `quotation_items` — tri-estado "¿lo vendemos?" |
 | `add_location_to_inventory_and_order_items` | (2026-07-07) | Columna `location text` (nullable) en `store_inventory` y `order_items` — ubicación física (gaveta) |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
+| `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |

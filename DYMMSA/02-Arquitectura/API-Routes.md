@@ -13,10 +13,10 @@
 |--------|------|------|-------------|
 | `GET` | `/api/quotations` | ✅ | Lista paginada. Query: `page, pageSize, search (.or customer_name/name, saneado), status (whitelist o all)`. Devuelve `{ data: QuotationWithCount[] (con items_count), count, page, pageSize, totalPages }` |
 | `GET` | `/api/quotations/stats` | ✅ | Conteo por status: `{ draft, sent_for_approval, approved, rejected, converted_to_order }` |
-| `POST` | `/api/quotations/save` | ✅ | Crear cotización nueva + auto-learn etm_products. Body: `{ name, customer_name, items: QuotationItemRow[] }` |
+| `POST` | `/api/quotations/save` | ✅ | Crear cotización nueva + auto-learn etm_products. Body: `{ name, customer_name, items: QuotationItemRow[] }`. Cada ítem se guarda con `dymmsa_description` **resuelta server-side** (catálogo URREA > curada > null; snapshot congelado, ADR-013) |
 | `GET` | `/api/quotations/[id]` | ✅ | Obtener cotización con sus ítems (`quotation_items(*)` ordenados por `sort_order`, `limit(5000)` contra truncamiento). 404 si no existe |
 | `DELETE` | `/api/quotations/[id]` | ✅ | Eliminar cotización + sus ítems (cualquier estado) |
-| `PATCH` | `/api/quotations/[id]/update` | ✅ | Editar cotización en estado `draft` o `approved`. Body: `{ name?, customer_name?, items?, status?, notes? }` |
+| `PATCH` | `/api/quotations/[id]/update` | ✅ | Editar cotización en estado `draft` o `approved`. Body: `{ name?, customer_name?, items?, status?, notes? }`. Re-resuelve `dymmsa_description` con jerarquía de catálogo (fallback al snapshot en BD si la UI no manda el campo, ADR-013) |
 | `POST` | `/api/quotations/[id]/send-for-approval` | ✅ | Genera `approval_token` UUID + cambia status a `sent_for_approval` |
 | `POST` | `/api/quotations/[id]/create-order` | ✅ | Crear orden desde cotización `approved`. Stock check + deducción inventario. Status → `converted_to_order` |
 | `PATCH` | `/api/quotations/[id]/status` | ✅ | Cambio manual de estado entre `draft`/`sent_for_approval`/`approved`/`rejected`. Body: `{ status }`. Preserva `is_approved`. Sella `approved_at` al pasar a `approved`, lo limpia en otros estados. `converted_to_order` no es destino manual (400). Revertir desde `converted_to_order` exige que la orden vinculada esté **eliminada** (si existe cualquier orden vinculada → 400) |
@@ -56,7 +56,7 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/quotes/lookup` | ✅ | Lookup de ETMs en `etm_products`. Query: `?etms=ETM1,ETM2,...` |
+| `POST` | `/api/quotes/lookup` | ✅ | Lookup masivo de ETMs en `etm_products`. Body: `{ etmCodes: string[], modelCodes?: string[] }`. Devuelve `{ found, notFound, catalogDescriptions }` — `catalogDescriptions` mapea `code` normalizado → descripción oficial de `urrea_catalog` (union de codes de productos encontrados + `modelCodes` del Excel) para resolver la Descripción DYMMSA ([[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]]) |
 | `POST` | `/api/products/import` | ✅ | Importación masiva de catálogo desde Excel. Upsert por ETM |
 | `GET` | `/api/products/next-dymmsa-code` | ✅ | Retorna el siguiente código `DYMMSA-{n}` disponible |
 
@@ -85,10 +85,11 @@
 |--------|------|------|-------------|
 | `GET` | `/api/urrea-catalog` | ✅ | Lista paginada. Query: `page, pageSize, search (.or code/description), sortField (code/description/price/std, whitelist), sortDir`. Devuelve `{ data, count, page, pageSize, totalPages }` |
 | `GET` | `/api/urrea-catalog/stats` | ✅ | Total de productos: `{ total }` |
-| `POST` | `/api/urrea-catalog` | ✅ | Crear producto. Body: `{ code, description?, std?, price? }`. `std` default 1; `code` duplicado → 400 |
+| `POST` | `/api/urrea-catalog` | ✅ | Crear producto. Body: `{ code, description?, std?, price? }`. `std` default 1; `code` duplicado → 400. `code` se **normaliza** (trim+upper — llave de cruce con `model_code`, ADR-013) |
+| `POST` | `/api/urrea-catalog/lookup` | ✅ | Batch: `{ codes: string[] }` → `{ descriptions: Record<code, desc> }` (codes normalizados; omite filas sin descripción). Lo usan `ProductModal`/`ProductForm` para resolver la Descripción DYMMSA al editar `model_code` |
 | `PATCH` | `/api/urrea-catalog/[id]` | ✅ | Editar `code`/`description`/`std`/`price` |
 | `DELETE` | `/api/urrea-catalog/[id]` | ✅ | Eliminar producto |
-| `POST` | `/api/urrea-catalog/import` | ✅ | Importar desde Excel (`codigo, descripcion, std, precio`). Modo `upsert` (onConflict `code`) o `replace` (borra todo + inserta) |
+| `POST` | `/api/urrea-catalog/import` | ✅ | Importar desde Excel (`codigo, descripcion, std, precio`). Modo `upsert` (onConflict `code`) o `replace` (borra todo + inserta). `code` normalizado (trim+upper) |
 
 ---
 

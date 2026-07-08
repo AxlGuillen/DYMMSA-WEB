@@ -3,6 +3,17 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-08
+
+### Nuevo
+- Cada producto ahora puede tener una **Descripción DYMMSA**, además de la que manda el cliente
+  en su Excel (que a veces viene pobre o incorrecta). Para productos **URREA**, se toma
+  automáticamente la **descripción oficial del catálogo URREA** usando el código del producto —
+  así puedes comparar de un vistazo si lo que pide el cliente coincide con lo que vas a cotizar.
+  Para productos de otras marcas, tú escribes la descripción (la celda aparece vacía para
+  llenarla desde el editor). El cliente también ve ambas descripciones al revisar su cotización
+  en el enlace de aprobación.
+
 ## 2026-07-07
 
 ### Nuevo

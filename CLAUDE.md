@@ -48,6 +48,7 @@ draft | sent_for_approval | approved | rejected | converted_to_order
 item_type: 'product' | 'separator'
 is_approved: null (pendiente) | true | false
 is_sold: null (sin definir) | true (lo vendemos) | false (no lo vendemos)  -- snapshot de etm_products.is_sold
+dymmsa_description: TEXT  -- snapshot del valor RESUELTO al guardar (catálogo URREA ?? curada ?? null; ADR-013)
 delivery_time: 'immediate' | '2_3_days' | '3_5_days' | '1_week' | '2_weeks' | 'indefinite'
 sort_order: INTEGER  -- preserva orden del array al guardar
 ```
@@ -68,11 +69,11 @@ location: TEXT  -- snapshot de store_inventory.location al crear la orden (gavet
 ```
 Constraint implícito: `quantity_in_stock + quantity_to_order = quantity_approved`
 
-**`etm_products`** — `etm TEXT UNIQUE`, `model_code TEXT`, `brand TEXT DEFAULT 'URREA'`, `is_sold BOOLEAN` (tri-estado; `null`=sin definir, `true`=lo vendemos, `false`=no lo vendemos — persistido por auto-learn)
+**`etm_products`** — `etm TEXT UNIQUE`, `model_code TEXT`, `brand TEXT DEFAULT 'URREA'`, `is_sold BOOLEAN` (tri-estado; `null`=sin definir, `true`=lo vendemos, `false`=no lo vendemos — persistido por auto-learn), `dymmsa_description TEXT` (curada por DYMMSA; **vacía si hay match en `urrea_catalog`** — la oficial gana jerarquía y se resuelve en lectura, nunca se copia; ADR-013)
 
 **`store_inventory`** — `model_code TEXT UNIQUE`, `quantity INTEGER CHECK >= 0`, `location TEXT` (ubicación física/gaveta, texto libre opcional; **se conserva aunque `quantity=0`** — metadato duradero, no transaccional; solo se oculta en el frontend sin stock). Import Excel acepta columna `ubicacion` (alias `ubicación`/`location`/`gaveta`, case-insensitive); en modo `upsert` **no** pisa la existente si el archivo no la trae.
 
-**`urrea_catalog`** — catálogo de URREA, **tabla aislada** (sin FK ni relaciones con el resto por ahora; no usada por flujos de cotización/orden). `code TEXT UNIQUE` (equiv. a `model_code`), `description TEXT`, `std INTEGER DEFAULT 1 CHECK > 0` (unidades por paquete), `price NUMERIC(12,2)`, `created_at/updated_at` (trigger `moddatetime`). Módulo en sidebar **URREA → Catálogo** (`/dashboard/urrea/catalog`). Import por Excel (`codigo, descripcion, std, precio`) en modo upsert (onConflict `code`) o replace.
+**`urrea_catalog`** — catálogo de URREA, sin FK (cruce **por valor** con `model_code`). `code TEXT UNIQUE` (equiv. a `model_code`, **siempre normalizado trim+upper** en import/POST/PATCH — es la llave de cruce de la Descripción DYMMSA, ADR-013), `description TEXT` (fuente de la descripción **oficial**, jerarquía mayor que la curada), `std INTEGER DEFAULT 1 CHECK > 0` (unidades por paquete), `price NUMERIC(12,2)`, `created_at/updated_at` (trigger `moddatetime`). Módulo en sidebar **URREA → Catálogo** (`/dashboard/urrea/catalog`). Import por Excel (`codigo, descripcion, std, precio`) en modo upsert (onConflict `code`) o replace.
 
 ---
 
@@ -84,6 +85,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 |-------|---------|
 | **Separadores excluidos de todo** | `item_type='separator'` nunca se incluye en: totales, auto-learn, conteos, is_approved, Excel URREA |
 | **Productos "no lo vendemos" (`is_sold=false`)** | Tri-estado (`null` sin definir / `true` sí / `false` no). Solo `false`: excluido de totales (`calculateQuotationTotal`), Excel URREA/órdenes (`create-order`), y **exento de validación** (`quotation-validation` no exige precio/cantidad/ETM). En `/approve/[token]` se muestra "No disponible" (read-only, no aprobable). Se **persiste a `etm_products` vía auto-learn** solo si es explícito (`true`/`false`); `null` nunca pisa el catálogo. Helper: `isNotSold()` en `business-rules.ts`. |
+| **Descripción DYMMSA (jerarquía de catálogo)** | Resuelta en código: **catálogo URREA (`urrea_catalog.description` por `model_code` normalizado) > curada (`etm_products.dymmsa_description`) > null** (celda vacía). La oficial NUNCA se copia a `etm_products` (si está mal, se reimporta el catálogo); `quotation_items.dymmsa_description` es **snapshot del valor resuelto** al guardar (congelado — reimportar catálogo no reescribe cotizaciones). Auto-learn persiste solo la curada **cruda** de la UI. Llave de cruce SIEMPRE con `normalizeCatalogCode()` (trim+upper). Helpers: `resolveDymmsaDescription()` en `business-rules.ts`, `fetchCatalogDescriptionMap()` en `urrea-catalog.ts`. Ver ADR-013. |
 | **Stock se deduce al CREAR la orden** | No al confirmar recepción. Cancelar restaura `quantity_in_stock`. |
 | **Excel URREA** | Solo ítems: `item_type='product'` AND `brand='URREA'` AND `quantity_to_order > 0` |
 | **Auto-learn** | Solo actualiza campos no vacíos. No asigna `brand='URREA'` si `model_code` está vacío. |
@@ -181,7 +183,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 |--------|---------------------|
 | Nueva o modificada **ruta API** | `DYMMSA/02-Arquitectura/API-Routes.md` |
 | Nueva **tabla o columna** en Supabase | `DYMMSA/02-Arquitectura/Base-de-Datos.md` (verificar con MCP Supabase) + este CLAUDE.md |
-| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-011) |
+| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-013) |
 | Nueva lógica de negocio o **route handler** | Agregar/actualizar su test en `tests/` (ver `ADR-007-Estrategia-Testing.md`) |
 | **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
@@ -210,6 +212,6 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 
 ---
 
-**Última actualización:** 2026-06-10  
+**Última actualización:** 2026-07-08  
 **BD:** Supabase `wjlklwtvjewhtghlskbt` · PostgreSQL 17.6 · us-west-2  
 **Filas (2026-04-25):** etm_products 564 · store_inventory 195 · quotations 9 · quotation_items 365 · orders 8 · order_items 182
