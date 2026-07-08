@@ -66,7 +66,7 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 
 ## Tabla: `urrea_catalog`
 
-**Propósito:** Catálogo de productos URREA (código, descripción, STD, precio).  
+**Propósito:** Catálogo de productos URREA (código, descripción, STD).  
 **Módulo:** [[03-Modulos/Catalogo-URREA]]  
 **Aislamiento:** tabla **independiente** — sin FK ni relaciones con `etm_products`/órdenes por ahora; no usada por flujos de producción. Creada el 2026-06-16 (migración `create_urrea_catalog`).
 
@@ -76,7 +76,6 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `code` | text | No | — | UNIQUE | Código URREA (equiv. a `model_code`) |
 | `description` | text | Sí | — | | Descripción de URREA (más completa) |
 | `std` | integer | No | `1` | `> 0` | Unidades por paquete (p. ej. 6) |
-| `price` | numeric(12,2) | Sí | — | | Precio de catálogo (informativo) |
 | `created_at` | timestamptz | No | `now()` | | |
 | `updated_at` | timestamptz | No | `now()` | | Trigger `moddatetime` |
 
@@ -213,3 +212,4 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `add_location_to_inventory_and_order_items` | (2026-07-07) | Columna `location text` (nullable) en `store_inventory` y `order_items` — ubicación física (gaveta) |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
+| `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |

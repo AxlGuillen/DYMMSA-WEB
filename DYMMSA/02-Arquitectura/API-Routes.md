@@ -83,13 +83,13 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/urrea-catalog` | ✅ | Lista paginada. Query: `page, pageSize, search (.or code/description), sortField (code/description/price/std, whitelist), sortDir`. Devuelve `{ data, count, page, pageSize, totalPages }` |
+| `GET` | `/api/urrea-catalog` | ✅ | Lista paginada. Query: `page, pageSize, search (.or code/description), sortField (code/description/std, whitelist), sortDir`. Devuelve `{ data, count, page, pageSize, totalPages }` |
 | `GET` | `/api/urrea-catalog/stats` | ✅ | Total de productos: `{ total }` |
-| `POST` | `/api/urrea-catalog` | ✅ | Crear producto. Body: `{ code, description?, std?, price? }`. `std` default 1; `code` duplicado → 400. `code` se **normaliza** (trim+upper — llave de cruce con `model_code`, ADR-013) |
+| `POST` | `/api/urrea-catalog` | ✅ | Crear producto. Body: `{ code, description?, std? }`. `std` default 1; `code` duplicado → 400. `code` se **normaliza** (trim+upper — llave de cruce con `model_code`, ADR-013) |
 | `POST` | `/api/urrea-catalog/lookup` | ✅ | Batch: `{ codes: string[] }` → `{ descriptions: Record<code, desc> }` (codes normalizados; omite filas sin descripción). Lo usan `ProductModal`/`ProductForm` para resolver la Descripción DYMMSA al editar `model_code` |
-| `PATCH` | `/api/urrea-catalog/[id]` | ✅ | Editar `code`/`description`/`std`/`price` |
+| `PATCH` | `/api/urrea-catalog/[id]` | ✅ | Editar `code`/`description`/`std` |
 | `DELETE` | `/api/urrea-catalog/[id]` | ✅ | Eliminar producto |
-| `POST` | `/api/urrea-catalog/import` | ✅ | Importar desde Excel (`codigo, descripcion, std, precio`). Modo `upsert` (onConflict `code`) o `replace` (borra todo + inserta). `code` normalizado (trim+upper) |
+| `POST` | `/api/urrea-catalog/import` | ✅ | Importar desde Excel (`codigo, descripcion, std`). Modo `upsert` (onConflict `code`) o `replace` (borra todo + inserta). `code` normalizado (trim+upper) |
 
 ---
 
