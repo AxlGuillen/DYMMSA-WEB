@@ -21,9 +21,16 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useCreateProduct, useUpdateProduct } from '@/hooks/useProducts'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2 } from '@/components/icons'
 import type { EtmProduct } from '@/types/database'
 
 const productSchema = z.object({
@@ -33,6 +40,7 @@ const productSchema = z.object({
   model_code: z.string().min(1, 'Modelo es requerido'),
   price: z.number().min(0, 'Precio debe ser mayor o igual a 0'),
   brand: z.string(),
+  is_sold: z.boolean().nullable(), // tri-estado: null=sin definir, true=lo vendemos, false=no
 })
 
 type ProductFormValues = z.infer<typeof productSchema>
@@ -57,6 +65,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
       model_code: '',
       price: 0,
       brand: 'URREA',
+      is_sold: null,
     },
   })
 
@@ -72,6 +81,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
           model_code: product.model_code || '',
           price: product.price || 0,
           brand: product.brand || 'URREA',
+          is_sold: product.is_sold ?? null,
         })
       } else {
         form.reset({
@@ -81,6 +91,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
           model_code: '',
           price: 0,
           brand: 'URREA',
+          is_sold: null,
         })
       }
     }
@@ -218,6 +229,39 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
                   <FormControl>
                     <Input placeholder="URREA" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="is_sold"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>¿Lo vendemos?</FormLabel>
+                  <Select
+                    value={field.value === null ? 'undefined' : String(field.value)}
+                    onValueChange={(val) =>
+                      field.onChange(val === 'undefined' ? null : val === 'true')
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="undefined">Sin definir</SelectItem>
+                      <SelectItem value="true">Sí lo vendemos</SelectItem>
+                      <SelectItem value="false">No lo vendemos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {field.value === false && (
+                    <p className="text-xs text-muted-foreground">
+                      Los productos no vendibles se saltan en el cotizador y aparecen como
+                      &quot;No disponible&quot; al cliente.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

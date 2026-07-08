@@ -51,8 +51,10 @@ export async function POST(
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
 
+    // Excluye "no lo vendemos" (is_sold === false): nunca entran a la orden ni al Excel URREA.
+    // Defensa en profundidad — un item así tampoco debería estar is_approved===true.
     const approvedProducts = allItems.filter(
-      (i) => (i.item_type === 'product' || !i.item_type) && i.is_approved === true
+      (i) => (i.item_type === 'product' || !i.item_type) && i.is_approved === true && i.is_sold !== false
     )
 
     const seps = allItems.filter((i) => i.item_type === 'separator').length
@@ -105,16 +107,18 @@ export async function POST(
 
       let quantityInStock = 0
       let quantityToOrder = quantityApproved
+      let itemLocation: string | null = null
 
       if (item.model_code) {
         // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { data: inv } = await supabase
           .from('store_inventory')
-          .select('quantity')
+          .select('quantity, location')
           .eq('model_code', item.model_code)
           .single()
 
         if (inv) {
+          itemLocation = inv.location ?? null
           const allocation = allocateInventory(quantityApproved, inv.quantity)
           quantityInStock = allocation.inStock
           quantityToOrder = allocation.toOrder
@@ -145,6 +149,7 @@ export async function POST(
         urrea_status:      'pending',
         delivery_time:     item.delivery_time  || 'immediate',
         unit_price:        unitPrice,
+        location:          itemLocation,
       })
     }
 

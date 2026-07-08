@@ -2,7 +2,7 @@
 
 import { use } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { OrderDetail } from '@/components/orders/OrderDetail'
 import { useOrder } from '@/hooks/useOrders'

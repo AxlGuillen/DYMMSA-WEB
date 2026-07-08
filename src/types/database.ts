@@ -8,13 +8,16 @@ export interface EtmProduct {
   model_code: string
   price: number
   brand: string
+  is_sold: boolean | null // tri-state: null = sin definir, true = lo vendemos, false = no lo vendemos
   created_at: string
   updated_at: string
   created_by: string | null
 }
 
-// Insert types (without auto-generated fields)
-export type EtmProductInsert = Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>
+// Insert types (without auto-generated fields). is_sold es opcional: la columna
+// admite NULL por defecto, así que los inserts que no la especifican son válidos.
+export type EtmProductInsert =
+  Omit<EtmProduct, 'id' | 'created_at' | 'updated_at' | 'is_sold'> & { is_sold?: boolean | null }
 export type EtmProductUpdate = Partial<Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>>
 
 // Excel row type for import
@@ -32,10 +35,13 @@ export interface StoreInventory {
   id: string
   model_code: string
   quantity: number
+  location: string | null // ubicación física (gaveta), texto libre; se conserva aunque quantity=0
   updated_at: string
 }
 
-export type StoreInventoryInsert = Omit<StoreInventory, 'id' | 'updated_at'>
+// location es opcional en el insert (columna nullable en BD).
+export type StoreInventoryInsert =
+  Omit<StoreInventory, 'id' | 'updated_at' | 'location'> & { location?: string | null }
 export type StoreInventoryUpdate = Partial<Omit<StoreInventory, 'id' | 'updated_at'>>
 
 // URREA Catalog (tabla aislada — sin relaciones con etm_products/órdenes por ahora)
@@ -115,10 +121,13 @@ export interface OrderItem {
   urrea_status: UrreaStatus
   delivery_time: DeliveryTime
   unit_price: number
+  location: string | null // snapshot de store_inventory.location al crear la orden
   created_at: string
 }
 
-export type OrderItemInsert = Omit<OrderItem, 'id' | 'created_at'>
+// location es opcional en el insert (columna nullable; separadores no la llevan).
+export type OrderItemInsert =
+  Omit<OrderItem, 'id' | 'created_at' | 'location'> & { location?: string | null }
 export type OrderItemUpdate = Partial<Omit<OrderItem, 'id' | 'created_at' | 'order_id'>>
 
 // Order with items for detail view
@@ -183,12 +192,13 @@ export interface Quotation {
   total_amount: number
   notes: string | null
   original_file_url: string | null
+  approved_at: string | null // fecha/hora de aprobación (cliente finaliza o staff marca approved)
   created_at: string
   updated_at: string
   created_by: string | null
 }
 
-export type QuotationInsert = Omit<Quotation, 'id' | 'created_at' | 'updated_at' | 'approval_token'>
+export type QuotationInsert = Omit<Quotation, 'id' | 'created_at' | 'updated_at' | 'approval_token' | 'approved_at'>
 export type QuotationUpdate = Partial<Omit<Quotation, 'id' | 'created_at' | 'updated_at'>>
 
 export interface QuotationItem {
@@ -204,6 +214,7 @@ export interface QuotationItem {
   unit_price: number | null
   quantity: number | null
   is_approved: boolean | null
+  is_sold: boolean | null // tri-state heredado de etm_products; null = sin definir, false = no lo vendemos
   notes: string | null
   delivery_time: DeliveryTime | null
   sort_order: number
@@ -234,6 +245,7 @@ export interface QuotationItemRow {
   delivery_time: DeliveryTime
   _inDb: boolean     // true if ETM was matched in etm_products
   is_approved?: boolean | null  // local approval state; null = pending, true = approved, false = rejected
+  is_sold?: boolean | null      // ¿lo vendemos? null = sin definir, true = sí, false = no lo vendemos
 }
 
 // Raw row extracted from Excel before DB lookup

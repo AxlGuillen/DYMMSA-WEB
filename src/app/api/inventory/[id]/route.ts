@@ -27,6 +27,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       if (typeof body.quantity !== 'number' || body.quantity < 0) return badRequest('La cantidad debe ser ≥ 0')
       updates.quantity = Math.trunc(body.quantity)
     }
+    if (body.location !== undefined) {
+      updates.location = typeof body.location === 'string' ? (body.location.trim() || null) : null
+    }
 
     if (Object.keys(updates).length === 0) return badRequest('No hay cambios para aplicar')
 

@@ -40,6 +40,7 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `model_code` | text | No | — | | Código URREA (ej. `7420MT`) |
 | `price` | numeric | Sí | — | | Precio en MXN |
 | `brand` | text | Sí | `'URREA'` | | Marca del producto |
+| `is_sold` | boolean | Sí | — | | Tri-estado ¿lo vendemos? `null`=sin definir, `true`=sí, `false`=no. Persistido por auto-learn |
 | `created_at` | timestamptz | Sí | `now()` | | |
 | `updated_at` | timestamptz | Sí | `now()` | | |
 | `created_by` | uuid | Sí | — | FK → `auth.users.id` | |
@@ -57,6 +58,7 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `id` | uuid | No | `gen_random_uuid()` | PK | |
 | `model_code` | text | No | — | UNIQUE | Código URREA |
 | `quantity` | integer | No | `0` | `>= 0` | Stock disponible |
+| `location` | text | Sí | — | | Ubicación física (gaveta), texto libre. Se conserva aunque `quantity=0` |
 | `updated_at` | timestamptz | Sí | `now()` | | |
 
 ---
@@ -94,6 +96,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `customer_name` | text | No | — | | Nombre del cliente |
 | `status` | text | No | `'draft'` | CHECK | Ver estados abajo |
 | `approval_token` | uuid | Sí | `gen_random_uuid()` | UNIQUE | Token para link público |
+| `approved_at` | timestamptz | Sí | — | | Fecha/hora de aprobación (cliente finaliza o staff marca `approved`) |
 | `total_amount` | numeric | No | `0` | `>= 0` | Total en MXN |
 | `notes` | text | Sí | — | | Notas internas |
 | `original_file_url` | text | Sí | — | | URL del Excel original del cliente |
@@ -126,6 +129,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `unit_price` | numeric | Sí | — | `IS NULL OR >= 0` | |
 | `quantity` | integer | Sí | — | `IS NULL OR > 0` | |
 | `is_approved` | boolean | Sí | — | | null=pendiente, true=aprobado, false=rechazado |
+| `is_sold` | boolean | Sí | — | | Snapshot de `etm_products.is_sold`. null=sin definir, true=lo vendemos, false=no lo vendemos |
 | `notes` | text | Sí | — | | |
 | `delivery_time` | text | Sí | `'immediate'` | | Ver valores en [[Glosario]] |
 | `created_at` | timestamptz | Sí | `now()` | | |
@@ -181,6 +185,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `quantity_received` | integer | No | `0` | `>= 0` | Recibido de URREA (input manual) |
 | `urrea_status` | text | No | `'pending'` | CHECK | `pending \| supplied \| not_supplied` |
 | `unit_price` | numeric | No | — | `>= 0` | |
+| `location` | text | Sí | — | | Snapshot de `store_inventory.location` al crear la orden (gaveta) |
 | `delivery_time` | text | Sí | `'immediate'` | CHECK | Ver valores en [[Glosario]] |
 | `created_at` | timestamptz | Sí | `now()` | | |
 
@@ -202,3 +207,6 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `20260401042130` | `add_sort_order_to_order_items` | Campo sort_order en order_items |
 | `20260401050143` | `link_orders_to_quotations_and_fix_sort_order` | FK quotation_id en orders + fix sort_order |
 | `20260409055423` | `rename_order_statuses_to_generic` | Renombra estados: `pending_urrea_order→ordered`, `received_from_urrea→received`, etc. |
+| `add_is_sold_to_etm_and_quotation_items` | (2026-07-06) | Columna `is_sold boolean` (nullable, sin default) en `etm_products` y `quotation_items` — tri-estado "¿lo vendemos?" |
+| `add_location_to_inventory_and_order_items` | (2026-07-07) | Columna `location text` (nullable) en `store_inventory` y `order_items` — ubicación física (gaveta) |
+| `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |

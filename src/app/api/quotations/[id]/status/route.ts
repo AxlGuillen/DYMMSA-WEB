@@ -53,9 +53,15 @@ export async function PATCH(
     // link de aprobación compartido previamente (p. ej. al reabrir una cotización ya
     // enviada/aprobada, el link viejo deja de funcionar).
     // No se tocan los quotation_items → is_approved se preserva.
+    // approved_at: se sella al marcar 'approved'; se limpia al salir de ese estado
+    // (así el detalle no muestra una fecha de aprobación en una cotización reabierta).
     const { data: updated, error: updateError } = await supabase
       .from('quotations')
-      .update({ status, approval_token: crypto.randomUUID() })
+      .update({
+        status,
+        approval_token: crypto.randomUUID(),
+        approved_at: status === 'approved' ? new Date().toISOString() : null,
+      })
       .eq('id', id)
       .select()
       .single()

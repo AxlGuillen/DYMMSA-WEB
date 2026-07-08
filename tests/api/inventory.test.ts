@@ -124,6 +124,22 @@ describe('POST /inventory (create)', () => {
     const res = await listRoute.POST(makeRequest({ model_code: 'M1', quantity: 1 }))
     expect(res.status).toBe(400)
   })
+
+  test('guarda location (trim); vacío → null', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'store_inventory.insert': { data: { id: '1' }, error: null } },
+    })
+    await listRoute.POST(makeRequest({ model_code: 'M1', quantity: 3, location: '  A-12  ' }))
+    expect(activeClient.insertPayload<Record<string, unknown>>('store_inventory').location).toBe('A-12')
+
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'store_inventory.insert': { data: { id: '2' }, error: null } },
+    })
+    await listRoute.POST(makeRequest({ model_code: 'M2', quantity: 3, location: '   ' }))
+    expect(activeClient.insertPayload<Record<string, unknown>>('store_inventory').location).toBeNull()
+  })
 })
 
 describe('PATCH /inventory/[id]', () => {
@@ -143,6 +159,22 @@ describe('PATCH /inventory/[id]', () => {
     const rec = activeClient.callsTo('store_inventory', 'update')[0]
     expect(filterValue(rec, 'id')).toBe('1')
     expect(activeClient.updatePayload('store_inventory')).toMatchObject({ quantity: 7 })
+  })
+
+  test('actualiza location; y no la incluye si no viene en el body', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'store_inventory.update': { data: { id: '1' }, error: null } },
+    })
+    await itemRoute.PATCH(makeRequest({ location: 'B-3' }, { method: 'PATCH' }), makeParams({ id: '1' }))
+    expect(activeClient.updatePayload('store_inventory')).toMatchObject({ location: 'B-3' })
+
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'store_inventory.update': { data: { id: '1' }, error: null } },
+    })
+    await itemRoute.PATCH(makeRequest({ quantity: 4 }, { method: 'PATCH' }), makeParams({ id: '1' }))
+    expect(activeClient.updatePayload<Record<string, unknown>>('store_inventory')).not.toHaveProperty('location')
   })
 })
 

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics'
 import { Button } from '@/components/ui/button'
-import { CalendarDays, PlusCircle, FileText, ShoppingCart } from 'lucide-react'
+import { CalendarDays, PlusCircle, FileText, ShoppingCart } from '@/components/icons'
 
 export const metadata: Metadata = {
   title: 'Dashboard',

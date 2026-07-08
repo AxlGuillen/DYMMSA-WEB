@@ -38,6 +38,7 @@ type ExistingEtm = {
   model_code: string
   price: number
   brand: string
+  is_sold: boolean | null
 }
 
 type EligibleItem = QuotationItemRow & { etm: string }
@@ -46,13 +47,15 @@ type EligibleItem = QuotationItemRow & { etm: string }
 
 /**
  * Decide si un ítem es elegible para auto-learn.
- * Reglas: tipo producto, tiene etm, y al menos model_code o description.
+ * Reglas: tipo producto, tiene etm, y al menos model_code o description
+ * — O un `is_sold` explícito (para persistir "no lo vendemos" aunque el ítem
+ * solo traiga ETM, que es el caso típico de un producto que no manejamos).
  */
 export function isEligibleForAutoLearn(item: QuotationItemRow): item is EligibleItem {
   return (
     isProductItem(item) &&
     !!item.etm &&
-    (!!item.model_code || !!item.description)
+    (!!item.model_code || !!item.description || item.is_sold != null)
   )
 }
 
@@ -69,6 +72,7 @@ export function computeNewEtmFields(item: EligibleItem): {
   model_code: string
   price: number
   brand: string | null
+  is_sold: boolean | null
 } {
   return {
     etm:            item.etm,
@@ -77,6 +81,7 @@ export function computeNewEtmFields(item: EligibleItem): {
     model_code:     item.model_code     || '',
     price:          item.unit_price     ?? 0,
     brand:          item.brand || (item.model_code ? 'URREA' : null),
+    is_sold:        item.is_sold ?? null,
   }
 }
 
@@ -103,6 +108,10 @@ export function mergeEtmFields(
     updates.brand = incoming.brand
   if (incoming.unit_price != null && incoming.unit_price !== existing.price)
     updates.price = incoming.unit_price
+  // is_sold es tri-estado: solo propagamos un valor EXPLÍCITO (true/false).
+  // Un `null` entrante = "sin definir" → nunca pisa lo que ya haya en el catálogo.
+  if (incoming.is_sold != null && incoming.is_sold !== existing.is_sold)
+    updates.is_sold = incoming.is_sold
 
   return { updates, hasChanges: Object.keys(updates).length > 0 }
 }
@@ -128,7 +137,7 @@ export async function processAutoLearn(
   const etmCodes = eligible.map((i) => i.etm)
   const { data: existingProducts } = await supabase
     .from('etm_products')
-    .select('id, etm, description, description_es, model_code, price, brand')
+    .select('id, etm, description, description_es, model_code, price, brand, is_sold')
     .in('etm', etmCodes)
 
   const existingMap = new Map<string, ExistingEtm>(

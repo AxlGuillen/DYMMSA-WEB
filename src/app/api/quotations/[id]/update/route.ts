@@ -71,8 +71,10 @@ export async function PATCH(
       .limit(5000)
 
     const approvalMap = new Map<string, boolean | null>()
+    const soldMap = new Map<string, boolean | null>()
     for (const ei of existingItems ?? []) {
       approvalMap.set(ei.id, ei.is_approved)
+      soldMap.set(ei.id, ei.is_sold)
     }
 
     // Delete existing items and re-insert
@@ -87,7 +89,9 @@ export async function PATCH(
 
     const newItems = items.map((item, index) => {
       const isSep = item.item_type === 'separator'
+      const lookupKey = item._dbId ?? item._id
       let is_approved: boolean | null = null
+      let is_sold: boolean | null = null
       if (!isSep) {
         // Preservar la decisión del cliente (null=pendiente, true=aprobado, false=rechazado)
         // en cualquier estado: al reabrir una cotización y agregar ítems nuevos, los que ya
@@ -96,8 +100,13 @@ export async function PATCH(
         if (item.is_approved !== undefined) {
           is_approved = item.is_approved ?? null
         } else {
-          const lookupKey = item._dbId ?? item._id
           is_approved = approvalMap.has(lookupKey) ? (approvalMap.get(lookupKey) ?? null) : null
+        }
+        // Mismo criterio para is_sold (¿lo vendemos?): UI manda; fallback a BD.
+        if (item.is_sold !== undefined) {
+          is_sold = item.is_sold ?? null
+        } else {
+          is_sold = soldMap.has(lookupKey) ? (soldMap.get(lookupKey) ?? null) : null
         }
       }
       return {
@@ -113,6 +122,7 @@ export async function PATCH(
         quantity:       isSep ? null : item.quantity,
         delivery_time:  isSep ? null : (item.delivery_time ?? 'immediate'),
         is_approved,
+        is_sold,
         sort_order:     index,
       }
     })

@@ -28,7 +28,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, Pencil, Trash2, Package, Plus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, Package, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteInventoryItem } from '@/hooks/useInventory'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
@@ -60,6 +60,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
             <SortIcon className={`h-3.5 w-3.5 ${quantitySort ? 'text-foreground' : 'text-muted-foreground/50'}`} />
           </button>
         </TableHead>
+        <TableHead className="w-[140px]">Ubicación</TableHead>
         <TableHead>Última Actualización</TableHead>
         <TableHead className="w-[80px]">Acciones</TableHead>
       </TableRow>
@@ -106,6 +107,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
               <TableRow key={i}>
                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                 <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                 <TableCell><Skeleton className="size-8 rounded-md" /></TableCell>
               </TableRow>
@@ -144,6 +146,11 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
               <TableRow key={item.id} className={getRowClass(item.quantity)}>
                 <TableCell className="font-mono text-sm">{item.model_code}</TableCell>
                 <TableCell>{getQuantityBadge(item.quantity)}</TableCell>
+                <TableCell className="font-mono text-sm">
+                  {item.quantity > 0 && item.location
+                    ? item.location
+                    : <span className="text-muted-foreground">{'—'}</span>}
+                </TableCell>
                 <TableCell
                   className="text-muted-foreground text-sm"
                   title={formatAbsolute(item.updated_at)}

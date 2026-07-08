@@ -3,6 +3,38 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-07
+
+### Nuevo
+- En la **aprobación de cotizaciones** grandes, el cliente ahora puede **guardar su avance** sin
+  enviar todavía: aprueba lo que alcanzó a revisar, guarda, y más tarde continúa desde el mismo
+  enlace justo donde se quedó (le aparece un aviso con cuánto lleva aprobado). Al enviar la
+  aprobación definitiva se le pide una **confirmación** para evitar envíos por error.
+- En el **detalle de la cotización** ahora se muestra la **fecha y hora en que fue aprobada**.
+- El **inventario** ahora tiene un campo de **Ubicación (gaveta)**: un texto libre para anotar dónde
+  se guarda físicamente cada producto en la tienda, y así encontrarlo o verificar su existencia más
+  rápido. Solo se muestra cuando hay stock del producto. También puedes cargarlo por Excel agregando
+  una columna **`ubicacion`** (opcional). En las **órdenes** aparece una columna con la ubicación de
+  los productos que se toman del inventario, para facilitar su recolección.
+  La ubicación se conserva aunque el stock llegue a 0 (por ejemplo, al cancelar una orden que
+  restablece el stock), así no tienes que volver a capturarla.
+
+## 2026-07-06
+
+### Mejorado
+- Los **iconos** de toda la aplicación ahora son animados: reaccionan con un pequeño movimiento
+  al pasar el cursor, para una interfaz más viva. Respetan la preferencia de "reducir movimiento"
+  del sistema para quien la tenga activada.
+
+### Nuevo
+- Ahora puedes marcar un producto como **"No lo vendemos"**. Al editar un producto —tanto en el
+  cotizador como en el módulo **Catálogo ETM**— hay un selector **¿Lo vendemos?** (Sin definir /
+  Sí / No) y una columna **Venta** que muestra su estado. Los productos marcados como "No lo vendemos" se pintan de un color
+  distinto para que los saltes de un vistazo, no piden precio ni cantidad, no suman al total,
+  no se incluyen en el pedido a URREA, y al cliente le aparecen como **"No disponible"** en la
+  página de aprobación. Además, la marca **se recuerda**: la próxima vez que ese producto
+  aparezca en otra cotización, ya llega marcado — no tienes que volver a revisarlo.
+
 ## 2026-06-16
 
 ### Nuevo

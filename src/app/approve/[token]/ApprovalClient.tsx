@@ -11,7 +11,7 @@ import {
   Loader2,
   ShieldCheck,
   SeparatorHorizontal,
-} from 'lucide-react'
+} from '@/components/icons'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +30,16 @@ import {
   TableRow,
   TableFooter,
 } from '@/components/ui/table'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { filterProductItems } from '@/lib/business-rules'
 import type { QuotationWithItems, DeliveryTime } from '@/types/database'
 
@@ -56,8 +66,12 @@ interface Props {
 export function ApprovalClient({ quotation, token }: Props) {
   const isEditable = quotation.status === 'sent_for_approval'
 
-  // Only product items get approval decisions (separators are visual only)
-  const productItems = filterProductItems(quotation.quotation_items)
+  // Only product items get approval decisions (separators are visual only).
+  // Los "no lo vendemos" (is_sold === false) se muestran como "No disponible":
+  // no reciben decisión, no cuentan ni suman al total.
+  const productItems = filterProductItems(quotation.quotation_items).filter(
+    (item) => item.is_sold !== false
+  )
 
   // Default: everything starts as NOT approved — client only clicks what they want
   const [decisions, setDecisions] = useState<ItemDecision[]>(
@@ -67,7 +81,14 @@ export function ApprovalClient({ quotation, token }: Props) {
     }))
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSaving, setIsSaving]         = useState(false)
   const [submitted, setSubmitted]       = useState(false)
+  const [confirmOpen, setConfirmOpen]   = useState(false)
+
+  // Avance guardado con el que llega el cliente (para el banner de retomar).
+  const [savedApprovedCount, setSavedApprovedCount] = useState(
+    () => productItems.filter((item) => item.is_approved === true).length
+  )
 
   const approvedCount    = decisions.filter((d) => d.is_approved).length
   const notApprovedCount = decisions.length - approvedCount
@@ -92,28 +113,42 @@ export function ApprovalClient({ quotation, token }: Props) {
     setDecisions((prev) => prev.map((d) => ({ ...d, is_approved: true })))
   }
 
-  // Send only product decisions (separators have no decisions)
+  const approvedIds = () => decisions.filter((d) => d.is_approved).map((d) => d.item_id)
 
+  const postDecisions = async (finalize: boolean) => {
+    const res = await fetch(`/api/approve/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approvedIds: approvedIds(), finalize }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.message || 'Error al guardar')
+    }
+  }
 
-  const handleSubmit = async () => {
+  // Guardar avance: persiste lo aprobado sin finalizar; el cliente sigue en la página.
+  const handleSaveProgress = async () => {
+    setIsSaving(true)
+    try {
+      await postDecisions(false)
+      setSavedApprovedCount(approvedCount)
+      toast.success('Avance guardado', {
+        description: 'Puedes cerrar y continuar más tarde con este mismo enlace.',
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al guardar el avance')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Finalizar: envía la aprobación definitiva (tras confirmar en el diálogo).
+  const handleFinalize = async () => {
+    setConfirmOpen(false)
     setIsSubmitting(true)
     try {
-      const res = await fetch(`/api/approve/${token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          decisions: decisions.map((d) => ({
-            item_id:     d.item_id,
-            is_approved: d.is_approved,
-          })),
-        }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.message)
-      }
-
+      await postDecisions(true)
       setSubmitted(true)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al enviar decisión')
@@ -263,6 +298,19 @@ export function ApprovalClient({ quotation, token }: Props) {
           </Card>
         )}
 
+        {/* Banner de avance guardado (retomar) */}
+        {isEditable && savedApprovedCount > 0 && (
+          <Card className="shadow-md border-2 border-blue-300 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-950/20">
+            <CardContent className="pt-4 pb-4 text-center">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                Tienes avance guardado: {savedApprovedCount} de {productItems.length} producto
+                {productItems.length !== 1 ? 's' : ''} aprobado{savedApprovedCount !== 1 ? 's' : ''}.
+                Continúa donde quedaste y envía cuando termines.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Approved counter */}
         {isEditable && (
           <div className="grid grid-cols-2 gap-4">
@@ -331,6 +379,35 @@ export function ApprovalClient({ quotation, token }: Props) {
                               <SeparatorHorizontal className="size-3.5 shrink-0" />
                               <span className="font-medium">{item.section_label || 'Sección'}</span>
                             </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    }
+
+                    // "No lo vendemos": fila informativa read-only, sin precio ni aprobación.
+                    if (item.is_sold === false) {
+                      return (
+                        <TableRow
+                          key={item.id}
+                          className="border-b border-slate-100 dark:border-zinc-800 bg-zinc-100/70 dark:bg-zinc-800/40 text-muted-foreground"
+                        >
+                          <TableCell className="font-mono text-xs">{item.etm || '—'}</TableCell>
+                          <TableCell className="max-w-52">
+                            {item.description
+                              ? <span className="truncate block" title={item.description}>{item.description}</span>
+                              : item.description_es
+                                ? <span className="truncate block italic" title={item.description_es}>{item.description_es}</span>
+                                : <span className="text-xs italic">{'—'}</span>}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{item.model_code || '—'}</TableCell>
+                          <TableCell className="text-sm">{item.brand || '—'}</TableCell>
+                          <TableCell colSpan={4} className="text-center text-xs italic">
+                            No disponible
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="text-xs text-muted-foreground border-slate-300 dark:border-zinc-600">
+                              No disponible
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       )
@@ -454,29 +531,59 @@ export function ApprovalClient({ quotation, token }: Props) {
           <div className="flex flex-col sm:flex-row items-center justify-end gap-4 pb-4">
             <p className="text-sm text-muted-foreground">
               {approvedCount === 0
-                ? 'Selecciona al menos un producto para aprobar'
+                ? 'Selecciona los productos que apruebas'
                 : `${approvedCount} producto${approvedCount !== 1 ? 's' : ''} seleccionado${approvedCount !== 1 ? 's' : ''}`}
             </p>
             <Button
               size="lg"
-              onClick={handleSubmit}
-              disabled={isSubmitting || approvedCount === 0}
+              variant="outline"
+              onClick={handleSaveProgress}
+              disabled={isSaving || isSubmitting}
+              className="px-6"
+            >
+              {isSaving ? (
+                <><Loader2 className="mr-2 size-4 animate-spin" />Guardando…</>
+              ) : (
+                'Guardar avance'
+              )}
+            </Button>
+            <Button
+              size="lg"
+              onClick={() => setConfirmOpen(true)}
+              disabled={isSubmitting || isSaving || approvedCount === 0}
               className="shadow-md px-8"
             >
               {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Enviando…
-                </>
+                <><Loader2 className="mr-2 size-4 animate-spin" />Enviando…</>
               ) : (
-                <>
-                  <Send className="mr-2 size-4" />
-                  Enviar aprobación
-                </>
+                <><Send className="mr-2 size-4" />Enviar aprobación</>
               )}
             </Button>
           </div>
         )}
+
+        {/* Confirmación de envío definitivo */}
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Enviar tu aprobación?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Vas a aprobar <strong>{approvedCount}</strong> producto{approvedCount !== 1 ? 's' : ''}
+                {approvedTotal > 0 && (
+                  <> por un total de <strong>${approvedTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></>
+                )}
+                . Esto finaliza tu revisión y no podrás volver a cambiarla desde este enlace.
+                Si aún no terminas, usa «Guardar avance».
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleFinalize}>
+                Sí, enviar aprobación
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Footer */}
         <div className="text-center pb-8 pt-2">

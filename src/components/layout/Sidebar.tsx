@@ -46,7 +46,7 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
-} from 'lucide-react'
+} from '@/components/icons'
 import { cn } from '@/lib/utils'
 
 type LinkItem = {

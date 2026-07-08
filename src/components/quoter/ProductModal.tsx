@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
+import { Loader2 } from '@/components/icons'
 import { parseNumber, parseInteger } from '@/lib/format'
 import type { QuotationItemRow, DeliveryTime } from '@/types/database'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
@@ -69,6 +69,8 @@ export function ProductModal({
 
   const [etmError, setEtmError]           = useState<string | null>(null)
   const [isCheckingEtm, setIsCheckingEtm] = useState(false)
+  // is_sold es tri-estado ('sin definir' | 'sí' | 'no') → se maneja aparte de RHF.
+  const [isSold, setIsSold] = useState<boolean | null>(null)
 
   useEffect(() => {
     // oxlint-disable-next-line react-doctor/no-event-handler -- intentional pattern; structural refactor tracked separately
@@ -85,8 +87,11 @@ export function ProductModal({
       })
       // oxlint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- intentional pattern; structural refactor tracked separately
       setEtmError(null)
+      setIsSold(item?.is_sold ?? null)
     }
   }, [open, item, reset])
+
+  const notSold = isSold === false
 
   const validateEtm = async (value: string): Promise<string | null> => {
     const trimmed = value.trim()
@@ -145,6 +150,7 @@ export function ProductModal({
         quantity:       parseInteger(data.quantity),
         delivery_time:  data.delivery_time,
         _inDb:          item?._inDb ?? false,
+        is_sold:        isSold,
       },
       item?._id
     )
@@ -238,6 +244,7 @@ export function ProductModal({
                 step="0.01"
                 min="0"
                 placeholder="0.00"
+                disabled={notSold}
                 {...register('unit_price')}
               />
             </div>
@@ -249,9 +256,34 @@ export function ProductModal({
                 min="1"
                 step="1"
                 placeholder="0"
+                disabled={notSold}
                 {...register('quantity')}
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>¿Lo vendemos?</Label>
+            <Select
+              value={isSold === null ? 'undefined' : String(isSold)}
+              onValueChange={(val) =>
+                setIsSold(val === 'undefined' ? null : val === 'true')
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="undefined">Sin definir</SelectItem>
+                <SelectItem value="true">Sí lo vendemos</SelectItem>
+                <SelectItem value="false">No lo vendemos</SelectItem>
+              </SelectContent>
+            </Select>
+            {notSold && (
+              <p className="text-xs text-muted-foreground">
+                Marcado como no vendible: se salta en el cotizador y no requiere precio ni cantidad.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">

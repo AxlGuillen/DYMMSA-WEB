@@ -39,6 +39,7 @@ draft | sent_for_approval | approved | rejected | converted_to_order
 - `canEdit = isDraft || isSentForApproval || isApproved` (Fase 5.5: cotizaciones aprobadas y en revisión son editables — permite ajustar precio/cantidad/entrega mientras el cliente revisa)
 - Ítems nuevos agregados en estado `approved` → `is_approved = null` (pendiente); el usuario DYMMSA los aprueba/rechaza manualmente con los botones ✓/✗ en `QuotationDetail`
 - `approval_token UUID UNIQUE` — se usa en `/approve/[token]` sin auth
+- `approved_at TIMESTAMPTZ` — fecha/hora de aprobación; se sella al finalizar la aprobación (cliente) o al marcar `approved` manualmente; se muestra en `QuotationDetail`
 - **Cambio manual de estado** (`PATCH /api/quotations/[id]/status`): el usuario puede mover la cotización entre `draft`/`sent_for_approval`/`approved`/`rejected` libremente desde el dropdown en `QuotationDetail` (preserva `is_approved`). El dropdown se deshabilita si hay cambios sin guardar (`isDirty`). **Cada cambio de estado regenera `approval_token`** → el link de aprobación compartido previamente queda muerto (404). `converted_to_order` NO es destino manual. Para **reabrir** una cotización convertida, su orden vinculada debe estar **eliminada** (si existe cualquier orden vinculada → 400); eliminar la orden restaura el inventario y garantiza ≤1 orden por cotización.
 - **`is_approved` se preserva en `update` en cualquier estado** (no solo `approved`): al reabrir una cotización y agregar ítems nuevos, los ya aprobados se conservan (la página `/approve/[token]` los pre-selecciona) y el cliente solo decide los nuevos.
 
@@ -46,6 +47,7 @@ draft | sent_for_approval | approved | rejected | converted_to_order
 ```
 item_type: 'product' | 'separator'
 is_approved: null (pendiente) | true | false
+is_sold: null (sin definir) | true (lo vendemos) | false (no lo vendemos)  -- snapshot de etm_products.is_sold
 delivery_time: 'immediate' | '2_3_days' | '3_5_days' | '1_week' | '2_weeks' | 'indefinite'
 sort_order: INTEGER  -- preserva orden del array al guardar
 ```
@@ -62,12 +64,13 @@ urrea_status: 'pending' | 'supplied' | 'not_supplied'
 delivery_time: (mismo enum que quotation_items)
 sort_order: INTEGER  -- preserva orden desde cotización; manual = max+1
 quantity_approved, quantity_in_stock, quantity_to_order, quantity_received
+location: TEXT  -- snapshot de store_inventory.location al crear la orden (gaveta)
 ```
 Constraint implícito: `quantity_in_stock + quantity_to_order = quantity_approved`
 
-**`etm_products`** — `etm TEXT UNIQUE`, `model_code TEXT`, `brand TEXT DEFAULT 'URREA'`
+**`etm_products`** — `etm TEXT UNIQUE`, `model_code TEXT`, `brand TEXT DEFAULT 'URREA'`, `is_sold BOOLEAN` (tri-estado; `null`=sin definir, `true`=lo vendemos, `false`=no lo vendemos — persistido por auto-learn)
 
-**`store_inventory`** — `model_code TEXT UNIQUE`, `quantity INTEGER CHECK >= 0`
+**`store_inventory`** — `model_code TEXT UNIQUE`, `quantity INTEGER CHECK >= 0`, `location TEXT` (ubicación física/gaveta, texto libre opcional; **se conserva aunque `quantity=0`** — metadato duradero, no transaccional; solo se oculta en el frontend sin stock). Import Excel acepta columna `ubicacion` (alias `ubicación`/`location`/`gaveta`, case-insensitive); en modo `upsert` **no** pisa la existente si el archivo no la trae.
 
 **`urrea_catalog`** — catálogo de URREA, **tabla aislada** (sin FK ni relaciones con el resto por ahora; no usada por flujos de cotización/orden). `code TEXT UNIQUE` (equiv. a `model_code`), `description TEXT`, `std INTEGER DEFAULT 1 CHECK > 0` (unidades por paquete), `price NUMERIC(12,2)`, `created_at/updated_at` (trigger `moddatetime`). Módulo en sidebar **URREA → Catálogo** (`/dashboard/urrea/catalog`). Import por Excel (`codigo, descripcion, std, precio`) en modo upsert (onConflict `code`) o replace.
 
@@ -80,11 +83,12 @@ Estas reglas generan bugs si se ignoran al escribir código:
 | Regla | Detalle |
 |-------|---------|
 | **Separadores excluidos de todo** | `item_type='separator'` nunca se incluye en: totales, auto-learn, conteos, is_approved, Excel URREA |
+| **Productos "no lo vendemos" (`is_sold=false`)** | Tri-estado (`null` sin definir / `true` sí / `false` no). Solo `false`: excluido de totales (`calculateQuotationTotal`), Excel URREA/órdenes (`create-order`), y **exento de validación** (`quotation-validation` no exige precio/cantidad/ETM). En `/approve/[token]` se muestra "No disponible" (read-only, no aprobable). Se **persiste a `etm_products` vía auto-learn** solo si es explícito (`true`/`false`); `null` nunca pisa el catálogo. Helper: `isNotSold()` en `business-rules.ts`. |
 | **Stock se deduce al CREAR la orden** | No al confirmar recepción. Cancelar restaura `quantity_in_stock`. |
 | **Excel URREA** | Solo ítems: `item_type='product'` AND `brand='URREA'` AND `quantity_to_order > 0` |
 | **Auto-learn** | Solo actualiza campos no vacíos. No asigna `brand='URREA'` si `model_code` está vacío. |
 | **sort_order** | Al guardar cotización: `sort_order = index`. Al crear orden: re-asigna secuencialmente. Agregar ítem manual: `max(sort_order) + 1`. Siempre ordenar por `sort_order ASC`. |
-| **Aprobación pública** | `/approve/[token]` sin auth. Si `status !== 'sent_for_approval'` → mostrar estado actual, no permitir re-aprobar. |
+| **Aprobación pública** | `/approve/[token]` sin auth. Si `status !== 'sent_for_approval'` → mostrar estado actual, no permitir re-aprobar. **Guardar avance** (`finalize=false`): persiste `is_approved` (aprobados=`true`, resto=`null`) **sin cambiar status** → el link sigue vivo y el cliente retoma después. **Enviar** (`finalize=true`): resto=`false`, status→`approved`/`rejected` + sella `approved_at`. Un popup confirma antes de enviar. Al quedar `approved` se **notifica a DYMMSA por correo** (Resend, aislado en try/catch → nunca revierte la aprobación; el total del correo se calcula de los **ítems aprobados**, no de `total_amount`; env: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NOTIFICATION_EMAIL_TO`, `NEXT_PUBLIC_APP_URL`; ver ADR-012). |
 | **Rollback** | Si falla inserción de ítems en `save` o `create-order` → eliminar el registro padre (quotation/order). |
 | **Errores descriptivos** | Los route handlers mapean `PostgrestError` con `explainPgError()` → identifican el ETM ofensor y devuelven 400 (no 500) cuando es violación de regla del usuario. `auto-learn` aislado en su propio try/catch → si falla, la cotización ya está salvada (warning, no error). Ver `DYMMSA/04-Decisiones-Tecnicas/ADR-009-Errores-Descriptivos.md`. |
 
@@ -98,6 +102,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 - **API Routes:** usar `createClient()` de `@supabase/ssr` + verificar `auth.getUser()` al inicio.
 - **Páginas:** Server Components por defecto; `"use client"` solo donde hay interactividad.
 - **Zustand store:** `dymmsa-quotation-draft` en localStorage. Llamar `reset()` al guardar exitosamente.
+- **Iconos:** importar desde `@/components/icons` (animados, `@animateicons/react`), **no** de `lucide-react` directo. El adaptador (`src/components/icons.tsx`) reexpone los nombres de lucide mapeados a su versión animada — o a una **relacionada** si la librería (248 iconos curados) no tiene el exacto — y traduce las clases `size-N`/`h-N` al prop `size`. Agregar un icono nuevo = añadir su export ahí.
 - **Sin comentarios obvios.** Solo comentar WHY cuando no es evidente.
 
 ---
@@ -176,7 +181,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 |--------|---------------------|
 | Nueva o modificada **ruta API** | `DYMMSA/02-Arquitectura/API-Routes.md` |
 | Nueva **tabla o columna** en Supabase | `DYMMSA/02-Arquitectura/Base-de-Datos.md` (verificar con MCP Supabase) + este CLAUDE.md |
-| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-010) |
+| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-011) |
 | Nueva lógica de negocio o **route handler** | Agregar/actualizar su test en `tests/` (ver `ADR-007-Estrategia-Testing.md`) |
 | **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |

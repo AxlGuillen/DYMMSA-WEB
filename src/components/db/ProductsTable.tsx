@@ -33,9 +33,10 @@ import {
 } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PackageSearch, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { PackageSearch, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/icons'
 import { useDeleteProduct } from '@/hooks/useProducts'
 import type { ProductSortBy, SortDir } from '@/hooks/useProducts'
+import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import { toast } from 'sonner'
 import type { EtmProduct } from '@/types/database'
 
@@ -115,6 +116,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
               <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
               <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
+              <TableHead className="w-[120px] text-center">Venta</TableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -127,6 +129,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 <TableCell className="text-right"><Skeleton className="h-4 w-14 ml-auto" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-20 mx-auto" /></TableCell>
                 <TableCell><Skeleton className="size-8 rounded-md" /></TableCell>
               </TableRow>
             ))}
@@ -148,6 +151,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
               <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
               <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
+              <TableHead className="w-[120px] text-center">Venta</TableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -173,6 +177,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
               <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
               <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
+              <TableHead className="w-[120px] text-center">Venta</TableHead>
               <TableHead className="w-[80px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -212,6 +217,9 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                 <TableCell>{product.brand || '—'}</TableCell>
                 <TableCell className="tabular-nums">
                   ${(product.price ?? 0).toFixed(2)}
+                </TableCell>
+                <TableCell className="text-center">
+                  <SoldStatusBadge value={product.is_sold} />
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>

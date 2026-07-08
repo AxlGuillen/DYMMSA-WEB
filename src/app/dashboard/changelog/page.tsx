@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
-import { Sparkles, Plus, ArrowUp, Wrench } from 'lucide-react'
+import { Sparkles, Plus, ArrowUp, Wrench } from '@/components/icons'
 import { Card, CardContent } from '@/components/ui/card'
 import { parseChangelog, type ChangelogCategory } from '@/lib/changelog'
 

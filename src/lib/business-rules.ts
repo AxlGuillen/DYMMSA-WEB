@@ -34,6 +34,15 @@ export function filterProductItems<T extends { item_type?: string | null }>(item
   return items.filter(isProductItem)
 }
 
+/**
+ * Item marcado como "no lo vendemos" (`is_sold === false`).
+ * Se excluye de totales, Excel URREA, órdenes y validación de guardado.
+ * `null` (sin definir) y `true` (lo vendemos) NO cuentan como no-vendible.
+ */
+export function isNotSold(item: { is_sold?: boolean | null }): boolean {
+  return item.is_sold === false
+}
+
 // ─── Cálculos de líneas ────────────────────────────────────────────────
 
 /**
@@ -55,10 +64,12 @@ type QuotationItemLike = {
   quantity: number | null
   item_type?: string | null
   is_approved?: boolean | null
+  is_sold?: boolean | null
 }
 
 /**
- * Total de una cotización. Excluye separadores e ítems sin precio o cantidad.
+ * Total de una cotización. Excluye separadores, ítems "no lo vendemos"
+ * (`is_sold === false`) e ítems sin precio o cantidad.
  *
  * @param options.onlyApproved  Si true, solo suma ítems con `is_approved === true`
  */
@@ -68,6 +79,7 @@ export function calculateQuotationTotal<T extends QuotationItemLike>(
 ): number {
   return items.reduce((sum, item) => {
     if (!isProductItem(item)) return sum
+    if (isNotSold(item)) return sum
     if (item.unit_price == null || item.quantity == null) return sum
     if (options.onlyApproved && item.is_approved !== true) return sum
     return sum + item.unit_price * item.quantity

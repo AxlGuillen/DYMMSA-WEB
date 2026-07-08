@@ -30,6 +30,19 @@ describe('validateQuotationItems', () => {
     expect(validateQuotationItems([row()])).toEqual([])
   })
 
+  test('ítem "no lo vendemos" (is_sold=false) queda exento aunque falten datos', () => {
+    // Sin cantidad, sin precio y hasta sin ETM: no debe generar ningún issue.
+    const issues = validateQuotationItems([
+      row({ is_sold: false, quantity: null, unit_price: null, etm: '', model_code: '' }),
+    ])
+    expect(issues).toEqual([])
+  })
+
+  test('is_sold true/null SÍ se validan como siempre', () => {
+    expect(getBlockingIssues([row({ is_sold: true, quantity: 0 })]).length).toBeGreaterThan(0)
+    expect(getBlockingIssues([row({ is_sold: null, quantity: 0 })]).length).toBeGreaterThan(0)
+  })
+
   test('quantity 0 → error con ETM en el mensaje', () => {
     const issues = validateQuotationItems([row({ etm: 'BAD', quantity: 0 })])
     expect(issues).toHaveLength(1)

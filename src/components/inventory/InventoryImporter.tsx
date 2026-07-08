@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
-import { Upload, FileSpreadsheet, AlertTriangle } from 'lucide-react'
+import { Upload, FileSpreadsheet, AlertTriangle } from '@/components/icons'
 import { useImportInventory } from '@/hooks/useInventory'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -77,7 +77,9 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
         <DialogHeader>
           <DialogTitle>Importar Inventario</DialogTitle>
           <DialogDescription>
-            Sube un archivo Excel con columnas MODEL_CODE y QUANTITY
+            Sube un archivo Excel con columnas <strong>MODEL_CODE</strong> y{' '}
+            <strong>QUANTITY</strong>. Opcional: <strong>ubicacion</strong> (gaveta) para
+            registrar dónde se guarda cada producto.
           </DialogDescription>
         </DialogHeader>
 

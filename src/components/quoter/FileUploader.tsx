@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Upload, FileSpreadsheet, X, Loader2 } from 'lucide-react'
+import { Upload, FileSpreadsheet, X, Loader2 } from '@/components/icons'
 import { toast } from 'sonner'
 
 interface FileUploaderProps {

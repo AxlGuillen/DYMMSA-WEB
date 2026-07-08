@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
       quantity:       item.item_type === 'separator' ? null : item.quantity,
       delivery_time:  item.item_type === 'separator' ? null : (item.delivery_time ?? 'immediate'),
       is_approved:    null,
+      is_sold:        item.item_type === 'separator' ? null : (item.is_sold ?? null),
       sort_order:     index,
     }))
 

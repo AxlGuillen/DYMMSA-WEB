@@ -8,7 +8,7 @@ import { InventoryForm } from '@/components/inventory/InventoryForm'
 import { InventoryImporter } from '@/components/inventory/InventoryImporter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Upload, Search, X, ChevronLeft, ChevronRight, ListFilter } from 'lucide-react'
+import { Plus, Upload, Search, X, ChevronLeft, ChevronRight, ListFilter } from '@/components/icons'
 import type { StoreInventory } from '@/types/database'
 
 const STAT_CARDS: {
