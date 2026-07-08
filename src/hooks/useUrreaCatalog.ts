@@ -11,7 +11,7 @@ import type {
 
 const CATALOG_KEY = ['urrea-catalog']
 
-export type CatalogSortField = 'code' | 'description' | 'price' | 'std'
+export type CatalogSortField = 'code' | 'description' | 'std'
 export type SortDir = 'asc' | 'desc'
 
 interface CatalogParams {

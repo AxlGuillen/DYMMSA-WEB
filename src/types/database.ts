@@ -56,7 +56,6 @@ export interface UrreaCatalogItem {
   code: string
   description: string | null
   std: number
-  price: number | null
   created_at: string
   updated_at: string
 }

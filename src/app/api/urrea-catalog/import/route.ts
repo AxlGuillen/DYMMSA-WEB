@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
-import { parseNumber, parseInteger } from '@/lib/format'
+import { parseInteger } from '@/lib/format'
 import { normalizeCatalogCode } from '@/lib/business-rules'
 import type { UrreaCatalogInsert } from '@/types/database'
 
@@ -68,7 +68,6 @@ export async function POST(request: NextRequest) {
         code: normalizeCatalogCode(String(code)),
         description: ((pick(row, ['descripcion', 'descripción', 'description']) as string) ?? null) || null,
         std: std != null && std > 0 ? std : 1,
-        price: parseNumber(pick(row, ['precio', 'price'])),
       })
     }
 

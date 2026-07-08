@@ -4,7 +4,7 @@ import { normalizeCatalogCode } from '@/lib/business-rules'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import type { UrreaCatalogInsert } from '@/types/database'
 
-const SORT_FIELDS = ['code', 'description', 'price', 'std'] as const
+const SORT_FIELDS = ['code', 'description', 'std'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
 /** Quita los caracteres que rompen la sintaxis del filtro `.or()` de PostgREST. */
@@ -78,7 +78,6 @@ export async function POST(request: NextRequest) {
       code,
       description: body.description?.trim() || null,
       std,
-      price: typeof body.price === 'number' ? body.price : null,
     }
 
     const { data, error } = await supabase
