@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
+import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,7 +10,9 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const { etmCodes } = await request.json()
+    // modelCodes (opcional): códigos del Excel para resolver descripciones de
+    // catálogo también en filas que aún no existen en etm_products.
+    const { etmCodes, modelCodes } = await request.json()
 
     if (!Array.isArray(etmCodes) || etmCodes.length === 0) {
       return NextResponse.json(
@@ -36,9 +39,21 @@ export async function POST(request: NextRequest) {
     const foundEtms = new Set(data?.map((p) => p.etm) || [])
     const notFound = etmCodes.filter((etm) => !foundEtms.has(etm))
 
+    // Descripciones oficiales del catálogo URREA (jerarquía mayor que la curada):
+    // union de model_codes de los productos encontrados + los del Excel.
+    const codesForCatalog = [
+      ...(data?.map((p) => p.model_code) ?? []),
+      ...(Array.isArray(modelCodes) ? modelCodes : []),
+    ]
+    const catalogMap = await fetchCatalogDescriptionMap(supabase, codesForCatalog)
+    const catalogDescriptions = Object.fromEntries(
+      [...catalogMap.entries()].filter(([, desc]) => desc && desc.trim() !== '')
+    )
+
     return NextResponse.json({
       found: data || [],
       notFound,
+      catalogDescriptions,
     })
   } catch (error) {
     console.error('Lookup error:', error)

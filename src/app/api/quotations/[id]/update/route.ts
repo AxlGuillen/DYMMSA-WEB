@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
+import { calculateQuotationTotal, isProductItem, resolveDymmsaDescription } from '@/lib/business-rules'
 import { requireAuth } from '@/lib/api-helpers'
 import { processAutoLearn } from '@/lib/auto-learn'
+import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
 import { explainPgError } from '@/lib/supabase-errors'
 import type { QuotationItemRow } from '@/types/database'
 
@@ -72,10 +73,16 @@ export async function PATCH(
 
     const approvalMap = new Map<string, boolean | null>()
     const soldMap = new Map<string, boolean | null>()
+    const dymmsaDescMap = new Map<string, string | null>()
     for (const ei of existingItems ?? []) {
       approvalMap.set(ei.id, ei.is_approved)
       soldMap.set(ei.id, ei.is_sold)
+      dymmsaDescMap.set(ei.id, ei.dymmsa_description)
     }
+
+    // Mapa de catálogo para re-resolver la Descripción DYMMSA al re-insertar
+    // (jerarquía: catálogo > curada > null).
+    const catalogMap = await fetchCatalogDescriptionMap(supabase, items.map((i) => i.model_code))
 
     // Delete existing items and re-insert
     const { error: deleteError } = await supabase
@@ -109,6 +116,14 @@ export async function PATCH(
           is_sold = soldMap.has(lookupKey) ? (soldMap.get(lookupKey) ?? null) : null
         }
       }
+      // Descripción DYMMSA: se re-resuelve con jerarquía de catálogo. La curada
+      // viene de la UI; fallback al snapshot en BD para clientes que no la envían.
+      const curated = item.dymmsa_description !== undefined
+        ? item.dymmsa_description
+        : (dymmsaDescMap.get(lookupKey) ?? null)
+      const dymmsa_description = isSep
+        ? null
+        : resolveDymmsaDescription({ ...item, dymmsa_description: curated }, catalogMap).value
       return {
         quotation_id:   id,
         item_type:      item.item_type      ?? 'product',
@@ -116,6 +131,7 @@ export async function PATCH(
         etm:            isSep ? null : (item.etm || null),
         description:    isSep ? null : (item.description || null),
         description_es: isSep ? null : (item.description_es || null),
+        dymmsa_description,
         model_code:     isSep ? null : (item.model_code || null),
         brand:          isSep ? null : (item.brand || null),
         unit_price:     isSep ? null : item.unit_price,
