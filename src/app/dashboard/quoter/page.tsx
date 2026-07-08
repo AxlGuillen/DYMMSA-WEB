@@ -25,8 +25,8 @@ export default function QuoterPage() {
   /** _id de filas con error pre-flight o reportadas por el backend (offendingEtm). */
   const [errorItemIds, setErrorItemIds] = useState<ReadonlySet<string>>(new Set())
 
-  const { name, customer_name, items, setName, setCustomerName, setItems, reset } =
-    useQuotationStore()
+  const { name, customer_name, items, setName, setCustomerName, setItems, reset,
+    mergeCatalogDescriptions } = useQuotationStore()
 
   const lookupMutation  = useLookupEtms()
   const saveMutation    = useSaveQuotation()
@@ -71,7 +71,14 @@ export default function QuoterPage() {
 
       // Lookup against etm_products (deduplicate ETMs for the API call)
       const uniqueEtms = [...new Set(rows.map((r) => r.etm))]
-      const { found } = await lookupMutation.mutateAsync(uniqueEtms)
+      // modelCodes del Excel: resuelven descripción de catálogo también en
+      // filas que aún no existen en etm_products
+      const excelModelCodes = [...new Set(rows.map((r) => r.model_code).filter(Boolean))]
+      const { found, catalogDescriptions } = await lookupMutation.mutateAsync({
+        etmCodes: uniqueEtms,
+        modelCodes: excelModelCodes,
+      })
+      mergeCatalogDescriptions(catalogDescriptions ?? {})
       const dbMap = new Map(found.map((p) => [p.etm, p]))
 
       // Merge: Excel data + DB data → QuotationItemRow[]
@@ -92,6 +99,7 @@ export default function QuoterPage() {
           delivery_time:  'immediate',
           _inDb:          !!db,
           is_sold:        db?.is_sold ?? null, // hereda el flag del catálogo; null si no está en catálogo
+          dymmsa_description: db?.dymmsa_description ?? '', // hereda la curada DYMMSA (vacía si tiene match de catálogo URREA)
         }
       })
 

@@ -24,6 +24,7 @@ import { Loader2 } from '@/components/icons'
 import { parseNumber, parseInteger } from '@/lib/format'
 import type { QuotationItemRow, DeliveryTime } from '@/types/database'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
+import { useCatalogDescription } from '@/hooks/useUrreaCatalog'
 
 const EMPTY_ETMS: string[] = []
 
@@ -40,6 +41,7 @@ interface FormValues {
   etm: string
   description: string
   description_es: string
+  dymmsa_description: string
   model_code: string
   brand: string
   unit_price: string
@@ -66,6 +68,18 @@ export function ProductModal({
   } = useForm<FormValues>()
 
   const deliveryTimeValue = watch('delivery_time')
+  const modelCodeValue    = watch('model_code')
+
+  // Debounce del model_code para el lookup de catálogo (evita query por tecla)
+  const [debouncedCode, setDebouncedCode] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCode(modelCodeValue ?? ''), 400)
+    return () => clearTimeout(t)
+  }, [modelCodeValue])
+
+  // Descripción oficial del catálogo URREA: si hay match, gana jerarquía y la
+  // curada no se edita aquí (se corrige reimportando el catálogo).
+  const { data: catalogDesc } = useCatalogDescription(open ? debouncedCode : '')
 
   const [etmError, setEtmError]           = useState<string | null>(null)
   const [isCheckingEtm, setIsCheckingEtm] = useState(false)
@@ -79,6 +93,7 @@ export function ProductModal({
         etm:            item?.etm            ?? '',
         description:    item?.description    ?? '',
         description_es: item?.description_es ?? '',
+        dymmsa_description: item?.dymmsa_description ?? '',
         model_code:     item?.model_code     ?? '',
         brand:          item?.brand          ?? '',
         unit_price:     item?.unit_price != null ? String(item.unit_price) : '',
@@ -144,6 +159,8 @@ export function ProductModal({
         etm:            data.etm.trim(),
         description:    data.description.trim(),
         description_es: data.description_es.trim(),
+        // Con match de catálogo la curada no es editable aquí: se preserva la existente.
+        dymmsa_description: catalogDesc ? (item?.dymmsa_description ?? '') : data.dymmsa_description.trim(),
         model_code:     data.model_code.trim(),
         brand:          data.brand.trim(),
         unit_price:     parseNumber(data.unit_price),
@@ -225,6 +242,24 @@ export function ProductModal({
               placeholder="Descripción en español"
               {...register('description_es')}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="dymmsa_description">Descripción DYMMSA</Label>
+            {catalogDesc ? (
+              <>
+                <Input id="dymmsa_description" value={catalogDesc} disabled />
+                <p className="text-xs text-muted-foreground">
+                  Oficial del catálogo URREA (por código {'\u2014'} si está mal, se corrige reimportando el catálogo).
+                </p>
+              </>
+            ) : (
+              <Input
+                id="dymmsa_description"
+                placeholder="Descripción propia de DYMMSA (visible para el cliente)"
+                {...register('dymmsa_description')}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-4">

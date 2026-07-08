@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
+import { normalizeCatalogCode } from '@/lib/business-rules'
 import type {
   UrreaCatalogItem,
   UrreaCatalogInsert,
@@ -124,6 +125,32 @@ export function useImportUrreaCatalog() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CATALOG_KEY })
+    },
+  })
+}
+
+/**
+ * Descripción oficial del catálogo URREA para un code (normalizado).
+ * `null` = sin match. Cachea 5 min por code — la usan ProductModal/ProductForm
+ * para resolver "Desc. DYMMSA" al editar el model_code.
+ */
+export function useCatalogDescription(code: string) {
+  const normalized = normalizeCatalogCode(code)
+
+  return useQuery({
+    queryKey: [...CATALOG_KEY, 'lookup', normalized],
+    enabled: normalized !== '',
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<string | null> => {
+      const { descriptions } = await fetchJson<{ descriptions: Record<string, string> }>(
+        '/api/urrea-catalog/lookup',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ codes: [normalized] }),
+        },
+      )
+      return descriptions[normalized] ?? null
     },
   })
 }

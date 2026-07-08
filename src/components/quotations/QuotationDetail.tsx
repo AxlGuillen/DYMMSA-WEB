@@ -302,6 +302,11 @@ function SortableDetailRow({
           ? <span className="truncate block" title={item.description}>{item.description}</span>
           : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
       </TableCell>
+      <TableCell className="max-w-52">
+        {item.dymmsa_description
+          ? <span className="truncate block" title={item.dymmsa_description}>{item.dymmsa_description}</span>
+          : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
+      </TableCell>
       <TableCell className="font-mono text-xs">{item.model_code || <span className="text-muted-foreground">{'\u2014'}</span>}</TableCell>
       <TableCell>{item.brand || <span className="text-muted-foreground">{'\u2014'}</span>}</TableCell>
       <TableCell className="text-right tabular-nums">
@@ -405,6 +410,7 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   etm:            item.etm            ?? '',
   description:    item.description    ?? '',
   description_es: item.description_es ?? '',
+  dymmsa_description: item.dymmsa_description ?? '',
   model_code:     item.model_code     ?? '',
   brand:          item.brand          ?? '',
   unit_price:     item.unit_price,
@@ -552,6 +558,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       etm:            '',
       description:    '',
       description_es: '',
+      dymmsa_description: '',
       model_code:     '',
       brand:          '',
       unit_price:     null,
@@ -855,7 +862,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const totalCols =
     (canEdit ? 1 : 0) +
-    7 +
+    8 +          // ETM, Descripción, Desc. DYMMSA, Código, Marca, Precio, Cant., Subtotal
     1 +          // Entrega
     1 +          // Venta (¿lo vendemos?)
     (hasApprovalData ? 1 : 0) +
@@ -1369,6 +1376,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                   <SortableHead col="description" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
                     Descripción
                   </SortableHead>
+                  <TableHead>Desc. DYMMSA</TableHead>
                   <TableHead>Código</TableHead>
                   <TableHead>Marca</TableHead>
                   <SortableHead col="unit_price" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
@@ -1440,7 +1448,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               {partialTotal > 0 && displayItems.length > 0 && (
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 7 : 6} className="text-right font-bold">
+                    <TableCell colSpan={canEdit ? 8 : 7} className="text-right font-bold">
                       Total:
                     </TableCell>
                     <TableCell className="text-right font-bold">

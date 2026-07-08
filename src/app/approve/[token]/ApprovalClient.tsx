@@ -357,6 +357,7 @@ export function ApprovalClient({ quotation, token }: Props) {
                   <TableRow className="bg-slate-50 dark:bg-zinc-800/60 hover:bg-slate-50 dark:hover:bg-zinc-800/60">
                     <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">ETM</TableHead>
                     <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">Descripción</TableHead>
+                    <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">Desc. DYMMSA</TableHead>
                     <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">Código</TableHead>
                     <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">Marca</TableHead>
                     <TableHead className="text-right font-semibold text-slate-600 dark:text-zinc-300">Precio unit.</TableHead>
@@ -398,6 +399,11 @@ export function ApprovalClient({ quotation, token }: Props) {
                               : item.description_es
                                 ? <span className="truncate block italic" title={item.description_es}>{item.description_es}</span>
                                 : <span className="text-xs italic">{'—'}</span>}
+                          </TableCell>
+                          <TableCell className="max-w-52">
+                            {item.dymmsa_description
+                              ? <span className="truncate block" title={item.dymmsa_description}>{item.dymmsa_description}</span>
+                              : <span className="text-xs italic">{'—'}</span>}
                           </TableCell>
                           <TableCell className="font-mono text-xs">{item.model_code || '—'}</TableCell>
                           <TableCell className="text-sm">{item.brand || '—'}</TableCell>
@@ -442,6 +448,15 @@ export function ApprovalClient({ quotation, token }: Props) {
                           ) : item.description_es ? (
                             <span className="truncate block text-muted-foreground italic" title={item.description_es}>
                               {item.description_es}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">{'\u2014'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-52">
+                          {item.dymmsa_description ? (
+                            <span className="truncate block" title={item.dymmsa_description}>
+                              {item.dymmsa_description}
                             </span>
                           ) : (
                             <span className="text-muted-foreground text-xs italic">{'\u2014'}</span>

@@ -6,12 +6,17 @@ interface QuotationDraftState {
   name: string
   customer_name: string
   items: QuotationItemRow[]
+  // Descripciones oficiales del catálogo URREA (code normalizado → descripción).
+  // Derivado del lookup al importar/editar; se usa para resolver la columna
+  // "Desc. DYMMSA" (el catálogo gana jerarquía sobre la curada del ítem).
+  catalogDescriptions: Record<string, string>
 }
 
 interface QuotationStore extends QuotationDraftState {
   setName: (name: string) => void
   setCustomerName: (name: string) => void
   setItems: (items: QuotationItemRow[]) => void
+  mergeCatalogDescriptions: (entries: Record<string, string>) => void
   updateItem: (id: string, updates: Partial<Omit<QuotationItemRow, '_id'>>) => void
   addItem: (item: Omit<QuotationItemRow, '_id'>) => void
   addSeparatorAfter: (afterId: string | null) => void
@@ -24,6 +29,7 @@ const INITIAL_STATE: QuotationDraftState = {
   name: '',
   customer_name: '',
   items: [],
+  catalogDescriptions: {},
 }
 
 export const useQuotationStore = create<QuotationStore>()(
@@ -36,6 +42,11 @@ export const useQuotationStore = create<QuotationStore>()(
       setCustomerName: (name) => set({ customer_name: name }),
 
       setItems: (items) => set({ items }),
+
+      mergeCatalogDescriptions: (entries) =>
+        set((state) => ({
+          catalogDescriptions: { ...state.catalogDescriptions, ...entries },
+        })),
 
       updateItem: (id, updates) =>
         set((state) => ({
@@ -59,6 +70,7 @@ export const useQuotationStore = create<QuotationStore>()(
             item_type:      'separator',
             section_label:  '',
             etm:            '',
+            dymmsa_description: '',
             description:    '',
             description_es: '',
             model_code:     '',
