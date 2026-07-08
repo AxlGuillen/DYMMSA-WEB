@@ -5,13 +5,20 @@
  *   - guardas: token inexistente (404), ya procesada (400), payload inválido (400)
  */
 
-import { describe, test, expect, vi } from 'vitest'
+import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
 import { injectSupabaseAdmin } from '../helpers/setup'
 import { makeRequest, makeParams } from '../helpers/request'
 import * as approve from '@/app/api/approve/[token]/route'
+import { sendApprovalNotification } from '@/lib/email/send-approval-notification'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
+vi.mock('@/lib/email/send-approval-notification', () => ({
+  sendApprovalNotification: vi.fn().mockResolvedValue({ ok: true }),
+}))
+
+const mockNotify = vi.mocked(sendApprovalNotification)
+beforeEach(() => mockNotify.mockClear())
 
 let adminClient: MockSupabaseClient
 injectSupabaseAdmin(() => adminClient)
@@ -22,9 +29,12 @@ const post = (body: unknown) => approve.POST(makeRequest(body, { method: 'POST' 
 function sentClient() {
   return createMockSupabase({
     responses: {
-      'quotations.select': { data: { id: 'q1', status: 'sent_for_approval' }, error: null },
+      'quotations.select': {
+        data: { id: 'q1', status: 'sent_for_approval', name: 'COT-001', customer_name: 'ACME', total_amount: 1500 },
+        error: null,
+      },
       'quotation_items.update': { data: null, error: null },
-      'quotations.update': { data: null, error: null },
+      'quotations.update': { data: [{ id: 'q1' }], error: null },
     },
   })
 }
@@ -85,5 +95,56 @@ describe('POST /approve/[token]', () => {
     const q = adminClient.updatePayload<Record<string, unknown>>('quotations')
     expect(q.status).toBe('rejected')
     expect(q.approved_at).toBeNull()
+  })
+
+  test('finalizar con aprobados: envía la notificación con los datos correctos', async () => {
+    adminClient = sentClient()
+    await post({ approvedIds: ['i1', 'i2'], finalize: true })
+    expect(mockNotify).toHaveBeenCalledTimes(1)
+    expect(mockNotify).toHaveBeenCalledWith({
+      customerName: 'ACME',
+      quotationName: 'COT-001',
+      total: 1500,
+      approvedCount: 2,
+      quotationId: 'q1',
+    })
+  })
+
+  test('guardar avance NO envía notificación', async () => {
+    adminClient = sentClient()
+    await post({ approvedIds: ['i1'], finalize: false })
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  test('finalizar sin aprobados (rejected) NO envía notificación', async () => {
+    adminClient = sentClient()
+    await post({ approvedIds: [], finalize: true })
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  test('si la notificación falla, el endpoint igual responde 200', async () => {
+    adminClient = sentClient()
+    mockNotify.mockRejectedValueOnce(new Error('resend down'))
+    const res = await post({ approvedIds: ['i1'], finalize: true })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toMatchObject({ finalized: true, status: 'approved' })
+  })
+
+  test('finalizar concurrente: si otro request ya finalizó (0 filas), responde 409 y NO notifica', async () => {
+    // La guarda .eq('status','sent_for_approval') matchea 0 filas → update devuelve [].
+    adminClient = createMockSupabase({
+      responses: {
+        'quotations.select': {
+          data: { id: 'q1', status: 'sent_for_approval', name: 'COT-001', customer_name: 'ACME', total_amount: 1500 },
+          error: null,
+        },
+        'quotation_items.update': { data: null, error: null },
+        'quotations.update': { data: [], error: null },
+      },
+    })
+    const res = await post({ approvedIds: ['i1'], finalize: true })
+    expect(res.status).toBe(409)
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 })
