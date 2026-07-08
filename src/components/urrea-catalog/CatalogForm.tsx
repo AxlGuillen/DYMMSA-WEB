@@ -28,7 +28,6 @@ const catalogSchema = z.object({
   code: z.string().min(1, 'El código es requerido'),
   description: z.string(),
   std: z.number().int().min(1, 'El STD debe ser al menos 1'),
-  price: z.number().min(0, 'El precio no puede ser negativo').nullable(),
 })
 
 type CatalogFormValues = z.infer<typeof catalogSchema>
@@ -46,7 +45,7 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
 
   const form = useForm<CatalogFormValues>({
     resolver: zodResolver(catalogSchema),
-    defaultValues: { code: '', description: '', std: 1, price: null },
+    defaultValues: { code: '', description: '', std: 1 },
   })
 
   useEffect(() => {
@@ -57,9 +56,8 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
               code: item.code || '',
               description: item.description ?? '',
               std: item.std || 1,
-              price: item.price,
             }
-          : { code: '', description: '', std: 1, price: null }
+          : { code: '', description: '', std: 1 }
       )
     }
   }, [open, item, form])
@@ -69,7 +67,6 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
       code: values.code.trim(),
       description: values.description.trim() || null,
       std: values.std,
-      price: values.price,
     }
     try {
       if (isEditing && item) {
@@ -124,49 +121,25 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                control={form.control}
-                name="std"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>STD (unidades/paquete)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="1"
-                        {...field}
-                        value={field.value}
-                        onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 1)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Precio de catálogo</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="—"
-                        value={field.value ?? ''}
-                        onChange={(e) =>
-                          field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="std"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>STD (unidades/paquete)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="1"
+                      {...field}
+                      value={field.value}
+                      onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 1)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar

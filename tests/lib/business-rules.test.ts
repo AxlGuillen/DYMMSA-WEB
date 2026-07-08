@@ -10,6 +10,8 @@ import {
   calculateDeliveredTotal,
   allocateInventory,
   validateAllocationInvariant,
+  normalizeCatalogCode,
+  resolveDymmsaDescription,
 } from '@/lib/business-rules'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -372,5 +374,87 @@ describe('validateAllocationInvariant', () => {
       quantity_to_order: toOrder,
       quantity_approved: needed,
     })).toBe(true)
+  })
+})
+
+// ─── Descripción DYMMSA (jerarquía de catálogo) ──────────────────────────────
+
+describe('normalizeCatalogCode', () => {
+  test('trim + mayúsculas', () => {
+    expect(normalizeCatalogCode('  art-123 ')).toBe('ART-123')
+    expect(normalizeCatalogCode('abc')).toBe('ABC')
+  })
+
+  test('null/undefined/vacío → cadena vacía', () => {
+    expect(normalizeCatalogCode(null)).toBe('')
+    expect(normalizeCatalogCode(undefined)).toBe('')
+    expect(normalizeCatalogCode('   ')).toBe('')
+  })
+})
+
+describe('resolveDymmsaDescription', () => {
+  const catalog = new Map<string, string | null>([
+    ['ART-123', 'Llave stilson 14" oficial'],
+    ['SIN-DESC', null],
+    ['DESC-VACIA', '   '],
+  ])
+
+  test('catálogo gana aunque exista curada (jerarquía mayor)', () => {
+    const r = resolveDymmsaDescription(
+      { item_type: 'product', model_code: 'ART-123', dymmsa_description: 'la curada' },
+      catalog,
+    )
+    expect(r).toEqual({ value: 'Llave stilson 14" oficial', source: 'catalog' })
+  })
+
+  test('match de catálogo es case/espacios-insensible (normaliza el model_code)', () => {
+    const r = resolveDymmsaDescription(
+      { item_type: 'product', model_code: ' art-123 ', dymmsa_description: null },
+      catalog,
+    )
+    expect(r.source).toBe('catalog')
+  })
+
+  test('sin match de catálogo → curada DYMMSA', () => {
+    const r = resolveDymmsaDescription(
+      { item_type: 'product', model_code: 'OTRA-MARCA', dymmsa_description: 'Martillo de uña 16oz' },
+      catalog,
+    )
+    expect(r).toEqual({ value: 'Martillo de uña 16oz', source: 'dymmsa' })
+  })
+
+  test('fila de catálogo sin descripción (null o vacía) cede a la curada', () => {
+    expect(resolveDymmsaDescription(
+      { item_type: 'product', model_code: 'SIN-DESC', dymmsa_description: 'curada' },
+      catalog,
+    )).toEqual({ value: 'curada', source: 'dymmsa' })
+    expect(resolveDymmsaDescription(
+      { item_type: 'product', model_code: 'DESC-VACIA', dymmsa_description: 'curada' },
+      catalog,
+    )).toEqual({ value: 'curada', source: 'dymmsa' })
+  })
+
+  test('sin catálogo ni curada → null (celda vacía para el cotizador)', () => {
+    const r = resolveDymmsaDescription(
+      { item_type: 'product', model_code: 'NADA', dymmsa_description: '  ' },
+      catalog,
+    )
+    expect(r).toEqual({ value: null, source: null })
+  })
+
+  test('sin model_code → curada directa', () => {
+    const r = resolveDymmsaDescription(
+      { item_type: 'product', model_code: '', dymmsa_description: 'curada' },
+      catalog,
+    )
+    expect(r).toEqual({ value: 'curada', source: 'dymmsa' })
+  })
+
+  test('separador siempre null (excluido como en todas las reglas)', () => {
+    const r = resolveDymmsaDescription(
+      { item_type: 'separator', model_code: 'ART-123', dymmsa_description: 'x' },
+      catalog,
+    )
+    expect(r).toEqual({ value: null, source: null })
   })
 })

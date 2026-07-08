@@ -222,6 +222,52 @@ describe('POST /quotations/save', () => {
       spy.mockRestore()
     }
   })
+
+  test('REGLA: dymmsa_description se resuelve con jerarquía de catálogo al guardar', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.insert': { data: { id: 'q1' }, error: null },
+        'quotation_items.insert': { data: null, error: null },
+        // El catálogo trae MC1; MC2 no está.
+        'urrea_catalog.select': { data: [{ code: 'MC1', description: 'Oficial URREA' }], error: null },
+      },
+    })
+    await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [
+        // match de catálogo: gana la oficial aunque exista curada
+        product({ model_code: 'MC1', dymmsa_description: 'curada vieja' }),
+        // sin match: queda la curada
+        product({ etm: 'ETM-2', model_code: 'MC2', dymmsa_description: 'Martillo curado' }),
+        // sin match ni curada: null (celda vacía)
+        product({ etm: 'ETM-3', model_code: 'MC3', dymmsa_description: '' }),
+        separator(),
+      ],
+    }))
+    const rows = activeClient.insertPayload('quotation_items')
+    expect(rows[0].dymmsa_description).toBe('Oficial URREA')
+    expect(rows[1].dymmsa_description).toBe('Martillo curado')
+    expect(rows[2].dymmsa_description).toBeNull()
+    expect(rows[3].dymmsa_description).toBeNull() // separador
+  })
+
+  test('REGLA: match de catálogo normaliza el model_code (espacios/minúsculas)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.insert': { data: { id: 'q1' }, error: null },
+        'quotation_items.insert': { data: null, error: null },
+        'urrea_catalog.select': { data: [{ code: 'MC1', description: 'Oficial' }], error: null },
+      },
+    })
+    await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [product({ model_code: ' mc1 ', dymmsa_description: '' })],
+    }))
+    const rows = activeClient.insertPayload('quotation_items')
+    expect(rows[0].dymmsa_description).toBe('Oficial')
+  })
 })
 
 // ─── quotations/[id]/update ──────────────────────────────────────────────
@@ -342,6 +388,41 @@ describe('PATCH /quotations/[id]/update', () => {
     expect(activeClient.callsTo('quotation_items', 'insert')).toHaveLength(2)
     const restored = activeClient.callsTo('quotation_items', 'insert')[1].payload
     expect(restored).toEqual(existing)
+  })
+
+  test('REGLA: update re-resuelve dymmsa_description (catálogo gana; fallback a BD si la UI no la manda)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'draft' }, error: null },
+        'quotation_items.select': {
+          data: [
+            { id: 'db1', is_approved: null, is_sold: null, dymmsa_description: 'curada guardada' },
+          ],
+          error: null,
+        },
+        'quotation_items.delete': { data: null, error: null },
+        'quotation_items.insert': { data: null, error: null },
+        'quotations.update': { data: null, error: null },
+        'urrea_catalog.select': { data: [{ code: 'MC1', description: 'Oficial URREA' }], error: null },
+      },
+    })
+    const res = await update.PATCH(
+      makeRequest({
+        name: 'Q', customer_name: 'ACME',
+        items: [
+          // con match de catálogo: la oficial pisa cualquier curada
+          product({ _dbId: 'db1', model_code: 'MC1', dymmsa_description: 'curada UI' }),
+          // sin match y SIN campo (cliente viejo): fallback al snapshot en BD
+          (() => { const it = product({ _dbId: 'db1', etm: 'ETM-2', model_code: 'MC2' }); delete it.dymmsa_description; return it })(),
+        ],
+      }, { method: 'PATCH' }),
+      makeParams({ id: 'q1' })
+    )
+    expect(res.status).toBe(200)
+    const rows = activeClient.insertPayload('quotation_items')
+    expect(rows[0].dymmsa_description).toBe('Oficial URREA')
+    expect(rows[1].dymmsa_description).toBe('curada guardada')
   })
 })
 

@@ -21,6 +21,7 @@ function makeItem(overrides: Partial<QuotationItemRow> = {}): QuotationItemRow {
     unit_price:     100,
     quantity:       5,
     delivery_time:  'immediate',
+    dymmsa_description: '',
     _inDb:          false,
     is_approved:    null,
     ...overrides,
@@ -31,6 +32,7 @@ function makeExisting(overrides: Partial<{
   etm: string
   description: string
   description_es: string
+  dymmsa_description: string | null
   model_code: string
   price: number
   brand: string
@@ -40,6 +42,7 @@ function makeExisting(overrides: Partial<{
     etm:            'ETM-001',
     description:    'Existing description',
     description_es: 'Descripción existente',
+    dymmsa_description: null,
     model_code:     'MC001',
     price:          80,
     brand:          'URREA',
@@ -254,5 +257,42 @@ describe('mergeEtmFields', () => {
     const incoming = makeItem({ is_sold: false, description: 'x', description_es: 'x', model_code: 'MC001', unit_price: 100 })
     const { updates } = mergeEtmFields(existing, incoming as Parameters<typeof mergeEtmFields>[1])
     expect(updates.is_sold).toBeUndefined()
+  })
+})
+
+// ─── dymmsa_description (curada CRUDA — nunca la resuelta del catálogo) ──────
+
+describe('auto-learn de dymmsa_description', () => {
+  const asArg = (i: QuotationItemRow) => i as Parameters<typeof computeNewEtmFields>[0]
+
+  test('elegible con solo etm + dymmsa_description (sin model_code/description/is_sold)', () => {
+    const item = makeItem({
+      model_code: '', description: '', is_sold: null,
+      dymmsa_description: 'Martillo curado',
+    })
+    expect(isEligibleForAutoLearn(item)).toBe(true)
+  })
+
+  test('NO elegible con etm solo y curada vacía', () => {
+    const item = makeItem({ model_code: '', description: '', is_sold: null, dymmsa_description: '' })
+    expect(isEligibleForAutoLearn(item)).toBe(false)
+  })
+
+  test('computeNewEtmFields incluye la curada; vacía → null', () => {
+    expect(computeNewEtmFields(asArg(makeItem({ dymmsa_description: 'Curada' }))).dymmsa_description).toBe('Curada')
+    expect(computeNewEtmFields(asArg(makeItem({ dymmsa_description: '' }))).dymmsa_description).toBeNull()
+  })
+
+  test('merge: curada no vacía y distinta → update; vacía NUNCA pisa la existente', () => {
+    const existing = makeExisting({ dymmsa_description: 'Vieja' })
+
+    const changed = mergeEtmFields(existing, asArg(makeItem({ dymmsa_description: 'Nueva' })))
+    expect(changed.updates.dymmsa_description).toBe('Nueva')
+
+    const empty = mergeEtmFields(existing, asArg(makeItem({ dymmsa_description: '' })))
+    expect(empty.updates.dymmsa_description).toBeUndefined()
+
+    const same = mergeEtmFields(existing, asArg(makeItem({ dymmsa_description: 'Vieja' })))
+    expect(same.updates.dymmsa_description).toBeUndefined()
   })
 })

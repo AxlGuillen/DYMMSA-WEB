@@ -357,6 +357,7 @@ export function ApprovalClient({ quotation, token }: Props) {
                   <TableRow className="bg-slate-50 dark:bg-zinc-800/60 hover:bg-slate-50 dark:hover:bg-zinc-800/60">
                     <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">ETM</TableHead>
                     <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">Descripción</TableHead>
+                    <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">Desc. DYMMSA</TableHead>
                     <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">Código</TableHead>
                     <TableHead className="font-semibold text-slate-600 dark:text-zinc-300">Marca</TableHead>
                     <TableHead className="text-right font-semibold text-slate-600 dark:text-zinc-300">Precio unit.</TableHead>
@@ -374,7 +375,7 @@ export function ApprovalClient({ quotation, token }: Props) {
                     if (item.item_type === 'separator') {
                       return (
                         <TableRow key={item.id} className="border-b border-dashed border-slate-200 dark:border-zinc-700 bg-slate-50/60 dark:bg-zinc-800/30 hover:bg-slate-50/60 dark:hover:bg-zinc-800/30">
-                          <TableCell colSpan={9} className="px-4 py-2">
+                          <TableCell colSpan={10} className="px-4 py-2">
                             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
                               <SeparatorHorizontal className="size-3.5 shrink-0" />
                               <span className="font-medium">{item.section_label || 'Sección'}</span>
@@ -398,6 +399,11 @@ export function ApprovalClient({ quotation, token }: Props) {
                               : item.description_es
                                 ? <span className="truncate block italic" title={item.description_es}>{item.description_es}</span>
                                 : <span className="text-xs italic">{'—'}</span>}
+                          </TableCell>
+                          <TableCell className="max-w-52">
+                            {item.dymmsa_description
+                              ? <span className="truncate block" title={item.dymmsa_description}>{item.dymmsa_description}</span>
+                              : <span className="text-xs italic">{'—'}</span>}
                           </TableCell>
                           <TableCell className="font-mono text-xs">{item.model_code || '—'}</TableCell>
                           <TableCell className="text-sm">{item.brand || '—'}</TableCell>
@@ -442,6 +448,15 @@ export function ApprovalClient({ quotation, token }: Props) {
                           ) : item.description_es ? (
                             <span className="truncate block text-muted-foreground italic" title={item.description_es}>
                               {item.description_es}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">{'\u2014'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-52">
+                          {item.dymmsa_description ? (
+                            <span className="truncate block" title={item.dymmsa_description}>
+                              {item.dymmsa_description}
                             </span>
                           ) : (
                             <span className="text-muted-foreground text-xs italic">{'\u2014'}</span>
@@ -511,7 +526,7 @@ export function ApprovalClient({ quotation, token }: Props) {
                 {isEditable && approvedTotal > 0 && (
                   <TableFooter>
                     <TableRow className="bg-slate-50 dark:bg-zinc-800/60 hover:bg-slate-50 dark:hover:bg-zinc-800/60">
-                      <TableCell colSpan={7} className="text-right font-bold text-slate-600 dark:text-zinc-300">
+                      <TableCell colSpan={8} className="text-right font-bold text-slate-600 dark:text-zinc-300">
                         Total aprobado:
                       </TableCell>
                       <TableCell className="text-right font-bold text-slate-800 dark:text-zinc-100 tabular-nums">

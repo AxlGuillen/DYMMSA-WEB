@@ -113,6 +113,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
               <SortableHead col="etm" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[120px]">ETM</SortableHead>
               <SortableHead col="description_es" currentSort={sortBy} currentDir={sortDir} onSort={onSort}>Descripcion</SortableHead>
               <TableHead>Description</TableHead>
+              <TableHead>Desc. DYMMSA</TableHead>
               <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
               <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
@@ -126,6 +127,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-36" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 <TableCell className="text-right"><Skeleton className="h-4 w-14 ml-auto" /></TableCell>
@@ -148,6 +150,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
               <SortableHead col="etm" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[120px]">ETM</SortableHead>
               <SortableHead col="description_es" currentSort={sortBy} currentDir={sortDir} onSort={onSort}>Descripcion</SortableHead>
               <TableHead>Description</TableHead>
+              <TableHead>Desc. DYMMSA</TableHead>
               <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
               <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
@@ -174,6 +177,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
               <SortableHead col="etm" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[120px]">ETM</SortableHead>
               <SortableHead col="description_es" currentSort={sortBy} currentDir={sortDir} onSort={onSort}>Descripcion</SortableHead>
               <TableHead>Description</TableHead>
+              <TableHead>Desc. DYMMSA</TableHead>
               <SortableHead col="model_code" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[150px]">Modelo</SortableHead>
               <TableHead className="w-[120px]">Marca</TableHead>
               <SortableHead col="price" currentSort={sortBy} currentDir={sortDir} onSort={onSort} className="w-[100px]">Precio</SortableHead>
@@ -209,6 +213,20 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                     {product.description && (
                       <TooltipContent side="bottom" className="max-w-[320px] text-xs">
                         {product.description}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TableCell>
+                <TableCell className="max-w-[260px]">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="block truncate cursor-default">
+                        {product.dymmsa_description || <span className="text-muted-foreground/50">{'\u2014'}</span>}
+                      </span>
+                    </TooltipTrigger>
+                    {product.dymmsa_description && (
+                      <TooltipContent side="bottom" className="max-w-[320px] text-xs">
+                        {product.dymmsa_description}
                       </TooltipContent>
                     )}
                   </Tooltip>

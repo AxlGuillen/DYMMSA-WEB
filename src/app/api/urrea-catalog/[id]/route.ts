@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
+import { normalizeCatalogCode } from '@/lib/business-rules'
 import type { UrreaCatalogUpdate } from '@/types/database'
 
 interface RouteContext {
@@ -19,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const updates: UrreaCatalogUpdate = {}
     if (typeof body.code === 'string') {
-      const code = body.code.trim()
+      const code = normalizeCatalogCode(body.code)
       if (!code) return badRequest('El código no puede estar vacío')
       updates.code = code
     }
@@ -28,7 +29,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       if (typeof body.std !== 'number' || body.std < 1) return badRequest('STD debe ser un entero ≥ 1')
       updates.std = body.std
     }
-    if (body.price !== undefined) updates.price = typeof body.price === 'number' ? body.price : null
 
     if (Object.keys(updates).length === 0) return badRequest('No hay cambios para aplicar')
 

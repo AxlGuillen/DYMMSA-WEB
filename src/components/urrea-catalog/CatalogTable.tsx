@@ -30,7 +30,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { MoreHorizontal, Pencil, Trash2, Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteCatalogItem } from '@/hooks/useUrreaCatalog'
 import type { CatalogSortField, SortDir } from '@/hooks/useUrreaCatalog'
-import { useCurrency } from '@/hooks/useCurrency'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { UrreaCatalogItem } from '@/types/database'
@@ -78,7 +77,6 @@ function SortHeader({
 export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortDir, onSort }: CatalogTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const deleteItem = useDeleteCatalogItem()
-  const fmt = useCurrency()
 
   const handleDelete = async () => {
     if (!deleteId) return
@@ -98,7 +96,6 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
         <SortHeader label="Código" field="code" active={sortField === 'code'} dir={sortDir} onSort={onSort} className="w-[160px]" />
         <SortHeader label="Descripción" field="description" active={sortField === 'description'} dir={sortDir} onSort={onSort} />
         <SortHeader label="STD" field="std" active={sortField === 'std'} dir={sortDir} onSort={onSort} className="w-[90px]" />
-        <SortHeader label="Precio" field="price" active={sortField === 'price'} dir={sortDir} onSort={onSort} className="w-[130px]" />
         <TableHead className="w-[150px]">Última actualización</TableHead>
         <TableHead className="w-[80px]">Acciones</TableHead>
       </TableRow>
@@ -116,7 +113,6 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                 <TableCell><Skeleton className="size-8 rounded-md" /></TableCell>
               </TableRow>
@@ -158,9 +154,6 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
                   {item.description || <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
                 </TableCell>
                 <TableCell className="tabular-nums">{item.std}</TableCell>
-                <TableCell className="tabular-nums">
-                  {item.price != null ? fmt(item.price) : <span className="text-muted-foreground">—</span>}
-                </TableCell>
                 <TableCell className="text-muted-foreground text-sm" title={formatAbsolute(item.updated_at)}>
                   {formatRelative(item.updated_at)}
                 </TableCell>

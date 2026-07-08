@@ -23,7 +23,7 @@ import { ProductModal } from './ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { useQuotationStore } from '@/stores/quotationStore'
 import { useCurrency } from '@/hooks/useCurrency'
-import { calculateQuotationTotal, isProductItem, isNotSold } from '@/lib/business-rules'
+import { calculateQuotationTotal, isProductItem, isNotSold, resolveDymmsaDescription, type DymmsaDescriptionSource } from '@/lib/business-rules'
 import { notSoldRowClass } from '@/lib/sold-status'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import type { QuotationItemRow } from '@/types/database'
@@ -138,10 +138,12 @@ interface SortableRowProps {
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
   hasError?: boolean
+  /** Descripción DYMMSA resuelta (catálogo > curada > null) + su origen. */
+  dymmsaDesc?: { value: string | null; source: DymmsaDescriptionSource }
 }
 
 const SortableRow = memo(function SortableRow({
-  item, onEdit, onRemove, onAddSeparatorAfter, hasError = false,
+  item, onEdit, onRemove, onAddSeparatorAfter, hasError = false, dymmsaDesc,
 }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -176,6 +178,18 @@ const SortableRow = memo(function SortableRow({
       <td className="px-4 py-3 max-w-52">
         {item.description ? (
           <span className="truncate block" title={item.description}>{item.description}</span>
+        ) : (
+          <span className="text-muted-foreground italic text-xs">Sin descripción</span>
+        )}
+      </td>
+      <td className="px-4 py-3 max-w-52">
+        {dymmsaDesc?.value ? (
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="truncate" title={dymmsaDesc.value}>{dymmsaDesc.value}</span>
+            {dymmsaDesc.source === 'catalog' && (
+              <Badge variant="secondary" className="text-[10px] shrink-0 px-1 py-0">URREA</Badge>
+            )}
+          </span>
         ) : (
           <span className="text-muted-foreground italic text-xs">Sin descripción</span>
         )}
@@ -262,6 +276,14 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
   const addSeparatorAfter = useQuotationStore((s) => s.addSeparatorAfter)
   const removeItem = useQuotationStore((s) => s.removeItem)
   const reorderItems = useQuotationStore((s) => s.reorderItems)
+  const catalogDescriptions = useQuotationStore((s) => s.catalogDescriptions)
+  const mergeCatalogDescriptions = useQuotationStore((s) => s.mergeCatalogDescriptions)
+
+  // Map para resolveDymmsaDescription (catálogo > curada > null)
+  const catalogMap = useMemo(
+    () => new Map(Object.entries(catalogDescriptions ?? {})),
+    [catalogDescriptions]
+  )
 
   const fmt = useCurrency()
   const productItems = items.filter(isProductItem)
@@ -412,6 +434,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                   <th className="px-2 py-3 w-8"><span className="sr-only">Reordenar</span></th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">ETM</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Descripción</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Desc. DYMMSA</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Código</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Marca</th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">Precio unit.</th>
@@ -431,7 +454,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                         <SortableSeparatorRow
                           key={item._id}
                           item={item}
-                          colSpan={12}
+                          colSpan={13}
                           onLabelChange={handleLabelChange}
                           onRemove={removeItem}
                         />
@@ -443,6 +466,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                           onRemove={removeItem}
                           onAddSeparatorAfter={addSeparatorAfter}
                           hasError={errorItemIds?.has(item._id) ?? false}
+                          dymmsaDesc={resolveDymmsaDescription(item, catalogMap)}
                         />
                       )
                     )}
@@ -460,6 +484,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSave={handleModalSave}
+        onCatalogResolved={(code, description) => mergeCatalogDescriptions({ [code]: description })}
         existingEtms={items.flatMap((i) =>
           isProductItem(i) && i._id !== selectedItem?._id ? [i.etm] : []
         )}

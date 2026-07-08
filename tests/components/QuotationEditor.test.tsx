@@ -6,6 +6,12 @@ import { useQuotationStore } from '@/stores/quotationStore'
 import { resetStores, seedQuotationItems } from './helpers/stores'
 import { quotationItemRow } from './helpers/fixtures'
 
+// TanStack hook mockeado a nivel de módulo (convención del proyecto): sin
+// QueryClient en jsdom; el lookup de catálogo se cubre en tests/api.
+vi.mock('@/hooks/useUrreaCatalog', () => ({
+  useCatalogDescription: () => ({ data: null }),
+}))
+
 /** Valor numérico dentro de la card de resumen cuya etiqueta es `label`. */
 function cardValue(label: string): string {
   // Las cards viven en el grid de resumen; la leyenda de la tabla repite algunas
@@ -102,5 +108,20 @@ describe('QuotationEditor', () => {
     await waitFor(() =>
       expect(useQuotationStore.getState().items.some((i) => i.etm === 'NUEVO')).toBe(true),
     )
+  })
+
+  test('columna Desc. DYMMSA: catálogo gana (badge URREA); sin match usa la curada', () => {
+    seedQuotationItems([
+      quotationItemRow({ _id: 'a', etm: 'E1', model_code: 'MC1', dymmsa_description: 'curada que pierde' }),
+      quotationItemRow({ _id: 'b', etm: 'E2', model_code: 'MC2', dymmsa_description: 'Martillo curado' }),
+    ])
+    useQuotationStore.setState({ catalogDescriptions: { MC1: 'Oficial URREA 14"' } })
+
+    render(<QuotationEditor />)
+
+    expect(screen.getByText('Oficial URREA 14"')).toBeInTheDocument()
+    expect(screen.getByText('URREA', { selector: 'span[data-slot="badge"], .shrink-0' })).toBeInTheDocument()
+    expect(screen.getByText('Martillo curado')).toBeInTheDocument()
+    expect(screen.queryByText('curada que pierde')).not.toBeInTheDocument()
   })
 })

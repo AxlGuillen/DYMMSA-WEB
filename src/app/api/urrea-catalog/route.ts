@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { normalizeCatalogCode } from '@/lib/business-rules'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import type { UrreaCatalogInsert } from '@/types/database'
 
-const SORT_FIELDS = ['code', 'description', 'price', 'std'] as const
+const SORT_FIELDS = ['code', 'description', 'std'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
 /** Quita los caracteres que rompen la sintaxis del filtro `.or()` de PostgREST. */
@@ -68,7 +69,8 @@ export async function POST(request: NextRequest) {
     if ('error' in auth) return auth.error
 
     const body = (await request.json()) as Partial<UrreaCatalogInsert>
-    const code = typeof body.code === 'string' ? body.code.trim() : ''
+    // Normalizada: llave de cruce con model_code (resolución Descripción DYMMSA)
+    const code = typeof body.code === 'string' ? normalizeCatalogCode(body.code) : ''
     if (!code) return badRequest('El código es obligatorio')
 
     const std = typeof body.std === 'number' && body.std > 0 ? body.std : 1
@@ -76,7 +78,6 @@ export async function POST(request: NextRequest) {
       code,
       description: body.description?.trim() || null,
       std,
-      price: typeof body.price === 'number' ? body.price : null,
     }
 
     const { data, error } = await supabase

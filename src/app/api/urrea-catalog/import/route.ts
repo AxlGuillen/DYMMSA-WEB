@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
-import { parseNumber, parseInteger } from '@/lib/format'
+import { parseInteger } from '@/lib/format'
+import { normalizeCatalogCode } from '@/lib/business-rules'
 import type { UrreaCatalogInsert } from '@/types/database'
 
 type RawRow = Record<string, unknown>
@@ -62,10 +63,11 @@ export async function POST(request: NextRequest) {
       }
       const std = parseInteger(pick(row, ['std']))
       payload.push({
-        code: String(code).trim(),
+        // Normalizada (trim+upper): es la llave de cruce con model_code para
+        // resolver la Descripción DYMMSA; sin normalizar, el match falla en silencio.
+        code: normalizeCatalogCode(String(code)),
         description: ((pick(row, ['descripcion', 'descripción', 'description']) as string) ?? null) || null,
         std: std != null && std > 0 ? std : 1,
-        price: parseNumber(pick(row, ['precio', 'price'])),
       })
     }
 

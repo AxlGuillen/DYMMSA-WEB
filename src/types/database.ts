@@ -5,6 +5,10 @@ export interface EtmProduct {
   etm: string
   description: string
   description_es: string
+  // Descripción curada por DYMMSA. Se mantiene vacía para productos con match
+  // en urrea_catalog: la oficial del catálogo tiene jerarquía mayor y se
+  // resuelve en lectura (nunca se copia aquí).
+  dymmsa_description: string | null
   model_code: string
   price: number
   brand: string
@@ -14,10 +18,12 @@ export interface EtmProduct {
   created_by: string | null
 }
 
-// Insert types (without auto-generated fields). is_sold es opcional: la columna
-// admite NULL por defecto, así que los inserts que no la especifican son válidos.
+// Insert types (without auto-generated fields). is_sold y dymmsa_description son
+// opcionales: las columnas admiten NULL por defecto, así que los inserts que no
+// las especifican son válidos.
 export type EtmProductInsert =
-  Omit<EtmProduct, 'id' | 'created_at' | 'updated_at' | 'is_sold'> & { is_sold?: boolean | null }
+  Omit<EtmProduct, 'id' | 'created_at' | 'updated_at' | 'is_sold' | 'dymmsa_description'> &
+  { is_sold?: boolean | null; dymmsa_description?: string | null }
 export type EtmProductUpdate = Partial<Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>>
 
 // Excel row type for import
@@ -50,7 +56,6 @@ export interface UrreaCatalogItem {
   code: string
   description: string | null
   std: number
-  price: number | null
   created_at: string
   updated_at: string
 }
@@ -209,6 +214,9 @@ export interface QuotationItem {
   etm: string | null
   description: string | null
   description_es: string | null
+  // Snapshot del valor RESUELTO al guardar: catálogo URREA ?? curada DYMMSA ?? null.
+  // Congelado como el resto de campos del ítem (documento comercial).
+  dymmsa_description: string | null
   model_code: string | null
   brand: string | null
   unit_price: number | null
@@ -238,6 +246,9 @@ export interface QuotationItemRow {
   etm: string        // required, read-only in edit mode
   description: string
   description_es: string
+  // Curada DYMMSA (editable solo sin match de catálogo). La oficial del
+  // catálogo NO vive aquí: se muestra desde el mapa de lookup y gana jerarquía.
+  dymmsa_description: string
   model_code: string
   brand: string
   unit_price: number | null

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
+import { calculateQuotationTotal, isProductItem, resolveDymmsaDescription } from '@/lib/business-rules'
 import { requireAuth } from '@/lib/api-helpers'
 import { processAutoLearn } from '@/lib/auto-learn'
+import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
 import { explainPgError } from '@/lib/supabase-errors'
 import type { QuotationItemRow } from '@/types/database'
 
@@ -70,6 +71,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 2. Crear quotation_items ────────────────────────────────────
+    // Snapshot de la Descripción DYMMSA resuelta server-side (catálogo URREA
+    // gana jerarquía sobre la curada). Se congela como el resto de campos.
+    const catalogMap = await fetchCatalogDescriptionMap(supabase, items.map((i) => i.model_code))
+
     const quotationItems = items.map((item, index) => ({
       quotation_id:   quotation.id,
       item_type:      item.item_type      ?? 'product',
@@ -77,6 +82,7 @@ export async function POST(request: NextRequest) {
       etm:            item.item_type === 'separator' ? null : (item.etm || null),
       description:    item.item_type === 'separator' ? null : (item.description || null),
       description_es: item.item_type === 'separator' ? null : (item.description_es || null),
+      dymmsa_description: resolveDymmsaDescription(item, catalogMap).value,
       model_code:     item.item_type === 'separator' ? null : (item.model_code || null),
       brand:          item.item_type === 'separator' ? null : (item.brand || null),
       unit_price:     item.item_type === 'separator' ? null : item.unit_price,

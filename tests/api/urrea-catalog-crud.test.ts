@@ -75,9 +75,9 @@ describe('GET /urrea-catalog (list)', () => {
       user: AUTH,
       responses: { 'urrea_catalog.select': { data: [], error: null, count: 0 } },
     })
-    await listRoute.GET(makeRequest(undefined, url('?sortField=price')))
+    await listRoute.GET(makeRequest(undefined, url('?sortField=std')))
     const rec = activeClient.callsTo('urrea_catalog', 'select')[0]
-    expect(findFilter(rec, 'price', 'order')).toBeTruthy()
+    expect(findFilter(rec, 'std', 'order')).toBeTruthy()
   })
 })
 
@@ -112,7 +112,7 @@ describe('POST /urrea-catalog (create)', () => {
     expect(res.status).toBe(400)
   })
 
-  test('crea con defaults (std=1, price=null)', async () => {
+  test('crea con defaults (std=1)', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'urrea_catalog.insert': { data: { id: '1', code: 'C1' }, error: null } },
@@ -120,7 +120,7 @@ describe('POST /urrea-catalog (create)', () => {
     const res = await listRoute.POST(makeRequest({ code: '  C1  ', description: '  Tornillo  ' }))
     expect(res.status).toBe(201)
     const payload = activeClient.insertPayload<Record<string, unknown>>('urrea_catalog')
-    expect(payload).toMatchObject({ code: 'C1', description: 'Tornillo', std: 1, price: null })
+    expect(payload).toMatchObject({ code: 'C1', description: 'Tornillo', std: 1 })
   })
 
   test('código duplicado → 400', async () => {
@@ -136,7 +136,7 @@ describe('POST /urrea-catalog (create)', () => {
 describe('PATCH /urrea-catalog/[id]', () => {
   test('401 sin auth', async () => {
     activeClient = createMockSupabase({ user: null })
-    const res = await itemRoute.PATCH(makeRequest({ price: 5 }, { method: 'PATCH' }), makeParams({ id: '1' }))
+    const res = await itemRoute.PATCH(makeRequest({ std: 5 }, { method: 'PATCH' }), makeParams({ id: '1' }))
     expect(res.status).toBe(401)
   })
 
@@ -149,13 +149,13 @@ describe('PATCH /urrea-catalog/[id]', () => {
   test('actualiza por id', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'urrea_catalog.update': { data: { id: '1', price: 9 }, error: null } },
+      responses: { 'urrea_catalog.update': { data: { id: '1', std: 9 }, error: null } },
     })
-    const res = await itemRoute.PATCH(makeRequest({ price: 9 }, { method: 'PATCH' }), makeParams({ id: '1' }))
+    const res = await itemRoute.PATCH(makeRequest({ std: 9 }, { method: 'PATCH' }), makeParams({ id: '1' }))
     expect(res.status).toBe(200)
     const rec = activeClient.callsTo('urrea_catalog', 'update')[0]
     expect(filterValue(rec, 'id')).toBe('1')
-    expect(activeClient.updatePayload('urrea_catalog')).toMatchObject({ price: 9 })
+    expect(activeClient.updatePayload('urrea_catalog')).toMatchObject({ std: 9 })
   })
 })
 

@@ -35,6 +35,7 @@ type ExistingEtm = {
   etm: string
   description: string
   description_es: string
+  dymmsa_description: string | null
   model_code: string
   price: number
   brand: string
@@ -55,7 +56,7 @@ export function isEligibleForAutoLearn(item: QuotationItemRow): item is Eligible
   return (
     isProductItem(item) &&
     !!item.etm &&
-    (!!item.model_code || !!item.description || item.is_sold != null)
+    (!!item.model_code || !!item.description || item.is_sold != null || !!item.dymmsa_description)
   )
 }
 
@@ -69,6 +70,7 @@ export function computeNewEtmFields(item: EligibleItem): {
   etm: string
   description: string
   description_es: string
+  dymmsa_description: string | null
   model_code: string
   price: number
   brand: string | null
@@ -78,6 +80,9 @@ export function computeNewEtmFields(item: EligibleItem): {
     etm:            item.etm,
     description:    item.description    || '',
     description_es: item.description_es || '',
+    // Curada DYMMSA CRUDA de la UI — nunca la resuelta con catálogo: la oficial
+    // de URREA no debe copiarse a etm_products (jerarquía en lectura, ADR-013).
+    dymmsa_description: item.dymmsa_description || null,
     model_code:     item.model_code     || '',
     price:          item.unit_price     ?? 0,
     brand:          item.brand || (item.model_code ? 'URREA' : null),
@@ -102,6 +107,9 @@ export function mergeEtmFields(
     updates.description = incoming.description
   if (incoming.description_es && incoming.description_es !== existing.description_es)
     updates.description_es = incoming.description_es
+  // Curada cruda: solo valor no vacío, nunca pisa con vacío (misma regla que el resto).
+  if (incoming.dymmsa_description && incoming.dymmsa_description !== existing.dymmsa_description)
+    updates.dymmsa_description = incoming.dymmsa_description
   if (incoming.model_code     && incoming.model_code     !== existing.model_code)
     updates.model_code = incoming.model_code
   if (incoming.brand          && incoming.brand          !== existing.brand)
@@ -137,7 +145,7 @@ export async function processAutoLearn(
   const etmCodes = eligible.map((i) => i.etm)
   const { data: existingProducts } = await supabase
     .from('etm_products')
-    .select('id, etm, description, description_es, model_code, price, brand, is_sold')
+    .select('id, etm, description, description_es, dymmsa_description, model_code, price, brand, is_sold')
     .in('etm', etmCodes)
 
   const existingMap = new Map<string, ExistingEtm>(

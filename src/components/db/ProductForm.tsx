@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateProduct, useUpdateProduct } from '@/hooks/useProducts'
+import { useCatalogDescription } from '@/hooks/useUrreaCatalog'
 import { toast } from 'sonner'
 import { Loader2 } from '@/components/icons'
 import type { EtmProduct } from '@/types/database'
@@ -37,6 +38,7 @@ const productSchema = z.object({
   etm: z.string().min(1, 'ETM es requerido'),
   description: z.string(),
   description_es: z.string().min(1, 'Descripcion es requerida'),
+  dymmsa_description: z.string(),
   model_code: z.string().min(1, 'Modelo es requerido'),
   price: z.number().min(0, 'Precio debe ser mayor o igual a 0'),
   brand: z.string(),
@@ -62,6 +64,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
       etm: '',
       description: '',
       description_es: '',
+      dymmsa_description: '',
       model_code: '',
       price: 0,
       brand: 'URREA',
@@ -78,6 +81,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
           etm: product.etm || '',
           description: product.description || '',
           description_es: product.description_es || '',
+          dymmsa_description: product.dymmsa_description || '',
           model_code: product.model_code || '',
           price: product.price || 0,
           brand: product.brand || 'URREA',
@@ -88,6 +92,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
           etm: '',
           description: '',
           description_es: '',
+          dymmsa_description: '',
           model_code: '',
           price: 0,
           brand: 'URREA',
@@ -97,17 +102,31 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
     }
   }, [open, product, form])
 
+  // Match de catálogo URREA por model_code: si existe, la oficial gana jerarquía
+  // y la curada no se edita aquí.
+  const modelCodeValue = form.watch('model_code')
+  const [debouncedCode, setDebouncedCode] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCode(modelCodeValue ?? ''), 400)
+    return () => clearTimeout(t)
+  }, [modelCodeValue])
+  const { data: catalogDesc } = useCatalogDescription(open ? debouncedCode : '')
+
   const onSubmit = async (values: ProductFormValues) => {
     try {
+      // Con match de catálogo la curada no se editó aquí: preservar la existente.
+      const payload = catalogDesc
+        ? { ...values, dymmsa_description: product?.dymmsa_description ?? '' }
+        : values
       if (isEditing && product) {
         await updateProduct.mutateAsync({
           id: product.id,
-          updates: values,
+          updates: payload,
         })
         toast.success('Producto actualizado')
       } else {
         await createProduct.mutateAsync({
-          ...values,
+          ...payload,
           created_by: null,
         })
         toast.success('Producto creado')
@@ -181,6 +200,28 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
                   <FormControl>
                     <Input placeholder="Product description" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dymmsa_description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descripción DYMMSA</FormLabel>
+                  <FormControl>
+                    {catalogDesc ? (
+                      <Input value={catalogDesc} disabled />
+                    ) : (
+                      <Input placeholder="Descripción propia de DYMMSA" {...field} />
+                    )}
+                  </FormControl>
+                  {catalogDesc && (
+                    <p className="text-xs text-muted-foreground">
+                      Oficial del catálogo URREA {'\u2014'} se corrige reimportando el catálogo.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
