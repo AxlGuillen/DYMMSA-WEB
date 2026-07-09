@@ -890,16 +890,15 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               day: '2-digit', month: 'long', year: 'numeric',
             })}
           </p>
-          {quotation.approved_at &&
-            (quotation.status === 'approved' || quotation.status === 'converted_to_order') && (
-              <p className="text-sm font-medium text-green-700 dark:text-green-400 mt-0.5">
-                Aprobada el{' '}
-                {new Date(quotation.approved_at).toLocaleString('es-MX', {
-                  day: '2-digit', month: 'long', year: 'numeric',
-                  hour: '2-digit', minute: '2-digit',
-                })}
-              </p>
-            )}
+          {quotation.approved_at && (
+            <p className="text-sm font-medium text-green-700 dark:text-green-400 mt-0.5">
+              Aprobada el{' '}
+              {new Date(quotation.approved_at).toLocaleString('es-MX', {
+                day: '2-digit', month: 'long', year: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+              })}
+            </p>
+          )}
         </div>
 
         {/* Action buttons */}

@@ -24,7 +24,7 @@ export async function PATCH(
 
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
-      .select('id, status')
+      .select('id, status, approved_at')
       .eq('id', id)
       .single()
 
@@ -53,15 +53,24 @@ export async function PATCH(
     // link de aprobación compartido previamente (p. ej. al reabrir una cotización ya
     // enviada/aprobada, el link viejo deja de funcionar).
     // No se tocan los quotation_items → is_approved se preserva.
-    // approved_at: se sella al marcar 'approved'; se limpia al salir de ese estado
-    // (así el detalle no muestra una fecha de aprobación en una cotización reabierta).
+    // approved_at: es la fecha en que el cliente aprobó y debe verse en CUALQUIER fase
+    // posterior (convertida, reabierta, etc.). Se preserva siempre (nunca se borra) y
+    // solo se sella al marcar 'approved' si aún no existe → conserva la fecha original.
+    const updatePayload: {
+      status: QuotationStatus
+      approval_token: string
+      approved_at?: string
+    } = {
+      status,
+      approval_token: crypto.randomUUID(),
+    }
+    if (status === 'approved' && !quotation.approved_at) {
+      updatePayload.approved_at = new Date().toISOString()
+    }
+
     const { data: updated, error: updateError } = await supabase
       .from('quotations')
-      .update({
-        status,
-        approval_token: crypto.randomUUID(),
-        approved_at: status === 'approved' ? new Date().toISOString() : null,
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single()
