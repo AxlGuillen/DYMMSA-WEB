@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest } from '@/lib/api-helpers'
-import { handleGitHubError } from '../route'
 import {
   fetchGitHub,
+  handleGitHubError,
   mapIssueToTask,
   mapComment,
   buildIssueBody,

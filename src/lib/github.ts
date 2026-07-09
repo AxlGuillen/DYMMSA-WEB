@@ -7,7 +7,12 @@
  *
  * `fetchGitHub()` centraliza auth y mapeo de errores. Las funciones puras
  * (mapIssueToTask, buildIssueBody, priority helpers) son testeables sin red.
+ *
+ * Nota: los componentes/hooks del cliente importan de aquí SOLO con `import type`
+ * (se borra en compilación) → `next/server` nunca llega al bundle del navegador.
  */
+
+import { NextResponse } from 'next/server'
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'highest'
 export type TaskState = 'open' | 'closed'
@@ -176,6 +181,20 @@ export function explainGitHubStatus(status: number): string {
     default:
       return `Error de GitHub (${status}).`
   }
+}
+
+/**
+ * Traduce un `GitHubError` a `NextResponse` (mismo patrón que `explainPgError`
+ * en `supabase-errors.ts`). Cualquier otro error → 500. Lo usan los route
+ * handlers de tasks — vive aquí, no en un route.ts, para no acoplar rutas entre sí.
+ */
+export function handleGitHubError(e: unknown): NextResponse {
+  if (e instanceof GitHubError) {
+    const status = e.status >= 400 && e.status < 600 ? e.status : 502
+    return NextResponse.json({ message: e.message }, { status })
+  }
+  console.error('Tasks GitHub error:', e)
+  return NextResponse.json({ message: 'Error interno' }, { status: 500 })
 }
 
 /**

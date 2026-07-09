@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
+import { requireAuth, badRequest } from '@/lib/api-helpers'
 import {
   fetchGitHub,
   mapIssueToTask,
@@ -8,19 +8,9 @@ import {
   buildIssueBody,
   priorityToLabel,
   isTaskPriority,
-  GitHubError,
+  handleGitHubError,
   type GitHubIssue,
 } from '@/lib/github'
-
-/** Traduce un GitHubError a HTTP; cualquier otro error → 500. */
-export function handleGitHubError(e: unknown): NextResponse {
-  if (e instanceof GitHubError) {
-    const status = e.status >= 400 && e.status < 600 ? e.status : 502
-    return NextResponse.json({ message: e.message }, { status })
-  }
-  console.error('Tasks route error:', e)
-  return serverError()
-}
 
 // ------------------------------------------------------------------ //
 // GET /api/tasks?state=open|closed|all&priority=&page=                //

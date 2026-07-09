@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest } from '@/lib/api-helpers'
-import { handleGitHubError } from '../../route'
-import { fetchGitHub, mapComment, buildIssueBody, type GitHubComment } from '@/lib/github'
+import { fetchGitHub, mapComment, buildIssueBody, handleGitHubError, type GitHubComment } from '@/lib/github'
 
 // ------------------------------------------------------------------ //
 // POST /api/tasks/[number]/comments   { body }                        //
