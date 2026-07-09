@@ -677,26 +677,39 @@ describe('PATCH /quotations/[id]/status', () => {
     expect(payload.approval_token).toMatch(/[0-9a-f-]{36}/i)
   })
 
-  test('sella approved_at al pasar a approved; lo limpia en otros estados', async () => {
+  test('sella approved_at al marcar approved por primera vez; lo PRESERVA en otros estados', async () => {
+    // 1. Marca approved sin fecha previa → sella ahora.
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
-        'quotations.select': { data: { id: 'q1', status: 'sent_for_approval' }, error: null },
+        'quotations.select': { data: { id: 'q1', status: 'sent_for_approval', approved_at: null }, error: null },
         'quotations.update': { data: { id: 'q1', status: 'approved' }, error: null },
       },
     })
     await status.PATCH(makeRequest({ status: 'approved' }), makeParams({ id: 'q1' }))
     expect(activeClient.updatePayload<{ approved_at?: string | null }>('quotations').approved_at).toBeTruthy()
 
+    // 2. Sale de approved → NO borra: approved_at ausente del payload = preservado.
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
-        'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
+        'quotations.select': { data: { id: 'q1', status: 'approved', approved_at: '2026-07-01T10:00:00Z' }, error: null },
         'quotations.update': { data: { id: 'q1', status: 'draft' }, error: null },
       },
     })
     await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
-    expect(activeClient.updatePayload<{ approved_at?: string | null }>('quotations').approved_at).toBeNull()
+    expect('approved_at' in activeClient.updatePayload('quotations')).toBe(false)
+
+    // 3. Re-marca approved teniendo fecha previa → conserva la original (no re-sella).
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'sent_for_approval', approved_at: '2026-07-01T10:00:00Z' }, error: null },
+        'quotations.update': { data: { id: 'q1', status: 'approved' }, error: null },
+      },
+    })
+    await status.PATCH(makeRequest({ status: 'approved' }), makeParams({ id: 'q1' }))
+    expect('approved_at' in activeClient.updatePayload('quotations')).toBe(false)
   })
 
   test('GUARDA: converted_to_order con orden vinculada (cualquier estado) → 400', async () => {
