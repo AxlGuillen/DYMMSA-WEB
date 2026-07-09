@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { Sparkles, Plus, ArrowUp, Wrench } from '@/components/icons'
@@ -32,6 +33,25 @@ const CATEGORY_META: Record<
 }
 
 const CATEGORY_ORDER: ChangelogCategory[] = ['nuevo', 'mejorado', 'corregido']
+
+/** Convierte referencias `#123` en links a la tarea correspondiente. */
+function ChangelogText({ text }: { text: string }) {
+  const parts = text.split(/(#\d+)/g)
+  return (
+    <>
+      {parts.map((part, i) => {
+        const m = part.match(/^#(\d+)$/)
+        return m ? (
+          <Link key={i} href={`/dashboard/tasks/${m[1]}`} className="font-medium text-primary hover:underline">
+            {part}
+          </Link>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      })}
+    </>
+  )
+}
 
 function formatDate(iso: string): string {
   const date = new Date(`${iso}T00:00:00`)
@@ -116,7 +136,7 @@ export default async function ChangelogPage() {
                                     className="flex gap-2 text-sm text-muted-foreground"
                                   >
                                     <span className="mt-2 size-1 shrink-0 rounded-full bg-muted-foreground/40" />
-                                    <span>{entry.text}</span>
+                                    <span><ChangelogText text={entry.text} /></span>
                                   </li>
                                 ))}
                               </ul>

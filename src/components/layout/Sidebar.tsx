@@ -42,6 +42,7 @@ import {
   CircleHelp,
   Sparkles,
   Library,
+  ClipboardList,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -76,6 +77,7 @@ const urreaLinks: LinkItem[] = [
 ]
 
 const recursosLinks: LinkItem[] = [
+  { href: '/dashboard/tasks',     label: 'Tareas',        icon: ClipboardList },
   { href: '/dashboard/changelog', label: 'Novedades',     icon: Sparkles },
   { href: '/dashboard/docs',      label: 'Documentacion', icon: CircleHelp },
 ]
