@@ -151,7 +151,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 - Automático al abrir o actualizar un PR
 - `@claude` en comentarios para preguntas on-demand
 
-**Modelo:** Claude Sonnet (default de Claude Code, via OAuth — sin costo adicional de API)
+**Modelo:** Claude Opus 4.8 con `--effort high` (fijado en `claude_args` del workflow, via OAuth — sin costo adicional de API). Opciones de effort: `low`/`medium`/`high`/`xhigh`/`max`.
 
 **Tres niveles de revisión:**
 - 🔴 **Bloqueante** — violación de reglas de negocio, rutas sin `requireAuth()`, lógica de totales fuera de `business-rules.ts`, TypeScript `any`
