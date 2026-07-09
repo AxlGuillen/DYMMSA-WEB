@@ -44,6 +44,7 @@ const sections = [
   { id: 'inventario', label: 'Excel de Inventario', icon: Warehouse },
   { id: 'catalogo-urrea', label: 'Catalogo URREA', icon: Library },
   { id: 'ordenes', label: 'Detalle de Orden', icon: Package },
+  { id: 'tareas', label: 'Tareas', icon: ClipboardList },
   { id: 'flujo', label: 'Flujo del Sistema', icon: ArrowRight },
 ]
 
@@ -1234,6 +1235,42 @@ export default function DocsPage() {
             </p>
           </div>
 
+        </CardContent>
+      </Card>
+      </div>
+
+      {/* Section: Tareas */}
+      <div id="tareas" className="login-card-border">
+      <Card className="docs-card-inner border-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardList className="size-5" />
+            Tareas
+          </CardTitle>
+          <CardDescription>
+            Tablero interno para registrar lo que se planea agregar o corregir, con su prioridad.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-muted-foreground">
+            Desde <strong>Tareas</strong> (menu lateral) puedes crear tareas con nombre, descripcion y
+            prioridad, comentarlas y llevarlas de abiertas a cerradas. Todo queda registrado sin salir
+            de la app.
+          </p>
+          <ul className="ml-4 list-disc space-y-1.5 text-muted-foreground">
+            <li><strong>Crear:</strong> boton &ldquo;Nueva tarea&rdquo; {'—'} titulo, prioridad (Baja / Media / Alta / Maxima) y descripcion. Puedes <strong>adjuntar imagenes</strong> (PNG, JPG, GIF o WEBP, hasta 5 MB) que se insertan en la descripcion.</li>
+            <li><strong>Filtrar:</strong> por estado (<em>Abiertas</em> / <em>Cerradas</em> / <em>Todas</em>) y por prioridad. <strong>Cerradas</strong> es el historico.</li>
+            <li><strong>Detalle:</strong> cada tarea tiene su propia pagina con la descripcion, comentarios (ver y responder), y acciones para cambiar prioridad, editar, <strong>cerrar</strong> (completada) y <strong>reabrir</strong>.</li>
+            <li><strong>Descartar:</strong> si una tarea fue un <strong>falso reporte</strong>, se descarta (queda como &ldquo;Descartada&rdquo;, aparte de las completadas). Sale de la vista de abiertas y se puede reabrir si hizo falta.</li>
+            <li><strong>Enlace con Novedades:</strong> cuando una novedad menciona una tarea como <code className="rounded bg-muted px-1">#12</code>, se vuelve un enlace directo a esa tarea.</li>
+          </ul>
+          <div className="rounded-md border bg-muted/40 px-4 py-3 text-muted-foreground">
+            <p>
+              Las tareas se guardan en <strong>GitHub</strong> (el repositorio del proyecto). Si GitHub no
+              esta disponible o la conexion falla, el modulo lo indica con un mensaje y se recupera al
+              reintentar. Quien reporto cada tarea se anota al inicio de su descripcion.
+            </p>
+          </div>
         </CardContent>
       </Card>
       </div>

@@ -25,7 +25,13 @@ src/
 │   │           ├── create-order/ # POST: crear orden desde cotización aprobada
 │   │           ├── send-for-approval/ # POST: generar token + cambiar status
 │   │           └── update/       # PATCH: editar cotización (draft o approved)
-│   │   └── quotes/lookup/        # GET: lookup ETMs en etm_products
+│   │   ├── quotes/lookup/        # GET: lookup ETMs en etm_products
+│   │   └── tasks/                 # Módulo Tareas (GitHub Issues, ADR-014)
+│   │       ├── route.ts          # GET: lista | POST: crear
+│   │       ├── upload/           # POST: imagen → bucket task-images → URL
+│   │       └── [number]/
+│   │           ├── route.ts      # GET: detalle+comentarios | PATCH: editar/cerrar/reabrir
+│   │           └── comments/     # POST: comentar
 │   │
 │   ├── approve/[token]/          # Página PÚBLICA de aprobación (sin auth)
 │   │   ├── page.tsx              # Server component: carga cotización por token
@@ -44,7 +50,10 @@ src/
 │   │   ├── quotations/
 │   │   │   ├── page.tsx          # Lista de cotizaciones
 │   │   │   └── [id]/page.tsx     # Detalle de cotización
-│   │   └── quoter/page.tsx       # Cotizador (tabla editable)
+│   │   ├── quoter/page.tsx       # Cotizador (tabla editable)
+│   │   └── tasks/
+│   │       ├── page.tsx          # Lista de tareas + filtros + modal de creación
+│   │       └── [number]/page.tsx # Detalle de tarea (descripción, comentarios, acciones)
 │   │
 │   ├── login/                    # Autenticación
 │   ├── layout.tsx                # Root layout (providers)
@@ -60,6 +69,7 @@ src/
 │   ├── providers/                # QueryProvider (TanStack), ThemeProvider
 │   ├── quotations/               # QuotationDetail, QuotationStatusBadge, QuotationsTable
 │   ├── quoter/                   # FileUploader, ProductModal, QuotationEditor, QuotePreview
+│   ├── tasks/                    # TaskForm, TaskDetail, TaskPriorityBadge
 │   └── ui/                       # shadcn/ui components (alert-dialog, badge, button, etc.)
 │
 ├── hooks/
@@ -70,7 +80,8 @@ src/
 │   ├── useOrders.ts              # CRUD + acciones de órdenes (add/edit/remove items, cancel, confirm)
 │   ├── useProducts.ts            # CRUD catálogo ETM
 │   ├── useQuotations.ts          # CRUD + acciones de cotizaciones
-│   └── useQuotes.ts              # Lookup ETMs para el cotizador
+│   ├── useQuotes.ts              # Lookup ETMs para el cotizador
+│   └── useTasks.ts               # Tareas (GitHub Issues): lista/detalle/crear/editar/comentar/upload
 │
 ├── lib/
 │   ├── excel/
@@ -86,6 +97,7 @@ src/
 │   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers
 │   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
+│   ├── github.ts                 # Cliente GitHub Issues (módulo Tareas): fetchGitHub + mapeos puros
 │   └── utils.ts                  # cn() — class merging
 │
 ├── stores/

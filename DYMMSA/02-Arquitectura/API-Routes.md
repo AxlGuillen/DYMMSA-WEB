@@ -93,6 +93,23 @@
 
 ---
 
+## Tareas (GitHub Issues)
+
+> Módulo: [[03-Modulos/Tareas]] · Backend: GitHub Issues del repo (`GITHUB_REPO`), sin tabla en Supabase · ADR: [[04-Decisiones-Tecnicas/ADR-014-Modulo-Tareas-GitHub]]
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/tasks` | ✅ | Lista de tasks (issues). Query: `state (open/closed/all, default open)`, `priority (low/medium/high/highest)`, `page`. Excluye PRs. Devuelve `{ tasks, page }`. `state=closed` = histórico |
+| `POST` | `/api/tasks` | ✅ | Crear task. Body: `{ title, description?, priority? }`. Antepone `Reportado por: <email>` al body; la prioridad se traduce a label `priority:*` |
+| `GET` | `/api/tasks/[number]` | ✅ | Detalle: `{ task, comments }`. `number` inválido → 400 |
+| `PATCH` | `/api/tasks/[number]` | ✅ | Editar `{ title?, description?, priority?, state?, stateReason? }`. Cerrar/reabrir vía `state`; al cerrar, `stateReason` = `completed` (default) o `not_planned` (**descartar** = falso positivo). En descripción/prioridad lee el issue actual para conservar el reporter original y los labels no-prioridad |
+| `POST` | `/api/tasks/[number]/comments` | ✅ | Comentar. Body: `{ body }`. Antepone `Reportado por:` |
+| `POST` | `/api/tasks/upload` | ✅ | Multipart `file` → sube al bucket `task-images` (público, 5 MB, PNG/JPG/GIF/WEBP) con service role → `{ url }` para embeber en el markdown |
+
+> `handleGitHubError` traduce `GitHubError` a HTTP: 401 (token vencido) / 403 (permiso o rate limit) / 404 con mensajes claros. Env: `GITHUB_TOKEN`, `GITHUB_REPO`.
+
+---
+
 ## Notas de implementación
 
 - Todas las rutas protegidas usan `createClient()` de `@supabase/ssr` y verifican `auth.getUser()`.
