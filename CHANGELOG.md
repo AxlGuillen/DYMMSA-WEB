@@ -3,6 +3,13 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-09
+
+### Mejorado
+- La **fecha en que el cliente aprobó** una cotización ahora se muestra en su detalle **sin importar
+  la fase** en la que esté (incluidas las convertidas a orden o reabiertas para retrabajar). Antes
+  solo aparecía mientras la cotización estaba en estado "Aprobada" y se perdía al cambiarla de estado.
+
 ## 2026-07-08
 
 ### Nuevo
