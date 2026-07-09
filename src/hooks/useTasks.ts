@@ -41,7 +41,24 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (input: { title: string; description?: string; priority?: TaskPriority }) =>
       fetchJson<Task>('/api/tasks', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSuccess: (newTask) => {
+      // Inserción optimista: la task aparece al instante en las vistas donde
+      // corresponde (estado/prioridad/página 1), sin esperar el refetch.
+      const lists = qc.getQueriesData<{ tasks: Task[]; page: number }>({ queryKey: [...TASKS_KEY, 'list'] })
+      for (const [key, data] of lists) {
+        if (!data) continue
+        const f = (key[key.length - 1] ?? {}) as { state?: string; priority?: string; page?: number }
+        const matches =
+          (!f.state || f.state === 'all' || f.state === newTask.state) &&
+          (!f.priority || f.priority === 'all' || f.priority === newTask.priority) &&
+          (!f.page || f.page === 1)
+        if (matches && !data.tasks.some((t) => t.number === newTask.number)) {
+          qc.setQueryData(key, { ...data, tasks: [newTask, ...data.tasks] })
+        }
+      }
+      // Reconcilia con el servidor en segundo plano.
+      qc.invalidateQueries({ queryKey: TASKS_KEY })
+    },
   })
 }
 

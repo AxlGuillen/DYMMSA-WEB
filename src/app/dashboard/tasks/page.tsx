@@ -31,7 +31,7 @@ export default function TasksPage() {
   const [priority, setPriority] = useState<TaskPriorityFilter>('all')
   const [formOpen, setFormOpen] = useState(false)
 
-  const { data, isLoading, error } = useTasks({ state, priority })
+  const { data, isLoading, isFetching, error } = useTasks({ state, priority })
   const tasks = data?.tasks ?? []
 
   return (
@@ -41,6 +41,9 @@ export default function TasksPage() {
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
             <ClipboardList className="size-6" />
             Tareas
+            {isFetching && !isLoading && (
+              <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Actualizando" />
+            )}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Planeadas y en curso, sincronizadas con GitHub. Las cerradas son el histórico.
