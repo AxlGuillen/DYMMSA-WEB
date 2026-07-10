@@ -116,3 +116,15 @@
 - Las rutas públicas de aprobación acceden directamente por `approval_token` sin sesión.
 - Los errores siguen el formato `{ message: string }` con status HTTP apropiado.
 - El rollback en `save` y `create-order` elimina el registro padre si falla la inserción de ítems.
+
+---
+
+## MCP interno (`/api/mcp`)
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `POST` | `/api/mcp` | Bearer `MCP_API_KEY` | Servidor MCP (Streamable HTTP, `mcp-handler`). 13 tools de **solo lectura** sobre todos los módulos + resource `dymmsa://reglas-negocio`. Ruta física: `src/app/api/[transport]/route.ts` (SSE deshabilitado → GET/DELETE responden pero no se usan) |
+
+> Los tools NO pasan por las rutas de arriba: usan el admin client (service role) con la
+> autenticación del MCP como capa propia (comparación en tiempo constante; sin `MCP_API_KEY`
+> configurada rechaza todo). Tools y arquitectura: [[04-Decisiones-Tecnicas/ADR-015-MCP-Interno]].

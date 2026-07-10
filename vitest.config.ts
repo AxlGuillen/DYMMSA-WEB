@@ -40,7 +40,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['tests/lib/**/*.test.ts', 'tests/api/**/*.test.ts'],
+          include: ['tests/lib/**/*.test.ts', 'tests/api/**/*.test.ts', 'tests/mcp/**/*.test.ts'],
         },
       },
       {
