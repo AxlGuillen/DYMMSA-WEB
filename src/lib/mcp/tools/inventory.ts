@@ -3,7 +3,7 @@
  * Misma query y filtros de stock que GET /api/inventory.
  */
 
-import { normalizePagination, ToolError, type Db } from '../shared'
+import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'
 import type { StoreInventory } from '@/types/database'
 
 const STOCK_FILTERS = ['all', 'in_stock', 'low_stock', 'sin_stock'] as const
@@ -21,7 +21,9 @@ export async function searchInventory(db: Db, input: SearchInventoryInput) {
 
   let query = db.from('store_inventory').select('*', { count: 'exact' })
 
-  const search = (input.search ?? '').replace(/[%]/g, ' ').trim()
+  // Coherencia con los demás tools: aunque hoy sea .ilike() directo (no .or()),
+  // sanitizeSearch mantiene el mismo saneo por si esta query cambia a futuro.
+  const search = sanitizeSearch(input.search ?? '')
   if (search) query = query.ilike('model_code', `%${search}%`)
 
   const stockFilter: StockFilter = STOCK_FILTERS.includes(input.stockFilter as StockFilter)
