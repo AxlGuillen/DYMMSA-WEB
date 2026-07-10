@@ -1,27 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runHealthChecks } from '@/lib/health'
 
 /**
  * GET /api/health — endpoint PÚBLICO de estado de la aplicación.
  *
- * Si esto responde, el deploy vive; el body dice qué funciona por dentro
- * (BD, Storage, GitHub/Tareas, páginas clave). ok/degraded → 200, down → 503
- * para que cualquier monitor lo evalúe sin parsear JSON.
+ * Que responda ya prueba que el deploy vive; el body dice qué funciona por
+ * dentro corriendo las queries reales de cada módulo (cotizaciones, órdenes,
+ * inventario) + Storage + GitHub. ok/degraded → 200, down → 503 para que
+ * cualquier monitor lo evalúe sin parsear JSON.
  *
  * Es público a propósito (uptime monitors sin headers): las respuestas son
  * gruesas (sin errores internos) y el resultado se cachea 30s en el edge
  * (s-maxage) para que un burst de hits no multiplique los checks.
  */
-export async function GET(request: NextRequest) {
-  // Origin real detrás del proxy de Vercel, para el self-fetch de páginas.
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? 'localhost:3000'
-  const proto = request.headers.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
-
-  const report = await runHealthChecks({
-    db: createAdminClient(),
-    origin: `${proto}://${host}`,
-  })
+export async function GET() {
+  const report = await runHealthChecks({ db: createAdminClient() })
 
   return NextResponse.json(report, {
     status: report.status === 'down' ? 503 : 200,

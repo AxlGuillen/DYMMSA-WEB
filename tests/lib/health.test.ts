@@ -1,65 +1,57 @@
 /**
- * Health checks (GET /api/health). Las dependencias (db, fetch) se inyectan,
- * así que los checks se prueban con stubs — sin red ni BD real.
+ * Health checks (GET /api/health). Los checks de módulos ejecutan las queries
+ * reales (funciones compartidas de los tools MCP) — se prueban con el mock de
+ * Supabase; GitHub con fetch stub. Sin red ni BD real.
  */
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createMockSupabase } from '../helpers/supabase-mock'
-import {
-  checkDatabase,
-  checkStorage,
-  checkGitHub,
-  checkPages,
-  runHealthChecks,
-} from '@/lib/health'
+import { createMockSupabase, type MockConfig } from '../helpers/supabase-mock'
+import { checkQuotations, checkStorage, checkGitHub, runHealthChecks } from '@/lib/health'
 
 type Fetcher = typeof fetch
 
-/** db stub con storage configurable (el mock del proyecto no modela storage). */
-function dbWithStorage(listResult: { data?: unknown; error?: unknown }): SupabaseClient {
-  return {
-    storage: { from: () => ({ list: async () => listResult }) },
-  } as unknown as SupabaseClient
+/** Mock del proyecto + storage stub (el mock base no modela storage). */
+function db(responses: MockConfig['responses'], storageError: unknown = null): SupabaseClient {
+  const mock = createMockSupabase({ responses }) as unknown as { storage: unknown }
+  mock.storage = {
+    from: () => ({ list: async () => ({ data: storageError ? null : [], error: storageError }) }),
+  }
+  return mock as unknown as SupabaseClient
 }
 
-/** fetch stub que responde por URL (status por defecto 200). */
-function fetchStub(routes: Record<string, number>): Fetcher {
-  return (async (input: RequestInfo | URL) => {
-    const url = String(input)
-    const match = Object.entries(routes).find(([k]) => url.includes(k))
-    const status = match ? match[1] : 200
-    return { ok: status >= 200 && status < 300, status } as Response
-  }) as Fetcher
+const ALL_OK: MockConfig['responses'] = {
+  quotations: { data: [], count: 0 },
+  orders: { data: [], count: 0 },
+  store_inventory: { data: [], count: 0 },
 }
+
+const githubOk: Fetcher = (async () => ({ ok: true, status: 200 })) as unknown as Fetcher
+const githubDown: Fetcher = (async () => ({ ok: false, status: 401 })) as unknown as Fetcher
 
 beforeEach(() => {
   delete process.env.GITHUB_TOKEN
   delete process.env.GITHUB_REPO
 })
 
-describe('checkDatabase', () => {
-  test('ok con latencia cuando la query responde', async () => {
-    const db = createMockSupabase({ responses: { quotations: { data: [{ id: 'x' }] } } })
-    const result = await checkDatabase(db as unknown as SupabaseClient)
+describe('checks de módulos (queries reales con admin client)', () => {
+  test('ok con latencia cuando la query del módulo responde', async () => {
+    const result = await checkQuotations(db(ALL_OK))
     expect(result.status).toBe('ok')
     expect(result.latency_ms).toBeTypeOf('number')
   })
 
-  test('fail cuando la query trae error', async () => {
-    const db = createMockSupabase({ responses: { quotations: { data: null, error: { message: 'x' } } } })
-    const result = await checkDatabase(db as unknown as SupabaseClient)
+  test('fail sin detalle interno cuando la query truena (público = respuesta gruesa)', async () => {
+    const result = await checkQuotations(db({ quotations: { data: null, error: { message: 'boom' } } }))
     expect(result.status).toBe('fail')
-    expect(result).not.toHaveProperty('detail') // público: sin mensajes internos
+    expect(result).not.toHaveProperty('detail')
   })
 })
 
 describe('checkStorage', () => {
-  test('ok cuando el bucket lista', async () => {
-    expect((await checkStorage(dbWithStorage({ data: [], error: null }))).status).toBe('ok')
-  })
-  test('fail con error del bucket', async () => {
-    expect((await checkStorage(dbWithStorage({ data: null, error: { message: 'x' } }))).status).toBe('fail')
+  test('ok cuando el bucket lista; fail con error', async () => {
+    expect((await checkStorage(db(ALL_OK))).status).toBe('ok')
+    expect((await checkStorage(db(ALL_OK, { message: 'x' }))).status).toBe('fail')
   })
 })
 
@@ -71,69 +63,40 @@ describe('checkGitHub', () => {
   test('ok / fail según el token contra /rate_limit', async () => {
     process.env.GITHUB_TOKEN = 't'
     process.env.GITHUB_REPO = 'o/r'
-    expect((await checkGitHub(fetchStub({ 'rate_limit': 200 }))).status).toBe('ok')
-    expect((await checkGitHub(fetchStub({ 'rate_limit': 401 }))).status).toBe('fail')
-  })
-})
-
-describe('checkPages', () => {
-  test('ok cuando /login=200 y / y /dashboard redirigen', async () => {
-    const fetchFn = fetchStub({ '/login': 200, '/dashboard': 307, 'http://x/': 307 })
-    const result = await checkPages('http://x', fetchFn)
-    expect(result.status).toBe('ok')
-    expect(result.pages).toEqual({ '/login': 'ok', '/': 'ok', '/dashboard': 'ok' })
-  })
-
-  test('un /dashboard que responde 200 sin sesión es FALLA (guard de auth roto)', async () => {
-    const fetchFn = fetchStub({ '/login': 200, '/dashboard': 200, 'http://x/': 307 })
-    const result = await checkPages('http://x', fetchFn)
-    expect(result.status).toBe('fail')
-    expect(result.pages['/dashboard']).toBe('fail')
+    expect((await checkGitHub(githubOk)).status).toBe('ok')
+    expect((await checkGitHub(githubDown)).status).toBe('fail')
   })
 })
 
 describe('runHealthChecks (agregación)', () => {
-  const okDb = () => {
-    const mock = createMockSupabase({ responses: { quotations: { data: [{ id: 'x' }] } } }) as unknown as {
-      storage: unknown
-    }
-    mock.storage = { from: () => ({ list: async () => ({ data: [], error: null }) }) }
-    return mock as unknown as SupabaseClient
-  }
-  const pagesOk = fetchStub({ '/login': 200, '/dashboard': 307, 'http://x/': 307 })
-
   test('todo bien → ok (github skip no penaliza)', async () => {
-    const report = await runHealthChecks({ db: okDb(), origin: 'http://x', fetchFn: pagesOk })
+    const report = await runHealthChecks({ db: db(ALL_OK), fetchFn: githubOk })
     expect(report.status).toBe('ok')
     expect(report.checks.github.status).toBe('skip')
     expect(report.app).toBe('dymmsa-web')
+    expect(Object.keys(report.checks)).toEqual(['quotations', 'orders', 'inventory', 'storage', 'github'])
   })
 
   test('storage caído → degraded (el negocio sigue operando)', async () => {
-    const db = createMockSupabase({ responses: { quotations: { data: [{ id: 'x' }] } } }) as unknown as {
-      storage: unknown
-    }
-    db.storage = { from: () => ({ list: async () => ({ data: null, error: { message: 'x' } }) }) }
-    const report = await runHealthChecks({ db: db as unknown as SupabaseClient, origin: 'http://x', fetchFn: pagesOk })
+    const report = await runHealthChecks({ db: db(ALL_OK, { message: 'x' }), fetchFn: githubOk })
     expect(report.status).toBe('degraded')
   })
 
-  test('BD caída → down (aunque lo demás pase)', async () => {
-    const db = createMockSupabase({ responses: { quotations: { data: null, error: { message: 'x' } } } }) as unknown as {
-      storage: unknown
-    }
-    db.storage = { from: () => ({ list: async () => ({ data: [], error: null }) }) }
-    const report = await runHealthChecks({ db: db as unknown as SupabaseClient, origin: 'http://x', fetchFn: pagesOk })
-    expect(report.status).toBe('down')
+  test('github caído → degraded', async () => {
+    process.env.GITHUB_TOKEN = 't'
+    process.env.GITHUB_REPO = 'o/r'
+    const report = await runHealthChecks({ db: db(ALL_OK), fetchFn: githubDown })
+    expect(report.status).toBe('degraded')
+    expect(report.checks.github.status).toBe('fail')
   })
 
-  test('página clave rota → down', async () => {
+  test('un módulo de negocio caído → down aunque lo demás pase', async () => {
     const report = await runHealthChecks({
-      db: okDb(),
-      origin: 'http://x',
-      fetchFn: fetchStub({ '/login': 500, '/dashboard': 307, 'http://x/': 307 }),
+      db: db({ ...ALL_OK, orders: { data: null, error: { message: 'x' } } }),
+      fetchFn: githubOk,
     })
     expect(report.status).toBe('down')
-    expect(report.checks.pages.pages['/login']).toBe('fail')
+    expect(report.checks.orders.status).toBe('fail')
+    expect(report.checks.quotations.status).toBe('ok') // checks aislados
   })
 })
