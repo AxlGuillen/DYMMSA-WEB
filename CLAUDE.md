@@ -22,6 +22,9 @@ Flujo: subir Excel del cliente → cotizador editable → aprobación por link �
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# Módulo Tareas (GitHub Issues como backend, ADR-014)
+GITHUB_TOKEN=   # fine-grained PAT: Issues Read/Write + Metadata Read, solo el repo
+GITHUB_REPO=    # owner/repo, ej. AxlGuillen/DYMMSA-WEB
 ```
 
 ---
@@ -39,8 +42,8 @@ draft | sent_for_approval | approved | rejected | converted_to_order
 - `canEdit = isDraft || isSentForApproval || isApproved` (Fase 5.5: cotizaciones aprobadas y en revisión son editables — permite ajustar precio/cantidad/entrega mientras el cliente revisa)
 - Ítems nuevos agregados en estado `approved` → `is_approved = null` (pendiente); el usuario DYMMSA los aprueba/rechaza manualmente con los botones ✓/✗ en `QuotationDetail`
 - `approval_token UUID UNIQUE` — se usa en `/approve/[token]` sin auth
-- `approved_at TIMESTAMPTZ` — fecha/hora de aprobación; se sella al finalizar la aprobación (cliente) o al marcar `approved` manualmente; se muestra en `QuotationDetail`
-- **Cambio manual de estado** (`PATCH /api/quotations/[id]/status`): el usuario puede mover la cotización entre `draft`/`sent_for_approval`/`approved`/`rejected` libremente desde el dropdown en `QuotationDetail` (preserva `is_approved`). El dropdown se deshabilita si hay cambios sin guardar (`isDirty`). **Cada cambio de estado regenera `approval_token`** → el link de aprobación compartido previamente queda muerto (404). `converted_to_order` NO es destino manual. Para **reabrir** una cotización convertida, su orden vinculada debe estar **eliminada** (si existe cualquier orden vinculada → 400); eliminar la orden restaura el inventario y garantiza ≤1 orden por cotización.
+- `approved_at TIMESTAMPTZ` — fecha/hora de aprobación; se sella al finalizar la aprobación (cliente) o al marcar `approved` manualmente (solo si aún no existe → conserva la original). **Se preserva en cualquier fase posterior** (convertida, reabierta, etc.) — nunca se borra. Se muestra en `QuotationDetail` siempre que exista, sin importar el estado actual.
+- **Cambio manual de estado** (`PATCH /api/quotations/[id]/status`): el usuario puede mover la cotización entre `draft`/`sent_for_approval`/`approved`/`rejected` libremente desde el dropdown en `QuotationDetail` (preserva `is_approved` **y `approved_at`**). El dropdown se deshabilita si hay cambios sin guardar (`isDirty`). **Cada cambio de estado regenera `approval_token`** → el link de aprobación compartido previamente queda muerto (404). `converted_to_order` NO es destino manual. Para **reabrir** una cotización convertida, su orden vinculada debe estar **eliminada** (si existe cualquier orden vinculada → 400); eliminar la orden restaura el inventario y garantiza ≤1 orden por cotización.
 - **`is_approved` se preserva en `update` en cualquier estado** (no solo `approved`): al reabrir una cotización y agregar ítems nuevos, los ya aprobados se conservan (la página `/approve/[token]` los pre-selecciona) y el cliente solo decide los nuevos.
 
 **`quotation_items`** — campos clave:
@@ -75,6 +78,8 @@ Constraint implícito: `quantity_in_stock + quantity_to_order = quantity_approve
 
 **`urrea_catalog`** — catálogo de URREA, sin FK (cruce **por valor** con `model_code`). `code TEXT UNIQUE` (equiv. a `model_code`, **siempre normalizado trim+upper** en import/POST/PATCH — es la llave de cruce de la Descripción DYMMSA, ADR-013), `description TEXT` (fuente de la descripción **oficial**, jerarquía mayor que la curada), `std INTEGER DEFAULT 1 CHECK > 0` (unidades por paquete), `created_at/updated_at` (trigger `moddatetime`). Módulo en sidebar **URREA → Catálogo** (`/dashboard/urrea/catalog`). Import por Excel (`codigo, descripcion, std`) en modo upsert (onConflict `code`) o replace. **Sin columna de precio** (no se usa).
 
+**Supabase Storage** — bucket **`task-images`** (migración `create_task_images_bucket`): público, 5 MB, PNG/JPG/GIF/WEBP. Primera y única integración de Storage; lo usa el módulo Tareas para adjuntar imágenes a la descripción de un issue. Subida vía service role (bypassa RLS); rutas UUID.
+
 ---
 
 ## Reglas de negocio críticas
@@ -92,6 +97,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 | **sort_order** | Al guardar cotización: `sort_order = index`. Al crear orden: re-asigna secuencialmente. Agregar ítem manual: `max(sort_order) + 1`. Siempre ordenar por `sort_order ASC`. |
 | **Aprobación pública** | `/approve/[token]` sin auth. Si `status !== 'sent_for_approval'` → mostrar estado actual, no permitir re-aprobar. **Guardar avance** (`finalize=false`): persiste `is_approved` (aprobados=`true`, resto=`null`) **sin cambiar status** → el link sigue vivo y el cliente retoma después. **Enviar** (`finalize=true`): resto=`false`, status→`approved`/`rejected` + sella `approved_at`. Un popup confirma antes de enviar. Al quedar `approved` se **notifica a DYMMSA por correo** (Resend, aislado en try/catch → nunca revierte la aprobación; el total del correo se calcula de los **ítems aprobados**, no de `total_amount`; env: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NOTIFICATION_EMAIL_TO`, `NEXT_PUBLIC_APP_URL`; ver ADR-012). |
 | **Rollback** | Si falla inserción de ítems en `save` o `create-order` → eliminar el registro padre (quotation/order). |
+| **Módulo Tareas = GitHub Issues** | `src/lib/github.ts` + `/api/tasks/*`. **No hay tabla**: los issues del repo (`GITHUB_REPO`) SON las tasks. Prioridad = label `priority:*`, estado = open/closed, reporter = línea `Reportado por:` en el body. La API de issues incluye PRs → excluir con `isPullRequest`. Errores vía `GitHubError`/`handleGitHubError` (401 token vencido, 403, 404). Imágenes → bucket `task-images`. Novedades liga `#N` → `/dashboard/tasks/N`. Ver ADR-014. |
 | **Errores descriptivos** | Los route handlers mapean `PostgrestError` con `explainPgError()` → identifican el ETM ofensor y devuelven 400 (no 500) cuando es violación de regla del usuario. `auto-learn` aislado en su propio try/catch → si falla, la cotización ya está salvada (warning, no error). Ver `DYMMSA/04-Decisiones-Tecnicas/ADR-009-Errores-Descriptivos.md`. |
 
 ---
@@ -145,7 +151,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 - Automático al abrir o actualizar un PR
 - `@claude` en comentarios para preguntas on-demand
 
-**Modelo:** Claude Sonnet (default de Claude Code, via OAuth — sin costo adicional de API)
+**Modelo:** Claude Opus 4.8 con `--effort high` (fijado en `claude_args` del workflow, via OAuth — sin costo adicional de API). Opciones de effort: `low`/`medium`/`high`/`xhigh`/`max`.
 
 **Tres niveles de revisión:**
 - 🔴 **Bloqueante** — violación de reglas de negocio, rutas sin `requireAuth()`, lógica de totales fuera de `business-rules.ts`, TypeScript `any`
@@ -212,6 +218,6 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 
 ---
 
-**Última actualización:** 2026-07-08  
+**Última actualización:** 2026-07-09  
 **BD:** Supabase `wjlklwtvjewhtghlskbt` · PostgreSQL 17.6 · us-west-2  
 **Filas (2026-04-25):** etm_products 564 · store_inventory 195 · quotations 9 · quotation_items 365 · orders 8 · order_items 182

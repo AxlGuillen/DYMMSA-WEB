@@ -17,6 +17,9 @@ import {
   ExternalLink,
   Package,
   Download,
+  Library,
+  DollarSign,
+  RefreshCw,
 } from '@/components/icons'
 import {
   Card,
@@ -39,7 +42,9 @@ const sections = [
   { id: 'cotizaciones', label: 'Cotizaciones y Flujo', icon: ClipboardList },
   { id: 'aprobado', label: 'Excel Aprobado (Verdes)', icon: CheckCircle2 },
   { id: 'inventario', label: 'Excel de Inventario', icon: Warehouse },
+  { id: 'catalogo-urrea', label: 'Catalogo URREA', icon: Library },
   { id: 'ordenes', label: 'Detalle de Orden', icon: Package },
+  { id: 'tareas', label: 'Tareas', icon: ClipboardList },
   { id: 'flujo', label: 'Flujo del Sistema', icon: ArrowRight },
 ]
 
@@ -197,7 +202,7 @@ const flowSteps: FlowStep[] = [
     variants: [
       {
         label: 'Completada',
-        description: 'Recibido de URREA → Pago pendiente → Pagado → Completado. Cada transicion actualiza el estado en el sistema.',
+        description: 'Pedido → Recibido → Entregado → Completado. Cada transicion actualiza el estado en el sistema.',
         color: 'green',
       },
       {
@@ -449,6 +454,27 @@ export default function DocsPage() {
             </ul>
           </div>
 
+          {/* ¿Lo vendemos? */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base flex items-center gap-2">
+              <DollarSign className="size-4 text-muted-foreground" />
+              &iquest;Lo vendemos? (productos que DYMMSA no maneja)
+            </p>
+            <p className="text-muted-foreground">
+              A veces el cliente pide productos que DYMMSA no vende. Puedes marcar cada producto con un
+              selector de tres opciones: <strong>Sin definir</strong>, <strong>Si</strong> o <strong>No lo vendemos</strong>
+              (al editar el producto en el cotizador o en el modulo Base de datos). Una columna <strong>Venta</strong>
+              muestra el estado.
+            </p>
+            <p className="text-muted-foreground">Un producto marcado como <strong>&ldquo;No lo vendemos&rdquo;</strong>:</p>
+            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+              <li>Se pinta de un color distinto para saltarlo de un vistazo y no pide precio ni cantidad.</li>
+              <li>No suma al total, no entra al pedido de URREA y no bloquea el guardado por datos faltantes.</li>
+              <li>Al cliente le aparece como <strong>&ldquo;No disponible&rdquo;</strong> en la pagina de aprobacion (no lo puede aprobar).</li>
+              <li>La marca <strong>se recuerda</strong>: la proxima vez que ese producto aparezca en otra cotizacion, ya llega marcado.</li>
+            </ul>
+          </div>
+
           {/* Estados */}
           <div className="space-y-3 text-sm">
             <p className="font-medium text-base">Estados de una cotizacion</p>
@@ -556,6 +582,30 @@ export default function DocsPage() {
             </p>
           </div>
 
+          {/* Cambio manual de estado / reabrir */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base flex items-center gap-2">
+              <RefreshCw className="size-4 text-muted-foreground" />
+              Cambiar estado manualmente y reabrir
+            </p>
+            <p className="text-muted-foreground">
+              Desde el detalle de la cotizacion puedes cambiar su estado manualmente con un menu
+              (por ejemplo, regresar una de <em>En aprobacion</em> a <em>Borrador</em> para retrabajarla) sin
+              volver a crearla. Las decisiones que el cliente ya marco por producto se conservan.
+            </p>
+            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+              <li>El cambio de estado se habilita solo cuando <strong>no hay cambios sin guardar</strong>.</li>
+              <li>
+                Cada cambio de estado <strong>invalida el enlace de aprobacion anterior</strong> (por seguridad,
+                para que nadie apruebe con un link viejo); al reenviar se genera uno nuevo.
+              </li>
+              <li>
+                Para reabrir una cotizacion que ya se <strong>convirtio en orden</strong>, primero elimina su
+                orden vinculada desde el detalle de la orden {'—'} el sistema te lo indica con un aviso.
+              </li>
+            </ul>
+          </div>
+
           {/* Aprobacion por link */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
@@ -570,7 +620,13 @@ export default function DocsPage() {
             <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
               <li>El cliente puede aprobar o rechazar <strong>cada producto de forma independiente</strong> (aprobacion parcial).</li>
               <li>Hay un boton de <strong>&ldquo;Aprobar todo&rdquo;</strong> para confirmar todos los productos de una vez.</li>
-              <li>Una vez enviada la decision, la pagina muestra el estado actual y no permite re-aprobar.</li>
+              <li>
+                <strong>Guardar avance:</strong> en cotizaciones grandes el cliente puede guardar lo que lleva
+                aprobado <em>sin enviar todavia</em> y retomar despues desde el mismo enlace, justo donde se
+                quedo (le aparece un aviso con cuanto lleva). El enlace sigue vivo hasta que envie.
+              </li>
+              <li>Al <strong>enviar</strong> la aprobacion definitiva se le pide una <strong>confirmacion</strong> (resumen de cuantos productos y el total) para evitar envios por error.</li>
+              <li>Una vez enviada la decision, la pagina muestra el estado actual y no permite re-aprobar. En el detalle veras la <strong>fecha y hora de aprobacion</strong>.</li>
               <li>Tu ves en tiempo real que productos fueron aprobados y cuales rechazados desde el detalle de la cotizacion.</li>
             </ul>
           </div>
@@ -734,26 +790,43 @@ export default function DocsPage() {
         <CardContent className="space-y-4">
           <div className="space-y-2 text-sm">
             <p>
-              <strong>Columnas requeridas:</strong>
+              La primera fila del archivo son los <strong>encabezados</strong>. Columnas:
             </p>
-            <ul className="ml-4 list-disc space-y-1">
-              <li>
-                <code className="rounded bg-muted px-1">model_code</code>{' '}
-                &mdash; Codigo URREA del producto
-              </li>
-              <li>
-                <code className="rounded bg-muted px-1">quantity</code> &mdash;
-                Cantidad en existencia
-              </li>
-            </ul>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Columna</TableHead>
+                  <TableHead>Obligatoria</TableHead>
+                  <TableHead>Descripcion</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">model_code</code></TableCell>
+                  <TableCell className="font-medium text-green-600 dark:text-green-400">Si</TableCell>
+                  <TableCell>Codigo URREA del producto.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">quantity</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Cantidad en existencia. Si no viene, se asume 0.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">ubicacion</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Ubicacion fisica (gaveta) donde se guarda el producto. Acepta los alias <code className="rounded bg-muted px-1">ubicación</code>, <code className="rounded bg-muted px-1">location</code> o <code className="rounded bg-muted px-1">gaveta</code>.</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </div>
 
-          <div className="space-y-2 text-sm">
-            <p>
-              Si el archivo viene en formato URREA (reporte de inventario), el
-              sistema salta las primeras <strong>13 filas</strong> automaticamente
-              (<code className="rounded bg-muted px-1">skiprows=13</code>).
-            </p>
+          <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm space-y-1">
+            <p className="font-medium">Sobre la ubicacion (gaveta)</p>
+            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+              <li>Es texto libre para anotar donde esta fisicamente el producto en la tienda y encontrarlo mas rapido.</li>
+              <li>En modo <strong>Actualizar</strong> (upsert), si el archivo <strong>no</strong> trae la columna, la ubicacion existente <strong>no se borra</strong> (una carga de solo cantidades conserva las gavetas ya capturadas).</li>
+              <li>La ubicacion se conserva aunque la cantidad llegue a 0; en la tabla solo se oculta cuando no hay stock.</li>
+            </ul>
           </div>
 
           <div>
@@ -763,24 +836,129 @@ export default function DocsPage() {
                 <TableRow>
                   <TableHead>model_code</TableHead>
                   <TableHead>quantity</TableHead>
+                  <TableHead>ubicacion</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow>
                   <TableCell className="font-mono">1234A</TableCell>
                   <TableCell>25</TableCell>
+                  <TableCell>Gaveta A-3</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-mono">5678B</TableCell>
                   <TableCell>12</TableCell>
+                  <TableCell>Pasillo 2, estante 4</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-mono">9012C</TableCell>
                   <TableCell>8</TableCell>
+                  <TableCell className="text-muted-foreground italic">{'—'} (vacio)</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+      </div>
+
+      {/* Section: Catalogo URREA */}
+      <div id="catalogo-urrea" className="login-card-border">
+      <Card className="docs-card-inner border-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Library className="size-5" />
+            Catalogo URREA y Descripcion DYMMSA
+          </CardTitle>
+          <CardDescription>
+            El catalogo oficial de URREA y como alimenta la descripcion propia de DYMMSA.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+
+          {/* El modulo */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base">El modulo Catalogo (URREA)</p>
+            <p className="text-muted-foreground">
+              En el menu lateral, <strong>URREA {'→'} Catalogo</strong> guarda el catalogo oficial de URREA:
+              cada producto con su <strong>codigo</strong>, <strong>descripcion oficial</strong> y <strong>STD</strong>
+              (unidades por paquete, p. ej. paquetes de 6). Puedes buscar, ordenar, agregar/editar/eliminar
+              productos e importar el catalogo completo desde Excel.
+            </p>
+          </div>
+
+          {/* Import Excel */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base">Formato Excel del catalogo</p>
+            <p className="text-muted-foreground">La primera fila son los encabezados. Columnas:</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Columna</TableHead>
+                  <TableHead>Obligatoria</TableHead>
+                  <TableHead>Descripcion</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">codigo</code></TableCell>
+                  <TableCell className="font-medium text-green-600 dark:text-green-400">Si</TableCell>
+                  <TableCell>Codigo URREA. Es la llave que se cruza con el <code className="rounded bg-muted px-1">model_code</code> de los productos. Acepta el alias <code className="rounded bg-muted px-1">code</code>.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">descripcion</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Descripcion oficial de URREA. Acepta el alias <code className="rounded bg-muted px-1">description</code>.</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">std</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>Unidades por paquete. Si no viene o es invalido, se asume 1.</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            <p className="text-muted-foreground">
+              Al importar puedes elegir <strong>Actualizar</strong> (agrega y actualiza por codigo) o
+              <strong> Reemplazar</strong> (borra el catalogo y carga el nuevo). Los codigos se normalizan
+              automaticamente (sin espacios y en mayusculas) para que el cruce con los productos funcione.
+            </p>
+          </div>
+
+          {/* Descripcion DYMMSA */}
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-base flex items-center gap-2">
+              <BookOpen className="size-4 text-muted-foreground" />
+              Descripcion DYMMSA
+            </p>
+            <p className="text-muted-foreground">
+              Las descripciones que trae el Excel del cliente a veces son pobres o incorrectas. Por eso cada
+              producto tiene una <strong>Descripcion DYMMSA</strong> propia, que aparece en una columna del
+              cotizador, del detalle de la cotizacion y de la pagina de aprobacion (asi el cliente ve tanto su
+              descripcion como la nuestra). El sistema la resuelve con esta prioridad:
+            </p>
+            <ol className="ml-4 list-decimal space-y-1 text-muted-foreground">
+              <li>
+                <strong>Descripcion oficial del catalogo URREA</strong> {'—'} si el codigo del producto
+                existe en el catalogo, se usa esa (con una etiqueta <strong>URREA</strong>). Es la de mayor
+                jerarquia: no se puede editar a mano; si esta mal, se corrige reimportando el catalogo.
+              </li>
+              <li>
+                <strong>Descripcion curada por DYMMSA</strong> {'—'} para productos que no estan en el
+                catalogo (otras marcas), la que tu escribes manualmente al editar el producto.
+              </li>
+              <li>
+                <strong>Vacia</strong> {'—'} si no hay ninguna, la celda queda en blanco para que la llenes.
+              </li>
+            </ol>
+            <div className="rounded-md border bg-muted/40 px-4 py-3 text-muted-foreground">
+              <p>
+                Al guardar una cotizacion, la Descripcion DYMMSA queda <strong>congelada</strong> en ella (como
+                una foto del momento). Reimportar despues el catalogo <strong>no</strong> reescribe cotizaciones
+                ya guardadas: aplica de ahi en adelante.
+              </p>
+            </div>
+          </div>
+
         </CardContent>
       </Card>
       </div>
@@ -883,6 +1061,7 @@ export default function DocsPage() {
                     { col: 'Descripcion', editable: 'No', note: 'Descripcion del producto.' },
                     { col: 'Aprobados', editable: 'No', note: 'Cantidad que el cliente aprobo. Fijo desde la cotizacion.' },
                     { col: 'En Stock (azul)', editable: 'No', note: 'Unidades apartadas del inventario de tienda al crear la orden.' },
+                    { col: 'Ubicacion', editable: 'No', note: 'Gaveta del inventario de donde se toma el producto (foto al crear la orden). Se muestra solo en items con stock apartado.' },
                     { col: 'A Pedir (naranja)', editable: 'No', note: 'Unidades a solicitar a URREA. En Stock + A Pedir = Aprobados.' },
                     { col: 'Recibidos', editable: 'Si*', note: 'Editable solo si el item tiene A Pedir > 0 y la orden esta abierta. Se ingresa cuanto llego de URREA.' },
                     { col: 'Estado URREA', editable: 'Si*', note: 'Editable en las mismas condiciones que Recibidos. Opciones: Pendiente / Surtido / No surtido. Si A Pedir = 0, muestra "En stock" (fijo).' },
@@ -964,13 +1143,11 @@ export default function DocsPage() {
           <div className="space-y-3 text-sm">
             <p className="font-medium text-base">Estados de la orden</p>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-full border px-2.5 py-0.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 font-medium">Pendiente URREA</span>
+              <span className="rounded-full border px-2.5 py-0.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 font-medium">Pedido</span>
               <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
-              <span className="rounded-full border px-2.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium">Recibido URREA</span>
+              <span className="rounded-full border px-2.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium">Recibido</span>
               <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
-              <span className="rounded-full border px-2.5 py-0.5 bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300 font-medium">Pendiente Pago</span>
-              <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
-              <span className="rounded-full border px-2.5 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 font-medium">Pagado</span>
+              <span className="rounded-full border px-2.5 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 font-medium">Entregado</span>
               <ArrowRight className="size-3.5 text-muted-foreground shrink-0" />
               <span className="rounded-full border px-2.5 py-0.5 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 font-medium">Completado</span>
             </div>
@@ -988,11 +1165,10 @@ export default function DocsPage() {
               </TableHeader>
               <TableBody>
                 {[
-                  { status: 'Pendiente URREA', color: 'text-yellow-700 dark:text-yellow-300', desc: 'Orden creada. Se genero el Excel de pedido pero aun no se han recibido productos de URREA.' },
-                  { status: 'Recibido URREA', color: 'text-blue-700 dark:text-blue-300', desc: 'Los productos de URREA llegaron. Se registro la recepcion y el inventario ya fue actualizado.' },
-                  { status: 'Pendiente Pago', color: 'text-orange-700 dark:text-orange-300', desc: 'Los productos estan listos para entrega. Se espera el pago del cliente.' },
-                  { status: 'Pagado', color: 'text-emerald-700 dark:text-emerald-300', desc: 'El cliente realizo el pago. Pendiente de confirmar la entrega fisica.' },
-                  { status: 'Completado', color: 'text-green-700 dark:text-green-300', desc: 'Entrega confirmada. La orden esta cerrada y ya no permite modificaciones.' },
+                  { status: 'Pedido', color: 'text-yellow-700 dark:text-yellow-300', desc: 'Orden creada. Se genero el pedido pero aun no se han recibido productos de URREA.' },
+                  { status: 'Recibido', color: 'text-blue-700 dark:text-blue-300', desc: 'Los productos de URREA llegaron. Se registro la recepcion y el inventario ya fue actualizado.' },
+                  { status: 'Entregado', color: 'text-emerald-700 dark:text-emerald-300', desc: 'Los productos se entregaron al cliente.' },
+                  { status: 'Completado', color: 'text-green-700 dark:text-green-300', desc: 'Orden cerrada. Ya no permite modificaciones.' },
                   { status: 'Cancelado', color: 'text-red-700 dark:text-red-300', desc: 'Orden cancelada. El inventario apartado fue restaurado automaticamente.' },
                 ].map((row) => (
                   <TableRow key={row.status}>
@@ -1012,36 +1188,34 @@ export default function DocsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Accion</TableHead>
-                    <TableHead className="text-center whitespace-nowrap">Pend. URREA</TableHead>
-                    <TableHead className="text-center whitespace-nowrap">Recibido URREA</TableHead>
-                    <TableHead className="text-center whitespace-nowrap">Pend. Pago</TableHead>
-                    <TableHead className="text-center">Pagado</TableHead>
+                    <TableHead className="text-center">Pedido</TableHead>
+                    <TableHead className="text-center">Recibido</TableHead>
+                    <TableHead className="text-center">Entregado</TableHead>
                     <TableHead className="text-center">Completado</TableHead>
                     <TableHead className="text-center">Cancelado</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {[
-                    { action: 'Ver detalle de la orden', vals: [true, true, true, true, true, true] },
-                    { action: 'Cambiar estado', vals: [true, true, true, true, false, false] },
-                    { action: 'Descargar Excel URREA', vals: [true, true, true, true, true, true] },
-                    { action: 'Cancelar orden', vals: [true, true, true, true, false, false] },
-                    { action: 'Agregar producto', vals: [true, true, true, true, false, false] },
-                    { action: 'Editar precio', vals: [true, true, true, true, false, false] },
-                    { action: 'Eliminar producto', vals: [true, true, true, true, false, false] },
-                    { action: 'Editar cantidad recibida / estado URREA', vals: [true, true, true, true, false, false] },
-                    { action: 'Confirmar recepcion', vals: [true, true, true, true, false, false] },
-                    { action: 'Editar tiempo de entrega', vals: [true, true, true, true, false, false] },
+                    { action: 'Ver detalle de la orden', vals: [true, true, true, true, true] },
+                    { action: 'Cambiar estado', vals: [true, true, true, false, false] },
+                    { action: 'Descargar Excel URREA', vals: [true, true, true, true, true] },
+                    { action: 'Cancelar orden', vals: [true, true, true, false, false] },
+                    { action: 'Agregar producto', vals: [true, true, true, false, false] },
+                    { action: 'Editar precio', vals: [true, true, true, false, false] },
+                    { action: 'Eliminar producto', vals: [true, true, true, false, false] },
+                    { action: 'Editar cantidad recibida / estado URREA', vals: [true, true, true, false, false] },
+                    { action: 'Confirmar recepcion', vals: [true, true, true, false, false] },
+                    { action: 'Editar tiempo de entrega', vals: [true, true, true, false, false] },
                   ].map((row) => (
                     <TableRow key={row.action}>
                       <TableCell className="text-sm whitespace-nowrap">{row.action}</TableCell>
                       {([
-                        ['pend_urrea', row.vals[0]],
-                        ['recibido_urrea', row.vals[1]],
-                        ['pend_pago', row.vals[2]],
-                        ['pagado', row.vals[3]],
-                        ['completado', row.vals[4]],
-                        ['cancelado', row.vals[5]],
+                        ['pedido', row.vals[0]],
+                        ['recibido', row.vals[1]],
+                        ['entregado', row.vals[2]],
+                        ['completado', row.vals[3]],
+                        ['cancelado', row.vals[4]],
                       ] as [string, boolean][]).map(([col, v]) => (
                         <TableCell key={row.action + '-' + col} className="text-center">
                           {v
@@ -1061,6 +1235,42 @@ export default function DocsPage() {
             </p>
           </div>
 
+        </CardContent>
+      </Card>
+      </div>
+
+      {/* Section: Tareas */}
+      <div id="tareas" className="login-card-border">
+      <Card className="docs-card-inner border-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardList className="size-5" />
+            Tareas
+          </CardTitle>
+          <CardDescription>
+            Tablero interno para registrar lo que se planea agregar o corregir, con su prioridad.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-muted-foreground">
+            Desde <strong>Tareas</strong> (menu lateral) puedes crear tareas con nombre, descripcion y
+            prioridad, comentarlas y llevarlas de abiertas a cerradas. Todo queda registrado sin salir
+            de la app.
+          </p>
+          <ul className="ml-4 list-disc space-y-1.5 text-muted-foreground">
+            <li><strong>Crear:</strong> boton &ldquo;Nueva tarea&rdquo; {'—'} titulo, prioridad (Baja / Media / Alta / Maxima) y descripcion. Puedes <strong>adjuntar imagenes</strong> (PNG, JPG, GIF o WEBP, hasta 5 MB) que se insertan en la descripcion.</li>
+            <li><strong>Filtrar:</strong> por estado (<em>Abiertas</em> / <em>Cerradas</em> / <em>Todas</em>) y por prioridad. <strong>Cerradas</strong> es el historico.</li>
+            <li><strong>Detalle:</strong> cada tarea tiene su propia pagina con la descripcion, comentarios (ver y responder), y acciones para cambiar prioridad, editar, <strong>cerrar</strong> (completada) y <strong>reabrir</strong>.</li>
+            <li><strong>Descartar:</strong> si una tarea fue un <strong>falso reporte</strong>, se descarta (queda como &ldquo;Descartada&rdquo;, aparte de las completadas). Sale de la vista de abiertas y se puede reabrir si hizo falta.</li>
+            <li><strong>Enlace con Novedades:</strong> cuando una novedad menciona una tarea como <code className="rounded bg-muted px-1">#12</code>, se vuelve un enlace directo a esa tarea.</li>
+          </ul>
+          <div className="rounded-md border bg-muted/40 px-4 py-3 text-muted-foreground">
+            <p>
+              Las tareas se guardan en <strong>GitHub</strong> (el repositorio del proyecto). Si GitHub no
+              esta disponible o la conexion falla, el modulo lo indica con un mensaje y se recupera al
+              reintentar. Quien reporto cada tarea se anota al inicio de su descripcion.
+            </p>
+          </div>
         </CardContent>
       </Card>
       </div>

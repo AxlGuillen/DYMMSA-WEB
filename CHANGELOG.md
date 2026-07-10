@@ -3,6 +3,22 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-09
+
+### Nuevo
+- Nuevo módulo **Tareas**: crea tareas con nombre, descripción (puedes **adjuntar imágenes**) y
+  **prioridad** (Baja / Media / Alta / Máxima), coméntalas y llévalas de abiertas a cerradas. Las
+  cerradas quedan como **histórico**. Si una tarea resultó ser un **falso reporte**, puedes
+  **descartarla** (queda marcada como "Descartada", distinta de una completada, y se puede reabrir).
+  Todo vive en un tablero compartido sin salir de la app. En
+  **Novedades**, cuando una entrada menciona una tarea como `#12`, se vuelve un enlace directo a esa
+  tarea.
+
+### Mejorado
+- La **fecha en que el cliente aprobó** una cotización ahora se muestra en su detalle **sin importar
+  la fase** en la que esté (incluidas las convertidas a orden o reabiertas para retrabajar). Antes
+  solo aparecía mientras la cotización estaba en estado "Aprobada" y se perdía al cambiarla de estado.
+
 ## 2026-07-08
 
 ### Nuevo

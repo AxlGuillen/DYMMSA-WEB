@@ -19,7 +19,7 @@
 | `PATCH` | `/api/quotations/[id]/update` | ✅ | Editar cotización en estado `draft` o `approved`. Body: `{ name?, customer_name?, items?, status?, notes? }`. Re-resuelve `dymmsa_description` con jerarquía de catálogo (fallback al snapshot en BD si la UI no manda el campo, ADR-013) |
 | `POST` | `/api/quotations/[id]/send-for-approval` | ✅ | Genera `approval_token` UUID + cambia status a `sent_for_approval` |
 | `POST` | `/api/quotations/[id]/create-order` | ✅ | Crear orden desde cotización `approved`. Stock check + deducción inventario. Status → `converted_to_order` |
-| `PATCH` | `/api/quotations/[id]/status` | ✅ | Cambio manual de estado entre `draft`/`sent_for_approval`/`approved`/`rejected`. Body: `{ status }`. Preserva `is_approved`. Sella `approved_at` al pasar a `approved`, lo limpia en otros estados. `converted_to_order` no es destino manual (400). Revertir desde `converted_to_order` exige que la orden vinculada esté **eliminada** (si existe cualquier orden vinculada → 400) |
+| `PATCH` | `/api/quotations/[id]/status` | ✅ | Cambio manual de estado entre `draft`/`sent_for_approval`/`approved`/`rejected`. Body: `{ status }`. Preserva `is_approved` y `approved_at`. Sella `approved_at` al marcar `approved` solo si aún no existe (conserva la fecha original del cliente); **nunca lo borra** → la fecha de aprobación se ve en cualquier fase posterior. `converted_to_order` no es destino manual (400). Revertir desde `converted_to_order` exige que la orden vinculada esté **eliminada** (si existe cualquier orden vinculada → 400) |
 
 ---
 
@@ -90,6 +90,23 @@
 | `PATCH` | `/api/urrea-catalog/[id]` | ✅ | Editar `code`/`description`/`std` |
 | `DELETE` | `/api/urrea-catalog/[id]` | ✅ | Eliminar producto |
 | `POST` | `/api/urrea-catalog/import` | ✅ | Importar desde Excel (`codigo, descripcion, std`). Modo `upsert` (onConflict `code`) o `replace` (borra todo + inserta). `code` normalizado (trim+upper) |
+
+---
+
+## Tareas (GitHub Issues)
+
+> Módulo: [[03-Modulos/Tareas]] · Backend: GitHub Issues del repo (`GITHUB_REPO`), sin tabla en Supabase · ADR: [[04-Decisiones-Tecnicas/ADR-014-Modulo-Tareas-GitHub]]
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/tasks` | ✅ | Lista de tasks (issues). Query: `state (open/closed/all, default open)`, `priority (low/medium/high/highest)`, `page`. Excluye PRs. Devuelve `{ tasks, page }`. `state=closed` = histórico |
+| `POST` | `/api/tasks` | ✅ | Crear task. Body: `{ title, description?, priority? }`. Antepone `Reportado por: <email>` al body; la prioridad se traduce a label `priority:*` |
+| `GET` | `/api/tasks/[number]` | ✅ | Detalle: `{ task, comments }`. `number` inválido → 400 |
+| `PATCH` | `/api/tasks/[number]` | ✅ | Editar `{ title?, description?, priority?, state?, stateReason? }`. Cerrar/reabrir vía `state`; al cerrar, `stateReason` = `completed` (default) o `not_planned` (**descartar** = falso positivo). En descripción/prioridad lee el issue actual para conservar el reporter original y los labels no-prioridad |
+| `POST` | `/api/tasks/[number]/comments` | ✅ | Comentar. Body: `{ body }`. Antepone `Reportado por:` |
+| `POST` | `/api/tasks/upload` | ✅ | Multipart `file` → sube al bucket `task-images` (público, 5 MB, PNG/JPG/GIF/WEBP) con service role → `{ url }` para embeber en el markdown |
+
+> `handleGitHubError` traduce `GitHubError` a HTTP: 401 (token vencido) / 403 (permiso o rate limit) / 404 con mensajes claros. Env: `GITHUB_TOKEN`, `GITHUB_REPO`.
 
 ---
 
