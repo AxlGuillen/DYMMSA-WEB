@@ -3,6 +3,15 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-10
+
+### Nuevo
+- Ahora puedes **conectar Claude (el asistente de IA) con el sistema**: pregúntale en lenguaje
+  natural cosas como "¿qué cotizaciones esperan aprobación?", "¿tenemos stock del 6954 y en qué
+  gaveta está?" o "resume las órdenes pendientes con URREA", y consulta los datos reales de la
+  plataforma al momento. Por ahora el asistente **solo puede consultar** (no modifica nada).
+  La conexión requiere una clave que administra el equipo.
+
 ## 2026-07-09
 
 ### Nuevo

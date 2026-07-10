@@ -25,6 +25,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 # Módulo Tareas (GitHub Issues como backend, ADR-014)
 GITHUB_TOKEN=   # fine-grained PAT: Issues Read/Write + Metadata Read, solo el repo
 GITHUB_REPO=    # owner/repo, ej. AxlGuillen/DYMMSA-WEB
+# MCP interno (ADR-015) — token compartido; sin él el endpoint rechaza todo
+MCP_API_KEY=
 ```
 
 ---
@@ -98,6 +100,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 | **Aprobación pública** | `/approve/[token]` sin auth. Si `status !== 'sent_for_approval'` → mostrar estado actual, no permitir re-aprobar. **Guardar avance** (`finalize=false`): persiste `is_approved` (aprobados=`true`, resto=`null`) **sin cambiar status** → el link sigue vivo y el cliente retoma después. **Enviar** (`finalize=true`): resto=`false`, status→`approved`/`rejected` + sella `approved_at`. Un popup confirma antes de enviar. Al quedar `approved` se **notifica a DYMMSA por correo** (Resend, aislado en try/catch → nunca revierte la aprobación; el total del correo se calcula de los **ítems aprobados**, no de `total_amount`; env: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NOTIFICATION_EMAIL_TO`, `NEXT_PUBLIC_APP_URL`; ver ADR-012). |
 | **Rollback** | Si falla inserción de ítems en `save` o `create-order` → eliminar el registro padre (quotation/order). |
 | **Módulo Tareas = GitHub Issues** | `src/lib/github.ts` + `/api/tasks/*`. **No hay tabla**: los issues del repo (`GITHUB_REPO`) SON las tasks. Prioridad = label `priority:*`, estado = open/closed, reporter = línea `Reportado por:` en el body. La API de issues incluye PRs → excluir con `isPullRequest`. Errores vía `GitHubError`/`handleGitHubError` (401 token vencido, 403, 404). Imágenes → bucket `task-images`. Novedades liga `#N` → `/dashboard/tasks/N`. Ver ADR-014. |
+| **MCP interno = SOLO lectura** | `src/lib/mcp/` + `POST /api/mcp` (ruta `src/app/api/[transport]/route.ts`, mcp-handler, SSE deshabilitado). Auth: Bearer `MCP_API_KEY` (tiempo constante; **sin la env var rechaza todo**). Los tools usan el **admin client** (service role) — NUNCA agregar tools de escritura sin decisión explícita del usuario (scope pendiente, ver Fase 7). Reutilizan `business-rules.ts`/`github.ts`; respuestas ya resueltas (descripción DYMMSA, totales, ubicación oculta sin stock). Ver ADR-015. |
 | **Errores descriptivos** | Los route handlers mapean `PostgrestError` con `explainPgError()` → identifican el ETM ofensor y devuelven 400 (no 500) cuando es violación de regla del usuario. `auto-learn` aislado en su propio try/catch → si falla, la cotización ya está salvada (warning, no error). Ver `DYMMSA/04-Decisiones-Tecnicas/ADR-009-Errores-Descriptivos.md`. |
 
 ---
@@ -124,11 +127,12 @@ tests/
 ├── helpers/     # supabase-mock.ts + setup.ts (injectSupabaseServer) + factories.ts + request.ts
 ├── lib/         # funciones puras de src/lib/* (node, 104 tests)
 ├── api/         # route handlers reales con Supabase mockeado (node)
+├── mcp/         # tools MCP (node; el mock se inyecta por parámetro, sin vi.mock)
 └── components/  # componentes React (jsdom + Testing Library)
     └── helpers/ # render (QueryClientProvider), stores (resetStores), fixtures
 ```
 
-- **Comando:** `bun run test` (226 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
+- **Comando:** `bun run test` (461 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
 - ⚠️ **Usar `bun run test`, NO `bun test`** — `bun test` invoca el runner integrado de Bun y falla al toparse con imports de `vitest`.
 - **Backend = unit con mock de Supabase** (sin BD real). El mock reproduce el query builder chainable y registra llamadas para assertions de auth, validación, rollback y side effects de inventario.
 - **Patrón backend:** `vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))` + `injectSupabaseServer(() => activeClient)` (helper que registra el `beforeEach`; la variable se intercambia por test). `/approve/[token]` mockea `@/lib/supabase/admin`.
@@ -176,6 +180,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 | 5 — Flujo completo | ✅ | `src/app/api/quotations/` + `src/app/api/orders/` |
 | 5.5 — Flexibilidad post-aprobación | ✅ | `src/app/api/orders/[id]/items/` |
 | 6 — Mejoras UX | 🔄 | — |
+| 7 — MCP interno | 🔄 lectura ✅ · escrituras por definir | `src/lib/mcp/` + `/api/mcp` |
 
 ---
 
@@ -189,7 +194,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 |--------|---------------------|
 | Nueva o modificada **ruta API** | `DYMMSA/02-Arquitectura/API-Routes.md` |
 | Nueva **tabla o columna** en Supabase | `DYMMSA/02-Arquitectura/Base-de-Datos.md` (verificar con MCP Supabase) + este CLAUDE.md |
-| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-013) |
+| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-015) |
 | Nueva lógica de negocio o **route handler** | Agregar/actualizar su test en `tests/` (ver `ADR-007-Estrategia-Testing.md`) |
 | **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
@@ -218,6 +223,6 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 
 ---
 
-**Última actualización:** 2026-07-09  
+**Última actualización:** 2026-07-10  
 **BD:** Supabase `wjlklwtvjewhtghlskbt` · PostgreSQL 17.6 · us-west-2  
 **Filas (2026-04-25):** etm_products 564 · store_inventory 195 · quotations 9 · quotation_items 365 · orders 8 · order_items 182
