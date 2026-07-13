@@ -43,7 +43,7 @@ jobs:
           claude_args: |
             --model claude-opus-4-8
             --effort high
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
 
           prompt: |
             REPO: ${{ github.repository }}
@@ -60,18 +60,24 @@ jobs:
             - Tailwind CSS + shadcn/ui
             - Bun como runtime y package manager
 
-            ## Reglas de negocio críticas — verifica que NINGÚN cambio las viole
+            ## Reglas de negocio críticas — la fuente de verdad es el repo
 
-            1. **Separadores excluidos de todo**: `item_type='separator'` nunca va en totales, auto-learn, conteos, is_approved, ni Excel URREA.
-            2. **Stock se deduce al CREAR la orden**, no al confirmar recepción. Cancelar restaura el stock.
-            3. **Excel URREA**: solo ítems con `item_type='product'` AND `brand='URREA'` AND `quantity_to_order > 0`.
-            4. **Auto-learn**: solo actualiza campos no vacíos. NO asigna `brand='URREA'` si `model_code` está vacío.
-            5. **sort_order**: al guardar cotización = index del array. Al crear orden = reasignado secuencialmente. Ítem manual = max(sort_order)+1. Siempre ordenar ASC.
-            6. **Constraint de inventario**: `quantity_in_stock + quantity_to_order = quantity_approved` en order_items.
-            7. **Rollback**: si falla inserción de ítems en save o create-order → eliminar el registro padre.
-            8. **Aprobación pública**: `/approve/[token]` no requiere auth. Si status !== 'sent_for_approval' → no permitir re-aprobar.
-            9. **Modo discreto**: `useCurrency()` centralizado — no crear funciones `formatCurrency` locales.
-            10. **Auth en API routes**: usar `requireAuth()` de `src/lib/api-helpers.ts` — no duplicar el patrón getUser()+401.
+            **Antes de revisar, LEE las reglas críticas directamente del repo** (ya está en tu checkout con las tools Read/Grep) — no dependas solo de este prompt, que puede quedar atrás:
+            - `CLAUDE.md` → sección "Reglas de negocio críticas" + las tablas de "Base de datos" (estados, tri-estados, `canEdit`). Es la fuente narrativa canónica.
+            - `src/lib/business-rules.ts` → la implementación ejecutable (totales, separadores, `isNotSold`, jerarquía de descripción, allocation).
+
+            Índice rápido para orientarte (el detalle y los casos borde viven en CLAUDE.md; **si algo aquí contradice a CLAUDE.md, gana CLAUDE.md**):
+            - **Separadores** (`item_type='separator'`) excluidos de TODO: totales, conteos, auto-learn, is_approved, Excel URREA.
+            - **`is_sold` "no lo vendemos"** (tri-estado `null`/`true`/`false`): solo `false` excluye de totales, Excel URREA, órdenes y validación de guardado.
+            - **Descripción DYMMSA**: jerarquía catálogo URREA oficial > curada > null; llave cruzada con `normalizeCatalogCode`; snapshot congelado al guardar (ADR-013).
+            - **Totales SOLO vía `business-rules.ts`** — nunca reimplementar sumas ni `formatCurrency` local (usar `useCurrency()`).
+            - **Stock** se deduce al CREAR la orden (no al confirmar recepción); cancelar/eliminar restaura; invariante `quantity_in_stock + quantity_to_order = quantity_approved`.
+            - **Excel URREA**: solo `item_type='product'` AND `brand='URREA'` AND `quantity_to_order > 0`.
+            - **Auto-learn**: solo actualiza campos no vacíos; NO asigna `brand='URREA'` si `model_code` está vacío.
+            - **sort_order**: index del array al guardar; secuencial al crear orden; ítem manual = max+1; siempre ASC.
+            - **Rollback**: si falla la inserción de ítems en save/create-order → eliminar el registro padre.
+            - **Aprobación pública** `/approve/[token]` sin auth: "Guardar avance" (finalize=false) persiste is_approved sin cambiar status; "Enviar" (finalize=true) sella `approved_at`; no re-aprobar si status ≠ 'sent_for_approval'.
+            - **Auth**: `requireAuth()` de `src/lib/api-helpers.ts` en toda ruta protegida.
 
             ## Estructura de utilidades puras (src/lib/)
             - `format.ts` — fechas, strings, números
@@ -83,7 +89,7 @@ jobs:
             ## Qué revisar en cada PR
 
             **🔴 Bloqueantes:**
-            - Violación de alguna de las 10 reglas de negocio
+            - Violación de cualquier regla de negocio crítica (ver CLAUDE.md + `business-rules.ts`)
             - Lógica de totales que no use `business-rules.ts`
             - Rutas API sin `requireAuth()`
             - TypeScript `any` donde hay tipos en `src/types/database.ts`

@@ -162,6 +162,10 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 - 🟡 **Advertencia** — lógica duplicada que debería ir en `src/lib/`, `formatCurrency` local, imports directos de Supabase desde cliente
 - 🟢 **Sugerencia** — consistencia con el codebase, reutilización de utilidades existentes
 
+**Reglas de negocio = fuente única (no duplicar en el workflow).** El prompt del revisor NO carga su propia copia de las reglas: tiene las tools `Read`/`Grep` y **lee las reglas críticas de este `CLAUDE.md` + `src/lib/business-rules.ts`** en cada revisión (con un índice de nombres como orientación). Así el revisor nunca queda desincronizado. Si agregas/cambias una regla crítica, edítala **aquí** (narrativa) y en `business-rules.ts` (ejecutable) — el revisor se actualiza solo.
+
+**PR template:** `.github/pull_request_template.md` — optimizado para que el revisor de IA reciba contexto estructurado (por qué / qué / reglas de negocio tocadas / cómo se probó / riesgo-rollback). Pre-llena el cuerpo de cada PR; incluye `Closes #N` para cerrar la tarea al mergear.
+
 **Secret requerido:** `CLAUDE_CODE_OAUTH_TOKEN` (guardado en GitHub Secrets del repo)
 
 ---
