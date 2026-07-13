@@ -4,7 +4,7 @@
  * Supabase; GitHub con fetch stub. Sin red ni BD real.
  */
 
-import { describe, test, expect, beforeEach } from 'vitest'
+import { describe, test, expect, beforeEach, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createMockSupabase, type MockConfig } from '../helpers/supabase-mock'
 import { checkQuotations, checkStorage, checkGitHub, runHealthChecks } from '@/lib/health'
@@ -45,6 +45,28 @@ describe('checks de módulos (queries reales con admin client)', () => {
     const result = await checkQuotations(db({ quotations: { data: null, error: { message: 'boom' } } }))
     expect(result.status).toBe('fail')
     expect(result).not.toHaveProperty('detail')
+  })
+
+  test('query colgada → fail por timeout (no espera al límite de la plataforma)', async () => {
+    vi.useFakeTimers()
+    try {
+      // Query builder que encadena pero jamás resuelve (thenable sin callback):
+      // el cap de 5s del check debe cortarla y reportar fail.
+      type HungQuery = { [k in 'or' | 'eq' | 'order' | 'range']: () => HungQuery } & { then: () => void }
+      const hungQuery: HungQuery = {
+        or: () => hungQuery,
+        eq: () => hungQuery,
+        order: () => hungQuery,
+        range: () => hungQuery,
+        then: () => {},
+      }
+      const hung = { from: () => ({ select: () => hungQuery }) } as unknown as SupabaseClient
+      const pending = checkQuotations(hung)
+      await vi.advanceTimersByTimeAsync(5001)
+      expect((await pending).status).toBe('fail')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

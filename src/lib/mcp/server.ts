@@ -1,9 +1,10 @@
 /**
  * Registro de tools MCP.
  *
- * Fase 1: solo lectura sobre todos los módulos. Fase 2 (ADR-015): primera
- * escritura, acotada a crear tareas (create_task) — el resto sigue siendo
- * lectura. Cualquier escritura nueva requiere decisión explícita del usuario.
+ * Fase 1: solo lectura sobre todos los módulos. Fase 2 (ADR-015): escrituras
+ * aprobadas como dirección (decisión 2026-07-12), incorporadas por nivel de
+ * riesgo — primera: create_task. Las que muten el núcleo transaccional
+ * (inventario, cotizaciones, órdenes) se diseñan con el usuario antes.
  *
  * Cada tool delega en una función pura de tools/* que recibe el admin client
  * (service role) — la autorización ya ocurrió en el route handler (auth.ts).

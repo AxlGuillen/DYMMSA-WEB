@@ -50,11 +50,25 @@ type Fetcher = typeof fetch
 
 const CHECK_TIMEOUT_MS = 5000
 
-/** Ejecuta un check midiendo latencia; cualquier error → fail (detalle al log). */
+/** Promesa que rechaza al vencer el plazo — cap para checks cuya query no expone señal de aborto. */
+function checkTimeout(ms: number): Promise<never> {
+  return new Promise((_, reject) => {
+    const id = setTimeout(() => reject(new Error(`timeout tras ${ms}ms`)), ms)
+    // En Node el timer retendría el proceso; unref lo libera (en edge no existe).
+    if (typeof id === 'object' && 'unref' in id) id.unref()
+  })
+}
+
+/**
+ * Ejecuta un check midiendo latencia; cualquier error → fail (detalle al log).
+ * Todos los checks corren con cap de CHECK_TIMEOUT_MS: si la dependencia se
+ * cuelga (BD lenta, Storage sin responder), el endpoint público reporta fail
+ * en vez de esperar al límite de la plataforma.
+ */
 async function timed(name: string, fn: () => Promise<unknown>): Promise<HealthCheck> {
   const start = Date.now()
   try {
-    await fn()
+    await Promise.race([fn(), checkTimeout(CHECK_TIMEOUT_MS)])
     return { status: 'ok', latency_ms: Date.now() - start }
   } catch (e) {
     console.error(`Health check "${name}" failed:`, e)

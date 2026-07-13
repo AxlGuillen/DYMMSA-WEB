@@ -9,7 +9,7 @@ propio. Decisiones y arquitectura en [[04-Decisiones-Tecnicas/ADR-015-MCP-Intern
 |---|---|---|
 | 7.0 — Infraestructura | Endpoint `/api/mcp` (Streamable HTTP), auth Bearer (`MCP_API_KEY`), conexión verificada | ✅ 2026-07-10 |
 | 7.1 — Lectura total | 13 tools de lectura sobre todos los módulos + resource `dymmsa://reglas-negocio` | ✅ 2026-07-10 |
-| 7.2 — Escrituras | Primera escritura: `create_task` (crear GitHub Issue, reporter `"Asistente (MCP)"`), la de menor riesgo. Más escrituras (comentar/cerrar tasks, etc.) siguen pendientes de decisión explícita | 🔄 2026-07-12 |
+| 7.2 — Escrituras | Dirección aprobada (2026-07-12): el MCP tendrá escrituras, incorporadas por nivel de riesgo. Primera: `create_task` (GitHub Issue, reporter `"Asistente (MCP)"`). Siguientes: comentar/cerrar tasks → cotizaciones no destructivas → órdenes/inventario (estas últimas se diseñan con el usuario) | 🔄 2026-07-12 |
 | 7.3 — Hardening | OAuth (claude.ai web), auditoría de llamadas, rate limiting | ⏸️ |
 
 ## Archivos

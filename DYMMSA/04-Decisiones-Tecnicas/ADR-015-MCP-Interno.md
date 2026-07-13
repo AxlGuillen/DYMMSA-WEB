@@ -43,11 +43,15 @@ Decisiones clave:
    sin-auth (crítico: el service role bypassa RLS). Somos pocos usuarios; un token por
    usuario u OAuth (necesario para conectores custom de claude.ai web) queda para
    una fase posterior.
-4. **Escritura acotada y por decisión explícita.** Fase 1 fue 100% lectura. La
-   Fase 2 (2026-07-12) habilita **una sola escritura: `create_task`**, elegida por
-   ser la de menor riesgo — una task es un GitHub Issue (se cierra/borra trivialmente)
-   y no toca el núcleo transaccional (inventario, stock, cotizaciones, órdenes).
-   Cualquier escritura adicional requiere una nueva decisión explícita del usuario.
+4. **Escrituras aprobadas como dirección, incorporadas por nivel de riesgo.**
+   Fase 1 fue 100% lectura. La Fase 2 (2026-07-12) abrió la escritura con
+   `create_task`, elegida por ser la de menor riesgo — una task es un GitHub Issue
+   (se cierra/borra trivialmente) y no toca el núcleo transaccional. **El mismo día
+   el usuario decidió que el MCP tendrá herramientas de escritura como capacidad
+   permanente**: ya no se requiere autorización caso por caso, pero cada tool nueva
+   se agrega acotada, con tests, documentada aquí, y las que muten el núcleo
+   transaccional (inventario, cotizaciones, órdenes) se diseñan con el usuario
+   antes de implementarse.
 5. **Ruta catch-all `[transport]`** la exige `mcp-handler`; con `basePath: '/api'` el
    endpoint queda en `/api/mcp`. SSE deshabilitado (`disableSse`) → no requiere Redis.
    Las rutas API estáticas existentes siempre ganan sobre el segmento dinámico.
@@ -77,6 +81,13 @@ Decisiones clave:
 La confirmación humana previa a la escritura recae en el **cliente MCP** (Claude pide
 permiso antes de invocar la tool); el servidor solo valida y ejecuta. `create_task`
 reutiliza `buildIssueBody`/`priorityToLabel` de `github.ts` — misma lógica que la ruta HTTP.
+
+**Decisión 2026-07-12 — escrituras como capacidad permanente.** El MCP tendrá más
+tools de escritura sin autorización caso por caso. Criterios para cada una: (a) acotada
+a una operación concreta, (b) con tests, (c) documentada en esta tabla, (d) si muta el
+núcleo transaccional (inventario, cotizaciones, órdenes) el diseño se acuerda con el
+usuario antes de implementar. Orden natural de incorporación: por nivel de riesgo
+(tasks → cotizaciones no destructivas → órdenes/inventario).
 
 ### Manejo de errores
 
@@ -112,5 +123,6 @@ no-vendibles, ubicación oculta sin stock, jerarquía de descripción) y errores
 - ⚠️ `list_tasks`/`get_task`/`create_task` comparten el rate limit del PAT de GitHub.
 - ⚠️ Las tasks creadas por el MCP quedan como reportadas por `"Asistente (MCP)"`
   (no por un humano) — es la marca para distinguirlas.
-- 🔜 Pendiente (fases futuras): más escrituras por nivel de riesgo (comentar/cerrar
-  tasks, etc.), OAuth para claude.ai web, auditoría de llamadas.
+- 🔜 Pendiente (fases futuras): siguientes escrituras por nivel de riesgo (comentar/
+  cerrar tasks, luego cotizaciones no destructivas, al final órdenes/inventario),
+  OAuth para claude.ai web, auditoría de llamadas.
