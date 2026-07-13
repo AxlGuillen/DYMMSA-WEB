@@ -1,7 +1,7 @@
-# ADR-015 — MCP interno (solo lectura)
+# ADR-015 — MCP interno (lectura + primera escritura)
 
-**Fecha:** 2026-07-10
-**Estado:** Aceptado · Fase 1 (lectura) implementada
+**Fecha:** 2026-07-10 · **Actualizado:** 2026-07-12 (Fase 2)
+**Estado:** Aceptado · Fase 1 (lectura) ✅ · Fase 2 (`create_task`) ✅
 **Relacionado:** [[ADR-007-Estrategia-Testing]] · [[ADR-009-Errores-Descriptivos]] · [[ADR-013-Descripcion-DYMMSA]] · [[ADR-014-Modulo-Tareas-GitHub]]
 
 ## Contexto
@@ -43,8 +43,11 @@ Decisiones clave:
    sin-auth (crítico: el service role bypassa RLS). Somos pocos usuarios; un token por
    usuario u OAuth (necesario para conectores custom de claude.ai web) queda para
    una fase posterior.
-4. **Solo lectura en este scope.** Las capacidades de escritura se definirán con
-   atención aparte (decisión explícita del 2026-07-10). Ningún tool muta estado.
+4. **Escritura acotada y por decisión explícita.** Fase 1 fue 100% lectura. La
+   Fase 2 (2026-07-12) habilita **una sola escritura: `create_task`**, elegida por
+   ser la de menor riesgo — una task es un GitHub Issue (se cierra/borra trivialmente)
+   y no toca el núcleo transaccional (inventario, stock, cotizaciones, órdenes).
+   Cualquier escritura adicional requiere una nueva decisión explícita del usuario.
 5. **Ruta catch-all `[transport]`** la exige `mcp-handler`; con `basePath: '/api'` el
    endpoint queda en `/api/mcp`. SSE deshabilitado (`disableSse`) → no requiere Redis.
    Las rutas API estáticas existentes siempre ganan sobre el segmento dinámico.
@@ -64,6 +67,16 @@ Decisiones clave:
 | `search_products` | Catálogo ETM (descripción resuelta, ADR-013) |
 | `search_urrea_catalog` | Catálogo URREA (exacto normalizado → parcial) |
 | `list_tasks` / `get_task` | Tareas (GitHub Issues, ADR-014) |
+
+### Tools (Fase 2 — escritura)
+
+| Tool | Módulo | Notas |
+|---|---|---|
+| `create_task` | Tareas (GitHub Issues) | Crea un issue. Espeja `POST /api/tasks` pero con reporter fijo `"Asistente (MCP)"` (el MCP no tiene sesión de usuario). `title` obligatorio; `description` y `priority` (`low\|medium\|high\|highest`) opcionales. Devuelve la task creada (#N + URL). |
+
+La confirmación humana previa a la escritura recae en el **cliente MCP** (Claude pide
+permiso antes de invocar la tool); el servidor solo valida y ejecuta. `create_task`
+reutiliza `buildIssueBody`/`priorityToLabel` de `github.ts` — misma lógica que la ruta HTTP.
 
 ### Manejo de errores
 
@@ -90,10 +103,14 @@ no-vendibles, ubicación oculta sin stock, jerarquía de descripción) y errores
 
 ## Consecuencias
 
-- ✅ Claude puede consultar todo el negocio con 13 tools y contexto de reglas.
+- ✅ Claude puede consultar todo el negocio con 13 tools de lectura + contexto de reglas.
+- ✅ Claude puede **crear tareas** por lenguaje natural (`create_task`) — la primera
+  escritura, deliberadamente la de menor riesgo.
 - ✅ Cero duplicación de lógica; los tools son otra "vista" sobre `src/lib`.
 - ⚠️ El token compartido es una sola llave para todo: rotarla si se filtra
   (cambiar `MCP_API_KEY` en Vercel) y jamás commitearla.
-- ⚠️ `list_tasks`/`open_tasks` comparten el rate limit del PAT de GitHub.
-- 🔜 Pendiente (fases futuras): escrituras por nivel de riesgo, OAuth para
-  claude.ai web, auditoría de llamadas.
+- ⚠️ `list_tasks`/`get_task`/`create_task` comparten el rate limit del PAT de GitHub.
+- ⚠️ Las tasks creadas por el MCP quedan como reportadas por `"Asistente (MCP)"`
+  (no por un humano) — es la marca para distinguirlas.
+- 🔜 Pendiente (fases futuras): más escrituras por nivel de riesgo (comentar/cerrar
+  tasks, etc.), OAuth para claude.ai web, auditoría de llamadas.

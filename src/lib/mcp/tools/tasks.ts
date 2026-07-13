@@ -1,10 +1,15 @@
 /**
- * Tools MCP del módulo Tareas (solo lectura).
+ * Tools MCP del módulo Tareas.
  * Misma fuente que /api/tasks: los issues del repo GITHUB_REPO vía github.ts.
  * Los GitHubError se propagan — el wrapper del server los muestra tal cual.
+ *
+ * Lectura: listTasks, getTask. Escritura (Fase 2, ADR-015): createTask — crear
+ * un issue. Es la primera y única escritura del MCP; deliberadamente acotada a
+ * tareas (un issue se cierra/borra trivialmente y no toca el núcleo transaccional).
  */
 
 import {
+  buildIssueBody,
   fetchGitHub,
   isPullRequest,
   isTaskPriority,
@@ -15,6 +20,9 @@ import {
   type GitHubIssue,
 } from '@/lib/github'
 import { ToolError } from '../shared'
+
+/** Reporter fijo de las tasks creadas por el MCP: no hay usuario logueado (auth = token compartido). */
+const MCP_REPORTER = 'Asistente (MCP)'
 
 export interface ListTasksInput {
   state?: string
@@ -57,4 +65,33 @@ export async function getTask(taskNumber: number) {
     task: mapIssueToTask(issue),
     comments: comments.map(mapComment),
   }
+}
+
+export interface CreateTaskInput {
+  title?: string
+  description?: string
+  priority?: string
+}
+
+/**
+ * Crea una tarea (GitHub Issue). Espeja POST /api/tasks pero con reporter fijo
+ * (ver MCP_REPORTER): el MCP no tiene sesión de usuario. Título obligatorio;
+ * prioridad opcional (se ignora si no es válida, igual que la ruta HTTP).
+ */
+export async function createTask(input: CreateTaskInput) {
+  const title = input.title?.trim()
+  if (!title) throw new ToolError('El título es obligatorio')
+
+  const labels = input.priority && isTaskPriority(input.priority) ? [priorityToLabel(input.priority)] : []
+
+  const issue = await fetchGitHub<GitHubIssue>('/issues', {
+    method: 'POST',
+    body: JSON.stringify({
+      title,
+      body: buildIssueBody(input.description ?? '', MCP_REPORTER),
+      labels,
+    }),
+  })
+
+  return mapIssueToTask(issue)
 }

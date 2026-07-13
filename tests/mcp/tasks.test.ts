@@ -1,7 +1,7 @@
 /** Tools MCP de tareas — GitHub se mockea con vi.spyOn(fetch), como en tests/api/tasks.test.ts. */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
-import { listTasks, getTask } from '@/lib/mcp/tools/tasks'
+import { listTasks, getTask, createTask } from '@/lib/mcp/tools/tasks'
 import { ToolError } from '@/lib/mcp/shared'
 
 function gh(status: number, body: unknown): Response {
@@ -58,5 +58,36 @@ describe('getTask', () => {
 
     expect(result.task.number).toBe(5)
     expect(result.comments[0]).toMatchObject({ reporter: 'ana@test.com', body: 'Un comentario' })
+  })
+})
+
+describe('createTask', () => {
+  test('título vacío → ToolError sin llamar a GitHub', async () => {
+    await expect(createTask({ title: '   ' })).rejects.toThrow(ToolError)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  test('crea el issue con reporter fijo y prioridad como label', async () => {
+    fetchSpy.mockResolvedValueOnce(gh(201, issue({ number: 9, title: 'Nueva tarea' })))
+
+    const task = await createTask({ title: '  Nueva tarea  ', description: 'Detalle', priority: 'high' })
+
+    expect(task.number).toBe(9)
+    const [, init] = fetchSpy.mock.calls[0]
+    expect(init?.method).toBe('POST')
+    const payload = JSON.parse(String(init?.body))
+    expect(payload.title).toBe('Nueva tarea')
+    expect(payload.labels).toEqual(['priority:high'])
+    expect(payload.body).toContain('Reportado por: Asistente (MCP)')
+    expect(payload.body).toContain('Detalle')
+  })
+
+  test('prioridad inválida no agrega label', async () => {
+    fetchSpy.mockResolvedValueOnce(gh(201, issue({ number: 10 })))
+
+    await createTask({ title: 'Sin prioridad', priority: 'urgent' })
+
+    const payload = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))
+    expect(payload.labels).toEqual([])
   })
 })
