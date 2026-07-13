@@ -9,7 +9,7 @@ propio. Decisiones y arquitectura en [[04-Decisiones-Tecnicas/ADR-015-MCP-Intern
 |---|---|---|
 | 7.0 — Infraestructura | Endpoint `/api/mcp` (Streamable HTTP), auth Bearer (`MCP_API_KEY`), conexión verificada | ✅ 2026-07-10 |
 | 7.1 — Lectura total | 13 tools de lectura sobre todos los módulos + resource `dymmsa://reglas-negocio` | ✅ 2026-07-10 |
-| 7.2 — Escrituras | **Pendiente de definición** — el alcance de capacidades de escritura se decidirá con atención aparte | ⏸️ |
+| 7.2 — Escrituras | Dirección aprobada (2026-07-12): el MCP tendrá escrituras, incorporadas por nivel de riesgo. Primera: `create_task` (GitHub Issue, reporter `"Asistente (MCP)"`). Siguientes: comentar/cerrar tasks → cotizaciones no destructivas → órdenes/inventario (estas últimas se diseñan con el usuario) | 🔄 2026-07-12 |
 | 7.3 — Hardening | OAuth (claude.ai web), auditoría de llamadas, rate limiting | ⏸️ |
 
 ## Archivos
@@ -18,7 +18,8 @@ propio. Decisiones y arquitectura en [[04-Decisiones-Tecnicas/ADR-015-MCP-Intern
 - `src/lib/mcp/auth.ts` — token compartido, comparación en tiempo constante
 - `src/lib/mcp/server.ts` — registro de tools (Zod) + resource de reglas
 - `src/lib/mcp/tools/` — quotations, orders, inventory, products, urrea, tasks, summary
-- `tests/mcp/` — 30 tests (auth, mapeos, reglas de negocio, errores)
+- `src/lib/mcp/tools/tasks.ts` — lectura (`listTasks`/`getTask`) + escritura (`createTask`)
+- `tests/mcp/` — tests (auth, mapeos, reglas de negocio, errores, `create_task`)
 
 ## Cómo conectar
 

@@ -1,9 +1,13 @@
 /**
- * Registro de tools MCP — Fase 1: solo lectura sobre todos los módulos.
+ * Registro de tools MCP.
+ *
+ * Fase 1: solo lectura sobre todos los módulos. Fase 2 (ADR-015): escrituras
+ * aprobadas como dirección (decisión 2026-07-12), incorporadas por nivel de
+ * riesgo — primera: create_task. Las que muten el núcleo transaccional
+ * (inventario, cotizaciones, órdenes) se diseñan con el usuario antes.
  *
  * Cada tool delega en una función pura de tools/* que recibe el admin client
  * (service role) — la autorización ya ocurrió en el route handler (auth.ts).
- * Las escrituras quedan explícitamente fuera de este scope (ver ADR-015).
  */
 
 import { z } from 'zod'
@@ -16,7 +20,7 @@ import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats } from './tools/inventory'
 import { searchProducts } from './tools/products'
 import { searchUrreaCatalog } from './tools/urrea'
-import { listTasks, getTask } from './tools/tasks'
+import { listTasks, getTask, createTask } from './tools/tasks'
 import { getBusinessSummary } from './tools/summary'
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
@@ -220,6 +224,21 @@ export function registerDymmsaTools(server: McpServer): void {
       inputSchema: { number: z.number().int().min(1).describe('Número de la tarea (#N)') },
     },
     ({ number }) => run(() => getTask(number)),
+  )
+
+  server.registerTool(
+    'create_task',
+    {
+      title: 'Crear tarea',
+      description:
+        'Crea una tarea nueva (GitHub Issue del repo). ESCRIBE: usa solo cuando el usuario pida registrar una tarea/pendiente. title es obligatorio; description opcional; priority opcional (low | medium | high | highest). La tarea queda como reportada por "Asistente (MCP)". Devuelve la tarea creada con su número (#N) y URL.',
+      inputSchema: {
+        title: z.string().min(1).describe('Título de la tarea (obligatorio)'),
+        description: z.string().optional().describe('Descripción/detalle de la tarea'),
+        priority: z.string().optional().describe('low | medium | high | highest'),
+      },
+    },
+    (input) => run(() => createTask(input)),
   )
 
   // ─── Recurso: reglas de negocio ──────────────────────────────────────

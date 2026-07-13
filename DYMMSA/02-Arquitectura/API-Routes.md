@@ -128,3 +128,11 @@
 > Los tools NO pasan por las rutas de arriba: usan el admin client (service role) con la
 > autenticación del MCP como capa propia (comparación en tiempo constante; sin `MCP_API_KEY`
 > configurada rechaza todo). Tools y arquitectura: [[04-Decisiones-Tecnicas/ADR-015-MCP-Interno]].
+
+---
+
+## Health check (`/api/health`)
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/health` | Pública | Estado de la app corriendo las queries reales de cada módulo (cotizaciones, órdenes, inventario, con latencia) + Storage + GitHub (token Tareas). `ok`/`degraded` → 200, `down` → 503. Respuestas gruesas (sin detalles internos) + cache edge 30s. Sin self-fetch a /api/* (exigen sesión → 401); se llama la lógica interna con el admin client. Contrato multi-proyecto: [[04-Decisiones-Tecnicas/ADR-016-Health-Check]] |
