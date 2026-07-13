@@ -12,7 +12,6 @@ export async function POST(
 
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
-    const { user } = auth
 
     // Verify quotation exists and is in draft
     const { data: quotation, error: fetchError } = await supabase

@@ -246,7 +246,7 @@ const IVA_RATE = 0.16
  * Genera el Excel de entrega al cliente con productos surtidos.
  * "Surtido" = quantity_in_stock + quantity_received > 0
  */
-export function generateDeliveryExcel(items: OrderItem[], customerName: string): Blob {
+export function generateDeliveryExcel(items: OrderItem[], _customerName: string): Blob {
   const deliveredItems = items.filter(
     (item) => item.quantity_in_stock + item.quantity_received > 0
   )

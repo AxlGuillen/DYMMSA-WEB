@@ -104,6 +104,9 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
 
   // Match de catálogo URREA por model_code: si existe, la oficial gana jerarquía
   // y la curada no se edita aquí.
+  // watch() de react-hook-form es incompatible conocido del React Compiler:
+  // este componente simplemente se queda sin auto-memoizar.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const modelCodeValue = form.watch('model_code')
   const [debouncedCode, setDebouncedCode] = useState('')
   useEffect(() => {

@@ -74,6 +74,9 @@ export function ProductModal({
     formState: { errors },
   } = useForm<FormValues>()
 
+  // watch() de react-hook-form es incompatible conocido del React Compiler:
+  // este componente simplemente se queda sin auto-memoizar.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const deliveryTimeValue = watch('delivery_time')
   const modelCodeValue    = watch('model_code')
 

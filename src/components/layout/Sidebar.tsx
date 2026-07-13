@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useMounted } from '@/hooks/useMounted'
 import { useSidebarStore } from '@/stores/sidebarStore'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -295,9 +296,8 @@ export function Sidebar() {
   const collapsed = useSidebarStore((s) => s.collapsed)
   const toggleCollapsed = useSidebarStore((s) => s.toggleCollapsed)
 
-  // Animar el ancho solo tras montar (evita el "salto" al rehidratar localStorage).
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  // Animar el ancho solo tras la primera pintura (evita el "salto" al rehidratar localStorage).
+  const mounted = useMounted()
 
   return (
     <>

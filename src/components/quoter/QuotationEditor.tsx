@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -73,10 +73,14 @@ const SortableSeparatorRow = memo(function SortableSeparatorRow({
 
   // Estado local del input: cada keystroke ya no llama updateItem (que
   // re-renderiza todas las filas y escribe a localStorage). Commit en blur.
+  // Sincronía prop→estado con el patrón "derivar durante render" de las docs
+  // de React (adjusting state when a prop changes) en vez de setState en efecto.
   const [localLabel, setLocalLabel] = useState(item.section_label ?? '')
-  useEffect(() => {
+  const [prevLabel, setPrevLabel] = useState(item.section_label)
+  if (prevLabel !== item.section_label) {
+    setPrevLabel(item.section_label)
     setLocalLabel(item.section_label ?? '')
-  }, [item.section_label])
+  }
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -296,17 +300,20 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
 
   // Callbacks memoizados — habilita React.memo en SortableRow/SortableSeparatorRow:
   // sin ref estable de los handlers, memo no evita re-render alguno.
+  // Los setters van declarados en deps: son estables (no cambian la ref del
+  // callback) y el React Compiler exige que toda dependencia inferida esté
+  // listada para poder verificar/preservar la memoización manual.
   const handleEdit = useCallback((item: QuotationItemRow) => {
     setSelectedItem(item)
     setModalMode('edit')
     setModalOpen(true)
-  }, [])
+  }, [setSelectedItem, setModalMode, setModalOpen])
 
   const handleCreate = useCallback(() => {
     setSelectedItem(undefined)
     setModalMode('create')
     setModalOpen(true)
-  }, [])
+  }, [setSelectedItem, setModalMode, setModalOpen])
 
   const handleModalSave = useCallback((data: Omit<QuotationItemRow, '_id'>, id?: string) => {
     if (id) {
