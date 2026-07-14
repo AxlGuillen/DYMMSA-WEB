@@ -1,10 +1,10 @@
 -- ============================================================================
 -- DYMMSA — Snapshot del schema de Supabase (proyecto wjlklwtvjewhtghlskbt)
--- Generado desde la BD real el 2026-07-13 vía MCP de Supabase (pg_catalog).
+-- Generado desde la BD real el 2026-07-13 vía MCP de Supabase (pg_catalog);
+-- regenerado el mismo día tras la migración cleanup_legacy_policies_and_cruft.
 --
 -- FUENTE DE RECONSTRUCCIÓN, no migración ejecutable tal cual: refleja el
--- estado acumulado (incluye cruft marcado con ⚠️). El historial cronológico
--- vive en migrations-log.md.
+-- estado acumulado. El historial cronológico vive en migrations-log.md.
 --
 -- REGLA (CLAUDE.md § auto-mejora): toda migración nueva debe regenerar este
 -- archivo en el mismo commit. Cómo: correr las queries de pg_catalog
@@ -72,11 +72,7 @@ CREATE TABLE public.quotation_items (
 CREATE TABLE public.orders (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   customer_name text NOT NULL,
-  -- ⚠️ Default legacy: 'pending_urrea_order' NO está en el CHECK actual
-  -- (migración 20260409 renombró los estados pero no el default). Inofensivo
-  -- porque la app siempre inserta status explícito, pero un INSERT sin status
-  -- fallaría el CHECK. Candidato a migración de limpieza.
-  status text DEFAULT 'pending_urrea_order'::text NOT NULL,
+  status text DEFAULT 'ordered'::text NOT NULL,
   total_amount numeric(10,2) NOT NULL,
   original_file_url text,
   urrea_order_file_url text,
@@ -132,9 +128,6 @@ CREATE TABLE public.urrea_catalog (
 
 ALTER TABLE etm_products ADD CONSTRAINT etm_products_pkey PRIMARY KEY (id);
 ALTER TABLE etm_products ADD CONSTRAINT etm_products_etm_key UNIQUE (etm);
--- ⚠️ Duplicado histórico del UNIQUE anterior (dos constraints sobre la misma
--- columna). Candidato a migración de limpieza: DROP etm_products_etm_unique.
-ALTER TABLE etm_products ADD CONSTRAINT etm_products_etm_unique UNIQUE (etm);
 ALTER TABLE etm_products ADD CONSTRAINT etm_products_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
 
 ALTER TABLE quotations ADD CONSTRAINT quotations_pkey PRIMARY KEY (id);
@@ -210,46 +203,6 @@ BEGIN
 END;
 $function$;
 
--- ⚠️ Función legacy en BD: restaura inventario y cancela la orden. La app HOY
--- cancela vía route handler (src/lib/inventory.ts restoreOrderInventory) — esta
--- función no se invoca desde el código. Se conserva documentada; si se confirma
--- que nada externo la usa, es candidata a migración de limpieza.
-CREATE OR REPLACE FUNCTION public.cancel_order(order_uuid uuid)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  item RECORD;
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM orders
-    WHERE id = order_uuid
-    AND status IN ('cancelled', 'completed')
-  ) THEN
-    RAISE EXCEPTION 'Cannot cancel order - status is % ',
-      (SELECT status FROM orders WHERE id = order_uuid);
-  END IF;
-
-  FOR item IN
-    SELECT model_code, quantity_in_stock, quantity_received
-    FROM order_items
-    WHERE order_id = order_uuid
-  LOOP
-    INSERT INTO store_inventory (model_code, quantity)
-    VALUES (item.model_code, item.quantity_in_stock + item.quantity_received)
-    ON CONFLICT (model_code)
-    DO UPDATE SET
-      quantity = store_inventory.quantity + EXCLUDED.quantity,
-      updated_at = NOW();
-  END LOOP;
-
-  UPDATE orders
-  SET status = 'cancelled', updated_at = NOW()
-  WHERE id = order_uuid;
-
-END;
-$function$;
-
 -- ─── Triggers ───────────────────────────────────────────────────────────────
 
 CREATE TRIGGER update_etm_products_updated_at BEFORE UPDATE ON public.etm_products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -268,18 +221,6 @@ ALTER TABLE public.quotations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urrea_catalog ENABLE ROW LEVEL SECURITY;
 
--- ⚠️⚠️ POLICIES LEGACY DE LA MIGRACIÓN INICIAL (Fase 0) — el rol `anon` puede
--- INSERT y UPDATE en etm_products con la anon key pública. Eran para el script
--- de carga inicial y nunca se eliminaron. CANDIDATAS A DROP INMEDIATO:
-CREATE POLICY "Allow anon insert for migration" ON public.etm_products FOR INSERT TO anon WITH CHECK (true);
-CREATE POLICY "Allow anon update for migration" ON public.etm_products FOR UPDATE TO anon USING (true) WITH CHECK (true);
-
--- ⚠️ etm_products tiene DOS juegos de policies authenticated equivalentes
--- (duplicado histórico, inofensivo pero es cruft):
-CREATE POLICY "Allow authenticated delete" ON public.etm_products FOR DELETE TO authenticated USING (true);
-CREATE POLICY "Allow authenticated insert" ON public.etm_products FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Allow authenticated read" ON public.etm_products FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Allow authenticated update" ON public.etm_products FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can delete products" ON public.etm_products FOR DELETE TO authenticated USING (true);
 CREATE POLICY "Authenticated users can insert products" ON public.etm_products FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Authenticated users can read products" ON public.etm_products FOR SELECT TO authenticated USING (true);

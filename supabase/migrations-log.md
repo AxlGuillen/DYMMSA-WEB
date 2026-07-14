@@ -29,3 +29,4 @@ cronología en git. El estado acumulado vive en [schema.sql](./schema.sql).
 | 20260708191200 | add_dymmsa_description |
 | 20260708231212 | drop_price_from_urrea_catalog |
 | 20260709195136 | create_task_images_bucket |
+| 2026-07-13 | cleanup_legacy_policies_and_cruft — DROP policies anon de etm_products (seguridad), policies authenticated duplicadas, UNIQUE duplicado en etm, default legacy de orders.status → 'ordered', DROP cancel_order() sin uso |
