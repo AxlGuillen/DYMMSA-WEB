@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreHorizontal, Pencil, Trash2, Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteCatalogItem } from '@/hooks/useUrreaCatalog'
@@ -93,7 +94,8 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
   const tableHeaders = (
     <TableHeader>
       <TableRow>
-        <SortHeader label="Código" field="code" active={sortField === 'code'} dir={sortDir} onSort={onSort} className="w-[160px]" />
+        <SortHeader label="Código" field="code" active={sortField === 'code'} dir={sortDir} onSort={onSort} className="w-[150px]" />
+        <SortHeader label="Marca" field="brand" active={sortField === 'brand'} dir={sortDir} onSort={onSort} className="w-[110px]" />
         <SortHeader label="Descripción" field="description" active={sortField === 'description'} dir={sortDir} onSort={onSort} />
         <SortHeader label="STD" field="std" active={sortField === 'std'} dir={sortDir} onSort={onSort} className="w-[90px]" />
         <TableHead className="w-[150px]">Última actualización</TableHead>
@@ -111,6 +113,7 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
             {Array.from({ length: 8 }).map((_, i) => (
               <TableRow key={i}>
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
@@ -150,6 +153,9 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
             {items.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-mono text-sm">{item.code}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="font-normal">{item.brand}</Badge>
+                </TableCell>
                 <TableCell className="max-w-md">
                   {item.description || <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
                 </TableCell>

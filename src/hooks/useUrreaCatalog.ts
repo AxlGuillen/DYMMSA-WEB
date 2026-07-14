@@ -11,13 +11,14 @@ import type {
 
 const CATALOG_KEY = ['urrea-catalog']
 
-export type CatalogSortField = 'code' | 'description' | 'std'
+export type CatalogSortField = 'code' | 'brand' | 'description' | 'std'
 export type SortDir = 'asc' | 'desc'
 
 interface CatalogParams {
   page?: number
   pageSize?: number
   search?: string
+  brand?: string
   sortField?: CatalogSortField
   sortDir?: SortDir
 }
@@ -35,12 +36,13 @@ export function useUrreaCatalog(params: CatalogParams = {}) {
     page = 1,
     pageSize = 20,
     search = '',
+    brand = '',
     sortField = 'description',
     sortDir = 'asc',
   } = params
 
   return useQuery({
-    queryKey: [...CATALOG_KEY, { page, pageSize, search, sortField, sortDir }],
+    queryKey: [...CATALOG_KEY, { page, pageSize, search, brand, sortField, sortDir }],
     queryFn: async (): Promise<CatalogResponse> => {
       const qs = new URLSearchParams({
         page: String(page),
@@ -49,16 +51,22 @@ export function useUrreaCatalog(params: CatalogParams = {}) {
         sortDir,
       })
       if (search) qs.set('search', search)
+      if (brand) qs.set('brand', brand)
       return fetchJson<CatalogResponse>(`/api/urrea-catalog?${qs.toString()}`)
     },
   })
 }
 
+export interface CatalogBrandCount {
+  brand: string
+  count: number
+}
+
 export function useUrreaCatalogStats() {
   return useQuery({
     queryKey: [...CATALOG_KEY, 'stats'],
-    queryFn: async (): Promise<{ total: number }> =>
-      fetchJson<{ total: number }>('/api/urrea-catalog/stats'),
+    queryFn: async (): Promise<{ total: number; brands: CatalogBrandCount[] }> =>
+      fetchJson<{ total: number; brands: CatalogBrandCount[] }>('/api/urrea-catalog/stats'),
   })
 }
 

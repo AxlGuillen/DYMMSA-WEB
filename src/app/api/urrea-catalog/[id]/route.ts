@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import { normalizeCatalogCode } from '@/lib/business-rules'
+import { normalizeCatalogCode, normalizeCatalogBrand } from '@/lib/business-rules'
 import type { UrreaCatalogUpdate } from '@/types/database'
 
 interface RouteContext {
@@ -24,6 +24,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       if (!code) return badRequest('El código no puede estar vacío')
       updates.code = code
     }
+    if (typeof body.brand === 'string') updates.brand = normalizeCatalogBrand(body.brand)
     if (body.description !== undefined) updates.description = body.description?.trim() || null
     if (body.std !== undefined) {
       if (typeof body.std !== 'number' || body.std < 1) return badRequest('STD debe ser un entero ≥ 1')
@@ -40,7 +41,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       .single()
 
     if (error) {
-      if (error.code === '23505') return badRequest('Ya existe un producto con ese código')
+      if (error.code === '23505') return badRequest('Ya existe un producto con ese código y marca')
       if (error.code === 'PGRST116') return notFound('Producto no encontrado')
       console.error('Error updating urrea_catalog item:', error)
       return serverError('Error al actualizar el producto')

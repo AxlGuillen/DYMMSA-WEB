@@ -1,10 +1,11 @@
 /**
  * URREA Catalog — import handler (tabla aislada urrea_catalog).
  *   - validación de archivo/columnas
- *   - upsert por code (onConflict)
+ *   - upsert por (code, brand) (onConflict)
  *   - replace (delete all + insert)
  *   - parseo de std (entero ≥ 1, default)
- *   - acepta encabezados en español (codigo/descripcion)
+ *   - acepta encabezados en español (codigo/descripcion/marca)
+ *   - marca: normalizada trim+upper; ausente → URREA
  */
 
 import { describe, test, expect, vi } from 'vitest'
@@ -40,7 +41,7 @@ describe('POST /urrea-catalog/import', () => {
     expect(res.status).toBe(400)
   })
 
-  test('upsert: llama upsert onConflict code con encabezados en español', async () => {
+  test('upsert: llama upsert con encabezados en español; marca ausente → URREA', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'urrea_catalog.upsert': { data: null, error: null } },
@@ -53,7 +54,19 @@ describe('POST /urrea-catalog/import', () => {
     expect(body.imported).toBe(1)
     expect(activeClient.didCall('urrea_catalog', 'upsert')).toBe(true)
     const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
-    expect(payload[0]).toMatchObject({ code: 'C1', description: 'Tornillo', std: 6 })
+    expect(payload[0]).toMatchObject({ code: 'C1', brand: 'URREA', description: 'Tornillo', std: 6 })
+  })
+
+  test('marca: columna presente se normaliza a mayúsculas', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.upsert': { data: null, error: null } },
+    })
+    await catalogImport.POST(
+      makeExcelRequest([{ codigo: 'C9', marca: '  surtek ', descripcion: 'X', std: 1 }]),
+    )
+    const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
+    expect(payload[0].brand).toBe('SURTEK')
   })
 
   test('std vacío/0 cae a 1', async () => {

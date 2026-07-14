@@ -55,6 +55,18 @@ export function normalizeCatalogCode(code: string | null | undefined): string {
   return (code ?? '').trim().toUpperCase()
 }
 
+/** Marca por defecto del catálogo/sistema (etm_products.brand y urrea_catalog.brand). */
+export const DEFAULT_BRAND = 'URREA'
+
+/**
+ * Normaliza la marca (trim + mayúsculas) — misma disciplina que el código, para
+ * que el cruce `(model_code, brand)` no falle en silencio por casing/espacios.
+ * Vacío → `DEFAULT_BRAND` (la columna es NOT NULL DEFAULT 'URREA').
+ */
+export function normalizeCatalogBrand(brand: string | null | undefined): string {
+  return (brand ?? '').trim().toUpperCase() || DEFAULT_BRAND
+}
+
 export type DymmsaDescriptionSource = 'catalog' | 'dymmsa' | null
 
 type DescriptionResolvable = {

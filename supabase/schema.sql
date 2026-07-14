@@ -118,6 +118,7 @@ CREATE TABLE public.store_inventory (
 CREATE TABLE public.urrea_catalog (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   code text NOT NULL,         -- SIEMPRE normalizado trim+upper (ADR-013)
+  brand text DEFAULT 'URREA' NOT NULL,  -- normalizado trim+upper; identidad = (code, brand)
   description text,
   std integer DEFAULT 1 NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -165,7 +166,7 @@ ALTER TABLE store_inventory ADD CONSTRAINT store_inventory_model_code_key UNIQUE
 ALTER TABLE store_inventory ADD CONSTRAINT store_inventory_quantity_check CHECK ((quantity >= 0));
 
 ALTER TABLE urrea_catalog ADD CONSTRAINT urrea_catalog_pkey PRIMARY KEY (id);
-ALTER TABLE urrea_catalog ADD CONSTRAINT urrea_catalog_code_key UNIQUE (code);
+ALTER TABLE urrea_catalog ADD CONSTRAINT urrea_catalog_code_brand_key UNIQUE (code, brand);
 ALTER TABLE urrea_catalog ADD CONSTRAINT urrea_catalog_std_check CHECK ((std > 0));
 
 -- ─── Índices (adicionales a los de constraints) ─────────────────────────────
@@ -190,6 +191,7 @@ CREATE INDEX idx_quotations_status ON public.quotations USING btree (status);
 CREATE UNIQUE INDEX idx_quotations_token ON public.quotations USING btree (approval_token);
 CREATE INDEX idx_store_inventory_model ON public.store_inventory USING btree (model_code);
 CREATE INDEX urrea_catalog_description_idx ON public.urrea_catalog USING btree (description);
+CREATE INDEX idx_urrea_catalog_brand ON public.urrea_catalog USING btree (brand);
 
 -- ─── Funciones ──────────────────────────────────────────────────────────────
 
@@ -201,6 +203,19 @@ BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
+$function$;
+
+-- Conteo por marca del catálogo (filtro de la UI). security invoker → respeta RLS.
+CREATE OR REPLACE FUNCTION public.urrea_catalog_brand_counts()
+ RETURNS TABLE(brand text, count bigint)
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path = public
+AS $function$
+  SELECT brand, count(*)::bigint
+  FROM public.urrea_catalog
+  GROUP BY brand
+  ORDER BY count(*) DESC;
 $function$;
 
 -- ─── Triggers ───────────────────────────────────────────────────────────────

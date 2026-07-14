@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { normalizeCatalogCode } from '@/lib/business-rules'
+import { normalizeCatalogCode, normalizeCatalogBrand } from '@/lib/business-rules'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import type { UrreaCatalogInsert } from '@/types/database'
 
-const SORT_FIELDS = ['code', 'description', 'std'] as const
+const SORT_FIELDS = ['code', 'brand', 'description', 'std'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
 /** Quita los caracteres que rompen la sintaxis del filtro `.or()` de PostgREST. */
@@ -29,11 +29,15 @@ export async function GET(request: NextRequest) {
       ? (sortFieldParam as SortField)
       : 'description'
     const ascending = searchParams.get('sortDir') !== 'desc'
+    const brand = searchParams.get('brand')?.trim()
 
     let query = supabase.from('urrea_catalog').select('*', { count: 'exact' })
 
     if (search) {
       query = query.or(`code.ilike.%${search}%,description.ilike.%${search}%`)
+    }
+    if (brand) {
+      query = query.eq('brand', normalizeCatalogBrand(brand))
     }
 
     const from = (page - 1) * pageSize
@@ -76,6 +80,7 @@ export async function POST(request: NextRequest) {
     const std = typeof body.std === 'number' && body.std > 0 ? body.std : 1
     const payload: UrreaCatalogInsert = {
       code,
+      brand: normalizeCatalogBrand(body.brand),
       description: body.description?.trim() || null,
       std,
     }
@@ -87,7 +92,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      if (error.code === '23505') return badRequest('Ya existe un producto con ese código')
+      if (error.code === '23505') return badRequest('Ya existe un producto con ese código y marca')
       console.error('Error creating urrea_catalog item:', error)
       return serverError('Error al crear el producto')
     }

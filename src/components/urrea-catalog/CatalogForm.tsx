@@ -26,6 +26,7 @@ import type { UrreaCatalogItem } from '@/types/database'
 
 const catalogSchema = z.object({
   code: z.string().min(1, 'El código es requerido'),
+  brand: z.string().min(1, 'La marca es requerida'),
   description: z.string(),
   std: z.number().int().min(1, 'El STD debe ser al menos 1'),
 })
@@ -45,7 +46,7 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
 
   const form = useForm<CatalogFormValues>({
     resolver: zodResolver(catalogSchema),
-    defaultValues: { code: '', description: '', std: 1 },
+    defaultValues: { code: '', brand: 'URREA', description: '', std: 1 },
   })
 
   useEffect(() => {
@@ -54,10 +55,11 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
         item
           ? {
               code: item.code || '',
+              brand: item.brand || 'URREA',
               description: item.description ?? '',
               std: item.std || 1,
             }
-          : { code: '', description: '', std: 1 }
+          : { code: '', brand: 'URREA', description: '', std: 1 }
       )
     }
   }, [open, item, form])
@@ -65,6 +67,7 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
   const onSubmit = async (values: CatalogFormValues) => {
     const payload = {
       code: values.code.trim(),
+      brand: values.brand.trim().toUpperCase(),
       description: values.description.trim() || null,
       std: values.std,
     }
@@ -79,8 +82,8 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
       onOpenChange(false)
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Error desconocido'
-      if (msg.includes('duplicate') || msg.includes('23505')) {
-        toast.error('Ese código ya existe en el catálogo')
+      if (msg.includes('duplicate') || msg.includes('23505') || msg.toLowerCase().includes('ya existe')) {
+        toast.error('Ese código ya existe en el catálogo para esa marca')
       } else {
         toast.error(isEditing ? 'Error al actualizar' : 'Error al crear', { description: msg })
       }
@@ -95,19 +98,34 @@ export function CatalogForm({ open, onOpenChange, item }: CatalogFormProps) {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="code"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Código URREA</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: 7420MT" {...field} disabled={isEditing} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Código</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej: 7420MT" {...field} disabled={isEditing} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="brand"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Marca</FormLabel>
+                    <FormControl>
+                      <Input placeholder="URREA" {...field} disabled={isEditing} className="uppercase" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="description"

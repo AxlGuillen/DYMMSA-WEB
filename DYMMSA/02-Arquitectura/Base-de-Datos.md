@@ -66,20 +66,25 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 
 ## Tabla: `urrea_catalog`
 
-**Propósito:** Catálogo de productos URREA (código, descripción, STD).  
+**Propósito:** Catálogo de productos **multimarca** (código, marca, descripción, STD).  
 **Módulo:** [[03-Modulos/Catalogo-URREA]]  
-**Aislamiento:** tabla **independiente** — sin FK ni relaciones con `etm_products`/órdenes por ahora; no usada por flujos de producción. Creada el 2026-06-16 (migración `create_urrea_catalog`).
+**Aislamiento:** tabla **independiente** — sin FK; cruce **por valor** con `model_code`. Creada el 2026-06-16 (`create_urrea_catalog`); marca agregada el 2026-07-14 (`add_brand_to_urrea_catalog`).
 
 | Columna | Tipo | Nullable | Default | Constraint | Descripción |
 |---------|------|----------|---------|-----------|-------------|
 | `id` | uuid | No | `gen_random_uuid()` | PK | No depende del código |
-| `code` | text | No | — | UNIQUE | Código URREA (equiv. a `model_code`) |
-| `description` | text | Sí | — | | Descripción de URREA (más completa) |
+| `code` | text | No | — | UNIQUE(code, brand) | Código (equiv. a `model_code`), normalizado trim+upper |
+| `brand` | text | No | `'URREA'` | UNIQUE(code, brand) | Marca/línea, normalizada trim+upper (`URREA`/`SURTEK`/`FOY`...). El mismo código puede existir en varias marcas |
+| `description` | text | Sí | — | | Descripción oficial (más completa) |
 | `std` | integer | No | `1` | `> 0` | Unidades por paquete (p. ej. 6) |
 | `created_at` | timestamptz | No | `now()` | | |
 | `updated_at` | timestamptz | No | `now()` | | Trigger `moddatetime` |
 
+Índices: `urrea_catalog_description_idx (description)`, `idx_urrea_catalog_brand (brand)`.
+RPC: `urrea_catalog_brand_counts() → (brand, count)` (filtro del catálogo; `security invoker`).
 RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true`).
+
+> ⚠️ La resolución de Descripción DYMMSA (`fetchCatalogDescriptionMap`) aún cruza **solo por `code`**; migrar a `(code, brand)` es la issue #27.
 
 ---
 
@@ -213,3 +218,5 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |
+| `add_brand_to_urrea_catalog` | (2026-07-14) | Columna `brand text NOT NULL DEFAULT 'URREA'` en `urrea_catalog`; `UNIQUE(code)` → `UNIQUE(code, brand)`; índice `idx_urrea_catalog_brand`. Backfill de filas existentes a `'URREA'` |
+| `urrea_catalog_brand_counts_fn` | (2026-07-14) | RPC `urrea_catalog_brand_counts()` — conteo por marca para el filtro del catálogo (`security invoker`) |

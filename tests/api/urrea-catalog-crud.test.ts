@@ -59,6 +59,16 @@ describe('GET /urrea-catalog (list)', () => {
     expect(String(or!.args[0])).toContain('tornillo')
   })
 
+  test('filtro por marca agrega .eq(brand) normalizado', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.select': { data: [], error: null, count: 0 } },
+    })
+    await listRoute.GET(makeRequest(undefined, url('?brand=surtek')))
+    const rec = activeClient.callsTo('urrea_catalog', 'select')[0]
+    expect(filterValue(rec, 'brand')).toBe('SURTEK')
+  })
+
   test('sortField inválido cae a description', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
@@ -88,14 +98,34 @@ describe('GET /urrea-catalog/stats', () => {
     expect(res.status).toBe(401)
   })
 
-  test('devuelve total', async () => {
+  test('devuelve total y desglose por marca', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'urrea_catalog.select': { data: null, error: null, count: 42 } },
+      responses: {
+        'urrea_catalog.select': { data: null, error: null, count: 42 },
+        'rpc.urrea_catalog_brand_counts': {
+          data: [{ brand: 'URREA', count: 30 }, { brand: 'SURTEK', count: 12 }],
+          error: null,
+        },
+      },
     })
     const res = await statsRoute.GET()
     const body = await res.json()
     expect(body.total).toBe(42)
+    expect(body.brands).toEqual([{ brand: 'URREA', count: 30 }, { brand: 'SURTEK', count: 12 }])
+  })
+
+  test('desglose por marca degrada a [] si la RPC falla', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'urrea_catalog.select': { data: null, error: null, count: 5 },
+        'rpc.urrea_catalog_brand_counts': { data: null, error: { message: 'boom' } },
+      },
+    })
+    const body = await (await statsRoute.GET()).json()
+    expect(body.total).toBe(5)
+    expect(body.brands).toEqual([])
   })
 })
 
@@ -112,7 +142,7 @@ describe('POST /urrea-catalog (create)', () => {
     expect(res.status).toBe(400)
   })
 
-  test('crea con defaults (std=1)', async () => {
+  test('crea con defaults (std=1, brand=URREA)', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'urrea_catalog.insert': { data: { id: '1', code: 'C1' }, error: null } },
@@ -120,7 +150,17 @@ describe('POST /urrea-catalog (create)', () => {
     const res = await listRoute.POST(makeRequest({ code: '  C1  ', description: '  Tornillo  ' }))
     expect(res.status).toBe(201)
     const payload = activeClient.insertPayload<Record<string, unknown>>('urrea_catalog')
-    expect(payload).toMatchObject({ code: 'C1', description: 'Tornillo', std: 1 })
+    expect(payload).toMatchObject({ code: 'C1', brand: 'URREA', description: 'Tornillo', std: 1 })
+  })
+
+  test('crea con marca explícita normalizada a mayúsculas', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.insert': { data: { id: '2', code: 'C2' }, error: null } },
+    })
+    const res = await listRoute.POST(makeRequest({ code: 'C2', brand: ' foy ' }))
+    expect(res.status).toBe(201)
+    expect(activeClient.insertPayload<Record<string, unknown>>('urrea_catalog').brand).toBe('FOY')
   })
 
   test('código duplicado → 400', async () => {

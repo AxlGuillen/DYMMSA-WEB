@@ -18,8 +18,11 @@
  * (insert | select | update | delete | upsert). Todas las llamadas quedan
  * registradas en `_calls` para hacer assertions (rollback, deducción de stock, etc.).
  *
- * NO modelado (extender si algún handler lo usa): `.rpc()`, `.throwOnError()`,
- * `storage.*`. Hoy ningún route handler de DYMMSA los necesita.
+ * `.rpc(fn, params)` está modelado de forma simple: resuelve la respuesta
+ * configurada en `responses['rpc.<fn>']` (o `{ data: null, error: null }`) y
+ * registra la llamada en `_rpcCalls`. No encadena filtros (como el real para RPC).
+ *
+ * NO modelado (extender si algún handler lo usa): `.throwOnError()`, `storage.*`.
  */
 
 export type MockResult = { data?: unknown; error?: unknown; count?: number }
@@ -112,8 +115,14 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   }
 }
 
+export interface RpcCall {
+  fn: string
+  params?: unknown
+}
+
 export class MockSupabaseClient {
   _calls: CallRecord[] = []
+  _rpcCalls: RpcCall[] = []
   private responses: Record<string, ResponseValue>
   private user: { id: string } | null
 
@@ -124,6 +133,14 @@ export class MockSupabaseClient {
 
   from(table: string) {
     return new QueryBuilder(table, this)
+  }
+
+  /** RPC simple: no encadena filtros; resuelve `responses['rpc.<fn>']`. */
+  rpc(fn: string, params?: unknown): Promise<MockResult> {
+    this._rpcCalls.push({ fn, params })
+    const v = this.responses[`rpc.${fn}`]
+    if (v === undefined) return Promise.resolve(DEFAULT_RESULT)
+    return Promise.resolve(typeof v === 'function' ? v({ table: fn, op: 'select', filters: [], single: false }) : v)
   }
 
   auth = {

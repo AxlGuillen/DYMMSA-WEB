@@ -8,11 +8,21 @@ import { CatalogForm } from '@/components/urrea-catalog/CatalogForm'
 import { CatalogImporter } from '@/components/urrea-catalog/CatalogImporter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Plus, Upload, Search, X, ChevronLeft, ChevronRight } from '@/components/icons'
 import type { UrreaCatalogItem } from '@/types/database'
 
+const ALL_BRANDS = '__all__'
+
 export default function UrreaCatalogPage() {
   const [search, setSearch] = useState('')
+  const [brand, setBrand] = useState<string>(ALL_BRANDS)
   const [page, setPage] = useState(1)
   const [sortField, setSortField] = useState<CatalogSortField>('description')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -20,7 +30,8 @@ export default function UrreaCatalogPage() {
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<UrreaCatalogItem | null>(null)
 
-  const { data, isLoading } = useUrreaCatalog({ page, pageSize: 20, search, sortField, sortDir })
+  const brandFilter = brand === ALL_BRANDS ? '' : brand
+  const { data, isLoading } = useUrreaCatalog({ page, pageSize: 20, search, brand: brandFilter, sortField, sortDir })
   const { data: stats } = useUrreaCatalogStats()
 
   const handleSort = (field: CatalogSortField) => {
@@ -50,7 +61,7 @@ export default function UrreaCatalogPage() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Catálogo URREA</h1>
           <p className="text-muted-foreground">
-            Catálogo de productos URREA: código, descripción, STD y precio de catálogo.
+            Catálogo de productos por marca: código, descripción y STD.
             {stats ? ` · ${stats.total} producto${stats.total !== 1 ? 's' : ''}` : ''}
           </p>
         </div>
@@ -66,24 +77,39 @@ export default function UrreaCatalogPage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por código o descripción..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-          className="pl-10 pr-9"
-        />
-        {search && (
-          <button
-            type="button"
-            onClick={() => { setSearch(''); setPage(1) }}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="size-4" />
-          </button>
-        )}
+      {/* Search + brand filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por código o descripción..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            className="pl-10 pr-9"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setPage(1) }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+        <Select value={brand} onValueChange={(v) => { setBrand(v); setPage(1) }}>
+          <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectValue placeholder="Todas las marcas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_BRANDS}>Todas las marcas</SelectItem>
+            {stats?.brands?.map((b) => (
+              <SelectItem key={b.brand} value={b.brand}>
+                {b.brand} ({b.count})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
