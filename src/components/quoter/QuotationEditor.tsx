@@ -283,7 +283,8 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
   const catalogDescriptions = useQuotationStore((s) => s.catalogDescriptions)
   const mergeCatalogDescriptions = useQuotationStore((s) => s.mergeCatalogDescriptions)
 
-  // Map para resolveDymmsaDescription (catálogo > curada > null)
+  // Map para resolveDymmsaDescription (catálogo > curada > null).
+  // Indexado por catalogKey (MARCA|CODIGO): el resolver cruza con la marca del ítem.
   const catalogMap = useMemo(
     () => new Map(Object.entries(catalogDescriptions ?? {})),
     [catalogDescriptions]

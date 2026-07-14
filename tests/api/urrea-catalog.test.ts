@@ -124,14 +124,15 @@ describe('POST /urrea-catalog/lookup', () => {
     expect((await catalogLookup.POST(makeRequest({ codes: [] }))).status).toBe(400)
   })
 
-  test('devuelve mapa code→descripción con codes normalizados; omite sin descripción', async () => {
+  test('devuelve mapa catalogKey(MARCA|CODIGO)→descripción; omite sin descripción', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
         'urrea_catalog.select': {
           data: [
-            { code: 'MC1', description: 'Oficial 1' },
-            { code: 'MC2', description: null },
+            { code: 'MC1', brand: 'URREA', description: 'Oficial 1' },
+            { code: 'MC1', brand: 'SURTEK', description: 'Oficial 1 (Surtek)' },
+            { code: 'MC2', brand: 'URREA', description: null },
           ],
           error: null,
         },
@@ -140,7 +141,11 @@ describe('POST /urrea-catalog/lookup', () => {
     const res = await catalogLookup.POST(makeRequest({ codes: [' mc1 ', 'mc2', ''] }))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.descriptions).toEqual({ MC1: 'Oficial 1' })
+    // El mismo código en 2 marcas convive: cada uno con su llave.
+    expect(body.descriptions).toEqual({
+      'URREA|MC1': 'Oficial 1',
+      'SURTEK|MC1': 'Oficial 1 (Surtek)',
+    })
     // la query usó los codes normalizados y sin vacíos
     const call = activeClient.callsTo('urrea_catalog', 'select')[0]
     const inFilter = call.filters.find((f) => f.method === 'in')

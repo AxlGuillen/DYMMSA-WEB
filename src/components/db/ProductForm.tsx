@@ -102,18 +102,22 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
     }
   }, [open, product, form])
 
-  // Match de catálogo URREA por model_code: si existe, la oficial gana jerarquía
+  // Match de catálogo por (model_code, brand): si existe, la oficial gana jerarquía
   // y la curada no se edita aquí.
   // watch() de react-hook-form es incompatible conocido del React Compiler:
   // este componente simplemente se queda sin auto-memoizar.
   // eslint-disable-next-line react-hooks/incompatible-library
   const modelCodeValue = form.watch('model_code')
-  const [debouncedCode, setDebouncedCode] = useState('')
+  const brandValue = form.watch('brand')
+  const [debounced, setDebounced] = useState({ code: '', brand: '' })
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedCode(modelCodeValue ?? ''), 400)
+    const t = setTimeout(
+      () => setDebounced({ code: modelCodeValue ?? '', brand: brandValue ?? '' }),
+      400,
+    )
     return () => clearTimeout(t)
-  }, [modelCodeValue])
-  const { data: catalogDesc } = useCatalogDescription(open ? debouncedCode : '')
+  }, [modelCodeValue, brandValue])
+  const { data: catalogDesc } = useCatalogDescription(open ? debounced.code : '', debounced.brand)
 
   const onSubmit = async (values: ProductFormValues) => {
     try {

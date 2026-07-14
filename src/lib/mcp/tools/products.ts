@@ -40,7 +40,12 @@ export async function searchProducts(db: Db, input: SearchProductsInput) {
 
   const products = rows.map((p) => {
     const resolved = resolveDymmsaDescription(
-      { item_type: 'product', model_code: p.model_code, dymmsa_description: p.dymmsa_description },
+      {
+        item_type: 'product',
+        model_code: p.model_code,
+        brand: p.brand,
+        dymmsa_description: p.dymmsa_description,
+      },
       catalogMap,
     )
     return {

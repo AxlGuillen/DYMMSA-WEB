@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
-import { normalizeCatalogCode } from '@/lib/business-rules'
+import { catalogKey, normalizeCatalogCode } from '@/lib/business-rules'
 import type {
   UrreaCatalogItem,
   UrreaCatalogInsert,
@@ -138,15 +138,19 @@ export function useImportUrreaCatalog() {
 }
 
 /**
- * Descripción oficial del catálogo URREA para un code (normalizado).
- * `null` = sin match. Cachea 5 min por code — la usan ProductModal/ProductForm
- * para resolver "Desc. DYMMSA" al editar el model_code.
+ * Descripción oficial del catálogo para un (código, marca).
+ * `null` = sin match. Cachea 5 min por par — la usan ProductModal/ProductForm
+ * para resolver "Desc. DYMMSA" al editar el model_code o la marca.
+ *
+ * El match es estricto por marca: el mismo código en otra marca NO aplica
+ * (la respuesta viene indexada por `catalogKey`).
  */
-export function useCatalogDescription(code: string) {
+export function useCatalogDescription(code: string, brand?: string | null) {
   const normalized = normalizeCatalogCode(code)
+  const key = catalogKey(code, brand)
 
   return useQuery({
-    queryKey: [...CATALOG_KEY, 'lookup', normalized],
+    queryKey: [...CATALOG_KEY, 'lookup', key],
     enabled: normalized !== '',
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<string | null> => {
@@ -158,7 +162,7 @@ export function useCatalogDescription(code: string) {
           body: JSON.stringify({ codes: [normalized] }),
         },
       )
-      return descriptions[normalized] ?? null
+      return descriptions[key] ?? null
     },
   })
 }

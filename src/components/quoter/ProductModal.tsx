@@ -79,17 +79,22 @@ export function ProductModal({
   // eslint-disable-next-line react-hooks/incompatible-library
   const deliveryTimeValue = watch('delivery_time')
   const modelCodeValue    = watch('model_code')
+  const brandValue        = watch('brand')
 
-  // Debounce del model_code para el lookup de catálogo (evita query por tecla)
-  const [debouncedCode, setDebouncedCode] = useState('')
+  // Debounce del par (model_code, brand) para el lookup de catálogo: el match es
+  // por código Y marca, así que cambiar cualquiera de los dos re-resuelve.
+  const [debounced, setDebounced] = useState({ code: '', brand: '' })
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedCode(modelCodeValue ?? ''), 400)
+    const t = setTimeout(
+      () => setDebounced({ code: modelCodeValue ?? '', brand: brandValue ?? '' }),
+      400,
+    )
     return () => clearTimeout(t)
-  }, [modelCodeValue])
+  }, [modelCodeValue, brandValue])
 
-  // Descripción oficial del catálogo URREA: si hay match, gana jerarquía y la
+  // Descripción oficial del catálogo: si hay match, gana jerarquía y la
   // curada no se edita aquí (se corrige reimportando el catálogo).
-  const { data: catalogDesc } = useCatalogDescription(open ? debouncedCode : '')
+  const { data: catalogDesc } = useCatalogDescription(open ? debounced.code : '', debounced.brand)
 
   const [etmError, setEtmError]           = useState<string | null>(null)
   const [isCheckingEtm, setIsCheckingEtm] = useState(false)

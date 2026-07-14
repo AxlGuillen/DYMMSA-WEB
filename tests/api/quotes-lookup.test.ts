@@ -1,9 +1,10 @@
 /**
  * POST /quotes/lookup — búsqueda masiva de ETMs + descripciones de catálogo.
  *   - found/notFound por etm
- *   - catalogDescriptions: mapa code→descripción del catálogo URREA para la
+ *   - catalogDescriptions: mapa catalogKey(MARCA|CODIGO)→descripción para la
  *     unión de model_codes (productos encontrados + códigos del Excel),
- *     normalizados; se omiten filas sin descripción.
+ *     normalizados; se omiten filas sin descripción. Incluye todas las marcas
+ *     de esos códigos → el cotizador resuelve con la marca de cada ítem.
  */
 
 import { describe, test, expect, vi } from 'vitest'
@@ -35,8 +36,8 @@ describe('POST /quotes/lookup', () => {
         },
         'urrea_catalog.select': {
           data: [
-            { code: 'MC1', description: 'Oficial 1' },
-            { code: 'MC9', description: 'Oficial 9' },
+            { code: 'MC1', brand: 'URREA', description: 'Oficial 1' },
+            { code: 'MC9', brand: 'FOY', description: 'Oficial 9' },
           ],
           error: null,
         },
@@ -51,7 +52,10 @@ describe('POST /quotes/lookup', () => {
     const body = await res.json()
     expect(body.found).toHaveLength(1)
     expect(body.notFound).toEqual(['ETM-2'])
-    expect(body.catalogDescriptions).toEqual({ MC1: 'Oficial 1', MC9: 'Oficial 9' })
+    expect(body.catalogDescriptions).toEqual({
+      'URREA|MC1': 'Oficial 1',
+      'FOY|MC9': 'Oficial 9',
+    })
 
     // la query al catálogo usó la union normalizada (MC1 del found + MC9 del Excel)
     const call = activeClient.callsTo('urrea_catalog', 'select')[0]
