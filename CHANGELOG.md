@@ -3,6 +3,14 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-14
+
+### Mejorado
+- **Nueva pantalla de inicio de sesión**, con una imagen más formal y de empresa: la marca DYMMSA
+  a un costado y el formulario limpio al otro. En celular se adapta y muestra el logo arriba.
+  De paso se corrigieron los acentos del texto ("Correo electrónico", "Contraseña",
+  "Iniciar sesión") y el navegador ahora puede autocompletar tu correo y contraseña.
+
 ## 2026-07-10
 
 ### Nuevo
