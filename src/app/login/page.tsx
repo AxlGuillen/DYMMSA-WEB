@@ -101,20 +101,23 @@ export default function LoginPage() {
       {/* ── Formulario ─────────────────────────────────────────────────────
           Superficie propia (no blanco puro) + tarjeta elevada: el formulario deja
           de ser texto flotando y pasa a ser un objeto con peso y contraste. */}
-      <main className="login-form-bg relative flex flex-1 items-center justify-center overflow-hidden px-6 py-12">
+      <main className="login-form-bg relative flex flex-1 items-center justify-center overflow-hidden px-6 py-8 sm:py-12">
         <div className="login-form-grid pointer-events-none absolute inset-0" aria-hidden />
 
         <div className="relative w-full max-w-md">
           {/* En móvil no hay panel de marca: el logo entra aquí, sobre fondo
               claro, que es donde está diseñado para vivir. */}
-          {/* Espejo del anterior: en desktop está oculto, así que ahí pide lo mínimo. */}
+          {/* width/height = las dimensiones REALES (1024×1024, cuadrado). Antes
+              decían 320×160 (ratio 2:1), así que Next reservaba un hueco con la
+              proporción equivocada. sizes espeja al del panel: en desktop está
+              oculto, así que ahí pide lo mínimo. */}
           <Image
             src="/dymmsa-logo.webp"
             alt="DYMMSA"
-            width={320}
-            height={160}
-            sizes="(min-width: 1024px) 1px, 96px"
-            className="login-rise mx-auto mb-8 h-20 w-auto lg:hidden"
+            width={1024}
+            height={1024}
+            sizes="(min-width: 1024px) 1px, 80vw"
+            className="login-rise mx-auto mb-4 h-auto w-[80vw] max-w-[170px] lg:hidden [@media(min-height:780px)]:max-w-[300px]"
             priority
           />
 
