@@ -268,12 +268,15 @@
 }
 
 /* Eco de la retícula del panel en el lado claro: sin esto las dos mitades se
-   leen como dos pantallas pegadas en vez de un solo diseño. Muy tenue. */
+   leen como dos pantallas pegadas en vez de un solo diseño. Muy tenue.
+   El prefijo -webkit- va primero: sin él, Safari ignora la máscara y la retícula
+   se dibuja de borde a borde, sin el desvanecido. */
 .login-form-grid {
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 0, 0, 0.035) 1px, transparent 1px);
   background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 30%, transparent 100%);
   mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 30%, transparent 100%);
 }
 

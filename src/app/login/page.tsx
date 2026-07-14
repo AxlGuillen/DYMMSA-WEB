@@ -109,14 +109,19 @@ export default function LoginPage() {
               claro, que es donde está diseñado para vivir. */}
           {/* width/height = las dimensiones REALES (1024×1024, cuadrado). Antes
               decían 320×160 (ratio 2:1), así que Next reservaba un hueco con la
-              proporción equivocada. sizes espeja al del panel: en desktop está
-              oculto, así que ahí pide lo mínimo. */}
+              proporción equivocada.
+
+              `sizes` en px, NO en vw: si contiene un valor `vw`, next/image filtra
+              los tamaños chicos fuera del srcset (el candidato mínimo pasa a 640w).
+              En desktop, donde este logo está oculto, el navegador no tendría nada
+              pequeño que elegir y bajaría 36 KB para nada. Con px, el srcset
+              conserva las variantes chicas y aquí pide la mínima. */}
           <Image
             src="/dymmsa-logo.webp"
             alt="DYMMSA"
             width={1024}
             height={1024}
-            sizes="(min-width: 1024px) 1px, 80vw"
+            sizes="(min-width: 1024px) 1px, 300px"
             className="login-rise mx-auto mb-4 h-auto w-[80vw] max-w-[170px] lg:hidden [@media(min-height:780px)]:max-w-[300px]"
             priority
           />
