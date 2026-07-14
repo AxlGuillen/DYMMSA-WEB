@@ -132,7 +132,8 @@ tests/
     └── helpers/ # render (QueryClientProvider), stores (resetStores), fixtures
 ```
 
-- **Comando:** `bun run test` (461 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
+- **Comando:** `bun run test` (474 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
+- **Verificación completa: `bun run check`** (tsc + eslint + vitest) — el mismo comando que corre el CI (`.github/workflows/ci.yml`) en cada PR. **El lint se mantiene en CERO findings**: si un warning es inevitable (ej. `react-hooks/incompatible-library` de react-hook-form), se suprime con `eslint-disable` + comentario del porqué; nunca se deja ruido permanente.
 - ⚠️ **Usar `bun run test`, NO `bun test`** — `bun test` invoca el runner integrado de Bun y falla al toparse con imports de `vitest`.
 - **Backend = unit con mock de Supabase** (sin BD real). El mock reproduce el query builder chainable y registra llamadas para assertions de auth, validación, rollback y side effects de inventario.
 - **Patrón backend:** `vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))` + `injectSupabaseServer(() => activeClient)` (helper que registra el `beforeEach`; la variable se intercambia por test). `/approve/[token]` mockea `@/lib/supabase/admin`.
@@ -165,6 +166,8 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 **Reglas de negocio = fuente única (no duplicar en el workflow).** El prompt del revisor NO carga su propia copia de las reglas: tiene las tools `Read`/`Grep` y **lee las reglas críticas de este `CLAUDE.md` + `src/lib/business-rules.ts`** en cada revisión (con un índice de nombres como orientación). Así el revisor nunca queda desincronizado. Si agregas/cambias una regla crítica, edítala **aquí** (narrativa) y en `business-rules.ts` (ejecutable) — el revisor se actualiza solo.
 
 **PR template:** `.github/pull_request_template.md` — optimizado para que el revisor de IA reciba contexto estructurado (por qué / qué / reglas de negocio tocadas / cómo se probó / riesgo-rollback). Pre-llena el cuerpo de cada PR; incluye `Closes #N` para cerrar la tarea al mergear.
+
+**El template lo llena un workflow, no el usuario.** `.github/workflows/pr-describe.yml` rellena la descripción automáticamente al abrir un PR: Claude-en-CI lee el diff + los commits + la plantilla y escribe el cuerpo — **solo si está vacío o sin llenar** (nunca pisa lo que un humano ya redactó). El template es el contrato de qué reportar quien hizo los commits, no un formulario manual. Fallback / re-disparo a mano: comentar `@claude llena la descripción de este PR siguiendo el template` en el reviewer (`claude.yml` tiene `gh pr edit` permitido). Nota: `pr-describe.yml` es claude-code-action, así que —igual que el reviewer— se auto-salta en el PR que modifica su propio archivo y empieza a operar una vez en `main`.
 
 **Secret requerido:** `CLAUDE_CODE_OAUTH_TOKEN` (guardado en GitHub Secrets del repo)
 
@@ -203,7 +206,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 | **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
 | Nuevo **enum o estado** | `DYMMSA/00-Inicio/Glosario.md` + tabla de BD en este CLAUDE.md |
-| **Migración de BD** | `DYMMSA/06-Changelog/YYYY-MM.md` (fecha + migración + descripción + motivo) |
+| **Migración de BD** | `DYMMSA/06-Changelog/YYYY-MM.md` (fecha + migración + descripción + motivo) + **regenerar `supabase/schema.sql`** y agregar la fila en `supabase/migrations-log.md` — el snapshot del schema vive en git y se actualiza en el MISMO commit que la migración |
 | **Cambio visible para el usuario** (feature/fix que el usuario nota) | `CHANGELOG.md` (raíz) en lenguaje simple — lo renderiza la página `/dashboard/changelog`. Formato: `## YYYY-MM-DD` → `### Nuevo\|Mejorado\|Corregido` → `- entrada`. La bóveda `06-Changelog/` sigue siendo el detalle técnico. |
 | Cambio en **flujo de negocio** | `DYMMSA/01-Negocio/Flujo-Operacional.md` |
 | Cambio en **estructura de carpetas** | `DYMMSA/02-Arquitectura/Estructura-de-Carpetas.md` |

@@ -12,7 +12,20 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Scripts one-shot históricos (Fase 0) — archivados, no se mantienen.
+    "scripts/archive/**",
   ]),
+  {
+    rules: {
+      // Prefijo `_` = "intencionalmente sin usar" (params que documentan una
+      // firma pública, destructuring parcial). Mantiene el lint en cero sin
+      // borrar parámetros con valor documental.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

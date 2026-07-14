@@ -57,7 +57,7 @@ const etmUrreaLinks = [
 ]
 
 export function Navbar() {
-  const { user, signOut } = useAuth()
+  const { signOut } = useAuth()
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)

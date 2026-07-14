@@ -1,0 +1,36 @@
+# CI — la red de seguridad automática: ningún PR puede llegar a main con
+# tipos rotos, lint sucio o tests fallando. Corre exactamente `bun run check`
+# (tsc + eslint + vitest), el mismo comando que se corre en local.
+#
+# Para que sea BLOQUEANTE: Settings → Branches → main → require status check "check".
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck + lint + tests
+        run: bun run check

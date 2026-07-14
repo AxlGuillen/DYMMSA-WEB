@@ -1,0 +1,66 @@
+# Rellena automáticamente la descripción del PR siguiendo el template, a partir
+# del diff + los commits. Corre al abrir el PR. NO revisa código (eso es claude.yml);
+# solo describe. Guarda: no pisa un cuerpo que ya haya escrito una persona.
+name: PR Description
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+jobs:
+  describe:
+    # No corras para PRs abiertos por bots (dependabot, etc.).
+    if: github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Fill PR description
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          claude_args: |
+            --model claude-opus-4-8
+            --effort medium
+            --allowedTools "Read,Grep,Glob,Write,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr edit:*)"
+
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Tu tarea: rellenar la DESCRIPCIÓN de este PR siguiendo la plantilla del repo,
+            con el contexto real del cambio. NO revisas código; otro workflow hace eso.
+
+            ## Pasos
+            1. Lee el cuerpo actual y los commits:
+               `gh pr view ${{ github.event.pull_request.number }} --json body,title,commits`
+            2. **Decide si actuar (guarda anti-sobrescritura):** si el cuerpo YA tiene contenido
+               real escrito por una persona (un "Resumen" redactado, un "Por qué" con texto,
+               casillas marcadas con explicación), **NO hagas nada y termina**. Solo rellena si
+               el cuerpo está vacío o es la plantilla SIN llenar (puro scaffolding, comentarios
+               `<!-- -->` y casillas en blanco).
+            3. Lee la plantilla `.github/pull_request_template.md` — la estructura a seguir.
+            4. Lee el diff para el contexto real: `gh pr diff ${{ github.event.pull_request.number }}`.
+            5. Para "Reglas de negocio tocadas": lee la sección "Reglas de negocio críticas" de
+               `CLAUDE.md` + `src/lib/business-rules.ts` y marca honestamente si el cambio las toca
+               (si no toca ninguna, marca esa casilla).
+            6. Escribe el cuerpo a un archivo y aplícalo:
+               `gh pr edit ${{ github.event.pull_request.number }} --body-file <archivo>`.
+
+            ## Reglas al rellenar
+            - Respeta EXACTAMENTE las secciones de la plantilla; borra los comentarios `<!-- -->`.
+            - `Closes #N`: dedúcelo de los mensajes de commit (busca `#N` / `Closes`); si no hay
+              issue, escribe `N/A`.
+            - En "Cómo se probó" y "Checklist": marca `[x]` SOLO lo verificable del diff (ej. si
+              toca/agrega tests). Lo que no puedas verificar, déjalo `[ ]` para que el humano lo
+              confirme — NO inventes evidencia (tests corridos, pruebas manuales, capturas).
+            - Conciso y factual. El "Por qué" es la señal de mayor valor: infiere la intención de
+              los commits; no repitas el "qué".

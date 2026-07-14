@@ -22,7 +22,6 @@ export async function POST(
 
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
-    const { user } = auth
 
     const { data: order } = await supabase
       .from('orders')

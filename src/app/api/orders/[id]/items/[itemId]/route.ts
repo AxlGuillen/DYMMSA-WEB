@@ -57,7 +57,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
-    const { user } = auth
 
     const result = await getOrderAndItem(supabase, id, itemId)
     if ('error' in result) {
@@ -109,7 +108,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
-    const { user } = auth
 
     const result = await getOrderAndItem(supabase, id, itemId)
     if ('error' in result) {

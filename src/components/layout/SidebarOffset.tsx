@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMounted } from '@/hooks/useMounted'
 import { useSidebarStore } from '@/stores/sidebarStore'
 import { cn } from '@/lib/utils'
 
@@ -11,8 +11,7 @@ import { cn } from '@/lib/utils'
  */
 export function SidebarOffset({ children }: { children: React.ReactNode }) {
   const collapsed = useSidebarStore((s) => s.collapsed)
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useMounted()
 
   return (
     <div

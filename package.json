@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate": "bun run scripts/migrate-initial-data.ts",
+    "check": "tsc --noEmit && eslint && vitest run",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
