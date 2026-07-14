@@ -167,7 +167,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 
 **PR template:** `.github/pull_request_template.md` — optimizado para que el revisor de IA reciba contexto estructurado (por qué / qué / reglas de negocio tocadas / cómo se probó / riesgo-rollback). Pre-llena el cuerpo de cada PR; incluye `Closes #N` para cerrar la tarea al mergear.
 
-**Quién llena el template: Claude, no el usuario.** Al terminar el trabajo de una issue, Claude abre el PR (`gh pr create --title ... --body ...`) llenando el template con el contexto real del trabajo — el template es el contrato de qué debe reportar quien hizo los commits, no un formulario para el humano. Fallback para PRs abiertos a mano desde la UI: comentar `@claude llena la descripción de este PR siguiendo el template` (el workflow del reviewer tiene `gh pr edit` permitido).
+**El template lo llena un workflow, no el usuario.** `.github/workflows/pr-describe.yml` rellena la descripción automáticamente al abrir un PR: Claude-en-CI lee el diff + los commits + la plantilla y escribe el cuerpo — **solo si está vacío o sin llenar** (nunca pisa lo que un humano ya redactó). El template es el contrato de qué reportar quien hizo los commits, no un formulario manual. Fallback / re-disparo a mano: comentar `@claude llena la descripción de este PR siguiendo el template` en el reviewer (`claude.yml` tiene `gh pr edit` permitido). Nota: `pr-describe.yml` es claude-code-action, así que —igual que el reviewer— se auto-salta en el PR que modifica su propio archivo y empieza a operar una vez en `main`.
 
 **Secret requerido:** `CLAUDE_CODE_OAUTH_TOKEN` (guardado en GitHub Secrets del repo)
 
