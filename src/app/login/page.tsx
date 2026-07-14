@@ -45,12 +45,20 @@ export default function LoginPage() {
         {/* La foto trae las herramientas arriba y el vacío abajo: por eso el
             contenido se ancla al fondo (justify-end) en vez de centrarse — así
             el texto cae en la zona oscura y no encima de las llaves. */}
+        {/* `priority` se queda: la foto es el LCP del desktop (46% de la pantalla),
+            y dejarla `lazy` sería un anti-patrón de rendimiento en el hero.
+            El fix del desperdicio móvil va por `sizes`: en px, NO en vw. Un valor
+            `vw` fija el piso del srcset en 384w, así que en móvil (panel `hidden`)
+            el preload bajaba 14.7 KB de una foto que nunca se ve. Con px el srcset
+            conserva las variantes chicas → el preload móvil (`sizes`→0px) toma la
+            mínima (~0.5 KB). En desktop, 920px = ancho máx. del panel (max-w-[920px]);
+            en 1920px pide la misma 1080w que con 46vw. Mismo patrón que el logo. */}
         <Image
           src="/login-brand.webp"
           alt=""
           fill
           priority
-          sizes="(min-width: 1024px) 46vw, 0px"
+          sizes="(min-width: 1024px) 920px, 0px"
           className="login-brand-photo object-cover"
         />
         {/* Scrim: garantiza el contraste del texto pase lo que pase con la foto.
