@@ -94,8 +94,8 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
         <DialogHeader>
           <DialogTitle>Importar catálogo URREA</DialogTitle>
           <DialogDescription>
-            Sube un Excel con columnas <strong>codigo</strong>, <strong>descripcion</strong>,{' '}
-            <strong>std</strong> y <strong>precio</strong>.
+            Sube un Excel con columnas <strong>codigo</strong>, <strong>marca</strong>,{' '}
+            <strong>descripcion</strong> y <strong>std</strong>. Sin <strong>marca</strong> se asume URREA.
           </DialogDescription>
         </DialogHeader>
 
@@ -134,7 +134,7 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
                     Actualizar o agregar
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Agrega productos nuevos y actualiza los existentes (por código).
+                    Agrega productos nuevos y actualiza los existentes (por código y marca).
                   </p>
                 </div>
               </div>

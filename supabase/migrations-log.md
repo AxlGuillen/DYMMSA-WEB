@@ -29,4 +29,6 @@ cronología en git. El estado acumulado vive en [schema.sql](./schema.sql).
 | 20260708191200 | add_dymmsa_description |
 | 20260708231212 | drop_price_from_urrea_catalog |
 | 20260709195136 | create_task_images_bucket |
-| 2026-07-13 | cleanup_legacy_policies_and_cruft — DROP policies anon de etm_products (seguridad), policies authenticated duplicadas, UNIQUE duplicado en etm, default legacy de orders.status → 'ordered', DROP cancel_order() sin uso |
+| 20260714000759 | cleanup_legacy_policies_and_cruft — DROP policies anon de etm_products (seguridad), policies authenticated duplicadas, UNIQUE duplicado en etm, default legacy de orders.status → 'ordered', DROP cancel_order() sin uso |
+| 20260714184841 | add_brand_to_urrea_catalog — columna `brand text NOT NULL DEFAULT 'URREA'`; UNIQUE(code) → UNIQUE(code, brand); índice de marca. Backfill de filas existentes a 'URREA'. |
+| 20260714185216 | urrea_catalog_brand_counts_fn — RPC `urrea_catalog_brand_counts()` (conteo por marca para el filtro del catálogo; security invoker) |

@@ -1,10 +1,11 @@
 /**
  * URREA Catalog — import handler (tabla aislada urrea_catalog).
  *   - validación de archivo/columnas
- *   - upsert por code (onConflict)
+ *   - upsert por (code, brand) (onConflict)
  *   - replace (delete all + insert)
  *   - parseo de std (entero ≥ 1, default)
- *   - acepta encabezados en español (codigo/descripcion)
+ *   - acepta encabezados en español (codigo/descripcion/marca)
+ *   - marca: normalizada trim+upper; ausente → URREA
  */
 
 import { describe, test, expect, vi } from 'vitest'
@@ -40,7 +41,7 @@ describe('POST /urrea-catalog/import', () => {
     expect(res.status).toBe(400)
   })
 
-  test('upsert: llama upsert onConflict code con encabezados en español', async () => {
+  test('upsert: llama upsert con encabezados en español; marca ausente → URREA', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'urrea_catalog.upsert': { data: null, error: null } },
@@ -53,7 +54,19 @@ describe('POST /urrea-catalog/import', () => {
     expect(body.imported).toBe(1)
     expect(activeClient.didCall('urrea_catalog', 'upsert')).toBe(true)
     const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
-    expect(payload[0]).toMatchObject({ code: 'C1', description: 'Tornillo', std: 6 })
+    expect(payload[0]).toMatchObject({ code: 'C1', brand: 'URREA', description: 'Tornillo', std: 6 })
+  })
+
+  test('marca: columna presente se normaliza a mayúsculas', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.upsert': { data: null, error: null } },
+    })
+    await catalogImport.POST(
+      makeExcelRequest([{ codigo: 'C9', marca: '  surtek ', descripcion: 'X', std: 1 }]),
+    )
+    const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
+    expect(payload[0].brand).toBe('SURTEK')
   })
 
   test('std vacío/0 cae a 1', async () => {
@@ -111,14 +124,15 @@ describe('POST /urrea-catalog/lookup', () => {
     expect((await catalogLookup.POST(makeRequest({ codes: [] }))).status).toBe(400)
   })
 
-  test('devuelve mapa code→descripción con codes normalizados; omite sin descripción', async () => {
+  test('devuelve mapa catalogKey(MARCA|CODIGO)→descripción; omite sin descripción', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
         'urrea_catalog.select': {
           data: [
-            { code: 'MC1', description: 'Oficial 1' },
-            { code: 'MC2', description: null },
+            { code: 'MC1', brand: 'URREA', description: 'Oficial 1' },
+            { code: 'MC1', brand: 'SURTEK', description: 'Oficial 1 (Surtek)' },
+            { code: 'MC2', brand: 'URREA', description: null },
           ],
           error: null,
         },
@@ -127,7 +141,11 @@ describe('POST /urrea-catalog/lookup', () => {
     const res = await catalogLookup.POST(makeRequest({ codes: [' mc1 ', 'mc2', ''] }))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.descriptions).toEqual({ MC1: 'Oficial 1' })
+    // El mismo código en 2 marcas convive: cada uno con su llave.
+    expect(body.descriptions).toEqual({
+      'URREA|MC1': 'Oficial 1',
+      'SURTEK|MC1': 'Oficial 1 (Surtek)',
+    })
     // la query usó los codes normalizados y sin vacíos
     const call = activeClient.callsTo('urrea_catalog', 'select')[0]
     const inFilter = call.filters.find((f) => f.method === 'in')

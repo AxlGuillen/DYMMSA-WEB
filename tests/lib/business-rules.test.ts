@@ -11,6 +11,7 @@ import {
   allocateInventory,
   validateAllocationInvariant,
   normalizeCatalogCode,
+  catalogKey,
   resolveDymmsaDescription,
 } from '@/lib/business-rules'
 
@@ -392,24 +393,60 @@ describe('normalizeCatalogCode', () => {
   })
 })
 
+describe('catalogKey', () => {
+  test('normaliza ambas partes (trim + mayúsculas) y usa URREA si falta marca', () => {
+    expect(catalogKey(' art-123 ', ' surtek ')).toBe('SURTEK|ART-123')
+    expect(catalogKey('art-123', '')).toBe('URREA|ART-123')
+    expect(catalogKey('art-123', null)).toBe('URREA|ART-123')
+  })
+})
+
 describe('resolveDymmsaDescription', () => {
+  // El catálogo se indexa por (marca, código): el MISMO código existe en dos
+  // marcas con descripciones distintas — el caso que motivó el match estricto.
   const catalog = new Map<string, string | null>([
-    ['ART-123', 'Llave stilson 14" oficial'],
-    ['SIN-DESC', null],
-    ['DESC-VACIA', '   '],
+    [catalogKey('ART-123', 'URREA'), 'Llave stilson 14" oficial'],
+    [catalogKey('TIJS9', 'SURTEK'), 'Tijeras industriales 9-1/2"'],
+    [catalogKey('SIN-DESC', 'URREA'), null],
+    [catalogKey('DESC-VACIA', 'URREA'), '   '],
   ])
 
   test('catálogo gana aunque exista curada (jerarquía mayor)', () => {
     const r = resolveDymmsaDescription(
-      { item_type: 'product', model_code: 'ART-123', dymmsa_description: 'la curada' },
+      { item_type: 'product', model_code: 'ART-123', brand: 'URREA', dymmsa_description: 'la curada' },
       catalog,
     )
     expect(r).toEqual({ value: 'Llave stilson 14" oficial', source: 'catalog' })
   })
 
-  test('match de catálogo es case/espacios-insensible (normaliza el model_code)', () => {
+  test('match es case/espacios-insensible en código Y marca', () => {
     const r = resolveDymmsaDescription(
-      { item_type: 'product', model_code: ' art-123 ', dymmsa_description: null },
+      { item_type: 'product', model_code: ' art-123 ', brand: ' urrea ', dymmsa_description: null },
+      catalog,
+    )
+    expect(r.source).toBe('catalog')
+  })
+
+  test('REGLA: mismo código, otra marca → NO hereda la descripción ajena', () => {
+    // TIJS9 solo existe bajo SURTEK. Un producto marcado URREA no debe tomarla
+    // (antes sí lo hacía: cruzaba solo por código — ese era el bug).
+    const r = resolveDymmsaDescription(
+      { item_type: 'product', model_code: 'TIJS9', brand: 'URREA', dymmsa_description: 'curada' },
+      catalog,
+    )
+    expect(r).toEqual({ value: 'curada', source: 'dymmsa' })
+
+    // Con la marca correcta sí resuelve.
+    const ok = resolveDymmsaDescription(
+      { item_type: 'product', model_code: 'TIJS9', brand: 'SURTEK', dymmsa_description: 'curada' },
+      catalog,
+    )
+    expect(ok).toEqual({ value: 'Tijeras industriales 9-1/2"', source: 'catalog' })
+  })
+
+  test('marca vacía → se asume URREA (DEFAULT_BRAND)', () => {
+    const r = resolveDymmsaDescription(
+      { item_type: 'product', model_code: 'ART-123', brand: '', dymmsa_description: null },
       catalog,
     )
     expect(r.source).toBe('catalog')
@@ -417,7 +454,7 @@ describe('resolveDymmsaDescription', () => {
 
   test('sin match de catálogo → curada DYMMSA', () => {
     const r = resolveDymmsaDescription(
-      { item_type: 'product', model_code: 'OTRA-MARCA', dymmsa_description: 'Martillo de uña 16oz' },
+      { item_type: 'product', model_code: 'OTRO-COD', brand: 'URREA', dymmsa_description: 'Martillo de uña 16oz' },
       catalog,
     )
     expect(r).toEqual({ value: 'Martillo de uña 16oz', source: 'dymmsa' })
@@ -425,18 +462,18 @@ describe('resolveDymmsaDescription', () => {
 
   test('fila de catálogo sin descripción (null o vacía) cede a la curada', () => {
     expect(resolveDymmsaDescription(
-      { item_type: 'product', model_code: 'SIN-DESC', dymmsa_description: 'curada' },
+      { item_type: 'product', model_code: 'SIN-DESC', brand: 'URREA', dymmsa_description: 'curada' },
       catalog,
     )).toEqual({ value: 'curada', source: 'dymmsa' })
     expect(resolveDymmsaDescription(
-      { item_type: 'product', model_code: 'DESC-VACIA', dymmsa_description: 'curada' },
+      { item_type: 'product', model_code: 'DESC-VACIA', brand: 'URREA', dymmsa_description: 'curada' },
       catalog,
     )).toEqual({ value: 'curada', source: 'dymmsa' })
   })
 
   test('sin catálogo ni curada → null (celda vacía para el cotizador)', () => {
     const r = resolveDymmsaDescription(
-      { item_type: 'product', model_code: 'NADA', dymmsa_description: '  ' },
+      { item_type: 'product', model_code: 'NADA', brand: 'URREA', dymmsa_description: '  ' },
       catalog,
     )
     expect(r).toEqual({ value: null, source: null })
@@ -444,7 +481,7 @@ describe('resolveDymmsaDescription', () => {
 
   test('sin model_code → curada directa', () => {
     const r = resolveDymmsaDescription(
-      { item_type: 'product', model_code: '', dymmsa_description: 'curada' },
+      { item_type: 'product', model_code: '', brand: 'URREA', dymmsa_description: 'curada' },
       catalog,
     )
     expect(r).toEqual({ value: 'curada', source: 'dymmsa' })
@@ -452,7 +489,7 @@ describe('resolveDymmsaDescription', () => {
 
   test('separador siempre null (excluido como en todas las reglas)', () => {
     const r = resolveDymmsaDescription(
-      { item_type: 'separator', model_code: 'ART-123', dymmsa_description: 'x' },
+      { item_type: 'separator', model_code: 'ART-123', brand: 'URREA', dymmsa_description: 'x' },
       catalog,
     )
     expect(r).toEqual({ value: null, source: null })

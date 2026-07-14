@@ -112,10 +112,11 @@ describe('QuotationEditor', () => {
 
   test('columna Desc. DYMMSA: catálogo gana (badge URREA); sin match usa la curada', () => {
     seedQuotationItems([
-      quotationItemRow({ _id: 'a', etm: 'E1', model_code: 'MC1', dymmsa_description: 'curada que pierde' }),
-      quotationItemRow({ _id: 'b', etm: 'E2', model_code: 'MC2', dymmsa_description: 'Martillo curado' }),
+      quotationItemRow({ _id: 'a', etm: 'E1', model_code: 'MC1', brand: 'URREA', dymmsa_description: 'curada que pierde' }),
+      quotationItemRow({ _id: 'b', etm: 'E2', model_code: 'MC2', brand: 'URREA', dymmsa_description: 'Martillo curado' }),
     ])
-    useQuotationStore.setState({ catalogDescriptions: { MC1: 'Oficial URREA 14"' } })
+    // Mapa indexado por catalogKey (MARCA|CODIGO)
+    useQuotationStore.setState({ catalogDescriptions: { 'URREA|MC1': 'Oficial URREA 14"' } })
 
     render(<QuotationEditor />)
 
@@ -123,5 +124,18 @@ describe('QuotationEditor', () => {
     expect(screen.getByText('URREA', { selector: 'span[data-slot="badge"], .shrink-0' })).toBeInTheDocument()
     expect(screen.getByText('Martillo curado')).toBeInTheDocument()
     expect(screen.queryByText('curada que pierde')).not.toBeInTheDocument()
+  })
+
+  test('REGLA: el catálogo de OTRA marca no aplica → usa la curada', () => {
+    // MC1 solo está en el catálogo bajo URREA; el ítem es SURTEK → no hereda.
+    seedQuotationItems([
+      quotationItemRow({ _id: 'a', etm: 'E1', model_code: 'MC1', brand: 'SURTEK', dymmsa_description: 'curada Surtek' }),
+    ])
+    useQuotationStore.setState({ catalogDescriptions: { 'URREA|MC1': 'Oficial URREA 14"' } })
+
+    render(<QuotationEditor />)
+
+    expect(screen.getByText('curada Surtek')).toBeInTheDocument()
+    expect(screen.queryByText('Oficial URREA 14"')).not.toBeInTheDocument()
   })
 })

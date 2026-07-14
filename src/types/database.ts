@@ -54,14 +54,18 @@ export type StoreInventoryUpdate = Partial<Omit<StoreInventory, 'id' | 'updated_
 export interface UrreaCatalogItem {
   id: string
   code: string
+  brand: string // marca/línea; normalizada trim+UPPER (URREA, SURTEK, FOY...). Identidad = (code, brand)
   description: string | null
   std: number
   created_at: string
   updated_at: string
 }
 
-export type UrreaCatalogInsert = Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at'>
-export type UrreaCatalogUpdate = Partial<UrreaCatalogInsert>
+// brand es opcional en el insert: la columna tiene DEFAULT 'URREA', así que los
+// inserts que no la especifican son válidos.
+export type UrreaCatalogInsert =
+  Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at' | 'brand'> & { brand?: string }
+export type UrreaCatalogUpdate = Partial<Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at'>>
 
 // Excel row type for inventory import
 export interface ExcelInventoryRow {

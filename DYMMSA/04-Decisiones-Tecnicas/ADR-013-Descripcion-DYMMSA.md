@@ -1,6 +1,6 @@
 # ADR-013 — Descripción DYMMSA con jerarquía de catálogo
 
-**Fecha:** 2026-07-08
+**Fecha:** 2026-07-08 · **Actualizado:** 2026-07-14 (cruce por código **y marca**)
 **Estado:** Aceptado
 
 ## Contexto
@@ -18,8 +18,8 @@ Una "Descripción DYMMSA" **resuelta en código** con jerarquía fija, nunca
 copiada entre tablas vivas:
 
 ```
-1. Catálogo oficial (match urrea_catalog.code ↔ model_code, normalizado) → gana SIEMPRE
-2. Curada DYMMSA (etm_products.dymmsa_description)                        → sin catálogo
+1. Catálogo oficial (match (code, brand) ↔ (model_code, brand), normalizados) → gana SIEMPRE
+2. Curada DYMMSA (etm_products.dymmsa_description)                            → sin catálogo
 3. null → celda vacía en el cotizador para que la llenen
 ```
 
@@ -41,10 +41,23 @@ UI etiquete el origen y deshabilite la edición cuando gana el catálogo).
    valor resuelto. Garantía estructural: la resolución ocurre después, solo en
    el payload de inserción de `quotation_items`. Reglas de merge estándar
    (no vacío + distinto → update; vacío nunca pisa).
-4. **Normalización de la llave de cruce** (`normalizeCatalogCode` = trim +
-   mayúsculas) en TODOS los caminos de escritura de `urrea_catalog.code`
-   (import, POST, PATCH) y al armar lookups. Sin esto el match falla en
-   silencio — es prerequisito, no opcional.
+4. **La llave de cruce es `(código, marca)`, no solo el código** — `catalogKey()`
+   (2026-07-14). `urrea_catalog` tiene identidad `UNIQUE(code, brand)` porque el
+   mismo código puede existir en varias marcas (URREA maneja varias líneas), así
+   que cruzar solo por código podía traer la descripción de **otra marca**.
+   El match es **estricto**: un producto marcado `URREA` cuyo código solo existe
+   bajo `SURTEK` ya NO hereda esa descripción (cae a la curada). Eso destapa el
+   dato malo en vez de esconderlo — se corrige poniéndole la marca correcta al
+   producto en el catálogo ETM.
+   - Ambas partes se normalizan (trim + mayúsculas): `normalizeCatalogCode` y
+     `normalizeCatalogBrand` (marca vacía → `DEFAULT_BRAND` = `'URREA'`).
+   - Aplica en TODOS los caminos de escritura de `urrea_catalog` (import, POST,
+     PATCH) y al armar lookups. Sin esto el match falla en silencio.
+   - **Los mapas de catálogo van indexados por `catalogKey`** (`MARCA|CODIGO`),
+     no por código: `fetchCatalogDescriptionMap`, `catalogDescriptions` del store
+     Zustand, y las respuestas de `/api/urrea-catalog/lookup` y `/api/quotes/lookup`.
+     La *query* sigue siendo por código (trae todas las marcas de esos códigos) —
+     así el llamador no necesita mandar marcas y el resolver elige la de su ítem.
 5. Separadores → siempre `null` (como en todas las reglas).
 6. Fila de catálogo **sin** descripción cede el turno a la curada (no aporta
    nada oficial).
@@ -86,9 +99,14 @@ UI etiquete el origen y deshabilite la edición cuando gana el catálogo).
 - Migración `add_dymmsa_description` — columna en `etm_products` y
   `quotation_items` (+ normalización defensiva de `urrea_catalog.code`, no-op:
   catálogo vacío al momento).
-- `src/lib/business-rules.ts` — `normalizeCatalogCode`, `resolveDymmsaDescription`.
-- `src/lib/urrea-catalog.ts` — `fetchCatalogDescriptionMap` (batch, degrada a
-  mapa vacío ante error).
+- Migración `add_brand_to_urrea_catalog` (2026-07-14) — `brand` + identidad
+  `UNIQUE(code, brand)`; habilita el cruce por marca.
+- `src/lib/business-rules.ts` — `normalizeCatalogCode`, `normalizeCatalogBrand`,
+  `catalogKey`, `resolveDymmsaDescription`.
+- `src/lib/urrea-catalog.ts` — `fetchCatalogDescriptionMap` (batch por código,
+  mapa indexado por `catalogKey`; degrada a mapa vacío ante error).
+- `src/stores/quotationStore.ts` — `catalogDescriptions` indexado por `catalogKey`
+  (persist `version: 1` + `migrate` que descarta el mapa v0, indexado por código).
 - Rutas: `quotes/lookup` (extendida), `urrea-catalog/lookup` (nueva),
   `quotations/save` + `[id]/update` (snapshot resuelto), `urrea-catalog`
   import/POST/PATCH (normalización).

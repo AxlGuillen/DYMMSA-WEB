@@ -55,26 +55,59 @@ export function normalizeCatalogCode(code: string | null | undefined): string {
   return (code ?? '').trim().toUpperCase()
 }
 
+/** Marca por defecto del catálogo/sistema (etm_products.brand y urrea_catalog.brand). */
+export const DEFAULT_BRAND = 'URREA'
+
+/**
+ * Normaliza la marca (trim + mayúsculas) — misma disciplina que el código, para
+ * que el cruce `(model_code, brand)` no falle en silencio por casing/espacios.
+ * Vacío → `DEFAULT_BRAND` (la columna es NOT NULL DEFAULT 'URREA').
+ */
+export function normalizeCatalogBrand(brand: string | null | undefined): string {
+  return (brand ?? '').trim().toUpperCase() || DEFAULT_BRAND
+}
+
+/**
+ * Llave de cruce con `urrea_catalog`: **código + marca**, ambos normalizados.
+ *
+ * La identidad del catálogo es `UNIQUE(code, brand)` — el mismo código puede
+ * existir en varias marcas (URREA maneja varias líneas), así que cruzar solo
+ * por código puede traer la descripción de OTRA marca. Es la llave de los
+ * mapas de `fetchCatalogDescriptionMap` y de `resolveDymmsaDescription`.
+ */
+export function catalogKey(
+  code: string | null | undefined,
+  brand: string | null | undefined,
+): string {
+  return `${normalizeCatalogBrand(brand)}|${normalizeCatalogCode(code)}`
+}
+
 export type DymmsaDescriptionSource = 'catalog' | 'dymmsa' | null
 
 type DescriptionResolvable = {
   item_type?: string | null
   model_code?: string | null
+  brand?: string | null
   dymmsa_description?: string | null
 }
 
 /**
  * Resuelve la "Descripción DYMMSA" de un ítem con jerarquía de catálogo:
  *
- *   1. Catálogo oficial (match por `model_code` normalizado) — gana siempre;
- *      no se puede tapar con la curada (si está mal, se corrige reimportando).
+ *   1. Catálogo oficial (match por `model_code` + `brand`, ambos normalizados)
+ *      — gana siempre; no se puede tapar con la curada (si está mal, se corrige
+ *      reimportando el catálogo).
  *   2. Curada DYMMSA (`dymmsa_description`) — solo productos sin catálogo.
  *   3. `null` — celda vacía para que el cotizador la llene.
+ *
+ * El match es ESTRICTO por (código, marca): un producto marcado URREA cuyo
+ * código solo existe bajo SURTEK ya NO hereda esa descripción — antes sí, y esa
+ * era la fuente del bug. Marca vacía → `DEFAULT_BRAND` (ver normalizeCatalogBrand).
  *
  * `source` permite a la UI etiquetar el origen y deshabilitar la edición
  * cuando la descripción viene del catálogo. Separadores siempre `null`.
  *
- * @param catalogMap  Map<code normalizado, descripción> (batch por cotización)
+ * @param catalogMap  Map<catalogKey(code, brand), descripción> (batch por cotización)
  */
 export function resolveDymmsaDescription(
   item: DescriptionResolvable,
@@ -82,9 +115,8 @@ export function resolveDymmsaDescription(
 ): { value: string | null; source: DymmsaDescriptionSource } {
   if (!isProductItem(item)) return { value: null, source: null }
 
-  const code = normalizeCatalogCode(item.model_code)
-  if (code) {
-    const catalogDesc = catalogMap.get(code)
+  if (normalizeCatalogCode(item.model_code)) {
+    const catalogDesc = catalogMap.get(catalogKey(item.model_code, item.brand))
     // Solo gana si el catálogo trae descripción real; una fila sin descripción
     // no aporta nada oficial y cede el turno a la curada.
     if (catalogDesc && catalogDesc.trim() !== '') {

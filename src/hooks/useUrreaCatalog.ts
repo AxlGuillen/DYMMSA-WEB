@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
-import { normalizeCatalogCode } from '@/lib/business-rules'
+import { catalogKey, normalizeCatalogCode } from '@/lib/business-rules'
 import type {
   UrreaCatalogItem,
   UrreaCatalogInsert,
@@ -11,13 +11,14 @@ import type {
 
 const CATALOG_KEY = ['urrea-catalog']
 
-export type CatalogSortField = 'code' | 'description' | 'std'
+export type CatalogSortField = 'code' | 'brand' | 'description' | 'std'
 export type SortDir = 'asc' | 'desc'
 
 interface CatalogParams {
   page?: number
   pageSize?: number
   search?: string
+  brand?: string
   sortField?: CatalogSortField
   sortDir?: SortDir
 }
@@ -35,12 +36,13 @@ export function useUrreaCatalog(params: CatalogParams = {}) {
     page = 1,
     pageSize = 20,
     search = '',
+    brand = '',
     sortField = 'description',
     sortDir = 'asc',
   } = params
 
   return useQuery({
-    queryKey: [...CATALOG_KEY, { page, pageSize, search, sortField, sortDir }],
+    queryKey: [...CATALOG_KEY, { page, pageSize, search, brand, sortField, sortDir }],
     queryFn: async (): Promise<CatalogResponse> => {
       const qs = new URLSearchParams({
         page: String(page),
@@ -49,16 +51,22 @@ export function useUrreaCatalog(params: CatalogParams = {}) {
         sortDir,
       })
       if (search) qs.set('search', search)
+      if (brand) qs.set('brand', brand)
       return fetchJson<CatalogResponse>(`/api/urrea-catalog?${qs.toString()}`)
     },
   })
 }
 
+export interface CatalogBrandCount {
+  brand: string
+  count: number
+}
+
 export function useUrreaCatalogStats() {
   return useQuery({
     queryKey: [...CATALOG_KEY, 'stats'],
-    queryFn: async (): Promise<{ total: number }> =>
-      fetchJson<{ total: number }>('/api/urrea-catalog/stats'),
+    queryFn: async (): Promise<{ total: number; brands: CatalogBrandCount[] }> =>
+      fetchJson<{ total: number; brands: CatalogBrandCount[] }>('/api/urrea-catalog/stats'),
   })
 }
 
@@ -130,15 +138,19 @@ export function useImportUrreaCatalog() {
 }
 
 /**
- * Descripción oficial del catálogo URREA para un code (normalizado).
- * `null` = sin match. Cachea 5 min por code — la usan ProductModal/ProductForm
- * para resolver "Desc. DYMMSA" al editar el model_code.
+ * Descripción oficial del catálogo para un (código, marca).
+ * `null` = sin match. Cachea 5 min por par — la usan ProductModal/ProductForm
+ * para resolver "Desc. DYMMSA" al editar el model_code o la marca.
+ *
+ * El match es estricto por marca: el mismo código en otra marca NO aplica
+ * (la respuesta viene indexada por `catalogKey`).
  */
-export function useCatalogDescription(code: string) {
+export function useCatalogDescription(code: string, brand?: string | null) {
   const normalized = normalizeCatalogCode(code)
+  const key = catalogKey(code, brand)
 
   return useQuery({
-    queryKey: [...CATALOG_KEY, 'lookup', normalized],
+    queryKey: [...CATALOG_KEY, 'lookup', key],
     enabled: normalized !== '',
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<string | null> => {
@@ -150,7 +162,7 @@ export function useCatalogDescription(code: string) {
           body: JSON.stringify({ codes: [normalized] }),
         },
       )
-      return descriptions[normalized] ?? null
+      return descriptions[key] ?? null
     },
   })
 }

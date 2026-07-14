@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
 import { parseInteger } from '@/lib/format'
-import { normalizeCatalogCode } from '@/lib/business-rules'
+import { normalizeCatalogCode, normalizeCatalogBrand } from '@/lib/business-rules'
 import type { UrreaCatalogInsert } from '@/types/database'
 
 type RawRow = Record<string, unknown>
@@ -62,10 +62,14 @@ export async function POST(request: NextRequest) {
         continue
       }
       const std = parseInteger(pick(row, ['std']))
+      const brand = pick(row, ['marca', 'brand'])
       payload.push({
         // Normalizada (trim+upper): es la llave de cruce con model_code para
         // resolver la Descripción DYMMSA; sin normalizar, el match falla en silencio.
         code: normalizeCatalogCode(String(code)),
+        // Marca normalizada (trim+upper); ausente → DEFAULT_BRAND. Parte de la
+        // identidad (code, brand): el mismo código puede existir en varias marcas.
+        brand: normalizeCatalogBrand(brand === undefined ? undefined : String(brand)),
         description: ((pick(row, ['descripcion', 'descripción', 'description']) as string) ?? null) || null,
         std: std != null && std > 0 ? std : 1,
       })
@@ -94,10 +98,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ imported: payload.length, updated: 0, errors, total: rows.length, mode })
     }
 
-    // upsert por code
+    // upsert por (code, brand) — la identidad del catálogo con marca
     const { error: upsertError } = await supabase
       .from('urrea_catalog')
-      .upsert(payload, { onConflict: 'code' })
+      .upsert(payload, { onConflict: 'code,brand' })
 
     if (upsertError) {
       console.error('Error upserting urrea_catalog:', upsertError)
