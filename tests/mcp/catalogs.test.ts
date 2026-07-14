@@ -42,22 +42,45 @@ describe('searchUrreaCatalog', () => {
   test('match exacto normaliza el código (trim + upper)', async () => {
     const client = createMockSupabase({
       responses: {
-        urrea_catalog: { data: { code: '6954', description: 'Pinza', std: 1 } },
+        urrea_catalog: { data: [{ code: '6954', brand: 'URREA', description: 'Pinza', std: 1 }] },
       },
     })
 
     const result = await searchUrreaCatalog(asDb(client), '  6954  ')
 
     expect(result.match).toBe('exact')
+    expect(result.items).toHaveLength(1)
     expect(filterValue(client.callsTo('urrea_catalog', 'select')[0], 'code')).toBe('6954')
+  })
+
+  test('REGLA: un código en varias marcas devuelve TODAS (identidad = code+brand)', async () => {
+    // Antes esto usaba .maybeSingle() → con ≥2 filas reventaba con PGRST116.
+    const client = createMockSupabase({
+      responses: {
+        urrea_catalog: {
+          data: [
+            { code: 'TIJS9', brand: 'FOY', description: 'Tijeras Foy', std: 1 },
+            { code: 'TIJS9', brand: 'SURTEK', description: 'Tijeras industriales 9-1/2"', std: 1 },
+          ],
+        },
+      },
+    })
+
+    const result = await searchUrreaCatalog(asDb(client), 'tijs9')
+
+    expect(result.match).toBe('exact')
+    expect(result.items).toHaveLength(2)
+    expect(result.items.map((i) => i.brand)).toEqual(['FOY', 'SURTEK'])
+    // una sola query: no cae a la búsqueda parcial
+    expect(client.callsTo('urrea_catalog', 'select')).toHaveLength(1)
   })
 
   test('sin match exacto cae a búsqueda parcial; sin resultados → match none', async () => {
     let call = 0
     const client = createMockSupabase({
       responses: {
-        // 1ª llamada (exacta) → null; 2ª (parcial) → lista vacía
-        urrea_catalog: () => (++call === 1 ? { data: null } : { data: [] }),
+        // 1ª llamada (exacta) → sin filas; 2ª (parcial) → lista vacía
+        urrea_catalog: () => (++call === 1 ? { data: [] } : { data: [] }),
       },
     })
 

@@ -77,6 +77,12 @@ export async function POST(request: NextRequest) {
     const code = typeof body.code === 'string' ? normalizeCatalogCode(body.code) : ''
     if (!code) return badRequest('El código es obligatorio')
 
+    // Guard de tipo espejo al de `code`: sin él, un `brand` no-string (ej. 123)
+    // revienta en .trim() → 500. Ausente/no-string → DEFAULT_BRAND.
+    if (body.brand !== undefined && typeof body.brand !== 'string') {
+      return badRequest('La marca debe ser texto')
+    }
+
     const std = typeof body.std === 'number' && body.std > 0 ? body.std : 1
     const payload: UrreaCatalogInsert = {
       code,

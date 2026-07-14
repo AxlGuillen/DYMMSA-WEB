@@ -163,6 +163,13 @@ describe('POST /urrea-catalog (create)', () => {
     expect(activeClient.insertPayload<Record<string, unknown>>('urrea_catalog').brand).toBe('FOY')
   })
 
+  test('marca no-string → 400 (no 500 por reventar en .trim())', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await listRoute.POST(makeRequest({ code: 'C3', brand: 123 }))
+    expect(res.status).toBe(400)
+    expect(activeClient.didCall('urrea_catalog', 'insert')).toBe(false)
+  })
+
   test('código duplicado → 400', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
