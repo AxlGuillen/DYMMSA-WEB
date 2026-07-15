@@ -35,6 +35,8 @@ export interface CallRecord {
   op: Op
   /** Argumento pasado a insert/update/upsert. */
   payload?: unknown
+  /** Segundo argumento de upsert (ej. { onConflict }). */
+  options?: unknown
   /** Filtros encadenados: eq/in/order/etc. con sus argumentos. */
   filters: Array<{ method: string; args: unknown[] }>
   /** true si se llamó .single() o .maybeSingle(). */
@@ -61,7 +63,10 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   // ── Operaciones que fijan el tipo ──────────────────────────────────
   insert(payload: unknown) { return this.setOp('insert', payload) }
   update(payload: unknown) { return this.setOp('update', payload) }
-  upsert(payload: unknown) { return this.setOp('upsert', payload) }
+  upsert(payload: unknown, options?: unknown) {
+    this.record.options = options
+    return this.setOp('upsert', payload)
+  }
   delete()                 { return this.setOp('delete') }
 
   /** select no sobrescribe un op ya fijado (ej. insert().select()). */
