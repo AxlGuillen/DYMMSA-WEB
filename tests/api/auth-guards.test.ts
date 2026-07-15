@@ -28,6 +28,9 @@ import * as orderItemById from '@/app/api/orders/[id]/items/[itemId]/route'
 import * as orderStatus from '@/app/api/orders/[id]/status/route'
 import * as autoLearn from '@/app/api/orders/auto-learn/route'
 import * as ordersByQuotation from '@/app/api/orders/by-quotation/[quotationId]/route'
+import * as purchasePlan from '@/app/api/orders/[id]/purchase-plan/route'
+import * as purchaseDecisions from '@/app/api/orders/[id]/purchase-decisions/route'
+import * as settings from '@/app/api/settings/route'
 import * as quotesLookup from '@/app/api/quotes/lookup/route'
 import * as productsImport from '@/app/api/products/import/route'
 import * as nextDymmsaCode from '@/app/api/products/next-dymmsa-code/route'
@@ -62,6 +65,10 @@ const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = 
   { name: 'PATCH  /orders/[id]/status',               call: () => orderStatus.PATCH(makeRequest({}), makeParams({ id: 'o1' })) },
   { name: 'POST   /orders/auto-learn',                call: () => autoLearn.POST(makeRequest({})) },
   { name: 'GET    /orders/by-quotation/[quotationId]',call: () => ordersByQuotation.GET(makeRequest(), makeParams({ quotationId: 'q1' })) },
+  { name: 'GET    /orders/[id]/purchase-plan',        call: () => purchasePlan.GET(makeRequest(), makeParams({ id: 'o1' })) },
+  { name: 'PUT    /orders/[id]/purchase-decisions',   call: () => purchaseDecisions.PUT(makeRequest({ decisions: [] }, { method: 'PUT' }), makeParams({ id: 'o1' })) },
+  { name: 'GET    /settings',                         call: () => settings.GET(makeRequest()) },
+  { name: 'PATCH  /settings',                         call: () => settings.PATCH(makeRequest({}, { method: 'PATCH' })) },
   { name: 'POST   /quotes/lookup',                    call: () => quotesLookup.POST(makeRequest({})) },
   { name: 'POST   /products/import',                  call: () => productsImport.POST(makeRequest({})) },
   { name: 'GET    /products/next-dymmsa-code',        call: () => nextDymmsaCode.GET() },

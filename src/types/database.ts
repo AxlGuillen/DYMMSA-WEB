@@ -139,6 +139,30 @@ export type OrderItemInsert =
   Omit<OrderItem, 'id' | 'created_at' | 'location'> & { location?: string | null }
 export type OrderItemUpdate = Partial<Omit<OrderItem, 'id' | 'created_at' | 'order_id'>>
 
+// Decisión mayoreo/menudeo por orden a nivel GRUPO (model_code+brand
+// normalizados) — ADR-018. Nunca es verdad global del producto.
+export interface OrderPurchaseDecision {
+  id: string
+  order_id: string
+  model_code: string // normalizado trim+upper (catalogKey)
+  brand: string // normalizado trim+upper
+  std_snapshot: number // STD del catálogo al decidir (staleness si cambia)
+  needed_qty: number // N consolidado al decidir (staleness si cambia)
+  packages_wholesale: number
+  qty_retail: number
+  decided_at: string
+}
+
+export type OrderPurchaseDecisionInsert =
+  Omit<OrderPurchaseDecision, 'id' | 'decided_at'> & { decided_at?: string }
+
+// Configuración key-value (app_settings) — umbrales del planificador, etc.
+export interface AppSetting {
+  key: string
+  value: unknown // jsonb
+  updated_at: string
+}
+
 // Order with items for detail view
 export interface OrderWithItems extends Order {
   order_items: OrderItem[]

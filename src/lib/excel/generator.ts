@@ -193,13 +193,31 @@ function setCellValue(doc: Document, sheetData: Element, ref: string, value: str
   }
 }
 
+/** Fila del pedido URREA: código de catálogo + PIEZAS (múltiplo de STD, ADR-018). */
+export interface UrreaOrderRow {
+  code: string
+  pieces: number
+}
+
+// El template trae fórmulas pre-cargadas hasta la fila 1026; con datos desde
+// la 15 caben 1012 filas. Más allá, las filas quedarían sin fórmulas.
+const URREA_TEMPLATE_START_ROW = 15
+const URREA_TEMPLATE_MAX_ROWS = 1012
+
 /**
  * Genera un archivo Excel de pedido URREA usando el template .xlsm
  * Manipula el ZIP directamente para preservar macros VBA y formulas intactas.
  * Solo rellena columnas A (CÓDIGO) y B (CANTIDAD) en la hoja FORMATO.
+ *
+ * Las filas vienen del planificador de compra (decisiones de mayoreo, piezas
+ * ya redondeadas a múltiplos de STD) — el filtrado es responsabilidad del caller.
  */
-export async function generateUrreaOrderExcel(items: OrderItem[]): Promise<Blob> {
-  const itemsToOrder = items.filter((item) => item.quantity_to_order > 0)
+export async function generateUrreaOrderExcel(rows: UrreaOrderRow[]): Promise<Blob> {
+  if (rows.length > URREA_TEMPLATE_MAX_ROWS) {
+    throw new Error(
+      `El pedido tiene ${rows.length} filas y el template URREA solo admite ${URREA_TEMPLATE_MAX_ROWS}`,
+    )
+  }
 
   const response = await fetch('/formato-pedido-urrea.xlsm')
   if (!response.ok) {
@@ -222,11 +240,10 @@ export async function generateUrreaOrderExcel(items: OrderItem[]): Promise<Blob>
   if (!sheetData) throw new Error('No se encontró sheetData en la hoja FORMATO')
 
   // Fill column A (CÓDIGO O CLAVE) and column B (CANTIDAD) starting at row 15
-  const startRow = 15
-  itemsToOrder.forEach((item, index) => {
-    const row = startRow + index
-    setCellValue(doc, sheetData, `A${row}`, item.model_code)
-    setCellValue(doc, sheetData, `B${row}`, item.quantity_to_order)
+  rows.forEach((item, index) => {
+    const row = URREA_TEMPLATE_START_ROW + index
+    setCellValue(doc, sheetData, `A${row}`, item.code)
+    setCellValue(doc, sheetData, `B${row}`, item.pieces)
   })
 
   // Serialize modified XML back and replace in ZIP
@@ -328,6 +345,80 @@ export function downloadDeliveryExcel(blob: Blob, customerName: string) {
   const date = formatISODate()
   const safeName = sanitizeFilename(customerName)
   link.download = `entrega_${safeName}_${date}.xlsx`
+
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+// --- Lista de compra local (menudeo, ADR-018) ---
+
+/** Fila de la lista de compra local: restos a menudeo + productos sin catálogo. */
+export interface LocalPurchaseRow {
+  code: string
+  brand: string
+  description: string
+  etm: string
+  quantity: number
+  /** Precio de venta de referencia (proxy — NO es el costo del proveedor). */
+  unitPrice: number | null
+  /** 'resto menudeo' (decisión del planificador) o 'sin catálogo'. */
+  origin: string
+}
+
+/**
+ * Genera el Excel de compra local (menudeo): lo decidido a menudeo en el
+ * planificador + los productos que no están en el catálogo URREA.
+ */
+export function generateLocalPurchaseExcel(rows: LocalPurchaseRow[]): Blob {
+  const headers = ['Código', 'Marca', 'Descripción', 'ETM', 'Cantidad', 'Precio venta', 'Origen']
+
+  const data: (string | number)[][] = [
+    headers,
+    ...rows.map((row) => [
+      row.code,
+      row.brand,
+      row.description,
+      row.etm,
+      row.quantity,
+      row.unitPrice ?? '',
+      row.origin,
+    ]),
+  ]
+
+  const worksheet = XLSX.utils.aoa_to_sheet(data)
+
+  worksheet['!cols'] = [
+    { wch: 16 }, // Código
+    { wch: 10 }, // Marca
+    { wch: 40 }, // Descripción
+    { wch: 14 }, // ETM
+    { wch: 10 }, // Cantidad
+    { wch: 12 }, // Precio venta
+    { wch: 16 }, // Origen
+  ]
+
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Compra local')
+
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+  return new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+}
+
+/**
+ * Descarga el Excel de compra local
+ */
+export function downloadLocalPurchaseExcel(blob: Blob, customerName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+
+  const date = formatISODate()
+  const safeName = sanitizeFilename(customerName)
+  link.download = `compra_local_${safeName}_${date}.xlsx`
 
   document.body.appendChild(link)
   link.click()

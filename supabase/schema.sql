@@ -1,7 +1,7 @@
 -- ============================================================================
 -- DYMMSA — Snapshot del schema de Supabase (proyecto wjlklwtvjewhtghlskbt)
 -- Generado desde la BD real el 2026-07-13 vía MCP de Supabase (pg_catalog);
--- regenerado el mismo día tras la migración cleanup_legacy_policies_and_cruft.
+-- regenerado el 2026-07-15 tras la migración create_purchase_planner_tables.
 --
 -- FUENTE DE RECONSTRUCCIÓN, no migración ejecutable tal cual: refleja el
 -- estado acumulado. El historial cronológico vive en migrations-log.md.
@@ -107,6 +107,22 @@ CREATE TABLE public.order_items (
   location text               -- snapshot de store_inventory.location al crear la orden
 );
 
+-- ADR-018: decisiones de compra mayoreo/menudeo por orden, a nivel GRUPO
+-- (model_code+brand normalizados) — la necesidad se consolida entre líneas
+-- duplicadas antes de decidir. Recomendación siempre al vuelo; esto es la
+-- decisión final del usuario para ESA orden (nunca verdad global del producto).
+CREATE TABLE public.order_purchase_decisions (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  order_id uuid NOT NULL,
+  model_code text NOT NULL,   -- SIEMPRE normalizado trim+upper (catalogKey)
+  brand text NOT NULL,        -- SIEMPRE normalizado trim+upper
+  std_snapshot integer NOT NULL,  -- STD del catálogo al decidir (staleness si cambia)
+  needed_qty integer NOT NULL,    -- N consolidado al decidir (staleness si cambia)
+  packages_wholesale integer DEFAULT 0 NOT NULL,
+  qty_retail integer DEFAULT 0 NOT NULL,
+  decided_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE public.store_inventory (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   model_code text NOT NULL,
@@ -122,6 +138,14 @@ CREATE TABLE public.urrea_catalog (
   description text,
   std integer DEFAULT 1 NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ADR-018 §7: configuración key-value (umbrales del planificador de compra).
+-- Sin seeds: los defaults viven en código (src/lib/purchase-plan.ts).
+CREATE TABLE public.app_settings (
+  key text NOT NULL,
+  value jsonb NOT NULL,
   updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -161,6 +185,16 @@ ALTER TABLE order_items ADD CONSTRAINT order_items_unit_price_check CHECK ((unit
 ALTER TABLE order_items ADD CONSTRAINT order_items_urrea_status_check CHECK ((urrea_status = ANY (ARRAY['pending'::text, 'supplied'::text, 'not_supplied'::text])));
 ALTER TABLE order_items ADD CONSTRAINT order_items_delivery_time_check CHECK ((delivery_time = ANY (ARRAY['immediate'::text, '2_3_days'::text, '3_5_days'::text, '1_week'::text, '2_weeks'::text, 'indefinite'::text])));
 
+ALTER TABLE order_purchase_decisions ADD CONSTRAINT order_purchase_decisions_pkey PRIMARY KEY (id);
+ALTER TABLE order_purchase_decisions ADD CONSTRAINT order_purchase_decisions_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE;
+ALTER TABLE order_purchase_decisions ADD CONSTRAINT order_purchase_decisions_key UNIQUE (order_id, model_code, brand);
+ALTER TABLE order_purchase_decisions ADD CONSTRAINT order_purchase_decisions_std_check CHECK ((std_snapshot > 0));
+ALTER TABLE order_purchase_decisions ADD CONSTRAINT order_purchase_decisions_needed_check CHECK ((needed_qty > 0));
+ALTER TABLE order_purchase_decisions ADD CONSTRAINT order_purchase_decisions_packages_check CHECK ((packages_wholesale >= 0));
+ALTER TABLE order_purchase_decisions ADD CONSTRAINT order_purchase_decisions_retail_check CHECK ((qty_retail >= 0));
+-- La decisión siempre cubre la necesidad (mixto = exacto; mayoreo redondeado = excedente):
+ALTER TABLE order_purchase_decisions ADD CONSTRAINT check_decision_covers_needed CHECK (((packages_wholesale * std_snapshot + qty_retail) >= needed_qty));
+
 ALTER TABLE store_inventory ADD CONSTRAINT store_inventory_pkey PRIMARY KEY (id);
 ALTER TABLE store_inventory ADD CONSTRAINT store_inventory_model_code_key UNIQUE (model_code);
 ALTER TABLE store_inventory ADD CONSTRAINT store_inventory_quantity_check CHECK ((quantity >= 0));
@@ -168,6 +202,8 @@ ALTER TABLE store_inventory ADD CONSTRAINT store_inventory_quantity_check CHECK 
 ALTER TABLE urrea_catalog ADD CONSTRAINT urrea_catalog_pkey PRIMARY KEY (id);
 ALTER TABLE urrea_catalog ADD CONSTRAINT urrea_catalog_code_brand_key UNIQUE (code, brand);
 ALTER TABLE urrea_catalog ADD CONSTRAINT urrea_catalog_std_check CHECK ((std > 0));
+
+ALTER TABLE app_settings ADD CONSTRAINT app_settings_pkey PRIMARY KEY (key);
 
 -- ─── Índices (adicionales a los de constraints) ─────────────────────────────
 
@@ -178,6 +214,7 @@ CREATE INDEX idx_order_items_etm ON public.order_items USING btree (etm);
 CREATE INDEX idx_order_items_model_code ON public.order_items USING btree (model_code);
 CREATE INDEX idx_order_items_order_id ON public.order_items USING btree (order_id);
 CREATE INDEX idx_order_items_urrea_status ON public.order_items USING btree (urrea_status);
+CREATE INDEX idx_order_purchase_decisions_order_id ON public.order_purchase_decisions USING btree (order_id);
 CREATE INDEX idx_orders_created_at ON public.orders USING btree (created_at DESC);
 CREATE INDEX idx_orders_created_by ON public.orders USING btree (created_by);
 CREATE INDEX idx_orders_customer ON public.orders USING btree (customer_name);
@@ -225,6 +262,7 @@ CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON public.orders FOR EACH 
 CREATE TRIGGER update_quotations_updated_at BEFORE UPDATE ON public.quotations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_store_inventory_updated_at BEFORE UPDATE ON public.store_inventory FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER urrea_catalog_set_updated_at BEFORE UPDATE ON public.urrea_catalog FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+CREATE TRIGGER update_app_settings_updated_at BEFORE UPDATE ON public.app_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ─── Row Level Security ─────────────────────────────────────────────────────
 
@@ -235,6 +273,8 @@ ALTER TABLE public.quotation_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quotations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urrea_catalog ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_purchase_decisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Authenticated users can delete products" ON public.etm_products FOR DELETE TO authenticated USING (true);
 CREATE POLICY "Authenticated users can insert products" ON public.etm_products FOR INSERT TO authenticated WITH CHECK (true);
@@ -250,6 +290,8 @@ CREATE POLICY "Authenticated users can manage all quotations" ON public.quotatio
 CREATE POLICY "Authenticated users can manage inventory" ON public.store_inventory FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can read inventory" ON public.store_inventory FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Authenticated users can manage urrea_catalog" ON public.urrea_catalog FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can manage purchase decisions" ON public.order_purchase_decisions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can manage app settings" ON public.app_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ─── Storage ────────────────────────────────────────────────────────────────
 -- bucket task-images · public=true · límite 5 MB · PNG/JPEG/GIF/WEBP

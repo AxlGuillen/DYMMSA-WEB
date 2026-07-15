@@ -178,6 +178,13 @@ export function explainPgError(
           isConstraintViolation: true,
           constraintName: constraint,
         }
+      case 'check_decision_covers_needed':
+        return {
+          userMessage:
+            'La decisión de compra no cubre la cantidad necesaria (paquetes × STD + menudeo debe ser al menos la necesidad). Recalcula en el planificador.',
+          isConstraintViolation: true,
+          constraintName: constraint,
+        }
       case 'quotations_total_check':
       case 'orders_total_amount_check':
         return {

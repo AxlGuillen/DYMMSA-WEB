@@ -74,6 +74,16 @@ location: TEXT  -- snapshot de store_inventory.location al crear la orden (gavet
 ```
 Constraint implícito: `quantity_in_stock + quantity_to_order = quantity_approved`
 
+**`order_purchase_decisions`** — decisión mayoreo/menudeo **por orden y por GRUPO** (ADR-018; nunca verdad global del producto):
+```
+model_code, brand: TEXT  -- SIEMPRE normalizados trim+upper; UNIQUE(order_id, model_code, brand)
+std_snapshot, needed_qty: INTEGER  -- snapshot al decidir → staleness si cambian
+packages_wholesale, qty_retail: INTEGER  -- pedido mixto; CHECK paq×std+retail >= needed
+```
+FK a `orders` con CASCADE. `PUT /api/orders/[id]/purchase-decisions` es **replace-all** (upsert antes del delete de removidas).
+
+**`app_settings`** — key-value (`key TEXT PK`, `value JSONB`). **Sin seeds**: defaults en código (`purchase-plan.ts`); fila ausente → default. PATCH con **whitelist estricta** por key (`/api/settings`). Keys actuales: `purchase_threshold_money` (100), `purchase_threshold_pct` (0.8).
+
 **`etm_products`** — `etm TEXT UNIQUE`, `model_code TEXT`, `brand TEXT DEFAULT 'URREA'`, `is_sold BOOLEAN` (tri-estado; `null`=sin definir, `true`=lo vendemos, `false`=no lo vendemos — persistido por auto-learn), `dymmsa_description TEXT` (curada por DYMMSA; **vacía si hay match en `urrea_catalog`** — la oficial gana jerarquía y se resuelve en lectura, nunca se copia; ADR-013)
 
 **`store_inventory`** — `model_code TEXT UNIQUE`, `quantity INTEGER CHECK >= 0`, `location TEXT` (ubicación física/gaveta, texto libre opcional; **se conserva aunque `quantity=0`** — metadato duradero, no transaccional; solo se oculta en el frontend sin stock). Import Excel acepta columna `ubicacion` (alias `ubicación`/`location`/`gaveta`, case-insensitive); en modo `upsert` **no** pisa la existente si el archivo no la trae.
@@ -94,7 +104,8 @@ Estas reglas generan bugs si se ignoran al escribir código:
 | **Productos "no lo vendemos" (`is_sold=false`)** | Tri-estado (`null` sin definir / `true` sí / `false` no). Solo `false`: excluido de totales (`calculateQuotationTotal`), Excel URREA/órdenes (`create-order`), y **exento de validación** (`quotation-validation` no exige precio/cantidad/ETM). En `/approve/[token]` se muestra "No disponible" (read-only, no aprobable). Se **persiste a `etm_products` vía auto-learn** solo si es explícito (`true`/`false`); `null` nunca pisa el catálogo. Helper: `isNotSold()` en `business-rules.ts`. |
 | **Descripción DYMMSA (jerarquía de catálogo)** | Resuelta en código: **catálogo (`urrea_catalog.description`) > curada (`etm_products.dymmsa_description`) > null** (celda vacía). El cruce con el catálogo es **estricto por `(model_code, brand)`** — el mismo código puede existir en varias marcas, así que un producto marcado URREA NO hereda la descripción de un código que solo existe bajo SURTEK. La oficial NUNCA se copia a `etm_products` (si está mal, se reimporta el catálogo); `quotation_items.dymmsa_description` es **snapshot del valor resuelto** al guardar (congelado — reimportar catálogo no reescribe cotizaciones). Auto-learn persiste solo la curada **cruda** de la UI. Llave de cruce SIEMPRE con **`catalogKey(code, brand)`** (normaliza ambos trim+upper; marca vacía → `DEFAULT_BRAND`='URREA'). Los mapas de catálogo (`fetchCatalogDescriptionMap`, `catalogDescriptions` del store, respuestas de `/lookup`) van indexados por esa llave, **no por código**. Helpers: `resolveDymmsaDescription()`/`catalogKey()` en `business-rules.ts`, `fetchCatalogDescriptionMap()` en `urrea-catalog.ts`. Ver ADR-013. |
 | **Stock se deduce al CREAR la orden** | No al confirmar recepción. Cancelar restaura `quantity_in_stock`. |
-| **Excel URREA** | Solo ítems: `item_type='product'` AND `brand='URREA'` AND `quantity_to_order > 0` |
+| **Excel URREA** | Se genera desde las **decisiones de mayoreo guardadas** (`order_purchase_decisions`): piezas = `packages_wholesale × std_snapshot` (múltiplos de STD). Criterio = **pertenencia a `urrea_catalog`** por `catalogKey(model_code, brand)` — cualquier línea del catálogo (URREA/SURTEK/FOY...), **ya NO `brand='URREA'`**. Sin decisiones guardadas → el botón manda al planificador; decisiones stale → AlertDialog de aviso. Separadores y `quantity_to_order=0` siguen fuera (nunca llegan al plan). |
+| **Planificador de compra (mayoreo vs menudeo)** | ADR-018. La matemática corre sobre cantidades **consolidadas por `catalogKey(model_code, brand)`** (duplicados entre secciones se suman ANTES de decidir — 5+5 con STD=10 es paquete exacto). La decisión real es sobre el **resto** (`N mod STD`): mixto permitido (floor paquetes a URREA + resto a menudeo). Recomendación: dinero parado > umbral ($100, estricto) → menudeo el resto; % parado ≥ umbral (80%, inclusivo) → "revisar" (el usuario DEBE decidir, bloquea guardado); si no → redondear al paquete. Precio del grupo = **promedio ponderado** de líneas con precio > 0 (0 = sin capturar; precio de VENTA como proxy del costo). La recomendación es al vuelo por orden; solo se persiste la decisión del usuario (staleness si cambia N o el std del catálogo). Lo no-catálogo + restos a menudeo → export "compra local". Helpers en `src/lib/purchase-plan.ts` (NO en business-rules). |
 | **Auto-learn** | Solo actualiza campos no vacíos. No asigna `brand='URREA'` si `model_code` está vacío. |
 | **sort_order** | Al guardar cotización: `sort_order = index`. Al crear orden: re-asigna secuencialmente. Agregar ítem manual: `max(sort_order) + 1`. Siempre ordenar por `sort_order ASC`. |
 | **Aprobación pública** | `/approve/[token]` sin auth. Si `status !== 'sent_for_approval'` → mostrar estado actual, no permitir re-aprobar. **Guardar avance** (`finalize=false`): persiste `is_approved` (aprobados=`true`, resto=`null`) **sin cambiar status** → el link sigue vivo y el cliente retoma después. **Enviar** (`finalize=true`): resto=`false`, status→`approved`/`rejected` + sella `approved_at`. Un popup confirma antes de enviar. Al quedar `approved` se **notifica a DYMMSA por correo** (Resend, aislado en try/catch → nunca revierte la aprobación; el total del correo se calcula de los **ítems aprobados**, no de `total_amount`; env: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NOTIFICATION_EMAIL_TO`, `NEXT_PUBLIC_APP_URL`; ver ADR-012). |
@@ -230,6 +241,6 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 
 ---
 
-**Última actualización:** 2026-07-10  
+**Última actualización:** 2026-07-15  
 **BD:** Supabase `wjlklwtvjewhtghlskbt` · PostgreSQL 17.6 · us-west-2  
 **Filas (2026-04-25):** etm_products 564 · store_inventory 195 · quotations 9 · quotation_items 365 · orders 8 · order_items 182
