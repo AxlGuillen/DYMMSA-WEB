@@ -10,6 +10,7 @@ import { useSidebarStore } from '@/stores/sidebarStore'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { DiscreteModeToggle } from '@/components/discrete-mode-toggle'
+import { SoundToggle } from '@/components/sound-toggle'
 import {
   Tooltip,
   TooltipContent,
@@ -229,6 +230,7 @@ function SidebarContent({
       <div className="shrink-0 border-t px-3 py-4 space-y-2">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
+            <SoundToggle />
             <DiscreteModeToggle />
             <ThemeToggle />
             <Tooltip>
@@ -253,6 +255,7 @@ function SidebarContent({
                 {user?.email}
               </span>
               <div className="flex items-center gap-1">
+                <SoundToggle />
                 <DiscreteModeToggle />
                 <ThemeToggle />
               </div>
