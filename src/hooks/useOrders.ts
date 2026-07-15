@@ -12,7 +12,9 @@ import type {
   ConfirmReceptionInput,
 } from '@/types/database'
 
-const ORDERS_KEY = ['orders']
+// Exportada para que hooks hermanos (usePurchasePlan) aniden sus keys debajo
+// y las invalidaciones existentes de items/orden los alcancen gratis.
+export const ORDERS_KEY = ['orders']
 
 interface OrdersParams {
   page?: number

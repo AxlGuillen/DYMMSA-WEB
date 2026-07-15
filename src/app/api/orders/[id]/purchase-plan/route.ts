@@ -38,7 +38,7 @@ export async function GET(
 
     const { data: items, error: itemsError } = await supabase
       .from('order_items')
-      .select('id, item_type, etm, model_code, brand, section_label, quantity_to_order, unit_price')
+      .select('id, item_type, etm, model_code, brand, description, section_label, quantity_to_order, unit_price')
       .eq('order_id', id)
       .limit(5000)
 

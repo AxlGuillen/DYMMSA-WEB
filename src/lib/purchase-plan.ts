@@ -69,6 +69,7 @@ export interface PlannableItem {
   etm: string | null
   model_code: string
   brand: string
+  description?: string | null
   section_label?: string | null
   quantity_to_order: number
   unit_price: number
@@ -89,6 +90,7 @@ export interface PurchaseSourceLine {
   sectionLabel: string | null
   /** model_code tal como está en la orden (crudo — puede diferir del normalizado). */
   modelCodeRaw: string
+  description: string | null
   quantityToOrder: number
   unitPrice: number
 }
@@ -140,6 +142,7 @@ export function consolidateOrderItems(items: PlannableItem[]): ConsolidatedGroup
       etm: item.etm || null,
       sectionLabel: item.section_label ?? null,
       modelCodeRaw: item.model_code,
+      description: item.description || null,
       quantityToOrder: item.quantity_to_order,
       unitPrice: item.unit_price,
     })
