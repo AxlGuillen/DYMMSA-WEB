@@ -5,6 +5,13 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-07-14
 
+### Nuevo
+- **Sonidos sutiles al hacer click** en botones y enlaces del sistema — un toque de
+  respuesta al usarlo. Se pueden **silenciar** con el nuevo botón de audífonos junto a los de
+  tema y modo discreto (abajo en el menú lateral); tu elección se recuerda. Si tu equipo está
+  configurado para reducir animaciones, arrancan apagados. La página de aprobación que ve tu
+  cliente no tiene sonidos.
+
 ### Mejorado
 - **Nueva pantalla de inicio de sesión**, con una imagen más formal y de empresa: a un costado, la
   marca DYMMSA sobre una fotografía de herramienta profesional (con un acercamiento muy lento que
