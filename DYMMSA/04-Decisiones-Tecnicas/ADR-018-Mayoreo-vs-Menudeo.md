@@ -1,8 +1,8 @@
 # ADR-018 — Planificador de compra: mayoreo vs menudeo (STD)
 
-**Fecha:** 2026-07-15
-**Estado:** Aceptado (definición) — implementación pendiente
-**Issue:** #20 (el entregable de esa issue es este documento)
+**Fecha:** 2026-07-15 · **Implementado:** 2026-07-15
+**Estado:** Implementado
+**Issue:** #20
 
 ## Contexto
 
@@ -147,14 +147,41 @@ Tabla `app_settings` (key-value, filas sueltas) con UI mínima en ajustes:
 - **Columna `cost` en `urrea_catalog`** para dinero parado exacto (hoy proxy
   con precio de venta).
 
-## Plan de issues de implementación (a crear al cerrar #20)
+## Addendum de implementación (2026-07-15)
 
-1. **Núcleo:** `computePurchasePlan()` en `business-rules.ts` (consolidación +
-   math + recomendación, pura y testeable) + migración
-   `order_purchase_decisions` + `app_settings`.
-2. **Vista "Planificar compra"** en el detalle de orden: cubetas, grupos
-   expandibles, chips de recomendación, overrides, staleness.
-3. **Salidas:** Excel URREA desde decisiones (nuevo criterio de catálogo +
-   piezas múltiplo de STD) + lista de compra local. Actualizar regla crítica
-   en `CLAUDE.md`.
-4. **Ajustes:** UI para umbrales (`app_settings`).
+Se implementó todo en una sola rama (`feat/20-purchase-planner`) en vez de las
+4 issues planeadas. Desviaciones y hallazgos respecto a la definición:
+
+1. **La lógica pura vive en `src/lib/purchase-plan.ts`** (espejo de
+   `quotation-validation.ts`), no en `business-rules.ts` como decía el plan —
+   es un dominio completo (consolidación, math, recomendación, staleness), no
+   un helper suelto. Los defaults de umbrales también viven ahí.
+2. **El caso "sin STD" del bucket _sin datos_ es inalcanzable**:
+   `urrea_catalog.std` es `NOT NULL DEFAULT 1 CHECK > 0`. En la práctica
+   _sin datos_ = en catálogo pero **sin precio utilizable** (todas las líneas
+   con `unit_price = 0`; 0 = "sin capturar"). Hay guarda defensiva de todos
+   modos (std inválido → bucket local).
+3. **Precio del grupo = promedio ponderado por cantidad** de las líneas con
+   precio > 0 (líneas duplicadas pueden tener precios distintos; el excedente
+   es fungible entre ellas → media ponderada es el valor por pieza no sesgado;
+   los 0 se excluyen para no subestimar el dinero parado).
+4. **`order_items.model_code` se guarda crudo** (create-order copia verbatim)
+   → todo cruce vía `catalogKey()`; las decisiones se persisten normalizadas.
+5. **Recomendación "mixto" con 0 paquetes completos se sugiere como
+   "menudeo"** (mismo reparto, nombre honesto). En la UI, la opción Mixto se
+   oculta cuando duplica a otra (resto 0 o floor 0).
+6. **PUT replace-all con upsert ANTES del delete** de removidas: una limpieza
+   fallida deja filas de más (salen como huérfanas, inofensivas), nunca
+   decisiones perdidas.
+7. **Template URREA**: fórmulas pre-cargadas hasta la fila 1026 → máximo 1012
+   filas de datos; el generador lanza error descriptivo si se excede.
+8. **Órdenes `completed`/`cancelled`**: el PUT las rechaza (400) y la vista va
+   read-only; cancelar NO borra decisiones (histórico), eliminar la orden sí
+   (CASCADE).
+
+Piezas: migración `create_purchase_planner_tables` · lib `purchase-plan.ts` +
+`fetchCatalogEntryMap` · rutas `GET /api/orders/[id]/purchase-plan`,
+`PUT /api/orders/[id]/purchase-decisions`, `GET/PATCH /api/settings` · hooks
+`usePurchasePlan`/`useSavePurchaseDecisions`/`useUpdateSettings` · vista
+`/dashboard/orders/[id]/planner` (`PurchasePlanner`) · Excel URREA desde
+decisiones + export de compra local. 69 tests nuevos.

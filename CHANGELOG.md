@@ -3,6 +3,28 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-15
+
+### Nuevo
+- **Planificar compra: mayoreo vs menudeo.** Dentro de cada orden hay un nuevo botón
+  **"Planificar compra"** que te ayuda a decidir qué pedir directo a URREA (por paquetes) y qué
+  comprar a menudeo con proveedores locales. El sistema junta los productos repetidos, calcula
+  cuántos paquetes completos necesitas según el STD del catálogo y te dice cuánto dinero quedaría
+  "parado" en piezas sobrantes si redondeas al paquete. Con eso te **recomienda** por producto:
+  mayoreo, mixto (paquetes a URREA + el resto a menudeo) o menudeo — y tú siempre tienes la
+  última palabra. Tus decisiones se guardan por orden, y si después cambias cantidades el sistema
+  te avisa que quedaron desactualizadas. Los umbrales de la recomendación ($100 de dinero parado,
+  80% del paquete) se pueden ajustar ahí mismo.
+- **Lista de compra local.** Desde el planificador puedes descargar un Excel con todo lo que va a
+  menudeo: los restos que decidiste no redondear más los productos que no están en el catálogo
+  URREA — listo para ir con los proveedores.
+
+### Mejorado
+- **El pedido URREA ahora sale del planificador.** El Excel de pedido incluye cualquier producto
+  del catálogo URREA (también SURTEK, FOY y demás líneas — antes solo marca "URREA") y las
+  cantidades van en múltiplos exactos de paquete. Si aún no has planificado la compra, el botón te
+  lleva al planificador; si tus decisiones quedaron viejas, te avisa antes de generar.
+
 ## 2026-07-14
 
 ### Corregido

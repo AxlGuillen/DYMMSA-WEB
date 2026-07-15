@@ -46,7 +46,8 @@ src/
 │   │   ├── orders/
 │   │   │   ├── page.tsx          # Lista de órdenes
 │   │   │   ├── new/page.tsx      # Crear orden manual (legacy)
-│   │   │   └── [id]/page.tsx     # Detalle de orden
+│   │   │   ├── [id]/page.tsx     # Detalle de orden
+│   │   │   └── [id]/planner/page.tsx  # Planificador de compra mayoreo/menudeo (ADR-018)
 │   │   ├── quotations/
 │   │   │   ├── page.tsx          # Lista de cotizaciones
 │   │   │   └── [id]/page.tsx     # Detalle de cotización
@@ -65,7 +66,7 @@ src/
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
-│   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable
+│   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable, PurchasePlanner
 │   ├── providers/                # QueryProvider (TanStack), ThemeProvider
 │   ├── quotations/               # QuotationDetail, QuotationStatusBadge, QuotationsTable
 │   ├── quoter/                   # FileUploader, ProductModal, QuotationEditor, QuotePreview
@@ -80,7 +81,9 @@ src/
 │   ├── useOrders.ts              # CRUD + acciones de órdenes (add/edit/remove items, cancel, confirm)
 │   ├── useProducts.ts            # CRUD catálogo ETM
 │   ├── useQuotations.ts          # CRUD + acciones de cotizaciones
+│   ├── usePurchasePlan.ts        # Plan de compra + guardado de decisiones (ADR-018)
 │   ├── useQuotes.ts              # Lookup ETMs para el cotizador
+│   ├── useSettings.ts            # useUpdateSettings (app_settings, umbrales del planificador)
 │   └── useTasks.ts               # Tareas (GitHub Issues): lista/detalle/crear/editar/comentar/upload
 │
 ├── lib/
@@ -94,6 +97,7 @@ src/
 │   │   └── admin.ts              # createAdminClient (service role, cuando necesario)
 │   ├── format.ts                 # Fechas relativas/absolutas, sanitize, parseNumber, parseInteger
 │   ├── business-rules.ts         # isProductItem, calculateQuotationTotal, allocateInventory, etc.
+│   ├── purchase-plan.ts          # Planificador de compra: consolidación, math STD, recomendación (ADR-018)
 │   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers
 │   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)

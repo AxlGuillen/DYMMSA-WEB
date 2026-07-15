@@ -44,10 +44,18 @@ cada ítem
                       crea orders (status: ordered)
                       crea order_items con desglose
 
+                    → Planificar compra (ADR-018)
+                      consolida duplicados por (model_code, brand)
+                      math STD por grupo: paquetes + resto
+                      recomienda mayoreo / mixto / menudeo por resto
+                      usuario decide y GUARDA (por orden, nunca global)
+
                     → Generar Excel URREA
-                      solo ítems: brand=URREA AND quantity_to_order>0
-                      columnas: model_code | quantity
+                      desde las decisiones de MAYOREO guardadas
+                      criterio: está en urrea_catalog (cualquier línea)
+                      piezas = paquetes × STD (múltiplos exactos)
                       se descarga automáticamente
+                      + lista de compra local (menudeo + sin catálogo)
 
                                               DYMMSA envía Excel
                                               por WhatsApp →
@@ -107,5 +115,5 @@ Ver [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]].
 | Reabrir convertida exige eliminar la orden | Para regresar una `converted_to_order` a un estado editable, su orden vinculada debe eliminarse (restaura inventario; garantiza ≤1 orden por cotización) | [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]] |
 | Cambiar de estado regenera el link de aprobación | Cada `PATCH /status` regenera `approval_token`; el link compartido antes queda muerto (404) | [[03-Modulos/Aprobacion-por-Token#Seguridad y acceso]] |
 | Auto-learn solo actualiza con datos no vacíos | No sobreescribe datos buenos con campos vacíos | [[03-Modulos/Catalogo-ETM#Auto-learn]] |
-| brand=URREA requerido para Excel URREA | Productos de otras marcas se excluyen con notificación | [[03-Modulos/Ordenes#Generar Excel URREA]] |
+| Excel URREA = decisiones de mayoreo guardadas | Criterio: pertenencia a `urrea_catalog` (cualquier línea, ya no `brand=URREA`); piezas en múltiplos de STD; menudeo y sin-catálogo van a la lista de compra local | [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]] |
 | Comunicación URREA fuera del sistema | WhatsApp — el sistema solo genera el Excel | [[01-Negocio/Decisiones-de-Negocio#Por qué la comunicación con URREA sigue siendo por WhatsApp]] |

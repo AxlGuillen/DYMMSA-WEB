@@ -200,6 +200,43 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 
 ---
 
+## Tabla: `order_purchase_decisions`
+
+**Propósito:** Decisión mayoreo/menudeo del usuario **por orden y por grupo** (nunca verdad global del producto).
+**Módulo:** [[03-Modulos/Ordenes]] · ADR: [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]]
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `order_id` | uuid | No | — | FK → `orders.id` CASCADE | |
+| `model_code` | text | No | — | UNIQUE con order_id+brand | **Normalizado** trim+upper (`catalogKey`) |
+| `brand` | text | No | — | ↑ | **Normalizado** trim+upper |
+| `std_snapshot` | integer | No | — | `> 0` | STD del catálogo al decidir (staleness si cambia) |
+| `needed_qty` | integer | No | — | `> 0` | Necesidad consolidada al decidir (staleness si cambia) |
+| `packages_wholesale` | integer | No | `0` | `>= 0` | Paquetes a pedir a URREA |
+| `qty_retail` | integer | No | `0` | `>= 0` | Piezas a comprar a menudeo local |
+| `decided_at` | timestamptz | No | `now()` | | |
+
+**Constraint de cobertura:** `packages_wholesale × std_snapshot + qty_retail >= needed_qty` (`check_decision_covers_needed`).
+La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (upsert antes del delete de removidas).
+
+---
+
+## Tabla: `app_settings`
+
+**Propósito:** Configuración key-value de la aplicación. **Sin seeds** — los defaults viven en código; fila ausente → default.
+**ADR:** [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]] (§7)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `key` | text | No | — | PK | Whitelist estricta en `/api/settings` |
+| `value` | jsonb | No | — | | |
+| `updated_at` | timestamptz | No | `now()` | trigger | |
+
+**Keys actuales:** `purchase_threshold_money` (default 100 MXN) · `purchase_threshold_pct` (default 0.8).
+
+---
+
 ## Historial de migraciones
 
 | Versión | Nombre | Descripción |
@@ -220,3 +257,4 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |
 | `add_brand_to_urrea_catalog` | (2026-07-14) | Columna `brand text NOT NULL DEFAULT 'URREA'` en `urrea_catalog`; `UNIQUE(code)` → `UNIQUE(code, brand)`; índice `idx_urrea_catalog_brand`. Backfill de filas existentes a `'URREA'` |
 | `urrea_catalog_brand_counts_fn` | (2026-07-14) | RPC `urrea_catalog_brand_counts()` — conteo por marca para el filtro del catálogo (`security invoker`) |
+| `create_purchase_planner_tables` | (2026-07-15) | Tablas `order_purchase_decisions` (decisión mayoreo/menudeo por orden a nivel grupo, con snapshots para staleness y CHECK de cobertura) y `app_settings` (key-value jsonb para umbrales). RLS + policy authenticated. ADR-018 |
