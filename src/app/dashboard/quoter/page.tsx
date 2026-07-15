@@ -9,8 +9,14 @@ import { useLookupEtms } from '@/hooks/useQuotes'
 import { useSaveQuotation, ApiError } from '@/hooks/useQuotations'
 import { extractProductRowsFromExcel } from '@/lib/excel/parser'
 import { useQuotationStore } from '@/stores/quotationStore'
-import { getBlockingIssues } from '@/lib/quotation-validation'
-import { scrollToRow } from '@/lib/dom-helpers'
+import {
+  getBlockingIssues,
+  getMissingHeaderFields,
+  headerFieldsMessage,
+  hasNoProducts,
+  type HeaderField,
+} from '@/lib/quotation-validation'
+import { scrollToRow, focusById } from '@/lib/dom-helpers'
 import type { QuotationItemRow } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,6 +30,18 @@ export default function QuoterPage() {
   const [step, setStep] = useState<Step>('upload')
   /** _id de filas con error pre-flight o reportadas por el backend (offendingEtm). */
   const [errorItemIds, setErrorItemIds] = useState<ReadonlySet<string>>(new Set())
+  /** Campos de encabezado (nombre/cliente) faltantes, para resaltarlos en rojo. */
+  const [headerErrors, setHeaderErrors] = useState<ReadonlySet<HeaderField>>(new Set())
+
+  /** Limpia el resaltado de un campo de encabezado cuando el usuario lo edita. */
+  const clearHeaderError = (field: HeaderField) => {
+    setHeaderErrors((prev) => {
+      if (!prev.has(field)) return prev
+      const next = new Set(prev)
+      next.delete(field)
+      return next
+    })
+  }
 
   const { name, customer_name, items, setName, setCustomerName, setItems, reset,
     mergeCatalogDescriptions } = useQuotationStore()
@@ -131,7 +149,23 @@ export default function QuoterPage() {
   }
 
   const handleSave = async () => {
-    // ── 1. Pre-flight: atrapar errores conocidos antes de pegar al servidor ─
+    // ── 0. Encabezado: nombre de la cotización y del cliente (issue #26) ────
+    const missingHeader = getMissingHeaderFields(name, customer_name)
+    if (missingHeader.length > 0) {
+      setHeaderErrors(new Set(missingHeader))
+      toast.error(headerFieldsMessage(missingHeader))
+      focusById(missingHeader[0] === 'name' ? 'quotation_name' : 'customer_name')
+      return
+    }
+    setHeaderErrors(new Set())
+
+    // ── 1. Debe haber al menos un producto ─────────────────────────────────
+    if (hasNoProducts(items)) {
+      toast.error('Agrega al menos un producto a la cotización.')
+      return
+    }
+
+    // ── 2. Pre-flight: atrapar errores conocidos antes de pegar al servidor ─
     const blocking = getBlockingIssues(items)
     if (blocking.length > 0) {
       const first = blocking[0]
@@ -196,11 +230,9 @@ export default function QuoterPage() {
     })
   }
 
-  const canSave =
-    name.trim().length > 0 &&
-    customer_name.trim().length > 0 &&
-    items.some((i) => !i.item_type || i.item_type === 'product') &&
-    !saveMutation.isPending
+  // Habilitado salvo mientras guarda: los requisitos (nombre/cliente/productos)
+  // ya no deshabilitan en silencio — se avisan en handleSave (issue #26).
+  const canSave = !saveMutation.isPending
 
   return (
     <div className="space-y-6">
@@ -241,7 +273,11 @@ export default function QuoterPage() {
               <Input
                 id="quotation_name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                aria-invalid={headerErrors.has('name')}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  clearHeaderError('name')
+                }}
                 placeholder="Ej: Obra Norte Enero 2026"
               />
             </div>
@@ -253,7 +289,11 @@ export default function QuoterPage() {
               <Input
                 id="customer_name"
                 value={customer_name}
-                onChange={(e) => setCustomerName(e.target.value)}
+                aria-invalid={headerErrors.has('customer')}
+                onChange={(e) => {
+                  setCustomerName(e.target.value)
+                  clearHeaderError('customer')
+                }}
                 placeholder="Ej: Constructora ABC"
               />
             </div>

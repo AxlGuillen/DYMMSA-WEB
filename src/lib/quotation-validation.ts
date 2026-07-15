@@ -112,3 +112,34 @@ export function getBlockingIssues(items: QuotationItemRow[], options: ValidateOp
 export function getErrorItemIds(items: QuotationItemRow[], options: ValidateOptions = {}): Set<string> {
   return new Set(getBlockingIssues(items, options).map((i) => i.itemId))
 }
+
+// ─── Encabezado de la cotización (nombre + cliente) ─────────────────────
+//
+// Antes se gateaban deshabilitando el botón de guardar sin explicar qué
+// faltaba (issue #26). Ahora el botón queda habilitado y el guardado avisa
+// con toast + resaltado, igual que la validación de ítems de arriba.
+
+export type HeaderField = 'name' | 'customer'
+
+/** Campos obligatorios del encabezado que están vacíos (tras trim). */
+export function getMissingHeaderFields(name: string, customerName: string): HeaderField[] {
+  const missing: HeaderField[] = []
+  if (!name.trim()) missing.push('name')
+  if (!customerName.trim()) missing.push('customer')
+  return missing
+}
+
+/** Mensaje para el toast según qué campos del encabezado faltan. '' si no falta ninguno. */
+export function headerFieldsMessage(missing: HeaderField[]): string {
+  const name = missing.includes('name')
+  const customer = missing.includes('customer')
+  if (name && customer) return 'Faltan el nombre de la cotización y el nombre del cliente.'
+  if (name) return 'Falta el nombre de la cotización.'
+  if (customer) return 'Falta el nombre del cliente.'
+  return ''
+}
+
+/** true si la cotización no tiene ningún ítem de producto (los separadores no cuentan). */
+export function hasNoProducts(items: QuotationItemRow[]): boolean {
+  return !items.some(isProductItem)
+}

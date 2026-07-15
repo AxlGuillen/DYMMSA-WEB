@@ -5,6 +5,13 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-07-14
 
+### Corregido
+- **Guardar cotización ahora te dice qué falta.** Antes, si no habías puesto el nombre de la
+  cotización o del cliente, el botón simplemente no respondía y no era claro por qué. Ahora el
+  botón siempre está activo: al guardar, si falta algún dato te aparece un aviso claro (nombre de
+  la cotización, nombre del cliente, o "agrega al menos un producto"), el campo faltante se
+  **resalta en rojo** y te lleva directo a él. El resaltado desaparece en cuanto lo llenas.
+
 ### Nuevo
 - **Sonidos sutiles al hacer click** en botones y enlaces del sistema — un toque de
   respuesta al usarlo. Se pueden **silenciar** con el nuevo botón de audífonos junto a los de
