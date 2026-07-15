@@ -3,6 +3,9 @@ import {
   validateQuotationItems,
   getBlockingIssues,
   getErrorItemIds,
+  getMissingHeaderFields,
+  headerFieldsMessage,
+  hasNoProducts,
 } from '@/lib/quotation-validation'
 import type { QuotationItemRow } from '@/types/database'
 
@@ -148,5 +151,40 @@ describe('getErrorItemIds', () => {
     expect(ids.has('b')).toBe(false)
     expect(ids.has('c')).toBe(true)
     expect(ids.size).toBe(2)
+  })
+})
+
+// ─── Encabezado (issue #26) ─────────────────────────────────────────────
+
+describe('getMissingHeaderFields', () => {
+  test('ambos presentes → sin faltantes', () => {
+    expect(getMissingHeaderFields('Cot A', 'ACME')).toEqual([])
+  })
+  test('detecta cada campo vacío (incluye solo-espacios)', () => {
+    expect(getMissingHeaderFields('', 'ACME')).toEqual(['name'])
+    expect(getMissingHeaderFields('Cot A', '   ')).toEqual(['customer'])
+    expect(getMissingHeaderFields('  ', '')).toEqual(['name', 'customer'])
+  })
+})
+
+describe('headerFieldsMessage', () => {
+  test('mensaje según los campos faltantes', () => {
+    expect(headerFieldsMessage(['name'])).toBe('Falta el nombre de la cotización.')
+    expect(headerFieldsMessage(['customer'])).toBe('Falta el nombre del cliente.')
+    expect(headerFieldsMessage(['name', 'customer'])).toBe(
+      'Faltan el nombre de la cotización y el nombre del cliente.',
+    )
+    expect(headerFieldsMessage([])).toBe('')
+  })
+})
+
+describe('hasNoProducts', () => {
+  test('true si no hay ítems de producto (separadores no cuentan)', () => {
+    expect(hasNoProducts([])).toBe(true)
+    expect(hasNoProducts([row({ item_type: 'separator' })])).toBe(true)
+  })
+  test('false si hay al menos un producto', () => {
+    expect(hasNoProducts([row()])).toBe(false)
+    expect(hasNoProducts([row({ item_type: 'separator' }), row()])).toBe(false)
   })
 })
