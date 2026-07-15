@@ -181,7 +181,7 @@ export default function QuoterPage() {
     }
     setErrorItemIds(new Set())
 
-    // ── 2. Request al backend ───────────────────────────────────────────
+    // ── 3. Request al backend ───────────────────────────────────────────
     try {
       const result = await saveMutation.mutateAsync({ name, customer_name, items })
 
