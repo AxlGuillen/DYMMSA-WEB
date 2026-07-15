@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { SidebarOffset } from '@/components/layout/SidebarOffset'
 import { Footer } from '@/components/layout/Footer'
+import { SoundInit } from '@/components/sound-init'
 
 export default async function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-background">
+      <SoundInit />
       <Sidebar />
       {/* Offset: sidebar width on desktop, top bar height on mobile */}
       <SidebarOffset>

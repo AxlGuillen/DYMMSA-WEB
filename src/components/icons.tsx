@@ -43,6 +43,8 @@ import {
   EyeIcon as _Eye,
   EyeOffIcon as _EyeOff,
   GitCompareIcon as _GitCompare,
+  HeadphonesIcon as _Headphones,
+  HeadphonesOffIcon as _HeadphonesOff,
   InfoIcon as _Info,
   LayoutGridIcon as _LayoutGrid,
   LoaderCircleIcon as _LoaderCircle,
@@ -175,6 +177,8 @@ export const ExternalLink = wrap(_ExternalLink)
 export const Eye = wrap(_Eye)
 export const EyeOff = wrap(_EyeOff)
 export const GitCompare = wrap(_GitCompare)
+export const Headphones = wrap(_Headphones)
+export const HeadphonesOff = wrap(_HeadphonesOff)
 export const Info = wrap(_Info)
 export const Menu = wrap(_Menu)
 export const Moon = wrap(_Moon)
