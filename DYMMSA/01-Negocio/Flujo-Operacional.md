@@ -67,8 +67,11 @@ cada ítem
                     
                     → Order Detail: edición manual
                       quantity_received y urrea_status por ítem
-                      Confirmar recepción:
-                      SUMA quantity_received a store_inventory
+                      (puede llegar MÁS de lo pedido)
+                      Confirmar recepción (con resumen de verificación):
+                      solo el EXCEDENTE entra a store_inventory
+                      (max(0, recibido − pedido), por delta — ADR-019)
+                      lo pedido va al cliente, no pisa inventario
                       status → received
 
                     → Gestión estados:

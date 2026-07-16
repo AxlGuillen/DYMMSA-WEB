@@ -3,6 +3,23 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-16
+
+### Nuevo
+- **Recepción con excedente.** Ahora puedes registrar que llegaron **más piezas de las
+  pedidas** (por ejemplo, pediste 2 y URREA mandó el paquete de 10): el excedente **entra
+  automáticamente al inventario de tienda** y en la fila verás "+8 a tienda". El cobro al
+  cliente no cambia — solo paga lo que ordenó; las piezas extra son stock tuyo.
+- **Resumen antes de confirmar la recepción.** Al dar "Confirmar Recepción" aparece una
+  ventana con lo que capturaste (pedido vs recibido y cuántas piezas entran al inventario),
+  con las cantidades inusuales marcadas — para atrapar un dedazo (100 en vez de 10) antes
+  de que toque el inventario.
+
+### Corregido
+- **El inventario ya no se duplica** al corregir una recepción ni al cancelar una orden que
+  ya había recibido mercancía: confirmar dos veces con el mismo número no vuelve a sumar, y
+  corregir a la baja resta lo que sobró de más.
+
 ## 2026-07-15
 
 ### Nuevo

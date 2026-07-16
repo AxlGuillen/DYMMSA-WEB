@@ -44,7 +44,7 @@
 | `POST` | `/api/orders/[id]/items` | ✅ | Agregar ítem a orden existente + stock check + deducción inventario |
 | `PATCH` | `/api/orders/[id]/items/[itemId]` | ✅ | Editar precio de un ítem. Recalcula `total_amount` de la orden |
 | `DELETE` | `/api/orders/[id]/items/[itemId]` | ✅ | Eliminar ítem + restaurar `quantity_in_stock` al inventario |
-| `POST` | `/api/orders/[id]/confirm-reception` | ✅ | Confirmar recepción: actualiza `quantity_received` + `urrea_status` + SUMA a inventario |
+| `POST` | `/api/orders/[id]/confirm-reception` | ✅ | Confirmar recepción: actualiza `quantity_received` + `urrea_status`; a inventario entra solo el **excedente** por delta (idempotente, clamp en 0). Respuesta `{ success, inventory_updated, warnings[] }` (ADR-019) |
 | `POST` | `/api/orders/[id]/cancel` | ✅ | Cancelar orden + restaurar `quantity_in_stock` al inventario. Status → `cancelled` |
 | `POST` | `/api/orders/auto-learn` | ✅ | Auto-learn manual desde orden (legacy) |
 | `GET` | `/api/orders/[id]/purchase-plan` | ✅ | Plan de compra mayoreo/menudeo (ADR-018): consolida por `catalogKey`, math STD + recomendación al vuelo, casa decisiones guardadas con staleness. Catálogo/settings degradan a defaults |
