@@ -23,10 +23,30 @@ import { ProductModal } from './ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { useQuotationStore } from '@/stores/quotationStore'
 import { useCurrency } from '@/hooks/useCurrency'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { calculateQuotationTotal, isProductItem, isNotSold, resolveDymmsaDescription, type DymmsaDescriptionSource } from '@/lib/business-rules'
 import { notSoldRowClass } from '@/lib/sold-status'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import type { QuotationItemRow } from '@/types/database'
+
+// Columnas del editor (issue #18). Los ids son API persistida (localStorage).
+// drag/ETM/Acciones son fijas: sin identificador ni acciones la fila queda inoperable.
+const EDITOR_COLUMNS: readonly TableColumn[] = [
+  { id: 'drag', label: 'Reordenar', hideable: false },
+  { id: 'etm', label: 'ETM', hideable: false },
+  { id: 'description', label: 'Descripción' },
+  { id: 'dymmsa_description', label: 'Desc. DYMMSA' },
+  { id: 'model_code', label: 'Código' },
+  { id: 'brand', label: 'Marca' },
+  { id: 'unit_price', label: 'Precio unit.' },
+  { id: 'quantity', label: 'Cant.' },
+  { id: 'subtotal', label: 'Subtotal' },
+  { id: 'delivery', label: 'Entrega' },
+  { id: 'origin', label: 'Origen' },
+  { id: 'sold', label: 'Venta' },
+  { id: 'actions', label: 'Acciones', hideable: false },
+]
 
 // --- helpers ----------------------------------------------------------
 
@@ -62,11 +82,12 @@ interface SortableSeparatorRowProps {
   item: QuotationItemRow
   onLabelChange: (id: string, label: string) => void
   onRemove: (id: string) => void
-  colSpan: number
+  /** Columnas que abarca el label = visibles − 2 (drag y Acciones son fijas). */
+  labelSpan: number
 }
 
 const SortableSeparatorRow = memo(function SortableSeparatorRow({
-  item, onLabelChange, onRemove, colSpan,
+  item, onLabelChange, onRemove, labelSpan,
 }: SortableSeparatorRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -104,7 +125,7 @@ const SortableSeparatorRow = memo(function SortableSeparatorRow({
           <GripVertical className="size-4" />
         </button>
       </td>
-      <td colSpan={colSpan - 2} className="px-4 py-2">
+      <td colSpan={labelSpan} className="px-4 py-2">
         <div className="flex items-center gap-2">
           <SeparatorHorizontal className="size-3.5 text-muted-foreground shrink-0" />
           <Input
@@ -144,10 +165,12 @@ interface SortableRowProps {
   hasError?: boolean
   /** Descripción DYMMSA resuelta (catálogo > curada > null) + su origen. */
   dymmsaDesc?: { value: string | null; source: DymmsaDescriptionSource }
+  /** Visibilidad de columnas (identidad estable — no rompe el memo). */
+  isVisible: (columnId: string) => boolean
 }
 
 const SortableRow = memo(function SortableRow({
-  item, onEdit, onRemove, onAddSeparatorAfter, hasError = false, dymmsaDesc,
+  item, onEdit, onRemove, onAddSeparatorAfter, hasError = false, dymmsaDesc, isVisible,
 }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -179,61 +202,81 @@ const SortableRow = memo(function SortableRow({
         </button>
       </td>
       <td className="px-4 py-3 font-mono text-xs font-medium">{item.etm}</td>
-      <td className="px-4 py-3 max-w-52">
-        {item.description ? (
-          <span className="truncate block" title={item.description}>{item.description}</span>
-        ) : (
-          <span className="text-muted-foreground italic text-xs">Sin descripción</span>
-        )}
-      </td>
-      <td className="px-4 py-3 max-w-52">
-        {dymmsaDesc?.value ? (
-          <span className="flex items-center gap-1.5 min-w-0">
-            <span className="truncate" title={dymmsaDesc.value}>{dymmsaDesc.value}</span>
-            {dymmsaDesc.source === 'catalog' && (
-              <Badge variant="secondary" className="text-[10px] shrink-0 px-1 py-0">URREA</Badge>
-            )}
-          </span>
-        ) : (
-          <span className="text-muted-foreground italic text-xs">Sin descripción</span>
-        )}
-      </td>
-      <td className="px-4 py-3 font-mono text-xs">
-        {item.model_code || <span className="text-muted-foreground">{'\u2014'}</span>}
-      </td>
-      <td className="px-4 py-3">
-        {item.brand || <span className="text-muted-foreground">{'\u2014'}</span>}
-      </td>
-      <td className="px-4 py-3 text-right tabular-nums">
-        {item.unit_price != null
-          ? fmt(item.unit_price)
-          : <span className="text-muted-foreground">{'\u2014'}</span>}
-      </td>
-      <td className="px-4 py-3 text-right tabular-nums">
-        {item.quantity != null ? item.quantity : <span className="text-muted-foreground">{'\u2014'}</span>}
-      </td>
-      <td className="px-4 py-3 text-right tabular-nums">
-        {item.unit_price != null && item.quantity != null ? (
-          <span className="font-medium">
-            {fmt(item.unit_price * item.quantity)}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">{'\u2014'}</span>
-        )}
-      </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
-        {DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'}
-      </td>
-      <td className="px-4 py-3 text-center">
-        {item._inDb ? (
-          <Badge variant="secondary" className="text-xs">Catálogo</Badge>
-        ) : (
-          <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Nuevo</Badge>
-        )}
-      </td>
-      <td className="px-4 py-3 text-center">
-        <SoldStatusBadge value={item.is_sold} />
-      </td>
+      {isVisible('description') && (
+        <td className="px-4 py-3 max-w-52">
+          {item.description ? (
+            <span className="truncate block" title={item.description}>{item.description}</span>
+          ) : (
+            <span className="text-muted-foreground italic text-xs">Sin descripción</span>
+          )}
+        </td>
+      )}
+      {isVisible('dymmsa_description') && (
+        <td className="px-4 py-3 max-w-52">
+          {dymmsaDesc?.value ? (
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate" title={dymmsaDesc.value}>{dymmsaDesc.value}</span>
+              {dymmsaDesc.source === 'catalog' && (
+                <Badge variant="secondary" className="text-[10px] shrink-0 px-1 py-0">URREA</Badge>
+              )}
+            </span>
+          ) : (
+            <span className="text-muted-foreground italic text-xs">Sin descripción</span>
+          )}
+        </td>
+      )}
+      {isVisible('model_code') && (
+        <td className="px-4 py-3 font-mono text-xs">
+          {item.model_code || <span className="text-muted-foreground">{'\u2014'}</span>}
+        </td>
+      )}
+      {isVisible('brand') && (
+        <td className="px-4 py-3">
+          {item.brand || <span className="text-muted-foreground">{'\u2014'}</span>}
+        </td>
+      )}
+      {isVisible('unit_price') && (
+        <td className="px-4 py-3 text-right tabular-nums">
+          {item.unit_price != null
+            ? fmt(item.unit_price)
+            : <span className="text-muted-foreground">{'\u2014'}</span>}
+        </td>
+      )}
+      {isVisible('quantity') && (
+        <td className="px-4 py-3 text-right tabular-nums">
+          {item.quantity != null ? item.quantity : <span className="text-muted-foreground">{'\u2014'}</span>}
+        </td>
+      )}
+      {isVisible('subtotal') && (
+        <td className="px-4 py-3 text-right tabular-nums">
+          {item.unit_price != null && item.quantity != null ? (
+            <span className="font-medium">
+              {fmt(item.unit_price * item.quantity)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">{'\u2014'}</span>
+          )}
+        </td>
+      )}
+      {isVisible('delivery') && (
+        <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+          {DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'}
+        </td>
+      )}
+      {isVisible('origin') && (
+        <td className="px-4 py-3 text-center">
+          {item._inDb ? (
+            <Badge variant="secondary" className="text-xs">Catálogo</Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Nuevo</Badge>
+          )}
+        </td>
+      )}
+      {isVisible('sold') && (
+        <td className="px-4 py-3 text-center">
+          <SoldStatusBadge value={item.is_sold} />
+        </td>
+      )}
       <td className="px-4 py-3">
         <div className="flex items-center justify-center gap-1">
           <Button
@@ -292,6 +335,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
 
   const fmt = useCurrency()
   const productItems = items.filter(isProductItem)
+  const cols = useVisibleColumns('quoter-editor', EDITOR_COLUMNS)
 
   const [modalOpen, setModalOpen]       = useState(false)
   const [modalMode, setModalMode]       = useState<'edit' | 'create'>('create')
@@ -407,10 +451,13 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
             </span>
           )}
         </div>
-        <Button size="sm" onClick={handleCreate}>
-          <Plus className="size-4 mr-1.5" />
-          Agregar producto
-        </Button>
+        <div className="flex items-center gap-2">
+          <ColumnPicker tableId="quoter-editor" columns={EDITOR_COLUMNS} />
+          <Button size="sm" onClick={handleCreate}>
+            <Plus className="size-4 mr-1.5" />
+            Agregar producto
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
@@ -441,16 +488,16 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                 <tr className="border-b bg-muted/50">
                   <th className="px-2 py-3 w-8"><span className="sr-only">Reordenar</span></th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">ETM</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Descripción</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Desc. DYMMSA</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Código</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Marca</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Precio unit.</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Cant.</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Subtotal</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Entrega</th>
-                  <th className="px-4 py-3 text-center font-medium text-muted-foreground">Origen</th>
-                  <th className="px-4 py-3 text-center font-medium text-muted-foreground">Venta</th>
+                  {cols.isVisible('description') && <th className="px-4 py-3 text-left font-medium text-muted-foreground">Descripción</th>}
+                  {cols.isVisible('dymmsa_description') && <th className="px-4 py-3 text-left font-medium text-muted-foreground">Desc. DYMMSA</th>}
+                  {cols.isVisible('model_code') && <th className="px-4 py-3 text-left font-medium text-muted-foreground">Código</th>}
+                  {cols.isVisible('brand') && <th className="px-4 py-3 text-left font-medium text-muted-foreground">Marca</th>}
+                  {cols.isVisible('unit_price') && <th className="px-4 py-3 text-right font-medium text-muted-foreground">Precio unit.</th>}
+                  {cols.isVisible('quantity') && <th className="px-4 py-3 text-right font-medium text-muted-foreground">Cant.</th>}
+                  {cols.isVisible('subtotal') && <th className="px-4 py-3 text-right font-medium text-muted-foreground">Subtotal</th>}
+                  {cols.isVisible('delivery') && <th className="px-4 py-3 text-left font-medium text-muted-foreground">Entrega</th>}
+                  {cols.isVisible('origin') && <th className="px-4 py-3 text-center font-medium text-muted-foreground">Origen</th>}
+                  {cols.isVisible('sold') && <th className="px-4 py-3 text-center font-medium text-muted-foreground">Venta</th>}
                   <th className="px-4 py-3 text-center font-medium text-muted-foreground">Acciones</th>
                 </tr>
               </thead>
@@ -462,7 +509,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                         <SortableSeparatorRow
                           key={item._id}
                           item={item}
-                          colSpan={13}
+                          labelSpan={cols.visibleCount - 2}
                           onLabelChange={handleLabelChange}
                           onRemove={removeItem}
                         />
@@ -475,6 +522,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                           onAddSeparatorAfter={addSeparatorAfter}
                           hasError={errorItemIds?.has(item._id) ?? false}
                           dymmsaDesc={resolveDymmsaDescription(item, catalogMap)}
+                          isVisible={cols.isVisible}
                         />
                       )
                     )}
