@@ -65,6 +65,11 @@ export async function POST(
       if (!currentItem) continue
       if (currentItem.item_type === 'separator') continue
 
+      // OJO (ADR-019): el excedente previo se recalcula del quantity_to_order
+      // ACTUAL. El delta solo es correcto mientras quantity_to_order no cambie
+      // entre recepciones. Hoy no es editable post-orden; si algún día lo
+      // vuelves editable, este modelo delta debe revisarse (dejaría el stock
+      // desincronizado con lo pedido).
       const oldExcess = receptionExcess(currentItem)
       const newExcess = receptionExcess({
         quantity_received: item.quantity_received,
