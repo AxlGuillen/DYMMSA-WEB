@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { calculateDeliveredTotal } from '@/lib/business-rules'
-import { requireAuth } from '@/lib/api-helpers'
-import type { ConfirmReceptionInput } from '@/types/database'
+import { calculateDeliveredTotal, receptionExcess } from '@/lib/business-rules'
+import { requireAuth, badRequest, notFound } from '@/lib/api-helpers'
+import { explainPgError } from '@/lib/supabase-errors'
+import type { ConfirmReceptionInput, ConfirmReceptionResult } from '@/types/database'
 
+/**
+ * Confirma la recepción de mercancía de URREA (ADR-019).
+ *
+ * Inventario: solo el EXCEDENTE (`max(0, recibido − pedido)`) entra a
+ * `store_inventory` — lo pedido va al cliente y nunca pisa el stock. El
+ * ajuste es por DELTA contra el excedente ya persistido, así que re-confirmar
+ * es idempotente y una corrección a la baja resta lo que sobró de más
+ * (clamp en 0 con warning si el stock ya se movió).
+ */
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -18,10 +28,12 @@ export async function POST(
     const input = (await request.json()) as ConfirmReceptionInput
 
     if (!input.items || !input.items.length) {
-      return NextResponse.json(
-        { message: 'Items requeridos' },
-        { status: 400 }
-      )
+      return badRequest('Items requeridos')
+    }
+    for (const item of input.items) {
+      if (!Number.isInteger(item.quantity_received) || item.quantity_received < 0) {
+        return badRequest('La cantidad recibida debe ser un entero mayor o igual a 0')
+      }
     }
 
     // Verify order exists and is in correct status
@@ -31,34 +43,37 @@ export async function POST(
       .eq('id', orderId)
       .single()
 
-    if (orderError || !order) {
-      return NextResponse.json(
-        { message: 'Orden no encontrada' },
-        { status: 404 }
-      )
-    }
+    if (orderError || !order) return notFound('Orden no encontrada')
 
     if (order.status === 'completed' || order.status === 'cancelled') {
-      return NextResponse.json(
-        { message: 'No se puede modificar una orden completada o cancelada' },
-        { status: 400 }
-      )
+      return badRequest('No se puede modificar una orden completada o cancelada')
     }
 
     let inventoryUpdated = 0
+    const warnings: string[] = []
 
     // Sequential: items may share model_code — parallel reads would cause inventory race conditions
     for (const item of input.items) {
+      // Leer ANTES de escribir: el excedente previo sale de los valores persistidos.
       // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
       const { data: currentItem } = await supabase
         .from('order_items')
-        .select('model_code')
+        .select('model_code, etm, item_type, quantity_received, quantity_to_order')
         .eq('id', item.id)
         .single()
 
       if (!currentItem) continue
+      if (currentItem.item_type === 'separator') continue
 
-      await supabase
+      const oldExcess = receptionExcess(currentItem)
+      const newExcess = receptionExcess({
+        quantity_received: item.quantity_received,
+        quantity_to_order: currentItem.quantity_to_order,
+      })
+      const delta = newExcess - oldExcess
+      const tag = currentItem.etm || currentItem.model_code || item.id
+
+      const { error: updateError } = await supabase
         .from('order_items')
         .update({
           quantity_received: item.quantity_received,
@@ -66,7 +81,15 @@ export async function POST(
         })
         .eq('id', item.id)
 
-      if (item.quantity_received > 0) {
+      if (updateError) {
+        const explanation = explainPgError(updateError)
+        return explanation.isConstraintViolation
+          ? badRequest(explanation.userMessage)
+          : NextResponse.json({ message: 'Error al actualizar la recepción' }, { status: 500 })
+      }
+
+      // Inventario: solo si el excedente cambió y el ítem tiene model_code.
+      if (delta !== 0 && currentItem.model_code?.trim()) {
         const { data: inventory } = await supabase
           .from('store_inventory')
           .select('id, quantity')
@@ -74,25 +97,46 @@ export async function POST(
           .single()
 
         if (inventory) {
-          await supabase
+          const target = inventory.quantity + delta
+          if (target < 0) {
+            warnings.push(
+              `${tag}: la corrección dejaría el stock en negativo; se ajustó a 0 (revisa el inventario de ${currentItem.model_code}).`,
+            )
+          }
+          const { error: invError } = await supabase
             .from('store_inventory')
-            .update({ quantity: inventory.quantity + item.quantity_received })
+            .update({ quantity: Math.max(0, target) })
             .eq('id', inventory.id)
-        } else {
-          await supabase
+          if (invError) {
+            const explanation = explainPgError(invError)
+            return explanation.isConstraintViolation
+              ? badRequest(explanation.userMessage)
+              : NextResponse.json({ message: 'Error al ajustar el inventario' }, { status: 500 })
+          }
+          inventoryUpdated++
+        } else if (delta > 0) {
+          const { error: invError } = await supabase
             .from('store_inventory')
-            .insert({
-              model_code: currentItem.model_code,
-              quantity: item.quantity_received,
-            })
+            .insert({ model_code: currentItem.model_code, quantity: delta })
+          if (invError) {
+            const explanation = explainPgError(invError)
+            return explanation.isConstraintViolation
+              ? badRequest(explanation.userMessage)
+              : NextResponse.json({ message: 'Error al ajustar el inventario' }, { status: 500 })
+          }
+          inventoryUpdated++
+        } else {
+          // delta < 0 sin fila de inventario: no hay de dónde restar.
+          warnings.push(
+            `${tag}: no existe fila de inventario de ${currentItem.model_code} para restar la corrección del excedente.`,
+          )
         }
-        inventoryUpdated++
       }
     }
 
     // Recalculate total amount based on what will actually be delivered
     // - quantity_in_stock: always counts (already reserved)
-    // - quantity_received: only if not marked as not_supplied
+    // - min(recibido, pedido): only if not marked as not_supplied (excess is never billed)
     const { data: allItems } = await supabase
       .from('order_items')
       .select('quantity_in_stock, quantity_received, quantity_to_order, urrea_status, unit_price, item_type')
@@ -108,10 +152,12 @@ export async function POST(
         .eq('id', orderId)
     }
 
-    return NextResponse.json({
+    const result: ConfirmReceptionResult = {
       success: true,
       inventory_updated: inventoryUpdated,
-    })
+      warnings,
+    }
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Confirm reception error:', error)
     return NextResponse.json(
