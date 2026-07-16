@@ -1,7 +1,7 @@
 -- ============================================================================
 -- DYMMSA — Snapshot del schema de Supabase (proyecto wjlklwtvjewhtghlskbt)
 -- Generado desde la BD real el 2026-07-13 vía MCP de Supabase (pg_catalog);
--- regenerado el 2026-07-15 tras la migración create_purchase_planner_tables.
+-- regenerado el 2026-07-15 tras la migración allow_received_to_exceed_ordered.
 --
 -- FUENTE DE RECONSTRUCCIÓN, no migración ejecutable tal cual: refleja el
 -- estado acumulado. El historial cronológico vive en migrations-log.md.
@@ -176,7 +176,8 @@ ALTER TABLE order_items ADD CONSTRAINT order_items_pkey PRIMARY KEY (id);
 ALTER TABLE order_items ADD CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE;
 -- El invariante crítico del CLAUDE.md, encodado en BD:
 ALTER TABLE order_items ADD CONSTRAINT check_quantity_sum CHECK (((quantity_in_stock + quantity_to_order) = quantity_approved));
-ALTER TABLE order_items ADD CONSTRAINT check_received_not_exceed_ordered CHECK ((quantity_received <= quantity_to_order));
+-- (check_received_not_exceed_ordered eliminado el 2026-07-15, ADR-019:
+--  lo recibido puede superar lo pedido; solo el excedente entra a inventario)
 ALTER TABLE order_items ADD CONSTRAINT order_items_quantity_approved_check CHECK (((quantity_approved > 0) OR (item_type = 'separator'::text)));
 ALTER TABLE order_items ADD CONSTRAINT order_items_quantity_in_stock_check CHECK ((quantity_in_stock >= 0));
 ALTER TABLE order_items ADD CONSTRAINT order_items_quantity_received_check CHECK ((quantity_received >= 0));
