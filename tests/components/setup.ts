@@ -27,6 +27,16 @@ if (!globalThis.ResizeObserver) {
   }
 }
 
+// Radix (Select, Dropdown) usa Pointer Capture y scrollIntoView; jsdom no los trae.
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {}
+}
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 // crypto.randomUUID — lo usan addItem/addSeparatorAfter del quotationStore.
 if (!globalThis.crypto?.randomUUID) {
   const c = (globalThis.crypto ??= {} as Crypto)

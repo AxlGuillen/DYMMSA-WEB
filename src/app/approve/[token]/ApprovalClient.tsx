@@ -1,12 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Image from 'next/image'
 import {
   CheckCircle,
   XCircle,
   Package,
-  CheckSquare,
   SeparatorHorizontal,
 } from '@/components/icons'
 import { toast } from 'sonner'
@@ -31,8 +30,17 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { filterProductItems } from '@/lib/business-rules'
+import {
+  NO_FILTERS,
+  listBrands,
+  listSections,
+  computeVisibleItemIds,
+  deriveItemSections,
+  type ApprovalFilters as Filters,
+} from '@/lib/approval-filters'
 import type { QuotationWithItems, DeliveryTime } from '@/types/database'
 import { SummaryTiles } from './SummaryTiles'
+import { ApprovalFilters } from './ApprovalFilters'
 import { ApprovalDock } from './ApprovalDock'
 import { SuccessScreen } from './SuccessScreen'
 import { formatMoney } from './format'
@@ -82,6 +90,29 @@ export function ApprovalClient({ quotation, token }: Props) {
     () => productItems.filter((item) => item.is_approved === true).length,
   )
 
+  // ── Filtros por marca y proyecto/sección (issue #24) ────────────────
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  const items = quotation.quotation_items
+  const brands = useMemo(() => listBrands(productItems), [productItems])
+  const sections = useMemo(() => listSections(items), [items])
+  const sectionsMap = useMemo(() => deriveItemSections(items), [items])
+  const visibleIds = useMemo(() => computeVisibleItemIds(items, filters), [items, filters])
+  // Productos (aprobables) visibles bajo el filtro → para "aprobar visibles".
+  const visibleProductIds = useMemo(
+    () => productItems.filter((item) => visibleIds.has(item.id)).map((item) => item.id),
+    [productItems, visibleIds],
+  )
+  // Un separador se muestra solo si su sección tiene ≥1 ítem visible.
+  const visibleSections = useMemo(() => {
+    const set = new Set<string>()
+    for (const item of items) {
+      if (item.item_type !== 'separator' && visibleIds.has(item.id)) {
+        set.add(sectionsMap.get(item.id) ?? '')
+      }
+    }
+    return set
+  }, [items, visibleIds, sectionsMap])
+
   const approvedCount = decisions.filter((d) => d.is_approved).length
   const notApprovedCount = decisions.length - approvedCount
 
@@ -99,8 +130,12 @@ export function ApprovalClient({ quotation, token }: Props) {
     )
   }
 
-  const handleApproveAll = () => {
-    setDecisions((prev) => prev.map((d) => ({ ...d, is_approved: true })))
+  // Aprueba solo los productos visibles bajo el filtro activo (contextual).
+  const handleApproveVisible = () => {
+    const visible = new Set(visibleProductIds)
+    setDecisions((prev) =>
+      prev.map((d) => (visible.has(d.item_id) ? { ...d, is_approved: true } : d)),
+    )
   }
 
   const approvedIds = () => decisions.filter((d) => d.is_approved).map((d) => d.item_id)
@@ -185,6 +220,18 @@ export function ApprovalClient({ quotation, token }: Props) {
         </div>
       </header>
 
+      {/* Barra de filtros sticky (solo editable y si hay algo que filtrar) */}
+      {isEditable && (brands.length > 1 || sections.length > 1) && (
+        <ApprovalFilters
+          brands={brands}
+          sections={sections}
+          filters={filters}
+          onChange={setFilters}
+          visibleCount={visibleProductIds.length}
+          onApproveVisible={handleApproveVisible}
+        />
+      )}
+
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 pb-32 sm:px-6 lg:px-8">
         <SummaryTiles
           customerName={quotation.customer_name}
@@ -215,20 +262,12 @@ export function ApprovalClient({ quotation, token }: Props) {
 
         {/* Tabla de productos */}
         <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 backdrop-blur-xl">
-          <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-            <div className="flex items-center gap-2.5">
-              <Package className="size-5 text-muted-foreground" />
-              <span className="text-base font-semibold">Productos de la cotización</span>
-              <span className="rounded-md border border-border/70 px-2 py-0.5 font-mono text-xs text-muted-foreground">
-                {productItems.length}
-              </span>
-            </div>
-            {isEditable && (
-              <Button size="sm" variant="outline" className="rounded-full" onClick={handleApproveAll}>
-                <CheckSquare className="mr-1.5 size-4" />
-                Aprobar todos
-              </Button>
-            )}
+          <div className="flex items-center gap-2.5 border-b border-border/60 px-5 py-4">
+            <Package className="size-5 text-muted-foreground" />
+            <span className="text-base font-semibold">Productos de la cotización</span>
+            <span className="rounded-md border border-border/70 px-2 py-0.5 font-mono text-xs text-muted-foreground">
+              {productItems.length}
+            </span>
           </div>
 
           <div className="overflow-x-auto">
@@ -249,8 +288,11 @@ export function ApprovalClient({ quotation, token }: Props) {
               </TableHeader>
               <TableBody>
                 {quotation.quotation_items.map((item) => {
-                  // Separador → fila de sección
+                  // Separador → fila de sección. Solo si su sección tiene ≥1 ítem
+                  // visible bajo el filtro (evita secciones vacías al filtrar).
                   if (item.item_type === 'separator') {
+                    const label = item.section_label?.trim() || 'General'
+                    if (!visibleSections.has(label)) return null
                     return (
                       <TableRow key={item.id} className="border-dashed border-border/60 bg-muted/30 hover:bg-muted/30">
                         <TableCell colSpan={10} className="px-4 py-2">
@@ -262,6 +304,9 @@ export function ApprovalClient({ quotation, token }: Props) {
                       </TableRow>
                     )
                   }
+
+                  // Filtro por marca/proyecto: oculta ítems que no pasan.
+                  if (!visibleIds.has(item.id)) return null
 
                   // "No lo vendemos" → fila informativa read-only
                   if (item.is_sold === false) {
