@@ -32,6 +32,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useCurrency } from '@/hooks/useCurrency'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { useSavePurchaseDecisions, type PurchasePlanResponse } from '@/hooks/usePurchasePlan'
 import { useUpdateSettings } from '@/hooks/useSettings'
 import {
@@ -70,6 +72,17 @@ const RECOMMENDATION_BADGE: Record<
   mixed: { label: 'Mixto', className: 'bg-blue-500/15 text-blue-700 dark:text-blue-400' },
   review: { label: 'Revisar', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' },
 }
+
+// Columnas de la vista plana (issue #18). Código es la identidad del grupo.
+const FLAT_COLUMNS: readonly TableColumn[] = [
+  { id: 'section', label: 'Sección' },
+  { id: 'etm', label: 'ETM' },
+  { id: 'model_code', label: 'Código', hideable: false },
+  { id: 'brand', label: 'Marca' },
+  { id: 'qty_to_order', label: 'A pedir' },
+  { id: 'unit_price', label: 'Precio' },
+  { id: 'bucket', label: 'Bucket' },
+]
 
 export function PurchasePlanner({ data }: PurchasePlannerProps) {
   const { order, plan } = data
@@ -202,6 +215,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ThresholdsPopover thresholds={plan.thresholds} />
+          {flatView && <ColumnPicker tableId="purchase-planner-flat" columns={FLAT_COLUMNS} />}
           <Button
             variant="outline"
             size="sm"
@@ -479,6 +493,7 @@ function FlatLinesTable({
   groups: PurchaseGroupPlan[]
   fmt: (value: number | null | undefined) => string
 }) {
+  const cols = useVisibleColumns('purchase-planner-flat', FLAT_COLUMNS)
   const lines = groups.flatMap((group) =>
     group.lines.map((line) => ({ group, line })),
   )
@@ -488,31 +503,41 @@ function FlatLinesTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Sección</TableHead>
-              <TableHead>ETM</TableHead>
+              {cols.isVisible('section') && <TableHead>Sección</TableHead>}
+              {cols.isVisible('etm') && <TableHead>ETM</TableHead>}
               <TableHead>Código</TableHead>
-              <TableHead>Marca</TableHead>
-              <TableHead className="text-right">A pedir</TableHead>
-              <TableHead className="text-right">Precio</TableHead>
-              <TableHead>Bucket</TableHead>
+              {cols.isVisible('brand') && <TableHead>Marca</TableHead>}
+              {cols.isVisible('qty_to_order') && <TableHead className="text-right">A pedir</TableHead>}
+              {cols.isVisible('unit_price') && <TableHead className="text-right">Precio</TableHead>}
+              {cols.isVisible('bucket') && <TableHead>Bucket</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {lines.map(({ group, line }) => (
               <TableRow key={line.itemId}>
-                <TableCell className="text-muted-foreground">{line.sectionLabel || '—'}</TableCell>
-                <TableCell className="font-mono text-sm">{line.etm || '—'}</TableCell>
+                {cols.isVisible('section') && (
+                  <TableCell className="text-muted-foreground">{line.sectionLabel || '—'}</TableCell>
+                )}
+                {cols.isVisible('etm') && (
+                  <TableCell className="font-mono text-sm">{line.etm || '—'}</TableCell>
+                )}
                 <TableCell className="font-mono text-sm">{line.modelCodeRaw}</TableCell>
-                <TableCell>{group.brand}</TableCell>
-                <TableCell className="text-right">{line.quantityToOrder}</TableCell>
-                <TableCell className="text-right">
-                  {line.unitPrice > 0 ? fmt(line.unitPrice) : '—'}
-                </TableCell>
-                <TableCell>
-                  {group.bucket === 'urrea' && <Badge variant="secondary">URREA</Badge>}
-                  {group.bucket === 'no_data' && <Badge variant="secondary">sin precio</Badge>}
-                  {group.bucket === 'local' && <Badge variant="outline">local</Badge>}
-                </TableCell>
+                {cols.isVisible('brand') && <TableCell>{group.brand}</TableCell>}
+                {cols.isVisible('qty_to_order') && (
+                  <TableCell className="text-right">{line.quantityToOrder}</TableCell>
+                )}
+                {cols.isVisible('unit_price') && (
+                  <TableCell className="text-right">
+                    {line.unitPrice > 0 ? fmt(line.unitPrice) : '—'}
+                  </TableCell>
+                )}
+                {cols.isVisible('bucket') && (
+                  <TableCell>
+                    {group.bucket === 'urrea' && <Badge variant="secondary">URREA</Badge>}
+                    {group.bucket === 'no_data' && <Badge variant="secondary">sin precio</Badge>}
+                    {group.bucket === 'local' && <Badge variant="outline">local</Badge>}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

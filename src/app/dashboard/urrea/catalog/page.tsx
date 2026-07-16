@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useUrreaCatalog, useUrreaCatalogStats } from '@/hooks/useUrreaCatalog'
 import type { CatalogSortField, SortDir } from '@/hooks/useUrreaCatalog'
-import { CatalogTable } from '@/components/urrea-catalog/CatalogTable'
+import { CatalogTable, CATALOG_COLUMNS } from '@/components/urrea-catalog/CatalogTable'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { CatalogForm } from '@/components/urrea-catalog/CatalogForm'
 import { CatalogImporter } from '@/components/urrea-catalog/CatalogImporter'
 import { Button } from '@/components/ui/button'
@@ -110,6 +111,7 @@ export default function UrreaCatalogPage() {
             ))}
           </SelectContent>
         </Select>
+        <ColumnPicker tableId="urrea-catalog" columns={CATALOG_COLUMNS} />
       </div>
 
       {/* Table */}
