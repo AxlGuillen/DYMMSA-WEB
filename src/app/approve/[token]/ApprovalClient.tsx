@@ -43,6 +43,7 @@ import { SummaryTiles } from './SummaryTiles'
 import { ApprovalFilters } from './ApprovalFilters'
 import { ApprovalDock } from './ApprovalDock'
 import { SuccessScreen } from './SuccessScreen'
+import { SplashIntro } from './SplashIntro'
 import { formatMoney } from './format'
 
 const DELIVERY_TIME_LABELS: Record<DeliveryTime, string> = {
@@ -193,6 +194,8 @@ export function ApprovalClient({ quotation, token }: Props) {
 
   return (
     <div className="min-h-screen bg-background [background-image:radial-gradient(1100px_540px_at_72%_-8%,rgba(163,3,5,0.07),transparent_58%),radial-gradient(900px_520px_at_6%_4%,rgba(80,80,120,0.08),transparent_55%),radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:auto,auto,22px_22px]">
+      <SplashIntro />
+
       {/* Header glass sticky */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
@@ -203,6 +206,7 @@ export function ApprovalClient({ quotation, token }: Props) {
               width={120}
               height={48}
               className="object-contain"
+              data-approval-logo
               priority
             />
             <div className="hidden h-8 w-px bg-border sm:block" />
