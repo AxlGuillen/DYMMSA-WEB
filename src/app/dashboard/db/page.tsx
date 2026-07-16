@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useProducts } from '@/hooks/useProducts'
 import type { ProductSortBy, SortDir } from '@/hooks/useProducts'
-import { ProductsTable } from '@/components/db/ProductsTable'
+import { ProductsTable, PRODUCTS_COLUMNS } from '@/components/db/ProductsTable'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { ProductForm } from '@/components/db/ProductForm'
 import { ExcelImporter } from '@/components/db/ExcelImporter'
 import { Button } from '@/components/ui/button'
@@ -109,6 +110,8 @@ export default function ProductosPage() {
             </button>
           )}
         </div>
+
+        <ColumnPicker tableId="products" columns={PRODUCTS_COLUMNS} />
 
         {data && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

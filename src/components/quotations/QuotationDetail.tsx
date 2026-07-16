@@ -92,6 +92,8 @@ import { QUOTATION_STATUS_LABELS, MANUAL_QUOTATION_STATUSES } from '@/lib/quotat
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation, useChangeQuotationStatus, ApiError } from '@/hooks/useQuotations'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { calculateQuotationTotal, isProductItem as isProductRow, isNotSold } from '@/lib/business-rules'
 import { notSoldRowClass } from '@/lib/sold-status'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
@@ -255,11 +257,13 @@ interface SortableDetailRowProps {
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
   onApprovalChange: (id: string, value: boolean | null) => void
+  /** Visibilidad de columnas (identidad estable). */
+  isVisible: (columnId: string) => boolean
 }
 
 // oxlint-disable-next-line react-doctor/no-many-boolean-props -- intentional pattern; structural refactor tracked separately
 function SortableDetailRow({
-  item, canEdit, isDndEnabled, isApproved, isSentForApproval, hasError = false, onEdit, onRemove, onAddSeparatorAfter, onApprovalChange,
+  item, canEdit, isDndEnabled, isApproved, isSentForApproval, hasError = false, onEdit, onRemove, onAddSeparatorAfter, onApprovalChange, isVisible,
 }: SortableDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -297,40 +301,58 @@ function SortableDetailRow({
         </TableCell>
       )}
       <TableCell className="font-mono text-xs font-medium">{item.etm || '—'}</TableCell>
-      <TableCell className="max-w-52">
-        {item.description
-          ? <span className="truncate block" title={item.description}>{item.description}</span>
-          : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
-      </TableCell>
-      <TableCell className="max-w-52">
-        {item.dymmsa_description
-          ? <span className="truncate block" title={item.dymmsa_description}>{item.dymmsa_description}</span>
-          : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
-      </TableCell>
-      <TableCell className="font-mono text-xs">{item.model_code || <span className="text-muted-foreground">{'\u2014'}</span>}</TableCell>
-      <TableCell>{item.brand || <span className="text-muted-foreground">{'\u2014'}</span>}</TableCell>
-      <TableCell className="text-right tabular-nums">
-        {item.unit_price != null
-          ? fmt(item.unit_price)
-          : <span className="text-muted-foreground">{'\u2014'}</span>}
-      </TableCell>
-      <TableCell className="text-right tabular-nums">
-        {item.quantity ?? <span className="text-muted-foreground">{'\u2014'}</span>}
-      </TableCell>
-      <TableCell className="text-right tabular-nums font-medium">
-        {item.unit_price != null && item.quantity != null
-          ? fmt(item.unit_price * item.quantity)
-          : <span className="text-muted-foreground">{'\u2014'}</span>}
-      </TableCell>
-      <TableCell className="text-sm whitespace-nowrap">
-        {item.delivery_time
-          ? DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'
-          : <span className="text-muted-foreground">{'\u2014'}</span>}
-      </TableCell>
-      <TableCell className="text-center">
-        <SoldStatusBadge value={item.is_sold} />
-      </TableCell>
-      {(isApproved || isSentForApproval) && (
+      {isVisible('description') && (
+        <TableCell className="max-w-52">
+          {item.description
+            ? <span className="truncate block" title={item.description}>{item.description}</span>
+            : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
+        </TableCell>
+      )}
+      {isVisible('dymmsa_description') && (
+        <TableCell className="max-w-52">
+          {item.dymmsa_description
+            ? <span className="truncate block" title={item.dymmsa_description}>{item.dymmsa_description}</span>
+            : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
+        </TableCell>
+      )}
+      {isVisible('model_code') && (
+        <TableCell className="font-mono text-xs">{item.model_code || <span className="text-muted-foreground">{'\u2014'}</span>}</TableCell>
+      )}
+      {isVisible('brand') && (
+        <TableCell>{item.brand || <span className="text-muted-foreground">{'\u2014'}</span>}</TableCell>
+      )}
+      {isVisible('unit_price') && (
+        <TableCell className="text-right tabular-nums">
+          {item.unit_price != null
+            ? fmt(item.unit_price)
+            : <span className="text-muted-foreground">{'\u2014'}</span>}
+        </TableCell>
+      )}
+      {isVisible('quantity') && (
+        <TableCell className="text-right tabular-nums">
+          {item.quantity ?? <span className="text-muted-foreground">{'\u2014'}</span>}
+        </TableCell>
+      )}
+      {isVisible('subtotal') && (
+        <TableCell className="text-right tabular-nums font-medium">
+          {item.unit_price != null && item.quantity != null
+            ? fmt(item.unit_price * item.quantity)
+            : <span className="text-muted-foreground">{'\u2014'}</span>}
+        </TableCell>
+      )}
+      {isVisible('delivery') && (
+        <TableCell className="text-sm whitespace-nowrap">
+          {item.delivery_time
+            ? DELIVERY_TIME_LABELS[item.delivery_time] ?? '—'
+            : <span className="text-muted-foreground">{'\u2014'}</span>}
+        </TableCell>
+      )}
+      {isVisible('sold') && (
+        <TableCell className="text-center">
+          <SoldStatusBadge value={item.is_sold} />
+        </TableCell>
+      )}
+      {(isApproved || isSentForApproval) && isVisible('approval') && (
         <TableCell className="text-center">
           {isApproved && canEdit ? (
             // Interactive toggle — click active button to reset to pending
@@ -860,13 +882,26 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const displayItemIds = useMemo(() => displayItems.map((i) => i._id), [displayItems])
 
-  const totalCols =
-    (canEdit ? 1 : 0) +
-    8 +          // ETM, Descripción, Desc. DYMMSA, Código, Marca, Precio, Cant., Subtotal
-    1 +          // Entrega
-    1 +          // Venta (¿lo vendemos?)
-    (hasApprovalData ? 1 : 0) +
-    (canEdit ? 1 : 0)
+  // Columnas de la tabla (issue #18). Las condicionales por status (drag/
+  // acciones con canEdit, aprobación con hasApprovalData) entran a las defs
+  // solo cuando aplican — el picker únicamente ofrece lo presente y el conteo
+  // visible reemplaza al viejo totalCols calculado a mano.
+  const itemColumns = useMemo<TableColumn[]>(() => [
+    ...(canEdit ? [{ id: 'drag', label: 'Reordenar', hideable: false }] : []),
+    { id: 'etm', label: 'ETM', hideable: false },
+    { id: 'description', label: 'Descripción' },
+    { id: 'dymmsa_description', label: 'Desc. DYMMSA' },
+    { id: 'model_code', label: 'Código' },
+    { id: 'brand', label: 'Marca' },
+    { id: 'unit_price', label: 'Precio unit.' },
+    { id: 'quantity', label: 'Cant.' },
+    { id: 'subtotal', label: 'Subtotal' },
+    { id: 'delivery', label: 'Entrega' },
+    { id: 'sold', label: 'Venta' },
+    ...(hasApprovalData ? [{ id: 'approval', label: 'Aprobación' }] : []),
+    ...(canEdit ? [{ id: 'actions', label: 'Acciones', hideable: false }] : []),
+  ], [canEdit, hasApprovalData])
+  const cols = useVisibleColumns('quotation-detail-items', itemColumns)
 
   return (
     <div className="space-y-6">
@@ -1338,6 +1373,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <ColumnPicker tableId="quotation-detail-items" columns={itemColumns} />
               {sortField && (
                 <Button
                   size="sm"
@@ -1372,24 +1408,32 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 <TableRow>
                   {canEdit && <TableHead className="w-8" />}
                   <TableHead>ETM</TableHead>
-                  <SortableHead col="description" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
-                    Descripción
-                  </SortableHead>
-                  <TableHead>Desc. DYMMSA</TableHead>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Marca</TableHead>
-                  <SortableHead col="unit_price" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
-                    Precio unit.
-                  </SortableHead>
-                  <SortableHead col="quantity" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
-                    Cant.
-                  </SortableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
-                  <SortableHead col="delivery_time" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
-                    Entrega
-                  </SortableHead>
-                  <TableHead className="text-center">Venta</TableHead>
-                  {hasApprovalData && (
+                  {cols.isVisible('description') && (
+                    <SortableHead col="description" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
+                      Descripción
+                    </SortableHead>
+                  )}
+                  {cols.isVisible('dymmsa_description') && <TableHead>Desc. DYMMSA</TableHead>}
+                  {cols.isVisible('model_code') && <TableHead>Código</TableHead>}
+                  {cols.isVisible('brand') && <TableHead>Marca</TableHead>}
+                  {cols.isVisible('unit_price') && (
+                    <SortableHead col="unit_price" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
+                      Precio unit.
+                    </SortableHead>
+                  )}
+                  {cols.isVisible('quantity') && (
+                    <SortableHead col="quantity" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
+                      Cant.
+                    </SortableHead>
+                  )}
+                  {cols.isVisible('subtotal') && <TableHead className="text-right">Subtotal</TableHead>}
+                  {cols.isVisible('delivery') && (
+                    <SortableHead col="delivery_time" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
+                      Entrega
+                    </SortableHead>
+                  )}
+                  {cols.isVisible('sold') && <TableHead className="text-center">Venta</TableHead>}
+                  {hasApprovalData && cols.isVisible('approval') && (
                     <TableHead className="text-center">Aprobación</TableHead>
                   )}
                   {canEdit && (
@@ -1403,7 +1447,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                     {displayItems.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={totalCols}
+                          colSpan={cols.visibleCount}
                           className="h-24 text-center text-sm text-muted-foreground"
                         >
                           {approvalFilter !== 'all'
@@ -1419,7 +1463,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                             item={item}
                             canEdit={canEdit}
                             isDndEnabled={isDndEnabled}
-                            totalCols={totalCols}
+                            totalCols={cols.visibleCount}
                             onLabelChange={handleSeparatorLabelChange}
                             onRemove={handleRemove}
                           />
@@ -1436,6 +1480,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                             onRemove={handleRemove}
                             onAddSeparatorAfter={handleAddSeparatorAfter}
                             onApprovalChange={handleApprovalChange}
+                            isVisible={cols.isVisible}
                           />
                         )
                       )
@@ -1447,16 +1492,32 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
               {partialTotal > 0 && displayItems.length > 0 && (
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 8 : 7} className="text-right font-bold">
-                      Total:
-                    </TableCell>
-                    <TableCell className="text-right font-bold">
-                      {fmt(partialTotal)}
-                    </TableCell>
-                    <TableCell /> {/* Entrega */}
-                    <TableCell /> {/* Venta */}
-                    {hasApprovalData && <TableCell />} {/* Aprobación */}
-                    {canEdit && <TableCell />} {/* Acciones */}
+                    {(() => {
+                      // Alineación derivada de las columnas VISIBLES: label hasta
+                      // Subtotal + una celda vacía por columna posterior. Si
+                      // Subtotal está oculta, una sola celda fusionada.
+                      const subIdx = cols.visibleColumns.findIndex((c) => c.id === 'subtotal')
+                      if (subIdx < 0) {
+                        return (
+                          <TableCell colSpan={cols.visibleCount} className="text-right font-bold">
+                            Total: {fmt(partialTotal)}
+                          </TableCell>
+                        )
+                      }
+                      return (
+                        <>
+                          <TableCell colSpan={subIdx} className="text-right font-bold">
+                            Total:
+                          </TableCell>
+                          <TableCell className="text-right font-bold">
+                            {fmt(partialTotal)}
+                          </TableCell>
+                          {cols.visibleColumns.slice(subIdx + 1).map((c) => (
+                            <TableCell key={c.id} />
+                          ))}
+                        </>
+                      )
+                    })()}
                   </TableRow>
                 </TableFooter>
               )}

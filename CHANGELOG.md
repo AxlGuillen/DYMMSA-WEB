@@ -3,6 +3,17 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-16 (II)
+
+### Nuevo
+- **Elige qué columnas ver en cada tabla.** Todas las tablas principales (cotizaciones,
+  órdenes, sus productos, el cotizador, el planificador de compra, los catálogos, el
+  inventario y las tareas) tienen ahora un botón **"Columnas"** para ocultar las que no
+  necesitas en ese momento — útil en pantallas medianas o cuando solo estás revisando
+  precios o cantidades. Tu selección **se recuerda en tu navegador** por tabla, y con
+  "Restablecer columnas" vuelves a verlas todas. Las columnas clave (el identificador del
+  producto y las acciones) siempre quedan visibles para no perder el hilo.
+
 ## 2026-07-16
 
 ### Nuevo

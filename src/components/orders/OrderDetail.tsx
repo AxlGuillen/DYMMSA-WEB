@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -83,6 +83,8 @@ import {
 } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { usePurchasePlan } from '@/hooks/usePurchasePlan'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import {
   calculateDeliveredTotal,
   receivedForCustomer,
@@ -416,6 +418,27 @@ export function OrderDetail({ order }: OrderDetailProps) {
   }
 
   const hasChanges = Object.keys(itemEdits).length > 0
+
+  // Columnas de la tabla de ítems (issue #18). Acciones solo entra a las defs
+  // con la orden abierta; ETM y Acciones son fijas.
+  const isOrderActive = order.status !== 'completed' && order.status !== 'cancelled'
+  const itemColumns = useMemo<TableColumn[]>(() => [
+    { id: 'etm', label: 'ETM', hideable: false },
+    { id: 'model_code', label: 'Model Code' },
+    { id: 'brand', label: 'Marca' },
+    { id: 'description', label: 'Descripción' },
+    { id: 'qty_approved', label: 'Aprobados' },
+    { id: 'qty_in_stock', label: 'En Stock' },
+    { id: 'location', label: 'Ubicación' },
+    { id: 'qty_to_order', label: 'A Pedir' },
+    { id: 'qty_received', label: 'Recibidos' },
+    { id: 'urrea_status', label: 'Estado de envío' },
+    { id: 'delivery', label: 'Tiempo Entrega' },
+    { id: 'unit_price', label: 'Precio' },
+    { id: 'total', label: 'Total' },
+    ...(isOrderActive ? [{ id: 'actions', label: 'Acciones', hideable: false }] : []),
+  ], [isOrderActive])
+  const cols = useVisibleColumns('order-detail-items', itemColumns)
   const isCancelled = order.status === 'cancelled'
   const isCompleted = order.status === 'completed'
 
@@ -731,6 +754,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <ColumnPicker tableId="order-detail-items" columns={itemColumns} />
               {!isCompleted && !isCancelled && (
                 <Button size="sm" variant="outline" onClick={() => setAddItemOpen(true)}>
                   <Plus className="size-4 mr-1.5" />
@@ -756,18 +780,18 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>ETM</TableHead>
-                  <TableHead>Model Code</TableHead>
-                  <TableHead>Marca</TableHead>
-                  <TableHead className="max-w-[200px]">Descripción</TableHead>
-                  <TableHead className="text-right">Aprobados</TableHead>
-                  <TableHead className="text-right">En Stock</TableHead>
-                  <TableHead>Ubicación</TableHead>
-                  <TableHead className="text-right">A Pedir</TableHead>
-                  <TableHead className="text-right">Recibidos</TableHead>
-                  <TableHead>Estado de envío</TableHead>
-                  <TableHead>Tiempo Entrega</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  {cols.isVisible('model_code') && <TableHead>Model Code</TableHead>}
+                  {cols.isVisible('brand') && <TableHead>Marca</TableHead>}
+                  {cols.isVisible('description') && <TableHead className="max-w-[200px]">Descripción</TableHead>}
+                  {cols.isVisible('qty_approved') && <TableHead className="text-right">Aprobados</TableHead>}
+                  {cols.isVisible('qty_in_stock') && <TableHead className="text-right">En Stock</TableHead>}
+                  {cols.isVisible('location') && <TableHead>Ubicación</TableHead>}
+                  {cols.isVisible('qty_to_order') && <TableHead className="text-right">A Pedir</TableHead>}
+                  {cols.isVisible('qty_received') && <TableHead className="text-right">Recibidos</TableHead>}
+                  {cols.isVisible('urrea_status') && <TableHead>Estado de envío</TableHead>}
+                  {cols.isVisible('delivery') && <TableHead>Tiempo Entrega</TableHead>}
+                  {cols.isVisible('unit_price') && <TableHead className="text-right">Precio</TableHead>}
+                  {cols.isVisible('total') && <TableHead className="text-right">Total</TableHead>}
                   {!isCompleted && !isCancelled && (
                     <TableHead className="text-center">Acciones</TableHead>
                   )}
@@ -779,7 +803,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   if (item.item_type === 'separator') {
                     return (
                       <TableRow key={item.id} className="border-b border-dashed border-border/60 bg-muted/30 hover:bg-muted/30">
-                        <TableCell colSpan={isCompleted || isCancelled ? 13 : 14} className="px-4 py-2">
+                        <TableCell colSpan={cols.visibleCount} className="px-4 py-2">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <SeparatorHorizontal className="size-3.5 shrink-0" />
                             <span className="font-medium">{item.section_label || 'Sección'}</span>
@@ -798,23 +822,34 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="font-mono text-sm">{item.etm}</TableCell>
-                      <TableCell>{item.model_code}</TableCell>
-                      <TableCell>{item.brand || '—'}</TableCell>
-                      <TableCell className="max-w-[200px] text-sm break-words whitespace-normal">
-                        {item.description}
-                      </TableCell>
-                      <TableCell className="text-right">{item.quantity_approved}</TableCell>
-                      <TableCell className="text-right text-blue-600">
-                        {item.quantity_in_stock}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {item.quantity_in_stock > 0 && item.location
-                          ? item.location
-                          : <span className="text-muted-foreground">{'—'}</span>}
-                      </TableCell>
-                      <TableCell className="text-right text-orange-600">
-                        {item.quantity_to_order}
-                      </TableCell>
+                      {cols.isVisible('model_code') && <TableCell>{item.model_code}</TableCell>}
+                      {cols.isVisible('brand') && <TableCell>{item.brand || '—'}</TableCell>}
+                      {cols.isVisible('description') && (
+                        <TableCell className="max-w-[200px] text-sm break-words whitespace-normal">
+                          {item.description}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('qty_approved') && (
+                        <TableCell className="text-right">{item.quantity_approved}</TableCell>
+                      )}
+                      {cols.isVisible('qty_in_stock') && (
+                        <TableCell className="text-right text-blue-600">
+                          {item.quantity_in_stock}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('location') && (
+                        <TableCell className="font-mono text-sm">
+                          {item.quantity_in_stock > 0 && item.location
+                            ? item.location
+                            : <span className="text-muted-foreground">{'—'}</span>}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('qty_to_order') && (
+                        <TableCell className="text-right text-orange-600">
+                          {item.quantity_to_order}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('qty_received') && (
                       <TableCell className="text-right">
                         {canEditQuantity ? (() => {
                           const effectiveReceived = edit?.quantity_received ?? item.quantity_received
@@ -855,6 +890,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           </span>
                         )}
                       </TableCell>
+                      )}
+                      {cols.isVisible('urrea_status') && (
                       <TableCell>
                         {canEditUrreaStatus ? (
                           <Select
@@ -890,6 +927,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           </Badge>
                         )}
                       </TableCell>
+                      )}
+                      {cols.isVisible('delivery') && (
                       <TableCell>
                         {isOrderOpen ? (
                           <Select
@@ -916,6 +955,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           </span>
                         )}
                       </TableCell>
+                      )}
+                      {cols.isVisible('unit_price') && (
                       <TableCell className="text-right">
                         {isOrderOpen && editingPriceId === item.id ? (
                           <div className="flex items-center justify-end gap-1">
@@ -950,10 +991,13 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           <span>{fmt(item.unit_price)}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {/* Total de línea con la misma regla del backend (excedente no se factura) */}
-                        {fmt(calculateDeliveredTotal([item]))}
-                      </TableCell>
+                      )}
+                      {cols.isVisible('total') && (
+                        <TableCell className="text-right font-medium">
+                          {/* Total de línea con la misma regla del backend (excedente no se factura) */}
+                          {fmt(calculateDeliveredTotal([item]))}
+                        </TableCell>
+                      )}
                       {isOrderOpen && (
                         <TableCell>
                           <div className="flex items-center justify-center gap-1">
@@ -981,15 +1025,31 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell
-                    colSpan={!isCompleted && !isCancelled ? 13 : 12}
-                    className="text-right font-bold"
-                  >
-                    Total:
-                  </TableCell>
-                  <TableCell className="text-right font-bold">
-                    {fmt(totalAmount)}
-                  </TableCell>
+                  {(() => {
+                    // Alineado a las columnas VISIBLES; si Total está oculta,
+                    // una sola celda fusionada con el monto.
+                    const totalIdx = cols.visibleColumns.findIndex((c) => c.id === 'total')
+                    if (totalIdx < 0) {
+                      return (
+                        <TableCell colSpan={cols.visibleCount} className="text-right font-bold">
+                          Total: {fmt(totalAmount)}
+                        </TableCell>
+                      )
+                    }
+                    return (
+                      <>
+                        <TableCell colSpan={totalIdx} className="text-right font-bold">
+                          Total:
+                        </TableCell>
+                        <TableCell className="text-right font-bold">
+                          {fmt(totalAmount)}
+                        </TableCell>
+                        {cols.visibleColumns.slice(totalIdx + 1).map((c) => (
+                          <TableCell key={c.id} />
+                        ))}
+                      </>
+                    )
+                  })()}
                 </TableRow>
               </TableFooter>
             </Table>

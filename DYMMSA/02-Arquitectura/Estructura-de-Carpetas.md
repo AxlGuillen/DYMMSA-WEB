@@ -63,6 +63,7 @@ src/
 ├── components/
 │   ├── dashboard/                # DashboardMetrics, MetricCard, OrderStatusBreakdown
 │   ├── db/                       # ExcelImporter, ProductForm, ProductsTable
+│   ├── ColumnPicker.tsx          # Selector "Columnas" por tabla (checkbox + restablecer, issue #18)
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
@@ -82,6 +83,7 @@ src/
 │   ├── useProducts.ts            # CRUD catálogo ETM
 │   ├── useQuotations.ts          # CRUD + acciones de cotizaciones
 │   ├── usePurchasePlan.ts        # Plan de compra + guardado de decisiones (ADR-018)
+│   ├── useVisibleColumns.ts      # Visibilidad de columnas por tabla (issue #18; SSR-safe con useMounted)
 │   ├── useQuotes.ts              # Lookup ETMs para el cotizador
 │   ├── useSettings.ts            # useUpdateSettings (app_settings, umbrales del planificador)
 │   └── useTasks.ts               # Tareas (GitHub Issues): lista/detalle/crear/editar/comentar/upload
@@ -105,6 +107,7 @@ src/
 │   └── utils.ts                  # cn() — class merging
 │
 ├── stores/
+│   ├── columnStore.ts            # Zustand store: columnas ocultas por tabla (persist 'dymmsa-columns', issue #18)
 │   ├── discreteModeStore.ts      # Zustand store: modo discreto ON/OFF (persist en localStorage)
 │   └── quotationStore.ts         # Zustand store: draft de cotización (persist en localStorage)
 │

@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { OrdersTable } from '@/components/orders/OrdersTable'
+import { OrdersTable, ORDERS_COLUMNS } from '@/components/orders/OrdersTable'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { useOrders, useOrderStats } from '@/hooks/useOrders'
 import type { OrderStatus } from '@/types/database'
 
@@ -135,6 +136,7 @@ export default function OrdersPage() {
             <X className="size-3.5" />
           </button>
         )}
+        <ColumnPicker tableId="orders-list" columns={ORDERS_COLUMNS} />
       </div>
 
       {/* Table */}

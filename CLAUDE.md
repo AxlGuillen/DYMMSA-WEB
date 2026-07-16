@@ -123,7 +123,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 - **Hooks = TanStack Query + fetch a API Routes propias.** No llamar Supabase directo desde el cliente — ni lecturas ni CRUD. Wrapper compartido `fetchJson`/`ApiError` en `src/lib/fetch-json.ts`. Excepción legítima: `useAuth`/`login` usan el browser client para la sesión. **Migrados (2026-06-19):** cotizaciones (incl. lista/stats/detalle), inventario, catálogo URREA. **Pendientes (aún con lecturas directas):** `useOrders`, `useDashboard`, `useProducts` → migrar a su `GET /api/*` cuando se toquen.
 - **API Routes:** usar `createClient()` de `@supabase/ssr` + verificar `auth.getUser()` al inicio.
 - **Páginas:** Server Components por defecto; `"use client"` solo donde hay interactividad.
-- **Zustand store:** `dymmsa-quotation-draft` en localStorage. Llamar `reset()` al guardar exitosamente.
+- **Zustand store:** `dymmsa-quotation-draft` en localStorage. Llamar `reset()` al guardar exitosamente. Otras keys persistidas: `dymmsa-columns` (columnas ocultas por tabla, issue #18 — vía `useVisibleColumns` + `ColumnPicker`), `dymmsa-sidebar-collapsed`, `dymmsa-sound`, `dymmsa-discrete-mode`.
 - **Iconos:** importar desde `@/components/icons` (animados, `@animateicons/react`), **no** de `lucide-react` directo. El adaptador (`src/components/icons.tsx`) reexpone los nombres de lucide mapeados a su versión animada — o a una **relacionada** si la librería (248 iconos curados) no tiene el exacto — y traduce las clases `size-N`/`h-N` al prop `size`. Agregar un icono nuevo = añadir su export ahí.
 - **Sin comentarios obvios.** Solo comentar WHY cuando no es evidente.
 

@@ -30,10 +30,20 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreHorizontal, Pencil, Trash2, Package, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteInventoryItem } from '@/hooks/useInventory'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { StoreInventory } from '@/types/database'
 import type { QuantitySort } from '@/hooks/useInventory'
+
+// Columnas del inventario (issue #18). Código y acciones son fijas.
+export const INVENTORY_COLUMNS: readonly TableColumn[] = [
+  { id: 'model_code', label: 'Código Modelo', hideable: false },
+  { id: 'quantity', label: 'Cantidad' },
+  { id: 'location', label: 'Ubicación' },
+  { id: 'updated_at', label: 'Última Actualización' },
+  { id: 'actions', label: 'Acciones', hideable: false },
+]
 
 interface InventoryTableProps {
   items: StoreInventory[]
@@ -46,22 +56,25 @@ interface InventoryTableProps {
 
 export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, onSortQuantity }: InventoryTableProps) {
   const SortIcon = quantitySort === 'desc' ? ArrowDown : quantitySort === 'asc' ? ArrowUp : ArrowUpDown
+  const cols = useVisibleColumns('inventory', INVENTORY_COLUMNS)
 
   const tableHeaders = (
     <TableHeader>
       <TableRow>
         <TableHead className="w-[220px]">Código Modelo</TableHead>
-        <TableHead className="w-[160px]">
-          <button type="button"
-            onClick={onSortQuantity}
-            className="flex items-center gap-1.5 hover:text-foreground transition-colors font-medium"
-          >
-            Cantidad
-            <SortIcon className={`h-3.5 w-3.5 ${quantitySort ? 'text-foreground' : 'text-muted-foreground/50'}`} />
-          </button>
-        </TableHead>
-        <TableHead className="w-[140px]">Ubicación</TableHead>
-        <TableHead>Última Actualización</TableHead>
+        {cols.isVisible('quantity') && (
+          <TableHead className="w-[160px]">
+            <button type="button"
+              onClick={onSortQuantity}
+              className="flex items-center gap-1.5 hover:text-foreground transition-colors font-medium"
+            >
+              Cantidad
+              <SortIcon className={`h-3.5 w-3.5 ${quantitySort ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+            </button>
+          </TableHead>
+        )}
+        {cols.isVisible('location') && <TableHead className="w-[140px]">Ubicación</TableHead>}
+        {cols.isVisible('updated_at') && <TableHead>Última Actualización</TableHead>}
         <TableHead className="w-[80px]">Acciones</TableHead>
       </TableRow>
     </TableHeader>
@@ -106,9 +119,9 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
             {Array.from({ length: 8 }).map((_, i) => (
               <TableRow key={i}>
                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                {cols.isVisible('quantity') && <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>}
+                {cols.isVisible('location') && <TableCell><Skeleton className="h-4 w-16" /></TableCell>}
+                {cols.isVisible('updated_at') && <TableCell><Skeleton className="h-4 w-32" /></TableCell>}
                 <TableCell><Skeleton className="size-8 rounded-md" /></TableCell>
               </TableRow>
             ))}
@@ -145,18 +158,24 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
             {items.map((item) => (
               <TableRow key={item.id} className={getRowClass(item.quantity)}>
                 <TableCell className="font-mono text-sm">{item.model_code}</TableCell>
-                <TableCell>{getQuantityBadge(item.quantity)}</TableCell>
-                <TableCell className="font-mono text-sm">
-                  {item.quantity > 0 && item.location
-                    ? item.location
-                    : <span className="text-muted-foreground">{'—'}</span>}
-                </TableCell>
-                <TableCell
-                  className="text-muted-foreground text-sm"
-                  title={formatAbsolute(item.updated_at)}
-                >
-                  {formatRelative(item.updated_at)}
-                </TableCell>
+                {cols.isVisible('quantity') && (
+                  <TableCell>{getQuantityBadge(item.quantity)}</TableCell>
+                )}
+                {cols.isVisible('location') && (
+                  <TableCell className="font-mono text-sm">
+                    {item.quantity > 0 && item.location
+                      ? item.location
+                      : <span className="text-muted-foreground">{'—'}</span>}
+                  </TableCell>
+                )}
+                {cols.isVisible('updated_at') && (
+                  <TableCell
+                    className="text-muted-foreground text-sm"
+                    title={formatAbsolute(item.updated_at)}
+                  >
+                    {formatRelative(item.updated_at)}
+                  </TableCell>
+                )}
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
