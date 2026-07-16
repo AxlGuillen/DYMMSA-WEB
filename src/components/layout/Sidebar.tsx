@@ -49,6 +49,7 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Truck,
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
 
@@ -71,7 +72,8 @@ const etmUrreaLinks: LinkItem[] = [
 ]
 
 const dymmsaLinks: LinkItem[] = [
-  { href: '/dashboard/inventory', label: 'Inventario', icon: Warehouse },
+  { href: '/dashboard/inventory',   label: 'Inventario',  icon: Warehouse },
+  { href: '/dashboard/proveedores', label: 'Proveedores', icon: Truck },
 ]
 
 const urreaLinks: LinkItem[] = [
