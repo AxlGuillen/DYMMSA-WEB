@@ -7,19 +7,27 @@ function makeItem(overrides: Partial<{
   model_code: string | null
   quantity_in_stock: number
   quantity_received: number
+  quantity_to_order: number
 }> = {}) {
-  return {
+  const base = {
     model_code:        'MC-001',
     quantity_in_stock: 0,
     quantity_received: 0,
     ...overrides,
+  }
+  // Default: lo pedido cubre lo recibido (sin excedente) — el caso legacy.
+  return { quantity_to_order: base.quantity_received, ...base } as {
+    model_code: string | null
+    quantity_in_stock: number
+    quantity_received: number
+    quantity_to_order: number
   }
 }
 
 // ─── computeRestoration ───────────────────────────────────────────────────────
 
 describe('computeRestoration', () => {
-  test('sums quantity_in_stock + quantity_received', () => {
+  test('sums quantity_in_stock + min(recibido, pedido)', () => {
     const items = [makeItem({ quantity_in_stock: 3, quantity_received: 2 })]
     const result = computeRestoration(items)
     expect(result).toHaveLength(1)
@@ -104,12 +112,32 @@ describe('computeRestoration', () => {
     expect(computeRestoration(items)).toHaveLength(0)
   })
 
+  test('REGLA (ADR-019): el excedente NO se restaura — ya entró al confirmar recepción', () => {
+    // in_stock 3 + min(10, 2) = 5; los 8 de excedente ya están en inventario
+    const items = [makeItem({ quantity_in_stock: 3, quantity_received: 10, quantity_to_order: 2 })]
+    const result = computeRestoration(items)
+    expect(result[0].quantityToRestore).toBe(5)
+  })
+
+  test('to_order 0 con received > 0 → solo restaura in_stock', () => {
+    // Ítem cubierto por stock: cualquier received sería excedente puro
+    const items = [makeItem({ quantity_in_stock: 4, quantity_received: 3, quantity_to_order: 0 })]
+    const result = computeRestoration(items)
+    expect(result[0].quantityToRestore).toBe(4)
+  })
+
+  test('model_code vacío (string) también se excluye', () => {
+    const items = [makeItem({ model_code: '  ', quantity_in_stock: 5 })]
+    expect(computeRestoration(items)).toHaveLength(0)
+  })
+
   test('works with extra fields (generic T extends RestorableItem)', () => {
     const items = [
       {
         model_code:        'MC-999',
         quantity_in_stock: 3,
         quantity_received: 1,
+        quantity_to_order: 1,
         item_type:         'product',     // extra field
         some_other_field:  'ignored',     // extra field
       },

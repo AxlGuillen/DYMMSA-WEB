@@ -194,12 +194,14 @@ export function calculateOrderTotal<T extends OrderItemLike>(items: T[]): number
 
 /**
  * Total real entregado al cliente, usado en confirm-reception.
- * Suma `quantity_in_stock + quantity_received` (si URREA no marcó "no suministrado"),
- * multiplicado por `unit_price`.
+ * Suma `quantity_in_stock + min(recibido, pedido)` (si URREA no marcó
+ * "no suministrado"), multiplicado por `unit_price`. El EXCEDENTE de
+ * recepción nunca se factura — es stock de tienda, no venta (ADR-019).
  */
 export function calculateDeliveredTotal<T extends {
   quantity_in_stock: number
   quantity_received: number
+  quantity_to_order: number
   urrea_status: string
   unit_price: number
   item_type?: string | null
@@ -208,10 +210,35 @@ export function calculateDeliveredTotal<T extends {
     if (!isProductItem(item)) return sum
     let qty = item.quantity_in_stock
     if (item.urrea_status !== 'not_supplied') {
-      qty += item.quantity_received
+      qty += receivedForCustomer(item)
     }
     return sum + qty * item.unit_price
   }, 0)
+}
+
+// ─── Recepción con excedente (ADR-019) ─────────────────────────────────
+
+type ReceptionLike = {
+  quantity_received: number
+  quantity_to_order: number
+}
+
+/**
+ * Porción de lo recibido que corresponde al cliente (facturable/entregable):
+ * `min(recibido, pedido)`. El excedente no se cobra ni aparece en el formato
+ * de entrega — la aprobación ya fijó qué compra el cliente.
+ */
+export function receivedForCustomer<T extends ReceptionLike>(item: T): number {
+  return Math.min(item.quantity_received, item.quantity_to_order)
+}
+
+/**
+ * Excedente de recepción: `max(0, recibido − pedido)`. Es lo ÚNICO que entra
+ * a `store_inventory` al confirmar recepción (por delta — re-confirmar es
+ * idempotente). Independiente de `urrea_status`.
+ */
+export function receptionExcess<T extends ReceptionLike>(item: T): number {
+  return Math.max(0, item.quantity_received - item.quantity_to_order)
 }
 
 // ─── Inventario / Allocation ───────────────────────────────────────────

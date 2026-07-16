@@ -156,13 +156,6 @@ export function explainPgError(
           isConstraintViolation: true,
           constraintName: constraint,
         }
-      case 'check_received_not_exceed_ordered':
-        return {
-          userMessage:
-            'La cantidad recibida no puede ser mayor a la cantidad pedida.',
-          isConstraintViolation: true,
-          constraintName: constraint,
-        }
       case 'store_inventory_quantity_check':
         return {
           userMessage:

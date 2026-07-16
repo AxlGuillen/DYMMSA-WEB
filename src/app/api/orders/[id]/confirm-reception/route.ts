@@ -95,7 +95,7 @@ export async function POST(
     // - quantity_received: only if not marked as not_supplied
     const { data: allItems } = await supabase
       .from('order_items')
-      .select('quantity_in_stock, quantity_received, urrea_status, unit_price, item_type')
+      .select('quantity_in_stock, quantity_received, quantity_to_order, urrea_status, unit_price, item_type')
       .eq('order_id', orderId)
       .limit(5000)
 

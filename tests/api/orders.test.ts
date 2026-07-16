@@ -190,7 +190,7 @@ describe('DELETE /orders/[id]', () => {
       responses: {
         'orders.select': { data: { id: 'o1' }, error: null },
         // restoreOrderInventory lee order_items
-        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 3, quantity_received: 0 }], error: null },
+        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 3, quantity_received: 0, quantity_to_order: 0 }], error: null },
         'store_inventory.select': { data: { id: 'inv1', quantity: 5 }, error: null },
         'store_inventory.update': { data: null, error: null },
         'order_items.delete': { data: null, error: null },
@@ -241,7 +241,7 @@ describe('POST /orders/[id]/cancel', () => {
       user: AUTH,
       responses: {
         'orders.select': { data: { id: 'o1', status: 'ordered' }, error: null },
-        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 2, quantity_received: 1 }], error: null },
+        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 2, quantity_received: 1, quantity_to_order: 1 }], error: null },
         'store_inventory.select': { data: { id: 'inv1', quantity: 4 }, error: null },
         'store_inventory.update': { data: null, error: null },
         'orders.update': { data: null, error: null },
@@ -303,7 +303,7 @@ describe('POST /orders/[id]/confirm-reception', () => {
           if (hasFilter(rec, 'id')) return { data: { model_code: 'MC1' }, error: null }
           // final: lista para calculateDeliveredTotal
           return {
-            data: [{ quantity_in_stock: 2, quantity_received: 3, urrea_status: 'supplied', unit_price: 100, item_type: 'product' }],
+            data: [{ quantity_in_stock: 2, quantity_received: 3, quantity_to_order: 3, urrea_status: 'supplied', unit_price: 100, item_type: 'product' }],
             error: null,
           }
         },
