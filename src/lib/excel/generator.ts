@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
 import { sanitizeFilename, formatISODate } from '@/lib/format'
+import { receivedForCustomer } from '@/lib/business-rules'
 import type { EtmProduct, OrderItem } from '@/types/database'
 
 /**
@@ -261,11 +262,12 @@ const IVA_RATE = 0.16
 
 /**
  * Genera el Excel de entrega al cliente con productos surtidos.
- * "Surtido" = quantity_in_stock + quantity_received > 0
+ * "Surtido" = quantity_in_stock + min(recibido, pedido) > 0. El excedente de
+ * recepción no se entrega ni se cobra — es stock de tienda (ADR-019).
  */
 export function generateDeliveryExcel(items: OrderItem[], _customerName: string): Blob {
   const deliveredItems = items.filter(
-    (item) => item.quantity_in_stock + item.quantity_received > 0
+    (item) => item.quantity_in_stock + receivedForCustomer(item) > 0
   )
 
   const headers = [
@@ -281,7 +283,7 @@ export function generateDeliveryExcel(items: OrderItem[], _customerName: string)
   ]
 
   const dataRows = deliveredItems.map((item) => {
-    const qty = item.quantity_in_stock + item.quantity_received
+    const qty = item.quantity_in_stock + receivedForCustomer(item)
     return [
       item.etm,
       qty,
@@ -296,7 +298,7 @@ export function generateDeliveryExcel(items: OrderItem[], _customerName: string)
   })
 
   const subtotal = deliveredItems.reduce((sum, item) => {
-    const qty = item.quantity_in_stock + item.quantity_received
+    const qty = item.quantity_in_stock + receivedForCustomer(item)
     return sum + qty * item.unit_price
   }, 0)
   const iva = subtotal * IVA_RATE

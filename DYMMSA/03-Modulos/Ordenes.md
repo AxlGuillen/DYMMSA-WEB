@@ -85,12 +85,18 @@ Disponible mientras la orden no esté `completed` ni `cancelled`.
 
 ## Confirmar recepción
 
-**Ruta:** `POST /api/orders/[id]/confirm-reception`
+**Ruta:** `POST /api/orders/[id]/confirm-reception` · ADR: [[04-Decisiones-Tecnicas/ADR-019-Recepcion-Excedente]]
 
-- Input: `{ items: [{ id, quantity_received, urrea_status }] }`
-- SUMA `quantity_received` a `store_inventory` por `model_code`.
-- Actualiza `urrea_status` de cada ítem.
-- Cambia status orden → `received`.
+- Input: `{ items: [{ id, quantity_received, urrea_status }] }` (`quantity_received`
+  entero ≥ 0; **puede superar lo pedido** — el CHECK se eliminó).
+- Inventario: entra **solo el excedente** (`max(0, recibido − pedido)`), ajustado
+  por **delta** contra lo persistido → re-confirmar es idempotente, corregir a la
+  baja resta (clamp en 0 con warning). Recibir ≤ lo pedido no mueve inventario.
+- El excedente **no se factura**: el total recalculado usa `min(recibido, pedido)`.
+- Respuesta: `{ success, inventory_updated, warnings[] }` — la UI toastea los warnings.
+- En la UI, el botón abre un **resumen anti-dedazo** (pedido/recibido/efecto en
+  inventario, ⚠️ si recibido > 2× pedido) antes de ejecutar.
+- El status de la orden se cambia aparte (dropdown → `received`).
 
 ## Cancelar orden
 

@@ -83,7 +83,18 @@ import {
 } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { usePurchasePlan } from '@/hooks/usePurchasePlan'
-import type { OrderWithItems, OrderStatus, UrreaStatus, DeliveryTime } from '@/types/database'
+import {
+  calculateDeliveredTotal,
+  receivedForCustomer,
+  receptionExcess,
+} from '@/lib/business-rules'
+import type {
+  OrderWithItems,
+  OrderStatus,
+  UrreaStatus,
+  DeliveryTime,
+  ConfirmReceptionResult,
+} from '@/types/database'
 
 const EMPTY_ADD_FORM = {
   etm: '',
@@ -183,7 +194,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
     const deliveredItems = order.order_items.filter(
       (item) =>
         (!item.item_type || item.item_type === 'product') &&
-        item.quantity_in_stock + item.quantity_received > 0
+        item.quantity_in_stock + receivedForCustomer(item) > 0
     )
 
     if (deliveredItems.length === 0) {
@@ -266,20 +277,49 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }))
   }
 
-  const handleConfirmReception = async () => {
-    const items = Object.values(itemEdits)
+  // ── Recepción con confirmación (anti-dedazo, ADR-019) ──────────────
+  // El botón abre un resumen de lo capturado; la mutación solo corre al
+  // confirmar en el diálogo. Sin tope en el input, un typo (100 vs 10)
+  // mandaría excedente fantasma al inventario en silencio.
+  const [receptionDialogOpen, setReceptionDialogOpen] = useState(false)
 
-    if (items.length === 0) {
+  /** Filas del resumen: edición + datos del ítem para mostrar el efecto. */
+  const receptionSummary = Object.values(itemEdits).flatMap((edit) => {
+    const item = order.order_items.find((i) => i.id === edit.id)
+    if (!item) return []
+    const excess = receptionExcess({
+      quantity_received: edit.quantity_received,
+      quantity_to_order: item.quantity_to_order,
+    })
+    return [{
+      id: item.id,
+      etm: item.etm || item.model_code,
+      ordered: item.quantity_to_order,
+      received: edit.quantity_received,
+      excess,
+      // Dedazo probable: recibir más del doble de lo pedido
+      suspicious: item.quantity_to_order > 0 && edit.quantity_received > item.quantity_to_order * 2,
+    }]
+  })
+  const totalExcess = receptionSummary.reduce((sum, row) => sum + row.excess, 0)
+
+  const handleConfirmReception = () => {
+    if (Object.values(itemEdits).length === 0) {
       toast.error('No hay cambios para confirmar')
       return
     }
+    setReceptionDialogOpen(true)
+  }
 
+  const executeConfirmReception = async () => {
+    setReceptionDialogOpen(false)
     try {
-      await confirmReception.mutateAsync({
+      const result: ConfirmReceptionResult = await confirmReception.mutateAsync({
         orderId: order.id,
-        input: { items },
+        input: { items: Object.values(itemEdits) },
       })
       toast.success('Recepción confirmada')
+      result.warnings?.forEach((warning) => toast.warning(warning))
       setItemEdits({})
       refresh()
     } catch (error) {
@@ -776,23 +816,43 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         {item.quantity_to_order}
                       </TableCell>
                       <TableCell className="text-right">
-                        {canEditQuantity ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            max={item.quantity_to_order}
-                            className="w-20 h-8 text-right"
-                            value={edit?.quantity_received ?? item.quantity_received}
-                            onChange={(e) =>
-                              handleItemEdit(
-                                item.id,
-                                'quantity_received',
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                          />
-                        ) : (
-                          <span className="text-green-600">{item.quantity_received}</span>
+                        {canEditQuantity ? (() => {
+                          const effectiveReceived = edit?.quantity_received ?? item.quantity_received
+                          const excess = receptionExcess({
+                            quantity_received: effectiveReceived,
+                            quantity_to_order: item.quantity_to_order,
+                          })
+                          return (
+                            <div className="flex flex-col items-end">
+                              <Input
+                                type="number"
+                                min="0"
+                                className="w-20 h-8 text-right"
+                                value={effectiveReceived}
+                                onChange={(e) =>
+                                  handleItemEdit(
+                                    item.id,
+                                    'quantity_received',
+                                    parseInt(e.target.value) || 0
+                                  )
+                                }
+                              />
+                              {excess > 0 && (
+                                <span className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                                  +{excess} a tienda
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })() : (
+                          <span className="text-green-600">
+                            {item.quantity_received}
+                            {receptionExcess(item) > 0 && (
+                              <span className="block text-xs text-blue-600 dark:text-blue-400">
+                                +{receptionExcess(item)} a tienda
+                              </span>
+                            )}
+                          </span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -891,13 +951,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         )}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {fmt((() => {
-                          let qty = item.quantity_in_stock
-                          if (item.urrea_status !== 'not_supplied') {
-                            qty += item.quantity_received
-                          }
-                          return qty * item.unit_price
-                        })())}
+                        {/* Total de línea con la misma regla del backend (excedente no se factura) */}
+                        {fmt(calculateDeliveredTotal([item]))}
                       </TableCell>
                       {isOrderOpen && (
                         <TableCell>
@@ -1047,6 +1102,72 @@ export function OrderDetail({ order }: OrderDetailProps) {
             >
               {removeOrderItem.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
               Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Resumen de recepción antes de confirmar (anti-dedazo, ADR-019) */}
+      <AlertDialog open={receptionDialogOpen} onOpenChange={setReceptionDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar recepción</AlertDialogTitle>
+            <AlertDialogDescription>
+              Revisa las cantidades capturadas antes de aplicarlas
+              {totalExcess > 0
+                ? ` — ${totalExcess} pieza${totalExcess !== 1 ? 's' : ''} de excedente entrará${totalExcess !== 1 ? 'n' : ''} al inventario de tienda.`
+                : '.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-md border max-h-64 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ETM</TableHead>
+                  <TableHead className="text-right">Pedido</TableHead>
+                  <TableHead className="text-right">Recibido</TableHead>
+                  <TableHead className="text-right">Inventario</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {receptionSummary.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    className={row.excess > 0 ? 'bg-amber-500/10' : undefined}
+                  >
+                    <TableCell className="font-mono text-sm">{row.etm}</TableCell>
+                    <TableCell className="text-right">{row.ordered}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {row.received}
+                      {row.suspicious && (
+                        <AlertTriangle className="inline size-3.5 ml-1 text-amber-600" aria-label="Cantidad inusual" />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.excess > 0 ? (
+                        <span className="text-blue-600 dark:text-blue-400">+{row.excess} a tienda</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {receptionSummary.some((row) => row.suspicious) && (
+            <p className="text-xs text-amber-600 flex items-center gap-1.5">
+              <AlertTriangle className="size-3.5 shrink-0" />
+              Hay cantidades que superan por mucho lo pedido — verifica que no sea un error de captura.
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar de nuevo</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeConfirmReception}
+              disabled={confirmReception.isPending}
+            >
+              Sí, confirmar recepción
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -198,6 +198,14 @@ export interface ConfirmReceptionInput {
   }[]
 }
 
+// Confirm reception response (ADR-019): warnings listos para toast
+// (clamp de inventario en 0, corrección sin fila de inventario, etc.)
+export interface ConfirmReceptionResult {
+  success: boolean
+  inventory_updated: number
+  warnings: string[]
+}
+
 // Auto-learn result
 export interface AutoLearnResult {
   added: number

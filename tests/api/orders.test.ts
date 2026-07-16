@@ -190,7 +190,7 @@ describe('DELETE /orders/[id]', () => {
       responses: {
         'orders.select': { data: { id: 'o1' }, error: null },
         // restoreOrderInventory lee order_items
-        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 3, quantity_received: 0 }], error: null },
+        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 3, quantity_received: 0, quantity_to_order: 0 }], error: null },
         'store_inventory.select': { data: { id: 'inv1', quantity: 5 }, error: null },
         'store_inventory.update': { data: null, error: null },
         'order_items.delete': { data: null, error: null },
@@ -241,7 +241,7 @@ describe('POST /orders/[id]/cancel', () => {
       user: AUTH,
       responses: {
         'orders.select': { data: { id: 'o1', status: 'ordered' }, error: null },
-        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 2, quantity_received: 1 }], error: null },
+        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 2, quantity_received: 1, quantity_to_order: 1 }], error: null },
         'store_inventory.select': { data: { id: 'inv1', quantity: 4 }, error: null },
         'store_inventory.update': { data: null, error: null },
         'orders.update': { data: null, error: null },
@@ -257,6 +257,24 @@ describe('POST /orders/[id]/cancel', () => {
     expect(upd.quantity).toBe(7)
     const ordUpd = activeClient.updatePayload('orders')
     expect(ordUpd.status).toBe('cancelled')
+  })
+
+  test('REGLA (ADR-019): cancelar tras recepción con excedente NO duplica el excedente', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'orders.select': { data: { id: 'o1', status: 'received' }, error: null },
+        // recibió 10, pedía 1: los 9 de excedente YA entraron al confirmar recepción
+        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 2, quantity_received: 10, quantity_to_order: 1 }], error: null },
+        'store_inventory.select': { data: { id: 'inv1', quantity: 4 }, error: null },
+        'store_inventory.update': { data: null, error: null },
+        'orders.update': { data: null, error: null },
+      },
+    })
+    const res = await cancel.POST(makeRequest(), makeParams({ id: 'o1' }))
+    expect(res.status).toBe(200)
+    // restaura in_stock 2 + min(10, 1) = 3 → 4 + 3 = 7 (NO 4 + 12)
+    expect(activeClient.updatePayload('store_inventory').quantity).toBe(7)
   })
 })
 
@@ -292,41 +310,169 @@ describe('POST /orders/[id]/confirm-reception', () => {
     expect(res.status).toBe(400)
   })
 
-  test('REGLA: actualiza items, suma a inventario y recalcula total', async () => {
-    activeClient = createMockSupabase({
+  // Fixture del ítem persistido, ANTES de la recepción que se está confirmando.
+  // order_items.select se usa por-item (eq id) y al final (eq order_id) → ramificar por filtro.
+  // hasFilter() busca por columna, no por posición: robusto a reordenamientos del handler.
+  function receptionMock(opts: {
+    persisted: { quantity_received: number; quantity_to_order: number; model_code?: string | null; item_type?: string }
+    inventory?: { quantity: number } | null
+    finalItems?: Record<string, unknown>[]
+  }) {
+    return createMockSupabase({
       user: AUTH,
       responses: {
         'orders.select': { data: { id: 'o1', status: 'received' }, error: null },
-        // order_items.select se usa por-item (eq id) y al final (eq order_id) → ramificar por filtro.
-        // hasFilter() busca por columna, no por posición: robusto a reordenamientos del handler.
         'order_items.select': (rec) => {
-          if (hasFilter(rec, 'id')) return { data: { model_code: 'MC1' }, error: null }
-          // final: lista para calculateDeliveredTotal
-          return {
-            data: [{ quantity_in_stock: 2, quantity_received: 3, urrea_status: 'supplied', unit_price: 100, item_type: 'product' }],
-            error: null,
+          if (hasFilter(rec, 'id')) {
+            return {
+              data: {
+                model_code: opts.persisted.model_code === undefined ? 'MC1' : opts.persisted.model_code,
+                etm: 'ETM1',
+                item_type: opts.persisted.item_type ?? 'product',
+                quantity_received: opts.persisted.quantity_received,
+                quantity_to_order: opts.persisted.quantity_to_order,
+              },
+              error: null,
+            }
           }
+          return { data: opts.finalItems ?? [], error: null }
         },
         'order_items.update': { data: null, error: null },
-        'store_inventory.select': { data: { id: 'inv1', quantity: 5 }, error: null },
+        'store_inventory.select': {
+          data: opts.inventory === null ? null : { id: 'inv1', quantity: opts.inventory?.quantity ?? 0 },
+          error: null,
+        },
         'store_inventory.update': { data: null, error: null },
+        'store_inventory.insert': { data: null, error: null },
         'orders.update': { data: null, error: null },
       },
     })
-    const res = await confirmReception.POST(
-      makeRequest({ items: [{ id: 'it1', quantity_received: 3, urrea_status: 'supplied' }] }),
+  }
+
+  const confirm = (quantity_received: number) =>
+    confirmReception.POST(
+      makeRequest({ items: [{ id: 'it1', quantity_received, urrea_status: 'supplied' }] }),
       makeParams({ id: 'o1' }),
     )
+
+  test('400 si quantity_received es negativo o no entero', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await confirm(-1)).status).toBe(400)
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await confirm(1.5)).status).toBe(400)
+  })
+
+  test('REGLA (ADR-019): sin excedente NO toca inventario, solo actualiza el ítem y el total', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 0, quantity_to_order: 3 },
+      finalItems: [{ quantity_in_stock: 2, quantity_received: 3, quantity_to_order: 3, urrea_status: 'supplied', unit_price: 100, item_type: 'product' }],
+    })
+    const res = await confirm(3) // recibió exactamente lo pedido
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.inventory_updated).toBe(1)
+    expect(body.inventory_updated).toBe(0)
+    expect(body.warnings).toEqual([])
+    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
+    expect(activeClient.didCall('store_inventory', 'insert')).toBe(false)
 
-    // sumó al inventario existente: 5 + 3 = 8
-    const invUpd = activeClient.updatePayload('store_inventory')
-    expect(invUpd.quantity).toBe(8)
+    // ítem actualizado y total recalculado: (2 + min(3,3)) × 100 = 500
+    expect(activeClient.updatePayload('order_items').quantity_received).toBe(3)
+    expect(activeClient.updatePayload('orders').total_amount).toBe(500)
+  })
 
-    // recalculó total: (in_stock 2 + received 3) * 100 = 500
-    const ordUpd = activeClient.updatePayload('orders')
-    expect(ordUpd.total_amount).toBe(500)
+  test('REGLA (ADR-019): el excedente entra a inventario y NO se factura (10 recibidos, 2 pedidos → +8)', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 0, quantity_to_order: 2 },
+      inventory: { quantity: 5 },
+      finalItems: [{ quantity_in_stock: 1, quantity_received: 10, quantity_to_order: 2, urrea_status: 'supplied', unit_price: 100, item_type: 'product' }],
+    })
+    const res = await confirm(10)
+    expect(res.status).toBe(200)
+    expect((await res.json()).inventory_updated).toBe(1)
+
+    // inventario: 5 + excedente 8 = 13 (no 5 + 10)
+    expect(activeClient.updatePayload('store_inventory').quantity).toBe(13)
+    // total topado: (in_stock 1 + min(10, 2)) × 100 = 300
+    expect(activeClient.updatePayload('orders').total_amount).toBe(300)
+  })
+
+  test('REGLA (ADR-019): re-confirmar con el mismo valor es idempotente (delta 0)', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 10, quantity_to_order: 2 }, // excedente 8 ya aplicado
+      inventory: { quantity: 13 },
+    })
+    const res = await confirm(10)
+    expect(res.status).toBe(200)
+    expect((await res.json()).inventory_updated).toBe(0)
+    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
+  })
+
+  test('corrección a la baja resta el delta del inventario', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 10, quantity_to_order: 2 }, // excedente previo 8
+      inventory: { quantity: 13 },
+    })
+    const res = await confirm(4) // excedente nuevo 2 → delta −6
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.warnings).toEqual([])
+    expect(activeClient.updatePayload('store_inventory').quantity).toBe(7)
+  })
+
+  test('corrección a la baja con stock insuficiente → clamp en 0 + warning', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 10, quantity_to_order: 2 }, // excedente previo 8
+      inventory: { quantity: 4 }, // ya se vendió parte
+    })
+    const res = await confirm(2) // delta −8, 4 − 8 = −4 → 0
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(activeClient.updatePayload('store_inventory').quantity).toBe(0)
+    expect(body.warnings).toHaveLength(1)
+    expect(body.warnings[0]).toMatch(/negativo/)
+  })
+
+  test('corrección a la baja sin fila de inventario → warning, sin crash', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 10, quantity_to_order: 2 },
+      inventory: null, // la fila no existe
+    })
+    const res = await confirm(2)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.warnings).toHaveLength(1)
+    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
+    expect(activeClient.didCall('store_inventory', 'insert')).toBe(false)
+  })
+
+  test('excedente sin fila de inventario → crea la fila con el excedente', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 0, quantity_to_order: 2 },
+      inventory: null,
+    })
+    const res = await confirm(10)
+    expect(res.status).toBe(200)
+    const ins = activeClient.insertPayload<Record<string, unknown>>('store_inventory')
+    expect(ins).toEqual({ model_code: 'MC1', quantity: 8 })
+  })
+
+  test('separadores en el payload se ignoran (defensivo)', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 0, quantity_to_order: 0, item_type: 'separator' },
+    })
+    const res = await confirm(10)
+    expect(res.status).toBe(200)
+    expect(activeClient.didCall('order_items', 'update')).toBe(false)
+    expect(activeClient.didCall('store_inventory', 'insert')).toBe(false)
+  })
+
+  test('ítem sin model_code: actualiza recepción pero no toca inventario', async () => {
+    activeClient = receptionMock({
+      persisted: { quantity_received: 0, quantity_to_order: 2, model_code: '  ' },
+    })
+    const res = await confirm(10)
+    expect(res.status).toBe(200)
+    expect(activeClient.didCall('order_items', 'update')).toBe(true)
+    expect(activeClient.didCall('store_inventory', 'insert')).toBe(false)
   })
 })

@@ -10,6 +10,8 @@ import {
   calculateDeliveredTotal,
   allocateInventory,
   validateAllocationInvariant,
+  receivedForCustomer,
+  receptionExcess,
   normalizeCatalogCode,
   catalogKey,
   resolveDymmsaDescription,
@@ -249,6 +251,7 @@ describe('calculateDeliveredTotal', () => {
   function makeDeliveredItem(overrides: {
     quantity_in_stock?: number
     quantity_received?: number
+    quantity_to_order?: number
     urrea_status?: string
     unit_price?: number
     item_type?: string | null
@@ -256,6 +259,8 @@ describe('calculateDeliveredTotal', () => {
     return {
       quantity_in_stock: 0,
       quantity_received: 0,
+      // Default generoso: lo pedido cubre lo recibido (los casos legacy no cambian)
+      quantity_to_order: overrides.quantity_to_order ?? overrides.quantity_received ?? 0,
       urrea_status: 'pending',
       unit_price: 100,
       item_type: 'product' as const,
@@ -289,6 +294,48 @@ describe('calculateDeliveredTotal', () => {
 
   test('returns 0 for empty array', () => {
     expect(calculateDeliveredTotal([])).toBe(0)
+  })
+
+  test('REGLA (ADR-019): el excedente NO se factura — cap en lo pedido', () => {
+    // in_stock 2 + min(10, 3) = 5 × $100 = $500; los 7 de excedente son stock, no venta
+    const item = makeDeliveredItem({
+      quantity_in_stock: 2, quantity_received: 10, quantity_to_order: 3, unit_price: 100,
+    })
+    expect(calculateDeliveredTotal([item])).toBe(500)
+  })
+
+  test('not_supplied con excedente sigue ignorando lo recibido', () => {
+    const item = makeDeliveredItem({
+      quantity_in_stock: 2, quantity_received: 10, quantity_to_order: 3,
+      urrea_status: 'not_supplied', unit_price: 100,
+    })
+    expect(calculateDeliveredTotal([item])).toBe(200)
+  })
+})
+
+// ─── Recepción con excedente (ADR-019) ──────────────────────────────────────
+
+describe('receivedForCustomer', () => {
+  test('recibido menor o igual a lo pedido → recibido', () => {
+    expect(receivedForCustomer({ quantity_received: 2, quantity_to_order: 5 })).toBe(2)
+    expect(receivedForCustomer({ quantity_received: 5, quantity_to_order: 5 })).toBe(5)
+  })
+  test('recibido mayor a lo pedido → cap en lo pedido', () => {
+    expect(receivedForCustomer({ quantity_received: 10, quantity_to_order: 2 })).toBe(2)
+  })
+  test('to_order 0 → 0 (todo sería excedente)', () => {
+    expect(receivedForCustomer({ quantity_received: 3, quantity_to_order: 0 })).toBe(0)
+  })
+})
+
+describe('receptionExcess', () => {
+  test('ejemplo del issue: 10 recibidos − 2 pedidos → 8 al stock', () => {
+    expect(receptionExcess({ quantity_received: 10, quantity_to_order: 2 })).toBe(8)
+  })
+  test('sin excedente → 0', () => {
+    expect(receptionExcess({ quantity_received: 2, quantity_to_order: 5 })).toBe(0)
+    expect(receptionExcess({ quantity_received: 5, quantity_to_order: 5 })).toBe(0)
+    expect(receptionExcess({ quantity_received: 0, quantity_to_order: 0 })).toBe(0)
   })
 })
 

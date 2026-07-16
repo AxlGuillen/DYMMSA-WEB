@@ -188,7 +188,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `quantity_approved` | integer | No | — | `> 0 OR item_type='separator'` | Total aprobado (0 en separadores) |
 | `quantity_in_stock` | integer | No | `0` | `>= 0` | Apartado del inventario DYMMSA |
 | `quantity_to_order` | integer | No | `0` | `>= 0` | A pedir a URREA |
-| `quantity_received` | integer | No | `0` | `>= 0` | Recibido de URREA (input manual) |
+| `quantity_received` | integer | No | `0` | `>= 0` | Recibido de URREA (input manual). **Puede superar `quantity_to_order`** — el excedente entra a `store_inventory` (ADR-019; el CHECK `check_received_not_exceed_ordered` se eliminó el 2026-07-16) |
 | `urrea_status` | text | No | `'pending'` | CHECK | `pending \| supplied \| not_supplied` |
 | `unit_price` | numeric | No | — | `>= 0` | |
 | `location` | text | Sí | — | | Snapshot de `store_inventory.location` al crear la orden (gaveta) |
@@ -258,3 +258,4 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `add_brand_to_urrea_catalog` | (2026-07-14) | Columna `brand text NOT NULL DEFAULT 'URREA'` en `urrea_catalog`; `UNIQUE(code)` → `UNIQUE(code, brand)`; índice `idx_urrea_catalog_brand`. Backfill de filas existentes a `'URREA'` |
 | `urrea_catalog_brand_counts_fn` | (2026-07-14) | RPC `urrea_catalog_brand_counts()` — conteo por marca para el filtro del catálogo (`security invoker`) |
 | `create_purchase_planner_tables` | (2026-07-15) | Tablas `order_purchase_decisions` (decisión mayoreo/menudeo por orden a nivel grupo, con snapshots para staleness y CHECK de cobertura) y `app_settings` (key-value jsonb para umbrales). RLS + policy authenticated. ADR-018 |
+| `allow_received_to_exceed_ordered` | (2026-07-16) | DROP `check_received_not_exceed_ordered` en `order_items`: lo recibido puede superar lo pedido (recepción con excedente → inventario, por delta). Se conserva `>= 0`. ADR-019 |

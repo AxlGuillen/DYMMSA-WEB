@@ -5,6 +5,7 @@
  * la lógica sin necesidad de mockear Supabase.
  */
 
+import { receivedForCustomer } from '@/lib/business-rules'
 import type { createClient } from '@/lib/supabase/server'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
@@ -15,12 +16,17 @@ type RestorableItem = {
   model_code: string | null
   quantity_in_stock: number
   quantity_received: number
+  quantity_to_order: number
 }
 
 /**
- * Calcula qué cantidades restaurar a `store_inventory` cuando se cancela
- * una orden. Suma lo que se tomó del stock + lo que ya se había recibido
- * de URREA. Excluye ítems sin `model_code` y con cantidad 0.
+ * Calcula qué cantidades restaurar a `store_inventory` cuando se cancela o
+ * elimina una orden: lo tomado del stock al crearla + la porción del CLIENTE
+ * de lo recibido de URREA (`min(recibido, pedido)`) — esa mercancía se queda
+ * en tienda al morir la orden. El EXCEDENTE (recibido > pedido) NO se
+ * restaura: ya entró a inventario al confirmar la recepción (ADR-019);
+ * volver a sumarlo lo duplicaría. Excluye ítems sin `model_code` y con
+ * cantidad 0.
  *
  * PURA — no toca DB.
  */
@@ -30,11 +36,11 @@ export function computeRestoration<T extends RestorableItem>(
   return items
     .map((item) => ({
       model_code: item.model_code,
-      quantityToRestore: item.quantity_in_stock + item.quantity_received,
+      quantityToRestore: item.quantity_in_stock + receivedForCustomer(item),
     }))
     .filter(
       (r): r is { model_code: string; quantityToRestore: number } =>
-        r.model_code != null && r.quantityToRestore > 0
+        r.model_code != null && r.model_code.trim() !== '' && r.quantityToRestore > 0
     )
 }
 
@@ -55,7 +61,7 @@ export async function restoreOrderInventory(
 ): Promise<{ restored: number }> {
   const { data: items } = await supabase
     .from('order_items')
-    .select('model_code, quantity_in_stock, quantity_received')
+    .select('model_code, quantity_in_stock, quantity_received, quantity_to_order')
     .eq('order_id', orderId)
 
   if (!items) return { restored: 0 }
