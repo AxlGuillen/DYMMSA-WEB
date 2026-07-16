@@ -62,14 +62,28 @@ Cada ítem tiene su propio estado independiente:
 - `is_approved = true` → aprobado ✅
 - `is_approved = false` → rechazado ❌
 
-El cliente puede mezclar aprobaciones y rechazos. El botón "Aprobar todo" setea todos a `true`.
+El cliente puede mezclar aprobaciones y rechazos. El botón "Aprobar todos" setea todos a `true`.
+
+## UI: rediseño glass, filtros y dock sticky (issue #24)
+
+Rediseño **tema-aware** (glass; se adapta a claro/oscuro del dispositivo del cliente, sin forzar dark):
+
+- **Dock flotante sticky** (`ApprovalDock`) con anillo de progreso circular (aprobados/total, %) + "Total aprobado" + botones **Guardar avance** y **Enviar aprobación** — siempre visible al hacer scroll. Reemplaza el submit-bar no-sticky y las cards de contador. El progreso del dock es **global** (el filtro es solo navegación).
+- **Filtros** (`ApprovalFilters`, barra sticky bajo el header): por **marca** y por **proyecto/sección** (derivada de los separadores; los ítems previos al primer separador caen en "General"). Helpers puros en `src/lib/approval-filters.ts`. Un separador se oculta si su sección no tiene ítems visibles bajo el filtro.
+- **"Aprobar todos" contextual**: con un filtro activo se re-etiqueta a **"Aprobar N visibles"** y aprueba solo lo filtrado. `approvedIds` enviado al API sigue siendo el global → la ruta `POST /api/approve/[token]` **no cambia**.
+- **Tiles de resumen** (`SummaryTiles`): Cliente / Productos / Subtotal est.
+- **Splash de intro** (`SplashIntro`): el logo vuela del centro al header; **solo la primera vez por sesión** (sessionStorage) y respeta `prefers-reduced-motion`.
+
+Lógica de negocio **intacta**: separadores como filas de sección, ítems `is_sold=false` como "No disponible", guardar avance vs enviar, popup de confirmación, banner de retomar, pantalla de éxito, banners de ya-procesada.
 
 ## Componentes
 
 | Componente | Ruta | Tipo |
 |-----------|------|------|
 | `page.tsx` | `src/app/approve/[token]/page.tsx` | Server Component — carga cotización por token |
-| `ApprovalClient` | `src/app/approve/[token]/ApprovalClient.tsx` | Client Component — UI interactiva de aprobación |
+| `ApprovalClient` | `src/app/approve/[token]/ApprovalClient.tsx` | Client Component — orquesta la UI de aprobación |
+| `ApprovalFilters` · `ApprovalDock` · `SummaryTiles` · `SuccessScreen` · `SplashIntro` | `src/app/approve/[token]/` | Subcomponentes del rediseño (issue #24) |
+| `approval-filters.ts` | `src/lib/approval-filters.ts` | Helpers puros de secciones/marcas/filtrado |
 
 ## Rutas API
 

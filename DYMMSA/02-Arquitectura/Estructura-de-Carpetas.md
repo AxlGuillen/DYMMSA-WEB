@@ -35,7 +35,13 @@ src/
 │   │
 │   ├── approve/[token]/          # Página PÚBLICA de aprobación (sin auth)
 │   │   ├── page.tsx              # Server component: carga cotización por token
-│   │   └── ApprovalClient.tsx    # Client component: UI de aprobación interactiva
+│   │   ├── ApprovalClient.tsx    # Client component: orquesta la UI de aprobación
+│   │   ├── ApprovalFilters.tsx   # Filtros marca/proyecto + aprobar-visibles (issue #24)
+│   │   ├── ApprovalDock.tsx      # Dock flotante sticky (anillo de progreso + acciones)
+│   │   ├── SummaryTiles.tsx      # Tiles Cliente/Productos/Subtotal
+│   │   ├── SuccessScreen.tsx     # Pantalla de confirmación tras enviar
+│   │   ├── SplashIntro.tsx       # Splash del logo (1 vez por sesión, reduce-motion)
+│   │   └── format.ts             # Formato de moneda local (público, sin modo discreto)
 │   │
 │   ├── dashboard/                # Área autenticada
 │   │   ├── layout.tsx            # Layout con Sidebar + Navbar
@@ -99,6 +105,7 @@ src/
 │   │   └── admin.ts              # createAdminClient (service role, cuando necesario)
 │   ├── format.ts                 # Fechas relativas/absolutas, sanitize, parseNumber, parseInteger
 │   ├── business-rules.ts         # isProductItem, calculateQuotationTotal, allocateInventory, etc.
+│   ├── approval-filters.ts       # Filtros de la página de aprobación: secciones/marcas (issue #24)
 │   ├── purchase-plan.ts          # Planificador de compra: consolidación, math STD, recomendación (ADR-018)
 │   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers
 │   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
