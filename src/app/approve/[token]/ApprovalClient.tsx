@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { filterProductItems } from '@/lib/business-rules'
+import { filterProductItems, calculateApprovedSubtotal } from '@/lib/business-rules'
 import {
   NO_FILTERS,
   listBrands,
@@ -117,13 +117,11 @@ export function ApprovalClient({ quotation, token }: Props) {
   const approvedCount = decisions.filter((d) => d.is_approved).length
   const notApprovedCount = decisions.length - approvedCount
 
-  const approvedTotal = productItems.reduce((sum, item) => {
-    const dec = decisions.find((d) => d.item_id === item.id)
-    if (dec?.is_approved && item.unit_price != null && item.quantity != null) {
-      return sum + item.unit_price * item.quantity
-    }
-    return sum
-  }, 0)
+  const approvedIdSet = useMemo(
+    () => new Set(decisions.filter((d) => d.is_approved).map((d) => d.item_id)),
+    [decisions],
+  )
+  const approvedTotal = calculateApprovedSubtotal(productItems, approvedIdSet)
 
   const toggleDecision = (item_id: string) => {
     setDecisions((prev) =>

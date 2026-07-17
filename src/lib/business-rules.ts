@@ -184,6 +184,26 @@ export function calculateQuotationTotal<T extends QuotationItemLike>(
   }, 0)
 }
 
+/**
+ * Subtotal de los ítems que el cliente aprobó EN VIVO en `/approve/[token]`.
+ *
+ * A diferencia de `calculateQuotationTotal({ onlyApproved })`, que lee el campo
+ * persistido `is_approved`, aquí la aprobación es el estado local (set de ids)
+ * que el cliente va marcando antes de guardar/enviar. Aplica las mismas reglas:
+ * excluye separadores, "no lo vendemos" y líneas sin precio/cantidad.
+ */
+export function calculateApprovedSubtotal<T extends QuotationItemLike & { id: string }>(
+  items: T[],
+  approvedIds: ReadonlySet<string>,
+): number {
+  return items.reduce((sum, item) => {
+    if (!isProductItem(item)) return sum
+    if (isNotSold(item)) return sum
+    if (!approvedIds.has(item.id)) return sum
+    return sum + (calculateLineTotal(item.unit_price, item.quantity) ?? 0)
+  }, 0)
+}
+
 // ─── Totales de orden ──────────────────────────────────────────────────
 
 type OrderItemLike = {
