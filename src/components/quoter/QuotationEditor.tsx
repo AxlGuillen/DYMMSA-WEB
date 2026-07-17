@@ -313,7 +313,7 @@ interface QuotationEditorProps {
   errorItemIds?: ReadonlySet<string>
 }
 
-export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
+function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
   // Selectores slice: el editor solo re-renderiza cuando cambia su slice;
   // tipear en name/customer_name no lo afecta. Las acciones de Zustand son
   // refs estables, así que los selectores de acción no causan re-renders.
@@ -334,8 +334,19 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
   )
 
   const fmt = useCurrency()
-  const productItems = items.filter(isProductItem)
+  const productItems = useMemo(() => items.filter(isProductItem), [items])
   const cols = useVisibleColumns('quoter-editor', EDITOR_COLUMNS)
+
+  // Descripción DYMMSA resuelta por fila, memoizada por _id. Resolverla inline en
+  // el map (`resolveDymmsaDescription(item, catalogMap)`) creaba un objeto nuevo
+  // por render → rompía el React.memo de SortableRow y repintaba las 1000 filas
+  // en CADA render del editor (p.ej. tipear el nombre de la cotización). Con el
+  // Map memoizado la referencia es estable salvo que cambien items/catálogo.
+  const dymmsaByRow = useMemo(() => {
+    const map = new Map<string, { value: string | null; source: DymmsaDescriptionSource }>()
+    for (const item of items) map.set(item._id, resolveDymmsaDescription(item, catalogMap))
+    return map
+  }, [items, catalogMap])
 
   const [modalOpen, setModalOpen]       = useState(false)
   const [modalMode, setModalMode]       = useState<'edit' | 'create'>('create')
@@ -384,14 +395,31 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
   // cuando items cambia.
   const itemIds = useMemo(() => items.map((i) => i._id), [items])
 
-  // --- stats (only product rows) ---
-  const noDataCount     = productItems.filter(isMissingData).length
-  const noQuantityCount = productItems.filter(isMissingQuantity).length
-  const completeCount   = productItems.filter(isComplete).length
-
-  const partialTotal = calculateQuotationTotal(productItems)
+  // --- stats (only product rows) --- un solo paso sobre productItems.
+  const { noDataCount, noQuantityCount, completeCount, partialTotal } = useMemo(() => {
+    let noData = 0, noQty = 0, complete = 0
+    for (const item of productItems) {
+      if (isMissingData(item)) noData++
+      else if (isMissingQuantity(item)) noQty++
+      if (isComplete(item)) complete++
+    }
+    return {
+      noDataCount: noData,
+      noQuantityCount: noQty,
+      completeCount: complete,
+      partialTotal: calculateQuotationTotal(productItems),
+    }
+  }, [productItems])
 
   const allComplete = productItems.length > 0 && noDataCount === 0 && noQuantityCount === 0
+
+  // ETMs presentes (excluye la fila en edición) para el aviso de duplicado del modal.
+  const existingEtms = useMemo(
+    () => items.flatMap((i) =>
+      isProductItem(i) && i._id !== selectedItem?._id ? [i.etm] : []
+    ),
+    [items, selectedItem?._id],
+  )
 
   return (
     <div className="space-y-4">
@@ -521,7 +549,7 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
                           onRemove={removeItem}
                           onAddSeparatorAfter={addSeparatorAfter}
                           hasError={errorItemIds?.has(item._id) ?? false}
-                          dymmsaDesc={resolveDymmsaDescription(item, catalogMap)}
+                          dymmsaDesc={dymmsaByRow.get(item._id)}
                           isVisible={cols.isVisible}
                         />
                       )
@@ -541,10 +569,13 @@ export function QuotationEditor({ errorItemIds }: QuotationEditorProps = {}) {
         onOpenChange={setModalOpen}
         onSave={handleModalSave}
         onCatalogResolved={(code, description) => mergeCatalogDescriptions({ [code]: description })}
-        existingEtms={items.flatMap((i) =>
-          isProductItem(i) && i._id !== selectedItem?._id ? [i.etm] : []
-        )}
+        existingEtms={existingEtms}
       />
     </div>
   )
 }
+
+// memo: el editor lee sus datos del store con selectores propios, así que solo
+// re-renderiza cuando cambia su slice o su única prop (errorItemIds, identidad
+// estable). Sin esto, tipear el nombre/cliente en la página padre lo repintaba.
+export const QuotationEditor = memo(QuotationEditorComponent)
