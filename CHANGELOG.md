@@ -3,6 +3,18 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-16 (III)
+
+### Nuevo
+- **Módulo de Proveedores.** Registra a tus proveedores de menudeo con su contacto (teléfono,
+  WhatsApp, correo, dirección y notas) y las **marcas que maneja cada uno** como etiquetas.
+  El WhatsApp es un enlace directo: un click y se abre el chat. Puedes buscar, filtrar por
+  marca y elegir columnas como en las demás tablas. Las marcas viven en su propio catálogo
+  (llega pre-cargado con las marcas que ya conoce el sistema): créalas al vuelo desde el
+  formulario del proveedor o adminístralas con el botón **"Marcas"** — renombrar se refleja
+  en todos los proveedores, y una marca asignada no se puede eliminar hasta desasignarla.
+  Es la base para que pronto el sistema te sugiera a quién comprarle lo que va por menudeo.
+
 ## 2026-07-16 (II)
 
 ### Nuevo

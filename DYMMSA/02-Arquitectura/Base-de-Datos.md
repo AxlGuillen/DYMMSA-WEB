@@ -237,6 +237,50 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 
 ---
 
+## Tabla: `suppliers`
+
+**Propósito:** Proveedores locales de menudeo (contacto).
+**Módulo:** [[03-Modulos/Proveedores]] (issue #21)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `name` | text | No | — | UNIQUE, CHECK no vacío | |
+| `phone` | text | Sí | — | | Teléfono normal |
+| `whatsapp` | text | Sí | — | | Puede diferir del teléfono; la UI lo liga a wa.me |
+| `email` | text | Sí | — | | |
+| `address` | text | Sí | — | | |
+| `notes` | text | Sí | — | | Horarios, condiciones, quién atiende… |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+---
+
+## Tabla: `brands`
+
+**Propósito:** Catálogo global de marcas (submódulo de proveedores). `name` **normalizado trim+upper** — mismo criterio que las marcas de productos, para cruce futuro **por valor**.
+**Seed:** la migración la sembró con las marcas únicas existentes en `etm_products` + `urrea_catalog` (~42).
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `name` | text | No | — | UNIQUE, CHECK no vacío | Normalizado (`normalizeBrandTag`) |
+| `created_at` | timestamptz | No | `now()` | | |
+
+---
+
+## Tabla: `supplier_brands`
+
+**Propósito:** M2M proveedor↔marca (qué marcas maneja cada proveedor).
+
+| Columna | Tipo | Constraint | Descripción |
+|---------|------|-----------|-------------|
+| `supplier_id` | uuid | PK compuesta; FK → `suppliers` **ON DELETE CASCADE** | |
+| `brand_id` | uuid | PK compuesta; FK → `brands` **sin cascade** | Bloquea eliminar una marca en uso |
+
+Índice: `idx_supplier_brands_brand_id`.
+
+---
+
 ## Historial de migraciones
 
 | Versión | Nombre | Descripción |
@@ -259,3 +303,4 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `urrea_catalog_brand_counts_fn` | (2026-07-14) | RPC `urrea_catalog_brand_counts()` — conteo por marca para el filtro del catálogo (`security invoker`) |
 | `create_purchase_planner_tables` | (2026-07-15) | Tablas `order_purchase_decisions` (decisión mayoreo/menudeo por orden a nivel grupo, con snapshots para staleness y CHECK de cobertura) y `app_settings` (key-value jsonb para umbrales). RLS + policy authenticated. ADR-018 |
 | `allow_received_to_exceed_ordered` | (2026-07-16) | DROP `check_received_not_exceed_ordered` en `order_items`: lo recibido puede superar lo pedido (recepción con excedente → inventario, por delta). Se conserva `>= 0`. ADR-019 |
+| `create_suppliers_module` | (2026-07-16) | Tablas `suppliers`, `brands` (sembrada con las marcas existentes) y `supplier_brands` (M2M; brand_id sin cascade → borrar marca en uso se bloquea). RLS + policies. Issue #21 |

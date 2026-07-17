@@ -67,6 +67,40 @@ export type UrreaCatalogInsert =
   Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at' | 'brand'> & { brand?: string }
 export type UrreaCatalogUpdate = Partial<Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at'>>
 
+// ─── Proveedores de menudeo (issue #21) ─────────────────────────────────
+
+export interface Supplier {
+  id: string
+  name: string
+  phone: string | null
+  whatsapp: string | null
+  email: string | null
+  address: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type SupplierInsert = Omit<Supplier, 'id' | 'created_at' | 'updated_at'>
+export type SupplierUpdate = Partial<SupplierInsert>
+
+/** Catálogo global de marcas (submódulo). name normalizado trim+upper. */
+export interface Brand {
+  id: string
+  name: string
+  created_at: string
+}
+
+/** Marca con conteo de proveedores que la usan (GET /api/brands). */
+export interface BrandWithCount extends Brand {
+  suppliersCount: number
+}
+
+/** Proveedor con sus marcas aplanadas (GET /api/suppliers). */
+export interface SupplierWithBrands extends Supplier {
+  brands: Brand[]
+}
+
 // Excel row type for inventory import
 export interface ExcelInventoryRow {
   MODEL_CODE: string

@@ -52,6 +52,23 @@
 
 ---
 
+## Proveedores (menudeo)
+
+> Módulo: [[03-Modulos/Proveedores]]
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/suppliers` | ✅ | Lista paginada (search nombre/teléfonos/correo, sort whitelist, filtro `brandId`) con marcas embebidas y aplanadas |
+| `POST` | `/api/suppliers` | ✅ | Crear proveedor + links de marcas (**rollback** del padre si fallan los links) |
+| `PATCH` | `/api/suppliers/[id]` | ✅ | Updates sparse + `brandIds` con **replace por diff** (nunca hay ventana sin links) |
+| `DELETE` | `/api/suppliers/[id]` | ✅ | Eliminar (links caen por CASCADE) |
+| `GET` | `/api/brands` | ✅ | Marcas con conteo de proveedores que las usan |
+| `POST` | `/api/brands` | ✅ | Crear marca (normalizada trim+upper; duplicada → 400) |
+| `PATCH` | `/api/brands/[id]` | ✅ | Renombrar marca (normalizado) |
+| `DELETE` | `/api/brands/[id]` | ✅ | **Bloqueado si está en uso** (400 con conteo; FK sin cascade como backstop) |
+
+---
+
 ## Configuración
 
 | Método | Ruta | Auth | Descripción |
