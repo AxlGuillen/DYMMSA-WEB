@@ -1026,7 +1026,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
-                  className="bg-green-600 hover:bg-green-700"
+                  // text-white explícito: el default hereda text-primary-foreground,
+                  // que en dark es casi negro → sin contraste sobre el verde.
+                  className="bg-green-600 text-white hover:bg-green-700"
                   disabled={createOrderMutation.isPending || updateQuotation.isPending}
                 >
                   {(createOrderMutation.isPending || updateQuotation.isPending)
@@ -1050,7 +1052,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-green-600 text-white hover:bg-green-700"
                     onClick={handleCreateOrder}
                   >
                     Sí, generar orden

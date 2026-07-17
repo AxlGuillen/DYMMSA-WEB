@@ -393,7 +393,7 @@ export function ApprovalClient({ quotation, token }: Props) {
                             size="sm"
                             variant={approved ? 'default' : 'outline'}
                             className={`h-8 rounded-lg px-3 text-xs font-semibold ${
-                              approved ? 'bg-green-600 border-green-600 hover:bg-green-700' : ''
+                              approved ? 'bg-green-600 border-green-600 text-white hover:bg-green-700' : ''
                             }`}
                             onClick={() => toggleDecision(item.id)}
                           >
