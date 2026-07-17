@@ -163,6 +163,30 @@ describe('QuotationEditor', () => {
     expect(sepCell.colSpan).toBe(10)
   })
 
+  // ─── Rendimiento: umbral drag ↔ virtualización (issue #29) ─────────────
+
+  test('modo normal (≤300 ítems): reordena con drag (grips), sin aviso de flechas', () => {
+    seedQuotationItems([
+      quotationItemRow({ etm: 'A', model_code: 'MC1', quantity: 1, unit_price: 10, description: 'x' }),
+    ])
+    render(<QuotationEditor />)
+
+    expect(screen.getAllByRole('button', { name: 'Arrastrar para reordenar' }).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Reordena con las flechas/)).not.toBeInTheDocument()
+  })
+
+  test('lista grande (>300 ítems): virtualiza y reordena con flechas (sin drag)', () => {
+    const many = Array.from({ length: 301 }, (_, i) =>
+      quotationItemRow({ _id: `r${i}`, etm: `E${i}`, model_code: 'MC', quantity: 1, unit_price: 1, description: 'x' }),
+    )
+    seedQuotationItems(many)
+    render(<QuotationEditor />)
+
+    // El aviso de flechas aparece y el grip de arrastre desaparece.
+    expect(screen.getByText(/Reordena con las flechas/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Arrastrar para reordenar' })).not.toBeInTheDocument()
+  })
+
   test('el picker no ofrece las columnas fijas y sí las ocultables', async () => {
     const user = userEvent.setup()
     seedQuotationItems([
