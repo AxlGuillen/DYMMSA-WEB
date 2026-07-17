@@ -3,7 +3,18 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
-## 2026-07-16 (III)
+## 2026-07-17
+
+### Mejorado
+- **El cotizador ya no se traba con cotizaciones grandes.** Al editar cotizaciones
+  de cientos o miles de productos, escribir el nombre, abrir el popup o desplazarte
+  por la lista se sentía lento. Ahora responde fluido: la tabla solo dibuja las
+  filas que ves en pantalla y dejó de repintarse entera con cada tecleo. En listas
+  de **más de 300 productos**, el reordenar por arrastre se cambia por **flechas
+  ↑↓** en cada fila (arrastrar se mantiene en listas más chicas) — con un aviso en
+  la tabla. Tu borrador también se guarda de forma más eficiente mientras trabajas.
+
+## 2026-07-16 (IV)
 
 ### Mejorado
 - **Página de aprobación del cliente, renovada.** La pantalla que ve tu cliente para aprobar la
@@ -18,6 +29,18 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   **por proyecto** (las secciones de la cotización) para revisar por partes. El botón "Aprobar
   todos" es inteligente: cuando hay un filtro puesto, aprueba **solo lo que está viendo** y te lo
   dice (ej. "Aprobar 8 visibles").
+
+## 2026-07-16 (III)
+
+### Nuevo
+- **Módulo de Proveedores.** Registra a tus proveedores de menudeo con su contacto (teléfono,
+  WhatsApp, correo, dirección y notas) y las **marcas que maneja cada uno** como etiquetas.
+  El WhatsApp es un enlace directo: un click y se abre el chat. Puedes buscar, filtrar por
+  marca y elegir columnas como en las demás tablas. Las marcas viven en su propio catálogo
+  (llega pre-cargado con las marcas que ya conoce el sistema): créalas al vuelo desde el
+  formulario del proveedor o adminístralas con el botón **"Marcas"** — renombrar se refleja
+  en todos los proveedores, y una marca asignada no se puede eliminar hasta desasignarla.
+  Es la base para que pronto el sistema te sugiera a quién comprarle lo que va por menudeo.
 
 ## 2026-07-16 (II)
 

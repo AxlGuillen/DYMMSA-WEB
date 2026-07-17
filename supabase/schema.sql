@@ -1,7 +1,7 @@
 -- ============================================================================
 -- DYMMSA — Snapshot del schema de Supabase (proyecto wjlklwtvjewhtghlskbt)
 -- Generado desde la BD real el 2026-07-13 vía MCP de Supabase (pg_catalog);
--- regenerado el 2026-07-15 tras la migración allow_received_to_exceed_ordered.
+-- regenerado el 2026-07-16 tras la migración create_suppliers_module.
 --
 -- FUENTE DE RECONSTRUCCIÓN, no migración ejecutable tal cual: refleja el
 -- estado acumulado. El historial cronológico vive en migrations-log.md.
@@ -149,6 +149,34 @@ CREATE TABLE public.app_settings (
   updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+-- Proveedores de menudeo (issue #21). Módulo standalone; las marcas cruzan
+-- por VALOR (nombre normalizado) con etm_products/urrea_catalog en el futuro.
+CREATE TABLE public.suppliers (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  name text NOT NULL,
+  phone text,
+  whatsapp text,
+  email text,
+  address text,
+  notes text,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Catálogo global de marcas (submódulo de proveedores). name normalizado
+-- trim+upper. Sembrada con las marcas existentes de etm_products+urrea_catalog.
+CREATE TABLE public.brands (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  name text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- M2M proveedor↔marca. brand_id SIN cascade: borrar una marca en uso se bloquea.
+CREATE TABLE public.supplier_brands (
+  supplier_id uuid NOT NULL,
+  brand_id uuid NOT NULL
+);
+
 -- ─── Constraints ────────────────────────────────────────────────────────────
 
 ALTER TABLE etm_products ADD CONSTRAINT etm_products_pkey PRIMARY KEY (id);
@@ -206,6 +234,19 @@ ALTER TABLE urrea_catalog ADD CONSTRAINT urrea_catalog_std_check CHECK ((std > 0
 
 ALTER TABLE app_settings ADD CONSTRAINT app_settings_pkey PRIMARY KEY (key);
 
+ALTER TABLE suppliers ADD CONSTRAINT suppliers_pkey PRIMARY KEY (id);
+ALTER TABLE suppliers ADD CONSTRAINT suppliers_name_key UNIQUE (name);
+ALTER TABLE suppliers ADD CONSTRAINT suppliers_name_not_blank CHECK ((btrim(name) <> ''));
+
+ALTER TABLE brands ADD CONSTRAINT brands_pkey PRIMARY KEY (id);
+ALTER TABLE brands ADD CONSTRAINT brands_name_key UNIQUE (name);
+ALTER TABLE brands ADD CONSTRAINT brands_name_not_blank CHECK ((btrim(name) <> ''));
+
+ALTER TABLE supplier_brands ADD CONSTRAINT supplier_brands_pkey PRIMARY KEY (supplier_id, brand_id);
+ALTER TABLE supplier_brands ADD CONSTRAINT supplier_brands_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE;
+-- Sin CASCADE a propósito: bloquea eliminar una marca asignada a proveedores.
+ALTER TABLE supplier_brands ADD CONSTRAINT supplier_brands_brand_id_fkey FOREIGN KEY (brand_id) REFERENCES brands(id);
+
 -- ─── Índices (adicionales a los de constraints) ─────────────────────────────
 
 CREATE INDEX idx_etm_products_etm ON public.etm_products USING btree (etm);
@@ -216,6 +257,7 @@ CREATE INDEX idx_order_items_model_code ON public.order_items USING btree (model
 CREATE INDEX idx_order_items_order_id ON public.order_items USING btree (order_id);
 CREATE INDEX idx_order_items_urrea_status ON public.order_items USING btree (urrea_status);
 CREATE INDEX idx_order_purchase_decisions_order_id ON public.order_purchase_decisions USING btree (order_id);
+CREATE INDEX idx_supplier_brands_brand_id ON public.supplier_brands USING btree (brand_id);
 CREATE INDEX idx_orders_created_at ON public.orders USING btree (created_at DESC);
 CREATE INDEX idx_orders_created_by ON public.orders USING btree (created_by);
 CREATE INDEX idx_orders_customer ON public.orders USING btree (customer_name);
@@ -263,6 +305,7 @@ CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON public.orders FOR EACH 
 CREATE TRIGGER update_quotations_updated_at BEFORE UPDATE ON public.quotations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_store_inventory_updated_at BEFORE UPDATE ON public.store_inventory FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER urrea_catalog_set_updated_at BEFORE UPDATE ON public.urrea_catalog FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+CREATE TRIGGER suppliers_set_updated_at BEFORE UPDATE ON public.suppliers FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
 CREATE TRIGGER update_app_settings_updated_at BEFORE UPDATE ON public.app_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ─── Row Level Security ─────────────────────────────────────────────────────
@@ -276,6 +319,9 @@ ALTER TABLE public.store_inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urrea_catalog ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_purchase_decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.brands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.supplier_brands ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Authenticated users can delete products" ON public.etm_products FOR DELETE TO authenticated USING (true);
 CREATE POLICY "Authenticated users can insert products" ON public.etm_products FOR INSERT TO authenticated WITH CHECK (true);
@@ -293,6 +339,9 @@ CREATE POLICY "Authenticated users can read inventory" ON public.store_inventory
 CREATE POLICY "Authenticated users can manage urrea_catalog" ON public.urrea_catalog FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can manage purchase decisions" ON public.order_purchase_decisions FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can manage app settings" ON public.app_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can manage suppliers" ON public.suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can manage brands" ON public.brands FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can manage supplier brands" ON public.supplier_brands FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ─── Storage ────────────────────────────────────────────────────────────────
 -- bucket task-images · public=true · límite 5 MB · PNG/JPEG/GIF/WEBP

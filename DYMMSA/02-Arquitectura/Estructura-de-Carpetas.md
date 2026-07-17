@@ -49,6 +49,7 @@ src/
 │   │   ├── db/page.tsx           # Catálogo ETM products
 │   │   ├── docs/page.tsx         # Documentación interna
 │   │   ├── inventory/page.tsx    # Gestión de inventario
+│   │   ├── proveedores/page.tsx  # Proveedores de menudeo + marcas (issue #21)
 │   │   ├── orders/
 │   │   │   ├── page.tsx          # Lista de órdenes
 │   │   │   ├── new/page.tsx      # Crear orden manual (legacy)
@@ -77,6 +78,7 @@ src/
 │   ├── providers/                # QueryProvider (TanStack), ThemeProvider
 │   ├── quotations/               # QuotationDetail, QuotationStatusBadge, QuotationsTable
 │   ├── quoter/                   # FileUploader, ProductModal, QuotationEditor, QuotePreview
+│   ├── suppliers/                # SuppliersTable, SupplierForm, BrandsManager (issue #21)
 │   ├── tasks/                    # TaskForm, TaskDetail, TaskPriorityBadge
 │   └── ui/                       # shadcn/ui components (alert-dialog, badge, button, etc.)
 │
@@ -91,6 +93,7 @@ src/
 │   ├── usePurchasePlan.ts        # Plan de compra + guardado de decisiones (ADR-018)
 │   ├── useVisibleColumns.ts      # Visibilidad de columnas por tabla (issue #18; SSR-safe con useMounted)
 │   ├── useQuotes.ts              # Lookup ETMs para el cotizador
+│   ├── useSuppliers.ts           # Proveedores + marcas (SUPPLIERS_KEY, BRANDS_KEY)
 │   ├── useSettings.ts            # useUpdateSettings (app_settings, umbrales del planificador)
 │   └── useTasks.ts               # Tareas (GitHub Issues): lista/detalle/crear/editar/comentar/upload
 │

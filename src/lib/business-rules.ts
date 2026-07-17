@@ -68,6 +68,17 @@ export function normalizeCatalogBrand(brand: string | null | undefined): string 
 }
 
 /**
+ * Normaliza una marca como ETIQUETA (módulo de proveedores, issue #21):
+ * trim + mayúsculas, pero SIN el default 'URREA' — una etiqueta vacía es
+ * inválida (`''`), no una marca implícita. Mismo criterio de normalización
+ * que `normalizeCatalogBrand` para que las marcas de proveedores crucen por
+ * valor con `etm_products.brand` / `urrea_catalog.brand` en el futuro.
+ */
+export function normalizeBrandTag(name: string | null | undefined): string {
+  return (name ?? '').trim().toUpperCase()
+}
+
+/**
  * Llave de cruce con `urrea_catalog`: **código + marca**, ambos normalizados.
  *
  * La identidad del catálogo es `UNIQUE(code, brand)` — el mismo código puede
