@@ -3,6 +3,17 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-17
+
+### Mejorado
+- **El cotizador ya no se traba con cotizaciones grandes.** Al editar cotizaciones
+  de cientos o miles de productos, escribir el nombre, abrir el popup o desplazarte
+  por la lista se sentía lento. Ahora responde fluido: la tabla solo dibuja las
+  filas que ves en pantalla y dejó de repintarse entera con cada tecleo. En listas
+  de **más de 300 productos**, el reordenar por arrastre se cambia por **flechas
+  ↑↓** en cada fila (arrastrar se mantiene en listas más chicas) — con un aviso en
+  la tabla. Tu borrador también se guarda de forma más eficiente mientras trabajas.
+
 ## 2026-07-16 (III)
 
 ### Nuevo
