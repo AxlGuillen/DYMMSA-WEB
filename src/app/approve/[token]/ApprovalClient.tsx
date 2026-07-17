@@ -222,18 +222,6 @@ export function ApprovalClient({ quotation, token }: Props) {
         </div>
       </header>
 
-      {/* Barra de filtros sticky (solo editable y si hay algo que filtrar) */}
-      {isEditable && (brands.length > 1 || sections.length > 1) && (
-        <ApprovalFilters
-          brands={brands}
-          sections={sections}
-          filters={filters}
-          onChange={setFilters}
-          visibleCount={visibleProductIds.length}
-          onApproveVisible={handleApproveVisible}
-        />
-      )}
-
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 pb-32 sm:px-6 lg:px-8">
         <SummaryTiles
           customerName={quotation.customer_name}
@@ -264,12 +252,25 @@ export function ApprovalClient({ quotation, token }: Props) {
 
         {/* Tabla de productos */}
         <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 backdrop-blur-xl">
-          <div className="flex items-center gap-2.5 border-b border-border/60 px-5 py-4">
-            <Package className="size-5 text-muted-foreground" />
-            <span className="text-base font-semibold">Productos de la cotización</span>
-            <span className="rounded-md border border-border/70 px-2 py-0.5 font-mono text-xs text-muted-foreground">
-              {productItems.length}
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-border/60 px-5 py-4">
+            <div className="flex items-center gap-2.5">
+              <Package className="size-5 text-muted-foreground" />
+              <span className="text-base font-semibold">Productos de la cotización</span>
+              <span className="rounded-md border border-border/70 px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                {productItems.length}
+              </span>
+            </div>
+            {/* Filtros arriba de la tabla, integrados al header de la card */}
+            {isEditable && (
+              <ApprovalFilters
+                brands={brands}
+                sections={sections}
+                filters={filters}
+                onChange={setFilters}
+                visibleCount={visibleProductIds.length}
+                onApproveVisible={handleApproveVisible}
+              />
+            )}
           </div>
 
           <div className="overflow-x-auto">

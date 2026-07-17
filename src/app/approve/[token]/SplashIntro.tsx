@@ -80,7 +80,13 @@ export function SplashIntro() {
         width={280}
         height={112}
         priority
-        className="absolute left-1/2 top-1/2 h-auto w-[220px] -translate-x-1/2 -translate-y-1/2 object-contain drop-shadow-[0_12px_50px_rgba(163,3,5,0.35)]"
+        // Centrado vía `transform` INLINE, no con -translate-x-1/2 de Tailwind:
+        // en v4 esas clases usan la propiedad CSS `translate`, que se COMPONE
+        // con el `transform` de los keyframes → doble desplazamiento (el logo
+        // salía descentrado y el vuelo aterrizaba fuera del logo del header).
+        // Opacity 0 inicial: la animación (fill forwards) la controla desde 0.
+        className="absolute left-1/2 top-1/2 h-auto w-[220px] object-contain drop-shadow-[0_12px_50px_rgba(163,3,5,0.35)]"
+        style={{ transform: 'translate(-50%,-50%)', opacity: 0 }}
       />
     </div>
   )
