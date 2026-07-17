@@ -14,6 +14,22 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   ↑↓** en cada fila (arrastrar se mantiene en listas más chicas) — con un aviso en
   la tabla. Tu borrador también se guarda de forma más eficiente mientras trabajas.
 
+## 2026-07-16 (IV)
+
+### Mejorado
+- **Página de aprobación del cliente, renovada.** La pantalla que ve tu cliente para aprobar la
+  cotización tiene un nuevo diseño más claro y elegante (se adapta al modo claro u oscuro de su
+  dispositivo). Los botones de **Guardar avance** y **Enviar aprobación** ahora viven en una barra
+  flotante **siempre visible** al hacer scroll, con un indicador de progreso (cuántos productos van
+  aprobados y el total). Al abrir el enlace, un breve intro con el logo da la bienvenida (solo la
+  primera vez).
+
+### Nuevo
+- **Filtros en la aprobación.** En cotizaciones grandes, el cliente puede **filtrar por marca** y
+  **por proyecto** (las secciones de la cotización) para revisar por partes. El botón "Aprobar
+  todos" es inteligente: cuando hay un filtro puesto, aprueba **solo lo que está viendo** y te lo
+  dice (ej. "Aprobar 8 visibles").
+
 ## 2026-07-16 (III)
 
 ### Nuevo

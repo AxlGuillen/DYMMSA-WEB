@@ -6,6 +6,7 @@ import {
   filterProductItems,
   calculateLineTotal,
   calculateQuotationTotal,
+  calculateApprovedSubtotal,
   calculateOrderTotal,
   calculateDeliveredTotal,
   allocateInventory,
@@ -218,6 +219,49 @@ describe('isNotSold', () => {
     expect(isNotSold({ is_sold: true })).toBe(false)
     expect(isNotSold({ is_sold: null })).toBe(false)
     expect(isNotSold({})).toBe(false)
+  })
+})
+
+// ─── calculateApprovedSubtotal ───────────────────────────────────────────────
+
+describe('calculateApprovedSubtotal', () => {
+  const items = [
+    { id: 'a', ...makeQuotationItem({ unit_price: 100, quantity: 2 }) },  // 200
+    { id: 'b', ...makeQuotationItem({ unit_price: 50,  quantity: 4 }) },  // 200
+    { id: 'c', ...makeQuotationItem({ unit_price: 100, quantity: 1 }) },  // 100
+  ]
+
+  test('solo suma los ítems cuyo id está en el set de aprobados', () => {
+    expect(calculateApprovedSubtotal(items, new Set(['a', 'c']))).toBe(300)
+  })
+
+  test('set vacío → 0', () => {
+    expect(calculateApprovedSubtotal(items, new Set())).toBe(0)
+  })
+
+  test('excluye separadores aunque su id esté en el set', () => {
+    const withSep = [
+      { id: 'a', ...makeQuotationItem({ unit_price: 100, quantity: 2 }) },
+      { id: 'sep', ...makeQuotationItem({ item_type: 'separator', unit_price: 999, quantity: 1 }) },
+    ]
+    expect(calculateApprovedSubtotal(withSep, new Set(['a', 'sep']))).toBe(200)
+  })
+
+  test('excluye "no lo vendemos" (is_sold === false) aunque esté aprobado', () => {
+    const withNotSold = [
+      { id: 'a', ...makeQuotationItem({ unit_price: 100, quantity: 2, is_sold: true }) },
+      { id: 'x', ...makeQuotationItem({ unit_price: 100, quantity: 5, is_sold: false }) },
+    ]
+    expect(calculateApprovedSubtotal(withNotSold, new Set(['a', 'x']))).toBe(200)
+  })
+
+  test('línea sin precio o sin cantidad no suma', () => {
+    const withNulls = [
+      { id: 'a', ...makeQuotationItem({ unit_price: null, quantity: 3 }) },
+      { id: 'b', ...makeQuotationItem({ unit_price: 20, quantity: null }) },
+      { id: 'c', ...makeQuotationItem({ unit_price: 20, quantity: 2 }) }, // 40
+    ]
+    expect(calculateApprovedSubtotal(withNulls, new Set(['a', 'b', 'c']))).toBe(40)
   })
 })
 
