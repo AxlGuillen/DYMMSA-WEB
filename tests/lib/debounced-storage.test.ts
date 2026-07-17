@@ -65,6 +65,21 @@ describe('createDebouncedStorage', () => {
     expect(backing.removeItem).toHaveBeenCalledWith('k')
   })
 
+  test('removeItem de una key no deja a las otras pendientes sin flush', () => {
+    const backing = makeBacking()
+    const storage = createDebouncedStorage(backing, 500)
+
+    storage.setItem('a', '1')
+    storage.setItem('b', '2')
+    storage.removeItem('a') // cancela 'a', pero 'b' sigue pendiente
+
+    expect(backing.removeItem).toHaveBeenCalledWith('a')
+    expect(backing.setItem).not.toHaveBeenCalled() // aún dentro del debounce
+
+    vi.advanceTimersByTime(500)
+    expect(backing.setItem).toHaveBeenCalledExactlyOnceWith('b', '2') // 'b' se escribió
+  })
+
   test('sin backing (SSR) no truena y descarta lo pendiente en el flush', () => {
     const storage = createDebouncedStorage(undefined, 500)
     expect(() => {

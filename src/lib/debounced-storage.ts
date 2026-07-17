@@ -61,11 +61,15 @@ export function createDebouncedStorage(
 
     removeItem: (name: string): void => {
       pending.delete(name)
-      if (timer) {
+      backing?.removeItem(name)
+      // Si aún quedan otras keys pendientes, re-agenda su flush; solo cancela el
+      // timer cuando no queda nada por escribir. (El store usa una sola key hoy,
+      // pero borrar una no debe dejar a las demás sin flush.)
+      if (pending.size > 0) schedule()
+      else if (timer) {
         clearTimeout(timer)
         timer = null
       }
-      backing?.removeItem(name)
     },
 
     /** Expuesto para tests y para forzar la escritura pendiente si hiciera falta. */
