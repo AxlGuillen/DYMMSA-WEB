@@ -163,6 +163,48 @@ describe('QuotationEditor', () => {
     expect(sepCell.colSpan).toBe(10)
   })
 
+  // ─── Rendimiento: umbral drag ↔ virtualización (issue #29) ─────────────
+
+  test('modo normal (≤300 ítems): reordena con drag (grips), sin aviso de flechas', () => {
+    seedQuotationItems([
+      quotationItemRow({ etm: 'A', model_code: 'MC1', quantity: 1, unit_price: 10, description: 'x' }),
+    ])
+    render(<QuotationEditor />)
+
+    expect(screen.getAllByRole('button', { name: 'Arrastrar para reordenar' }).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Reordena con las flechas/)).not.toBeInTheDocument()
+  })
+
+  test('lista grande (>300 ítems): virtualiza y reordena con flechas (sin drag)', () => {
+    const many = Array.from({ length: 301 }, (_, i) =>
+      quotationItemRow({ _id: `r${i}`, etm: `E${i}`, model_code: 'MC', quantity: 1, unit_price: 1, description: 'x' }),
+    )
+    seedQuotationItems(many)
+    render(<QuotationEditor />)
+
+    // El aviso de flechas aparece y el grip de arrastre desaparece.
+    expect(screen.getByText(/Reordena con las flechas/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Arrastrar para reordenar' })).not.toBeInTheDocument()
+  })
+
+  test('editar el nombre de un separador y desmontar sin blur commitea el cambio (#29)', async () => {
+    const user = userEvent.setup()
+    seedQuotationItems([
+      quotationItemRow({ _id: 'sep', item_type: 'separator', section_label: 'Original' }),
+    ])
+    const { unmount } = render(<QuotationEditor />)
+
+    const input = screen.getByPlaceholderText(/nombre de la sección/i)
+    await user.clear(input)
+    await user.type(input, 'Proyecto B')
+    // Sin blur: desmontamos directo — simula el scroll que en modo virtualizado
+    // saca la fila del overscan y la desmonta con el input aún enfocado.
+    unmount()
+
+    const sep = useQuotationStore.getState().items.find((i) => i._id === 'sep')
+    expect(sep?.section_label).toBe('Proyecto B')
+  })
+
   test('el picker no ofrece las columnas fijas y sí las ocultables', async () => {
     const user = userEvent.setup()
     seedQuotationItems([
