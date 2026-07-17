@@ -187,6 +187,24 @@ describe('QuotationEditor', () => {
     expect(screen.queryByRole('button', { name: 'Arrastrar para reordenar' })).not.toBeInTheDocument()
   })
 
+  test('editar el nombre de un separador y desmontar sin blur commitea el cambio (#29)', async () => {
+    const user = userEvent.setup()
+    seedQuotationItems([
+      quotationItemRow({ _id: 'sep', item_type: 'separator', section_label: 'Original' }),
+    ])
+    const { unmount } = render(<QuotationEditor />)
+
+    const input = screen.getByPlaceholderText(/nombre de la sección/i)
+    await user.clear(input)
+    await user.type(input, 'Proyecto B')
+    // Sin blur: desmontamos directo — simula el scroll que en modo virtualizado
+    // saca la fila del overscan y la desmonta con el input aún enfocado.
+    unmount()
+
+    const sep = useQuotationStore.getState().items.find((i) => i._id === 'sep')
+    expect(sep?.section_label).toBe('Proyecto B')
+  })
+
   test('el picker no ofrece las columnas fijas y sí las ocultables', async () => {
     const user = userEvent.setup()
     seedQuotationItems([

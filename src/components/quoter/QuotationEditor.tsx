@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, forwardRef, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -336,6 +336,20 @@ const SeparatorLabelCells = memo(function SeparatorLabelCells({
     setPrevLabel(item.section_label)
     setLocalLabel(item.section_label ?? '')
   }
+
+  // Commit también al desmontar: en la tabla virtualizada, hacer scroll saca la
+  // fila del overscan y la desmonta; si el input tenía foco, el onBlur podría no
+  // dispararse y se perdería el nombre de sección. commitRef espeja lo último
+  // (actualizada en efecto, no en render) y el cleanup de montaje escribe el
+  // pendiente (updateItem sobre un id ya borrado es no-op).
+  const commitRef = useRef({ localLabel, committed: item.section_label ?? '', onLabelChange, id: item._id })
+  useEffect(() => {
+    commitRef.current = { localLabel, committed: item.section_label ?? '', onLabelChange, id: item._id }
+  })
+  useEffect(() => () => {
+    const c = commitRef.current
+    if (c.localLabel !== c.committed) c.onLabelChange(c.id, c.localLabel)
+  }, [])
 
   return (
     <>
