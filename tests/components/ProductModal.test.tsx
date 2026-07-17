@@ -154,6 +154,22 @@ describe('ProductModal', () => {
     expect(onCatalogResolved).toHaveBeenCalledWith('MC9', 'Pinza oficial URREA')
   })
 
+  test('fallo de red en el lookup → no bloquea: se agrega como nuevo', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'))
+    const onSave = vi.fn()
+
+    render(<ProductModal mode="create" open onOpenChange={vi.fn()} onSave={onSave} />)
+
+    await fillRequired(user, 'NET-1')
+    await user.click(screen.getByRole('button', { name: 'Agregar' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
+    const [payload] = onSave.mock.calls[0]
+    expect(payload).toMatchObject({ etm: 'NET-1', _inDb: false }) // sin precarga, sin error
+    expect(screen.queryByText(/datos precargados/)).not.toBeInTheDocument()
+  })
+
   test('modo edit con ETM sin cambios → no consulta el catálogo y guarda', async () => {
     const user = userEvent.setup()
     const fetchSpy = mockLookup([])
