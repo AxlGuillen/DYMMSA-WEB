@@ -126,16 +126,22 @@ export function ProductModal({
 
   const notSold = isSold === false
 
-  // Reglas bloqueantes: ETM requerido y no duplicado DENTRO de la cotización.
-  // Que exista en el catálogo maestro ya NO bloquea (issue #40): ahí es donde
-  // viven los productos que más se quieren agregar — se precargan sus datos.
+  // Única regla bloqueante: ETM requerido. Que exista en el catálogo maestro o
+  // repetido en la misma cotización NO bloquea (issue #40): una cotización puede
+  // tener varios proyectos (separados por encabezados) que repiten el mismo ETM
+  // — se avisa y se deja agregar; el catálogo además precarga sus datos.
   const validateEtm = (value: string): string | null => {
-    const trimmed = value.trim()
-    if (!trimmed) return 'El ETM es requerido'
-    if (mode === 'edit' && trimmed === item?.etm) return null
-    if (existingEtms.includes(trimmed)) return 'Este ETM ya existe en la cotización'
+    if (!value.trim()) return 'El ETM es requerido'
     return null
   }
+
+  // Aviso (no error) de ETM repetido en la cotización — en vivo mientras escribe.
+  const etmValue = watch('etm')
+  const trimmedEtm = (etmValue ?? '').trim()
+  const isDuplicateInQuotation =
+    trimmedEtm !== '' &&
+    !(mode === 'edit' && trimmedEtm === item?.etm) &&
+    existingEtms.includes(trimmedEtm)
 
   /** Busca el ETM en etm_products; null si no está o si la red falla. */
   const lookupEtm = async (etm: string): Promise<EtmProduct | null> => {
@@ -263,6 +269,11 @@ export function ProductModal({
               {foundInCatalog && !isCheckingEtm && !etmError && (
                 <p className="text-xs text-green-600 dark:text-green-400">
                   Producto del catálogo — datos precargados, ajusta lo necesario.
+                </p>
+              )}
+              {isDuplicateInQuotation && !etmError && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Este ETM ya está en la cotización — se agregará repetido.
                 </p>
               )}
             </div>

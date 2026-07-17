@@ -11,8 +11,9 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   en el catálogo" y no te dejaba continuar — justo con los productos que más se agregan.
   Ahora, al escribir un ETM que el sistema ya conoce, el popup **precarga automáticamente
   sus datos** (descripciones, código, marca, precio y si lo vendemos) y tú solo ajustas la
-  cantidad o lo que haga falta. Sigue avisando si el ETM ya está repetido **dentro de la
-  misma cotización**.
+  cantidad o lo que haga falta. También puedes agregar un ETM que **ya está en la misma
+  cotización** (útil cuando una cotización junta varios proyectos que repiten productos):
+  el popup te lo avisa con una nota, pero ya no te lo impide.
 
 ## 2026-07-14
 
