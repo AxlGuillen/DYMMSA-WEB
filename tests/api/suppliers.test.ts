@@ -198,6 +198,7 @@ describe('PATCH /api/suppliers/[id]', () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
+        'suppliers.select': { data: { id: 's1' }, error: null }, // chequeo de existencia
         // existentes: b1, b2 — deseadas: b2, b3 → insertar b3, borrar b1
         'supplier_brands.select': { data: [{ brand_id: 'b1' }, { brand_id: 'b2' }], error: null },
         'supplier_brands.insert': { data: null, error: null },
@@ -219,6 +220,7 @@ describe('PATCH /api/suppliers/[id]', () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
+        'suppliers.select': { data: { id: 's1' }, error: null },
         'supplier_brands.select': { data: [{ brand_id: 'b1' }], error: null },
       },
     })
@@ -236,6 +238,20 @@ describe('PATCH /api/suppliers/[id]', () => {
       },
     })
     expect((await patch({ name: 'Nuevo' })).status).toBe(404)
+  })
+
+  test('solo brandIds con proveedor inexistente → 404 (no 500)', async () => {
+    // Sin campos que actualizar no hay update que dispare PGRST116; el chequeo
+    // de existencia previo al diff de marcas devuelve el 404 preciso.
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'suppliers.select': { data: null, error: { code: 'PGRST116', message: 'no rows' } },
+      },
+    })
+    const res = await patch({ brandIds: ['b1'] })
+    expect(res.status).toBe(404)
+    expect(activeClient.didCall('supplier_brands', 'insert')).toBe(false)
   })
 })
 

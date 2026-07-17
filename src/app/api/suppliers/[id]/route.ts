@@ -39,6 +39,10 @@ export async function PATCH(
       return badRequest('No hay cambios para guardar')
     }
 
+    // El update de la fila confirma existencia (PGRST116 → 404). Si no hay
+    // campos que actualizar (solo llegan brandIds), aún no lo hemos verificado.
+    let existenceConfirmed = false
+
     if (Object.keys(updates).length > 0) {
       const { error } = await supabase
         .from('suppliers')
@@ -53,10 +57,22 @@ export async function PATCH(
         console.error('Error updating supplier:', error)
         return serverError('Error al actualizar el proveedor')
       }
+      existenceConfirmed = true
     }
 
     // ── Marcas: replace por DIFF (no destructivo — nunca hay ventana sin links) ──
     if (body.brandIds !== undefined) {
+      // Sin update previo, verifica que el proveedor exista → 404 preciso en vez
+      // del 23503 genérico que dispararía el FK del insert de links.
+      if (!existenceConfirmed) {
+        const { data: exists, error } = await supabase
+          .from('suppliers')
+          .select('id')
+          .eq('id', id)
+          .single()
+        if (error || !exists) return notFound('Proveedor no encontrado')
+      }
+
       const desired = [...new Set(body.brandIds)]
 
       const { data: existing, error: linksError } = await supabase
