@@ -13,8 +13,8 @@ vi.mock('@/hooks/useUrreaCatalog', () => ({
 }))
 const mockCatalogDesc = vi.mocked(useCatalogDescription)
 
-/** Mockea fetch /api/quotes/lookup devolviendo `found`. */
-function mockLookup(found: string[]) {
+/** Mockea fetch /api/quotes/lookup devolviendo `found` (filas de etm_products). */
+function mockLookup(found: unknown[]) {
   return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
     json: async () => ({ found }),
   } as Response)
@@ -86,18 +86,46 @@ describe('ProductModal', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  test('ETM duplicado en el catálogo (fetch found) → error y NO guarda', async () => {
+  test('ETM existente en el catálogo → precarga datos y SÍ guarda (issue #40)', async () => {
     const user = userEvent.setup()
-    mockLookup(['CAT-1'])
+    mockLookup([{
+      etm: 'CAT-1',
+      description: 'Bearing puller',
+      description_es: 'Extractor de baleros',
+      model_code: 'MC77',
+      brand: 'URREA',
+      price: 250,
+      is_sold: true,
+      dymmsa_description: 'Extractor 3 patas',
+    }])
     const onSave = vi.fn()
 
     render(<ProductModal mode="create" open onOpenChange={vi.fn()} onSave={onSave} />)
 
-    await fillRequired(user, 'CAT-1')
+    await user.type(screen.getByPlaceholderText('Ej: H7-ET400'), 'CAT-1')
+    await user.tab() // blur → lookup → precarga
+
+    // Aviso informativo (no error) + campos precargados del catálogo
+    expect(await screen.findByText(/datos precargados/)).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Extractor de baleros')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('MC77')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('250')).toBeInTheDocument()
+
+    // La cantidad no viene del catálogo: la captura el usuario
+    await user.type(screen.getByPlaceholderText('0'), '3')
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
-    expect(await screen.findByText('Este ETM ya existe en el catálogo')).toBeInTheDocument()
-    expect(onSave).not.toHaveBeenCalled()
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
+    const [payload] = onSave.mock.calls[0]
+    expect(payload).toMatchObject({
+      etm: 'CAT-1',
+      description_es: 'Extractor de baleros',
+      model_code: 'MC77',
+      brand: 'URREA',
+      unit_price: 250,
+      quantity: 3,
+      _inDb: true, // ya existe en el catálogo → la fila muestra "En catálogo"
+    })
   })
 
   test('con match de catálogo → onCatalogResolved(code normalizado, descripción) al guardar', async () => {

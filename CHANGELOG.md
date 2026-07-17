@@ -3,6 +3,17 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-17
+
+### Corregido
+- **Ya puedes agregar a la cotización productos que ya existen en el catálogo.** Antes, al
+  capturar un ETM conocido en el popup de "Agregar producto", aparecía "Este ETM ya existe
+  en el catálogo" y no te dejaba continuar — justo con los productos que más se agregan.
+  Ahora, al escribir un ETM que el sistema ya conoce, el popup **precarga automáticamente
+  sus datos** (descripciones, código, marca, precio y si lo vendemos) y tú solo ajustas la
+  cantidad o lo que haga falta. Sigue avisando si el ETM ya está repetido **dentro de la
+  misma cotización**.
+
 ## 2026-07-14
 
 ### Corregido
