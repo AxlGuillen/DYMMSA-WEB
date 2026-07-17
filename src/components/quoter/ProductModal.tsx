@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select'
 import { Loader2 } from '@/components/icons'
 import { parseNumber, parseInteger } from '@/lib/format'
-import type { QuotationItemRow, DeliveryTime } from '@/types/database'
+import type { EtmProduct, QuotationItemRow, DeliveryTime } from '@/types/database'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { normalizeCatalogCode } from '@/lib/business-rules'
 import { useCatalogDescription } from '@/hooks/useUrreaCatalog'
@@ -98,6 +98,8 @@ export function ProductModal({
 
   const [etmError, setEtmError]           = useState<string | null>(null)
   const [isCheckingEtm, setIsCheckingEtm] = useState(false)
+  // ETM encontrado en etm_products → se precargaron sus datos (issue #40).
+  const [foundInCatalog, setFoundInCatalog] = useState(false)
   // is_sold es tri-estado ('sin definir' | 'sí' | 'no') → se maneja aparte de RHF.
   const [isSold, setIsSold] = useState<boolean | null>(null)
 
@@ -117,50 +119,71 @@ export function ProductModal({
       })
       // oxlint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- intentional pattern; structural refactor tracked separately
       setEtmError(null)
+      setFoundInCatalog(false)
       setIsSold(item?.is_sold ?? null)
     }
   }, [open, item, reset])
 
   const notSold = isSold === false
 
-  const validateEtm = async (value: string): Promise<string | null> => {
+  // Reglas bloqueantes: ETM requerido y no duplicado DENTRO de la cotización.
+  // Que exista en el catálogo maestro ya NO bloquea (issue #40): ahí es donde
+  // viven los productos que más se quieren agregar — se precargan sus datos.
+  const validateEtm = (value: string): string | null => {
     const trimmed = value.trim()
     if (!trimmed) return 'El ETM es requerido'
-
-    // Skip DB check if ETM is unchanged in edit mode
     if (mode === 'edit' && trimmed === item?.etm) return null
-
-    // Check for duplicates within the current quotation
     if (existingEtms.includes(trimmed)) return 'Este ETM ya existe en la cotización'
+    return null
+  }
 
-    // Check against DB
+  /** Busca el ETM en etm_products; null si no está o si la red falla. */
+  const lookupEtm = async (etm: string): Promise<EtmProduct | null> => {
     try {
       const resp = await fetch('/api/quotes/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ etmCodes: [trimmed] }),
+        body: JSON.stringify({ etmCodes: [etm] }),
       })
       const { found } = await resp.json()
-      if (found.length > 0) return 'Este ETM ya existe en el catálogo'
+      return (found?.[0] as EtmProduct) ?? null
     } catch {
-      // On network error don't block the user
+      return null
     }
+  }
 
-    return null
+  /** Precarga los datos del producto del catálogo; el usuario ajusta lo necesario. */
+  const applyCatalogProduct = (product: EtmProduct) => {
+    setValue('description',    product.description    ?? '')
+    setValue('description_es', product.description_es ?? '')
+    setValue('model_code',     product.model_code     ?? '')
+    setValue('brand',          product.brand          ?? '')
+    setValue('unit_price',     product.price != null ? String(product.price) : '')
+    setValue('dymmsa_description', product.dymmsa_description ?? '')
+    setIsSold(product.is_sold ?? null)
+    // Cantidad y tiempo de entrega no vienen del catálogo: se dejan como están.
   }
 
   const handleEtmBlur = async () => {
     const value = getValues('etm')
-    setIsCheckingEtm(true)
-    const error = await validateEtm(value)
+    const error = validateEtm(value)
     setEtmError(error)
+    if (error) {
+      setFoundInCatalog(false)
+      return
+    }
+    // ETM sin cambios en edit: nada que precargar.
+    if (mode === 'edit' && value.trim() === item?.etm) return
+
+    setIsCheckingEtm(true)
+    const product = await lookupEtm(value.trim())
+    setFoundInCatalog(!!product)
+    if (product) applyCatalogProduct(product)
     setIsCheckingEtm(false)
   }
 
   const onSubmit = async (data: FormValues) => {
-    setIsCheckingEtm(true)
-    const error = await validateEtm(data.etm)
-    setIsCheckingEtm(false)
+    const error = validateEtm(data.etm)
     if (error) {
       setEtmError(error)
       return
@@ -188,7 +211,7 @@ export function ProductModal({
         unit_price:     parseNumber(data.unit_price),
         quantity:       parseInteger(data.quantity),
         delivery_time:  data.delivery_time,
-        _inDb:          item?._inDb ?? false,
+        _inDb:          foundInCatalog || (item?._inDb ?? false),
         is_sold:        isSold,
       },
       item?._id
@@ -235,6 +258,11 @@ export function ProductModal({
               {isCheckingEtm && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <Loader2 className="size-3 animate-spin" /> Verificando…
+                </p>
+              )}
+              {foundInCatalog && !isCheckingEtm && !etmError && (
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  Producto del catálogo — datos precargados, ajusta lo necesario.
                 </p>
               )}
             </div>
