@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import { createDebouncedStorage } from '@/lib/debounced-storage'
 import type { QuotationItemRow } from '@/types/database'
 
 interface QuotationDraftState {
@@ -23,6 +24,8 @@ interface QuotationStore extends QuotationDraftState {
   addSeparatorAfter: (afterId: string | null) => void
   removeItem: (id: string) => void
   reorderItems: (activeId: string, overId: string) => void
+  /** Mueve una fila un lugar arriba/abajo (reordenar con flechas en listas grandes). */
+  moveItem: (id: string, direction: 'up' | 'down') => void
   reset: () => void
 }
 
@@ -107,11 +110,30 @@ export const useQuotationStore = create<QuotationStore>()(
           return { items: next }
         }),
 
+      moveItem: (id, direction) =>
+        set((state) => {
+          const index = state.items.findIndex((item) => item._id === id)
+          if (index === -1) return state
+          const target = direction === 'up' ? index - 1 : index + 1
+          if (target < 0 || target >= state.items.length) return state
+          const next = [...state.items]
+          ;[next[index], next[target]] = [next[target], next[index]]
+          return { items: next }
+        }),
+
       reset: () => set(INITIAL_STATE),
     }),
     {
       name: 'dymmsa-quotation-draft',
       version: 1,
+      // Escrituras a localStorage con debounce: coalesce mutaciones seguidas
+      // (editar varias filas, reordenar) en una sola serialización en vez de
+      // una por acción. Flush en pagehide/hidden preserva el último cambio.
+      storage: createJSONStorage(() =>
+        createDebouncedStorage(
+          typeof window !== 'undefined' ? window.localStorage : undefined,
+        ),
+      ),
       // v0 → v1: `catalogDescriptions` pasó de estar indexado por CODIGO a
       // MARCA|CODIGO (match estricto por marca). Las llaves viejas ya no cruzan,
       // así que se descartan en vez de mostrar la descripción de otra marca. El
