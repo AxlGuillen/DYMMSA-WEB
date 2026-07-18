@@ -45,6 +45,9 @@ import { ApprovalDock } from './ApprovalDock'
 import { SuccessScreen } from './SuccessScreen'
 import { SplashIntro } from './SplashIntro'
 import { formatMoney } from './format'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { SoundToggle } from '@/components/sound-toggle'
+import { SoundInit } from '@/components/sound-init'
 
 const DELIVERY_TIME_LABELS: Record<DeliveryTime, string> = {
   immediate: 'Inmediato',
@@ -193,6 +196,10 @@ export function ApprovalClient({ quotation, token }: Props) {
   return (
     <div className="min-h-screen bg-background [background-image:radial-gradient(1100px_540px_at_72%_-8%,rgba(163,3,5,0.07),transparent_58%),radial-gradient(900px_520px_at_6%_4%,rgba(80,80,120,0.08),transparent_55%),radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:auto,auto,22px_22px]">
       <SplashIntro />
+      {/* Sonidos también aquí (decisión 2026-07-17): el cliente tiene su
+          control de silencio visible en el header — ya no aplica la exclusión
+          original de ADR-017. */}
+      <SoundInit />
 
       {/* Header glass sticky */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
@@ -215,24 +222,16 @@ export function ApprovalClient({ quotation, token }: Props) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border/70 bg-card/60 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur">
-            <span className="size-1.5 animate-pulse rounded-full bg-green-500 shadow-[0_0_8px] shadow-green-500" />
-            Documento seguro
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle />
+            <SoundToggle />
+            <div className="hidden items-center gap-2 rounded-full border border-border/70 bg-card/60 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur sm:flex">
+              <span className="size-1.5 animate-pulse rounded-full bg-green-500 shadow-[0_0_8px] shadow-green-500" />
+              Documento seguro
+            </div>
           </div>
         </div>
       </header>
-
-      {/* Barra de filtros sticky (solo editable y si hay algo que filtrar) */}
-      {isEditable && (brands.length > 1 || sections.length > 1) && (
-        <ApprovalFilters
-          brands={brands}
-          sections={sections}
-          filters={filters}
-          onChange={setFilters}
-          visibleCount={visibleProductIds.length}
-          onApproveVisible={handleApproveVisible}
-        />
-      )}
 
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 pb-32 sm:px-6 lg:px-8">
         <SummaryTiles
@@ -264,12 +263,25 @@ export function ApprovalClient({ quotation, token }: Props) {
 
         {/* Tabla de productos */}
         <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 backdrop-blur-xl">
-          <div className="flex items-center gap-2.5 border-b border-border/60 px-5 py-4">
-            <Package className="size-5 text-muted-foreground" />
-            <span className="text-base font-semibold">Productos de la cotización</span>
-            <span className="rounded-md border border-border/70 px-2 py-0.5 font-mono text-xs text-muted-foreground">
-              {productItems.length}
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-border/60 px-5 py-4">
+            <div className="flex items-center gap-2.5">
+              <Package className="size-5 text-muted-foreground" />
+              <span className="text-base font-semibold">Productos de la cotización</span>
+              <span className="rounded-md border border-border/70 px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                {productItems.length}
+              </span>
+            </div>
+            {/* Filtros arriba de la tabla, integrados al header de la card */}
+            {isEditable && (
+              <ApprovalFilters
+                brands={brands}
+                sections={sections}
+                filters={filters}
+                onChange={setFilters}
+                visibleCount={visibleProductIds.length}
+                onApproveVisible={handleApproveVisible}
+              />
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -392,7 +404,7 @@ export function ApprovalClient({ quotation, token }: Props) {
                             size="sm"
                             variant={approved ? 'default' : 'outline'}
                             className={`h-8 rounded-lg px-3 text-xs font-semibold ${
-                              approved ? 'bg-green-600 border-green-600 hover:bg-green-700' : ''
+                              approved ? 'bg-green-600 border-green-600 text-white hover:bg-green-700' : ''
                             }`}
                             onClick={() => toggleDecision(item.id)}
                           >

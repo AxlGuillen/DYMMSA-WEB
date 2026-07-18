@@ -87,6 +87,7 @@ import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import {
   calculateDeliveredTotal,
+  filterProductItems,
   receivedForCustomer,
   receptionExcess,
 } from '@/lib/business-rules'
@@ -447,8 +448,10 @@ export function OrderDetail({ order }: OrderDetailProps) {
   return (
     <div className="space-y-6">
 
-      {/* Header */}
-      <div className="flex items-start gap-4">
+      {/* Header. flex-wrap + min-w del título: las acciones (5+ botones) son
+          shrink-0 — sin wrap, en pantallas medianas exprimían el título a una
+          columna de letras; ahora bajan a su propia línea. */}
+      <div className="flex items-start gap-4 flex-wrap">
         <Button
           variant="ghost"
           size="icon"
@@ -457,7 +460,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         >
           <ArrowLeft className="size-5" />
         </Button>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-72">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-semibold tracking-tight">
               {order.name || order.customer_name}
@@ -521,8 +524,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+        {/* Actions — ml-auto: alineadas a la derecha también cuando bajan de línea */}
+        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0 ml-auto">
           {!isCancelled && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Estado:</span>
@@ -708,7 +711,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
             <Package className="size-3" /> Productos
           </p>
-          <p className="text-2xl font-bold">{order.order_items.length}</p>
+          {/* REGLA: separadores fuera de los conteos — contaba order_items.length. */}
+          <p className="text-2xl font-bold">{filterProductItems(order.order_items).length}</p>
         </div>
         <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
           <p className="text-xs font-medium text-blue-700 dark:text-blue-300 flex items-center gap-1 mb-2">

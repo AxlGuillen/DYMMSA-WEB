@@ -366,7 +366,13 @@ function GroupRow({
 }: GroupRowProps) {
   const math = group.math!
   const rec = group.recommendation
-  const badge = rec ? RECOMMENDATION_BADGE[rec.type] : null
+  // Con 0 paquetes completos el "mixto" ES menudeo puro (recommendPurchase ya
+  // sugiere 'retail'); el badge lo nombra igual para no confundir.
+  const badge = rec
+    ? rec.type === 'mixed' && rec.suggested === 'retail'
+      ? { label: 'Menudeo', className: RECOMMENDATION_BADGE.mixed.className }
+      : RECOMMENDATION_BADGE[rec.type]
+    : null
   const wholesale = applyChoice(math, 'wholesale')
 
   // Mixto solo aporta cuando hay resto Y paquetes completos (si no, duplica

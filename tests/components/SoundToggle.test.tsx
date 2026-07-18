@@ -46,7 +46,9 @@ describe('SoundToggle', () => {
     useSoundStore.setState({ soundEnabled: false })
     render(<SoundToggle />)
 
-    await user.click(screen.getByRole('button', { name: 'Activar sonidos' }))
+    // findBy: hasta el primer frame (useMounted) el botón muestra el estado
+    // SSR-safe "activado" aunque el store diga silenciado.
+    await user.click(await screen.findByRole('button', { name: 'Activar sonidos' }))
 
     expect(useSoundStore.getState().soundEnabled).toBe(true)
     expect(setSoundEnabled).toHaveBeenCalledWith(true)

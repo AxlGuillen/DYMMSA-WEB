@@ -44,9 +44,11 @@ muere, se quita sin tocar lógica de negocio.
    animada) en el footer del Sidebar junto a `DiscreteModeToggle` y
    `ThemeToggle`, en ambas variantes (colapsado/expandido). Al re-activar toca
    `toggle` como confirmación audible.
-5. **Solo dashboard** — `SoundInit` se monta en el layout del dashboard. El
-   login y la página pública `/approve/[token]` (el cliente final) quedan sin
-   sonidos a propósito.
+5. **Dashboard + aprobación** — `SoundInit` se monta en el layout del dashboard
+   y, desde 2026-07-17, también en la página pública `/approve/[token]`: con el
+   rediseño (issue #24) el header del cliente ganó controles de tema y sonido
+   (`ThemeToggle` + `SoundToggle`), así que puede silenciarlos ahí mismo.
+   El login sigue sin sonidos a propósito.
 
 ## Testing
 

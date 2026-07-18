@@ -22,9 +22,12 @@ interface ApprovalFiltersProps {
 }
 
 /**
- * Barra de filtros de la aprobación (issue #24): filtro por marca y por
- * proyecto/sección + botón contextual de "aprobar lo visible". Sticky bajo el
- * header para no perderla al hacer scroll en cotizaciones grandes.
+ * Filtros de la aprobación (issue #24): marca y proyecto/sección + botón
+ * contextual de "aprobar lo visible". Vive en el encabezado de la card de
+ * productos (arriba de la tabla) — antes era una barra sticky aparte que
+ * rompía con el diseño y truncaba las etiquetas. Los triggers usan ancho
+ * automático (`w-auto` + `min-w`) para que ninguna opción se corte.
+ * Cada Select solo aparece si hay más de una opción que filtrar.
  */
 export function ApprovalFilters({
   brands,
@@ -37,13 +40,13 @@ export function ApprovalFilters({
   const active = hasActiveFilters(filters)
 
   return (
-    <div className="sticky top-[73px] z-30 -mx-4 border-b border-border/60 bg-background/70 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2.5">
+    <div className="flex flex-wrap items-center gap-2">
+      {brands.length > 1 && (
         <Select
           value={filters.brand}
           onValueChange={(brand) => onChange({ ...filters, brand })}
         >
-          <SelectTrigger className="h-9 w-[150px] rounded-full">
+          <SelectTrigger className="h-8 w-auto min-w-[9.5rem] whitespace-nowrap rounded-full bg-card/60 text-xs">
             <SelectValue placeholder="Marca" />
           </SelectTrigger>
           <SelectContent>
@@ -53,12 +56,14 @@ export function ApprovalFilters({
             ))}
           </SelectContent>
         </Select>
+      )}
 
+      {sections.length > 1 && (
         <Select
           value={filters.section}
           onValueChange={(section) => onChange({ ...filters, section })}
         >
-          <SelectTrigger className="h-9 w-[170px] rounded-full">
+          <SelectTrigger className="h-8 w-auto min-w-[10.5rem] whitespace-nowrap rounded-full bg-card/60 text-xs">
             <SelectValue placeholder="Proyecto" />
           </SelectTrigger>
           <SelectContent>
@@ -68,32 +73,30 @@ export function ApprovalFilters({
             ))}
           </SelectContent>
         </Select>
+      )}
 
-        {active && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 rounded-full text-muted-foreground"
-            onClick={() => onChange({ brand: 'all', section: 'all' })}
-          >
-            <X className="mr-1 size-3.5" />
-            Limpiar
-          </Button>
-        )}
+      {active && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 rounded-full text-muted-foreground"
+          onClick={() => onChange({ brand: 'all', section: 'all' })}
+        >
+          <X className="mr-1 size-3.5" />
+          Limpiar
+        </Button>
+      )}
 
-        <div className="ml-auto">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9 rounded-full"
-            onClick={onApproveVisible}
-            disabled={visibleCount === 0}
-          >
-            <CheckSquare className="mr-1.5 size-4" />
-            {active ? `Aprobar ${visibleCount} visible${visibleCount !== 1 ? 's' : ''}` : 'Aprobar todos'}
-          </Button>
-        </div>
-      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 whitespace-nowrap rounded-full"
+        onClick={onApproveVisible}
+        disabled={visibleCount === 0}
+      >
+        <CheckSquare className="mr-1.5 size-4" />
+        {active ? `Aprobar ${visibleCount} visible${visibleCount !== 1 ? 's' : ''}` : 'Aprobar todos'}
+      </Button>
     </div>
   )
 }
