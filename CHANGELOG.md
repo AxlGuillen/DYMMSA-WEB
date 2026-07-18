@@ -5,6 +5,13 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-07-17
 
+### Nuevo
+- **Tema y sonido en la página de aprobación.** El enlace que ve tu cliente ahora tiene
+  en el header un botón para **cambiar entre modo claro y oscuro** y otro para **activar
+  o silenciar los sonidos** de click (los mismos del sistema; su elección se recuerda en
+  su navegador). Si su equipo está configurado para reducir animaciones, los sonidos
+  arrancan apagados.
+
 ### Mejorado
 - **El cotizador ya no se traba con cotizaciones grandes.** Al editar cotizaciones
   de cientos o miles de productos, escribir el nombre, abrir el popup o desplazarte
