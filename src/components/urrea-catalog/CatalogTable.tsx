@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreHorizontal, Pencil, Trash2, Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteCatalogItem } from '@/hooks/useUrreaCatalog'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import type { CatalogSortField, SortDir } from '@/hooks/useUrreaCatalog'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
@@ -44,6 +45,16 @@ interface CatalogTableProps {
   sortDir: SortDir
   onSort: (field: CatalogSortField) => void
 }
+
+// Columnas del catálogo URREA (issue #18). Código y acciones son fijas.
+export const CATALOG_COLUMNS: readonly TableColumn[] = [
+  { id: 'code', label: 'Código', hideable: false },
+  { id: 'brand', label: 'Marca' },
+  { id: 'description', label: 'Descripción' },
+  { id: 'std', label: 'STD' },
+  { id: 'updated_at', label: 'Última actualización' },
+  { id: 'actions', label: 'Acciones', hideable: false },
+]
 
 function SortHeader({
   label,
@@ -78,6 +89,7 @@ function SortHeader({
 export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortDir, onSort }: CatalogTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const deleteItem = useDeleteCatalogItem()
+  const cols = useVisibleColumns('urrea-catalog', CATALOG_COLUMNS)
 
   const handleDelete = async () => {
     if (!deleteId) return
@@ -95,10 +107,16 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
     <TableHeader>
       <TableRow>
         <SortHeader label="Código" field="code" active={sortField === 'code'} dir={sortDir} onSort={onSort} className="w-[150px]" />
-        <SortHeader label="Marca" field="brand" active={sortField === 'brand'} dir={sortDir} onSort={onSort} className="w-[110px]" />
-        <SortHeader label="Descripción" field="description" active={sortField === 'description'} dir={sortDir} onSort={onSort} />
-        <SortHeader label="STD" field="std" active={sortField === 'std'} dir={sortDir} onSort={onSort} className="w-[90px]" />
-        <TableHead className="w-[150px]">Última actualización</TableHead>
+        {cols.isVisible('brand') && (
+          <SortHeader label="Marca" field="brand" active={sortField === 'brand'} dir={sortDir} onSort={onSort} className="w-[110px]" />
+        )}
+        {cols.isVisible('description') && (
+          <SortHeader label="Descripción" field="description" active={sortField === 'description'} dir={sortDir} onSort={onSort} />
+        )}
+        {cols.isVisible('std') && (
+          <SortHeader label="STD" field="std" active={sortField === 'std'} dir={sortDir} onSort={onSort} className="w-[90px]" />
+        )}
+        {cols.isVisible('updated_at') && <TableHead className="w-[150px]">Última actualización</TableHead>}
         <TableHead className="w-[80px]">Acciones</TableHead>
       </TableRow>
     </TableHeader>
@@ -113,10 +131,10 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
             {Array.from({ length: 8 }).map((_, i) => (
               <TableRow key={i}>
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                {cols.isVisible('brand') && <TableCell><Skeleton className="h-4 w-16" /></TableCell>}
+                {cols.isVisible('description') && <TableCell><Skeleton className="h-4 w-48" /></TableCell>}
+                {cols.isVisible('std') && <TableCell><Skeleton className="h-4 w-8" /></TableCell>}
+                {cols.isVisible('updated_at') && <TableCell><Skeleton className="h-4 w-28" /></TableCell>}
                 <TableCell><Skeleton className="size-8 rounded-md" /></TableCell>
               </TableRow>
             ))}
@@ -153,16 +171,22 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
             {items.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-mono text-sm">{item.code}</TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className="font-normal">{item.brand}</Badge>
-                </TableCell>
-                <TableCell className="max-w-md">
-                  {item.description || <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
-                </TableCell>
-                <TableCell className="tabular-nums">{item.std}</TableCell>
-                <TableCell className="text-muted-foreground text-sm" title={formatAbsolute(item.updated_at)}>
-                  {formatRelative(item.updated_at)}
-                </TableCell>
+                {cols.isVisible('brand') && (
+                  <TableCell>
+                    <Badge variant="secondary" className="font-normal">{item.brand}</Badge>
+                  </TableCell>
+                )}
+                {cols.isVisible('description') && (
+                  <TableCell className="max-w-md">
+                    {item.description || <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
+                  </TableCell>
+                )}
+                {cols.isVisible('std') && <TableCell className="tabular-nums">{item.std}</TableCell>}
+                {cols.isVisible('updated_at') && (
+                  <TableCell className="text-muted-foreground text-sm" title={formatAbsolute(item.updated_at)}>
+                    {formatRelative(item.updated_at)}
+                  </TableCell>
+                )}
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

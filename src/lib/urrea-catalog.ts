@@ -12,6 +12,7 @@
  */
 
 import { catalogKey, normalizeCatalogCode } from '@/lib/business-rules'
+import type { CatalogEntry } from '@/lib/purchase-plan'
 import type { createClient } from '@/lib/supabase/server'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
@@ -42,4 +43,35 @@ export async function fetchCatalogDescriptionMap(
   }
 
   return new Map(data.map((row) => [catalogKey(row.code, row.brand), row.description]))
+}
+
+/**
+ * Variante para el planificador de compra (ADR-018): además de la descripción
+ * trae el STD. Misma disciplina que fetchCatalogDescriptionMap — query por
+ * código, mapa indexado por `catalogKey`, degradación a mapa vacío si el
+ * catálogo no responde (los grupos caen al bucket "local", el plan no truena).
+ */
+export async function fetchCatalogEntryMap(
+  supabase: SupabaseServerClient,
+  codes: (string | null | undefined)[],
+): Promise<Map<string, CatalogEntry>> {
+  const normalized = [...new Set(codes.map(normalizeCatalogCode).filter(Boolean))]
+  if (normalized.length === 0) return new Map()
+
+  const { data, error } = await supabase
+    .from('urrea_catalog')
+    .select('code, brand, description, std')
+    .in('code', normalized)
+
+  if (error || !data) {
+    if (error) console.warn('fetchCatalogEntryMap error (ignored):', error)
+    return new Map()
+  }
+
+  return new Map(
+    data.map((row) => [
+      catalogKey(row.code, row.brand),
+      { std: row.std, description: row.description },
+    ]),
+  )
 }

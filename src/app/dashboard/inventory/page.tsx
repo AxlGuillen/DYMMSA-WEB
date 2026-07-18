@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useInventory, useInventoryStats } from '@/hooks/useInventory'
 import type { StockFilter, QuantitySort } from '@/hooks/useInventory'
-import { InventoryTable } from '@/components/inventory/InventoryTable'
+import { InventoryTable, INVENTORY_COLUMNS } from '@/components/inventory/InventoryTable'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { InventoryForm } from '@/components/inventory/InventoryForm'
 import { InventoryImporter } from '@/components/inventory/InventoryImporter'
 import { Button } from '@/components/ui/button'
@@ -113,7 +114,8 @@ export default function InventoryPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
+      <div className="flex items-center gap-3">
+      <div className="relative max-w-sm flex-1">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Buscar por código modelo..."
@@ -129,6 +131,8 @@ export default function InventoryPage() {
             <X className="size-4" />
           </button>
         )}
+      </div>
+      <ColumnPicker tableId="inventory" columns={INVENTORY_COLUMNS} />
       </div>
 
       {/* Table */}

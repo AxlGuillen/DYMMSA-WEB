@@ -5,6 +5,22 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-07-17
 
+### Nuevo
+- **Tema y sonido en la página de aprobación.** El enlace que ve tu cliente ahora tiene
+  en el header un botón para **cambiar entre modo claro y oscuro** y otro para **activar
+  o silenciar los sonidos** de click (los mismos del sistema; su elección se recuerda en
+  su navegador). Si su equipo está configurado para reducir animaciones, los sonidos
+  arrancan apagados.
+
+### Mejorado
+- **El cotizador ya no se traba con cotizaciones grandes.** Al editar cotizaciones
+  de cientos o miles de productos, escribir el nombre, abrir el popup o desplazarte
+  por la lista se sentía lento. Ahora responde fluido: la tabla solo dibuja las
+  filas que ves en pantalla y dejó de repintarse entera con cada tecleo. En listas
+  de **más de 300 productos**, el reordenar por arrastre se cambia por **flechas
+  ↑↓** en cada fila (arrastrar se mantiene en listas más chicas) — con un aviso en
+  la tabla. Tu borrador también se guarda de forma más eficiente mientras trabajas.
+
 ### Corregido
 - **Ya puedes agregar a la cotización productos que ya existen en el catálogo.** Antes, al
   capturar un ETM conocido en el popup de "Agregar producto", aparecía "Este ETM ya existe
@@ -14,6 +30,84 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   cantidad o lo que haga falta. También puedes agregar un ETM que **ya está en la misma
   cotización** (útil cuando una cotización junta varios proyectos que repiten productos):
   el popup te lo avisa con una nota, pero ya no te lo impide.
+
+## 2026-07-16 (IV)
+
+### Mejorado
+- **Página de aprobación del cliente, renovada.** La pantalla que ve tu cliente para aprobar la
+  cotización tiene un nuevo diseño más claro y elegante (se adapta al modo claro u oscuro de su
+  dispositivo). Los botones de **Guardar avance** y **Enviar aprobación** ahora viven en una barra
+  flotante **siempre visible** al hacer scroll, con un indicador de progreso (cuántos productos van
+  aprobados y el total). Al abrir el enlace, un breve intro con el logo da la bienvenida (solo la
+  primera vez).
+
+### Nuevo
+- **Filtros en la aprobación.** En cotizaciones grandes, el cliente puede **filtrar por marca** y
+  **por proyecto** (las secciones de la cotización) para revisar por partes. El botón "Aprobar
+  todos" es inteligente: cuando hay un filtro puesto, aprueba **solo lo que está viendo** y te lo
+  dice (ej. "Aprobar 8 visibles").
+
+## 2026-07-16 (III)
+
+### Nuevo
+- **Módulo de Proveedores.** Registra a tus proveedores de menudeo con su contacto (teléfono,
+  WhatsApp, correo, dirección y notas) y las **marcas que maneja cada uno** como etiquetas.
+  El WhatsApp es un enlace directo: un click y se abre el chat. Puedes buscar, filtrar por
+  marca y elegir columnas como en las demás tablas. Las marcas viven en su propio catálogo
+  (llega pre-cargado con las marcas que ya conoce el sistema): créalas al vuelo desde el
+  formulario del proveedor o adminístralas con el botón **"Marcas"** — renombrar se refleja
+  en todos los proveedores, y una marca asignada no se puede eliminar hasta desasignarla.
+  Es la base para que pronto el sistema te sugiera a quién comprarle lo que va por menudeo.
+
+## 2026-07-16 (II)
+
+### Nuevo
+- **Elige qué columnas ver en cada tabla.** Todas las tablas principales (cotizaciones,
+  órdenes, sus productos, el cotizador, el planificador de compra, los catálogos, el
+  inventario y las tareas) tienen ahora un botón **"Columnas"** para ocultar las que no
+  necesitas en ese momento — útil en pantallas medianas o cuando solo estás revisando
+  precios o cantidades. Tu selección **se recuerda en tu navegador** por tabla, y con
+  "Restablecer columnas" vuelves a verlas todas. Las columnas clave (el identificador del
+  producto y las acciones) siempre quedan visibles para no perder el hilo.
+
+## 2026-07-16
+
+### Nuevo
+- **Recepción con excedente.** Ahora puedes registrar que llegaron **más piezas de las
+  pedidas** (por ejemplo, pediste 2 y URREA mandó el paquete de 10): el excedente **entra
+  automáticamente al inventario de tienda** y en la fila verás "+8 a tienda". El cobro al
+  cliente no cambia — solo paga lo que ordenó; las piezas extra son stock tuyo.
+- **Resumen antes de confirmar la recepción.** Al dar "Confirmar Recepción" aparece una
+  ventana con lo que capturaste (pedido vs recibido y cuántas piezas entran al inventario),
+  con las cantidades inusuales marcadas — para atrapar un dedazo (100 en vez de 10) antes
+  de que toque el inventario.
+
+### Corregido
+- **El inventario ya no se duplica** al corregir una recepción ni al cancelar una orden que
+  ya había recibido mercancía: confirmar dos veces con el mismo número no vuelve a sumar, y
+  corregir a la baja resta lo que sobró de más.
+
+## 2026-07-15
+
+### Nuevo
+- **Planificar compra: mayoreo vs menudeo.** Dentro de cada orden hay un nuevo botón
+  **"Planificar compra"** que te ayuda a decidir qué pedir directo a URREA (por paquetes) y qué
+  comprar a menudeo con proveedores locales. El sistema junta los productos repetidos, calcula
+  cuántos paquetes completos necesitas según el STD del catálogo y te dice cuánto dinero quedaría
+  "parado" en piezas sobrantes si redondeas al paquete. Con eso te **recomienda** por producto:
+  mayoreo, mixto (paquetes a URREA + el resto a menudeo) o menudeo — y tú siempre tienes la
+  última palabra. Tus decisiones se guardan por orden, y si después cambias cantidades el sistema
+  te avisa que quedaron desactualizadas. Los umbrales de la recomendación ($100 de dinero parado,
+  80% del paquete) se pueden ajustar ahí mismo.
+- **Lista de compra local.** Desde el planificador puedes descargar un Excel con todo lo que va a
+  menudeo: los restos que decidiste no redondear más los productos que no están en el catálogo
+  URREA — listo para ir con los proveedores.
+
+### Mejorado
+- **El pedido URREA ahora sale del planificador.** El Excel de pedido incluye cualquier producto
+  del catálogo URREA (también SURTEK, FOY y demás líneas — antes solo marca "URREA") y las
+  cantidades van en múltiplos exactos de paquete. Si aún no has planificado la compra, el botón te
+  lleva al planificador; si tus decisiones quedaron viejas, te avisa antes de generar.
 
 ## 2026-07-14
 

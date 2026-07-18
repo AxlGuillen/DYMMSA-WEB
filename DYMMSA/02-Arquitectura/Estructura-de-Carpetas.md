@@ -35,7 +35,13 @@ src/
 │   │
 │   ├── approve/[token]/          # Página PÚBLICA de aprobación (sin auth)
 │   │   ├── page.tsx              # Server component: carga cotización por token
-│   │   └── ApprovalClient.tsx    # Client component: UI de aprobación interactiva
+│   │   ├── ApprovalClient.tsx    # Client component: orquesta la UI de aprobación
+│   │   ├── ApprovalFilters.tsx   # Filtros marca/proyecto + aprobar-visibles (issue #24)
+│   │   ├── ApprovalDock.tsx      # Dock flotante sticky (anillo de progreso + acciones)
+│   │   ├── SummaryTiles.tsx      # Tiles Cliente/Productos/Subtotal
+│   │   ├── SuccessScreen.tsx     # Pantalla de confirmación tras enviar
+│   │   ├── SplashIntro.tsx       # Splash del logo (1 vez por sesión, reduce-motion)
+│   │   └── format.ts             # Formato de moneda local (público, sin modo discreto)
 │   │
 │   ├── dashboard/                # Área autenticada
 │   │   ├── layout.tsx            # Layout con Sidebar + Navbar
@@ -43,10 +49,12 @@ src/
 │   │   ├── db/page.tsx           # Catálogo ETM products
 │   │   ├── docs/page.tsx         # Documentación interna
 │   │   ├── inventory/page.tsx    # Gestión de inventario
+│   │   ├── proveedores/page.tsx  # Proveedores de menudeo + marcas (issue #21)
 │   │   ├── orders/
 │   │   │   ├── page.tsx          # Lista de órdenes
 │   │   │   ├── new/page.tsx      # Crear orden manual (legacy)
-│   │   │   └── [id]/page.tsx     # Detalle de orden
+│   │   │   ├── [id]/page.tsx     # Detalle de orden
+│   │   │   └── [id]/planner/page.tsx  # Planificador de compra mayoreo/menudeo (ADR-018)
 │   │   ├── quotations/
 │   │   │   ├── page.tsx          # Lista de cotizaciones
 │   │   │   └── [id]/page.tsx     # Detalle de cotización
@@ -62,13 +70,15 @@ src/
 ├── components/
 │   ├── dashboard/                # DashboardMetrics, MetricCard, OrderStatusBreakdown
 │   ├── db/                       # ExcelImporter, ProductForm, ProductsTable
+│   ├── ColumnPicker.tsx          # Selector "Columnas" por tabla (checkbox + restablecer, issue #18)
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
-│   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable
+│   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable, PurchasePlanner
 │   ├── providers/                # QueryProvider (TanStack), ThemeProvider
 │   ├── quotations/               # QuotationDetail, QuotationStatusBadge, QuotationsTable
 │   ├── quoter/                   # FileUploader, ProductModal, QuotationEditor, QuotePreview
+│   ├── suppliers/                # SuppliersTable, SupplierForm, BrandsManager (issue #21)
 │   ├── tasks/                    # TaskForm, TaskDetail, TaskPriorityBadge
 │   └── ui/                       # shadcn/ui components (alert-dialog, badge, button, etc.)
 │
@@ -80,7 +90,11 @@ src/
 │   ├── useOrders.ts              # CRUD + acciones de órdenes (add/edit/remove items, cancel, confirm)
 │   ├── useProducts.ts            # CRUD catálogo ETM
 │   ├── useQuotations.ts          # CRUD + acciones de cotizaciones
+│   ├── usePurchasePlan.ts        # Plan de compra + guardado de decisiones (ADR-018)
+│   ├── useVisibleColumns.ts      # Visibilidad de columnas por tabla (issue #18; SSR-safe con useMounted)
 │   ├── useQuotes.ts              # Lookup ETMs para el cotizador
+│   ├── useSuppliers.ts           # Proveedores + marcas (SUPPLIERS_KEY, BRANDS_KEY)
+│   ├── useSettings.ts            # useUpdateSettings (app_settings, umbrales del planificador)
 │   └── useTasks.ts               # Tareas (GitHub Issues): lista/detalle/crear/editar/comentar/upload
 │
 ├── lib/
@@ -94,6 +108,8 @@ src/
 │   │   └── admin.ts              # createAdminClient (service role, cuando necesario)
 │   ├── format.ts                 # Fechas relativas/absolutas, sanitize, parseNumber, parseInteger
 │   ├── business-rules.ts         # isProductItem, calculateQuotationTotal, allocateInventory, etc.
+│   ├── approval-filters.ts       # Filtros de la página de aprobación: secciones/marcas (issue #24)
+│   ├── purchase-plan.ts          # Planificador de compra: consolidación, math STD, recomendación (ADR-018)
 │   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers
 │   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
@@ -101,6 +117,7 @@ src/
 │   └── utils.ts                  # cn() — class merging
 │
 ├── stores/
+│   ├── columnStore.ts            # Zustand store: columnas ocultas por tabla (persist 'dymmsa-columns', issue #18)
 │   ├── discreteModeStore.ts      # Zustand store: modo discreto ON/OFF (persist en localStorage)
 │   └── quotationStore.ts         # Zustand store: draft de cotización (persist en localStorage)
 │

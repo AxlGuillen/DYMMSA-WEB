@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -19,6 +19,7 @@ import {
   Trash2,
   X,
   Check,
+  ClipboardList,
   Info,
   SeparatorHorizontal,
 } from '@/components/icons'
@@ -81,7 +82,22 @@ import {
   useUpdateOrderOdooId,
 } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
-import type { OrderWithItems, OrderStatus, UrreaStatus, DeliveryTime } from '@/types/database'
+import { usePurchasePlan } from '@/hooks/usePurchasePlan'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { ColumnPicker } from '@/components/ColumnPicker'
+import {
+  calculateDeliveredTotal,
+  filterProductItems,
+  receivedForCustomer,
+  receptionExcess,
+} from '@/lib/business-rules'
+import type {
+  OrderWithItems,
+  OrderStatus,
+  UrreaStatus,
+  DeliveryTime,
+  ConfirmReceptionResult,
+} from '@/types/database'
 
 const EMPTY_ADD_FORM = {
   etm: '',
@@ -181,7 +197,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
     const deliveredItems = order.order_items.filter(
       (item) =>
         (!item.item_type || item.item_type === 'product') &&
-        item.quantity_in_stock + item.quantity_received > 0
+        item.quantity_in_stock + receivedForCustomer(item) > 0
     )
 
     if (deliveredItems.length === 0) {
@@ -201,40 +217,49 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
-  const handleDownloadUrreaOrder = async () => {
-    const itemsToOrder = order.order_items.filter(
-      (item) => (!item.item_type || item.item_type === 'product') && item.quantity_to_order > 0
-    )
+  // El Excel URREA sale de las decisiones GUARDADAS del planificador (ADR-018):
+  // piezas = paquetes × STD, criterio = pertenencia al catálogo (ya no brand).
+  const { data: planData } = usePurchasePlan(order.id)
+  const plan = planData?.plan
+  const wholesaleRows = (plan?.groups ?? [])
+    .filter((g) => g.decision && g.decision.packages_wholesale > 0)
+    .map((g) => ({
+      code: g.decision!.model_code,
+      pieces: g.decision!.packages_wholesale * g.decision!.std_snapshot,
+    }))
 
-    if (itemsToOrder.length === 0) {
-      toast.info('No hay productos para pedir a URREA')
+  const [staleDialogOpen, setStaleDialogOpen] = useState(false)
+
+  const generateUrrea = async () => {
+    if (wholesaleRows.length === 0) {
+      toast.info('Ninguna decisión manda piezas a URREA (todo quedó en menudeo o stock)')
       return
     }
-
-    const urreaItems = itemsToOrder.filter((item) => item.brand.toUpperCase() === 'URREA')
-    const nonUrreaCount = itemsToOrder.length - urreaItems.length
-
-    if (nonUrreaCount > 0) {
-      toast.warning(
-        `${nonUrreaCount} producto${nonUrreaCount > 1 ? 's' : ''} no son de marca URREA y fueron excluidos del pedido`
-      )
-    }
-
-    if (urreaItems.length === 0) {
-      toast.info('Ningún producto a pedir es de marca URREA')
-      return
-    }
-
     setIsDownloading(true)
     try {
-      const blob = await generateUrreaOrderExcel(urreaItems)
+      const blob = await generateUrreaOrderExcel(wholesaleRows)
       downloadUrreaOrder(blob, order.customer_name)
-      toast.success(`Excel de pedido URREA descargado (${urreaItems.length} productos)`)
+      toast.success(`Excel de pedido URREA descargado (${wholesaleRows.length} productos)`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al generar pedido URREA')
     } finally {
       setIsDownloading(false)
     }
+  }
+
+  const handleDownloadUrreaOrder = async () => {
+    // Sin decisiones guardadas no hay pedido que armar → llevar al planificador.
+    if (!plan || plan.summary.decided === 0) {
+      toast.info('Primero planifica la compra (mayoreo vs menudeo)')
+      push(`/dashboard/orders/${order.id}/planner`)
+      return
+    }
+    // Decisiones desactualizadas: avisar antes de generar con múltiplos viejos.
+    if (plan.summary.stale > 0) {
+      setStaleDialogOpen(true)
+      return
+    }
+    await generateUrrea()
   }
 
   const handleItemEdit = (itemId: string, field: keyof ItemEdit, value: number | UrreaStatus) => {
@@ -255,20 +280,49 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }))
   }
 
-  const handleConfirmReception = async () => {
-    const items = Object.values(itemEdits)
+  // ── Recepción con confirmación (anti-dedazo, ADR-019) ──────────────
+  // El botón abre un resumen de lo capturado; la mutación solo corre al
+  // confirmar en el diálogo. Sin tope en el input, un typo (100 vs 10)
+  // mandaría excedente fantasma al inventario en silencio.
+  const [receptionDialogOpen, setReceptionDialogOpen] = useState(false)
 
-    if (items.length === 0) {
+  /** Filas del resumen: edición + datos del ítem para mostrar el efecto. */
+  const receptionSummary = Object.values(itemEdits).flatMap((edit) => {
+    const item = order.order_items.find((i) => i.id === edit.id)
+    if (!item) return []
+    const excess = receptionExcess({
+      quantity_received: edit.quantity_received,
+      quantity_to_order: item.quantity_to_order,
+    })
+    return [{
+      id: item.id,
+      etm: item.etm || item.model_code,
+      ordered: item.quantity_to_order,
+      received: edit.quantity_received,
+      excess,
+      // Dedazo probable: recibir más del doble de lo pedido
+      suspicious: item.quantity_to_order > 0 && edit.quantity_received > item.quantity_to_order * 2,
+    }]
+  })
+  const totalExcess = receptionSummary.reduce((sum, row) => sum + row.excess, 0)
+
+  const handleConfirmReception = () => {
+    if (Object.values(itemEdits).length === 0) {
       toast.error('No hay cambios para confirmar')
       return
     }
+    setReceptionDialogOpen(true)
+  }
 
+  const executeConfirmReception = async () => {
+    setReceptionDialogOpen(false)
     try {
-      await confirmReception.mutateAsync({
+      const result: ConfirmReceptionResult = await confirmReception.mutateAsync({
         orderId: order.id,
-        input: { items },
+        input: { items: Object.values(itemEdits) },
       })
       toast.success('Recepción confirmada')
+      result.warnings?.forEach((warning) => toast.warning(warning))
       setItemEdits({})
       refresh()
     } catch (error) {
@@ -364,9 +418,28 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
-  const itemsToOrder = order.order_items.filter((item) => item.quantity_to_order > 0)
-  const urreaItemsToOrder = itemsToOrder.filter((item) => item.brand.toUpperCase() === 'URREA')
   const hasChanges = Object.keys(itemEdits).length > 0
+
+  // Columnas de la tabla de ítems (issue #18). Acciones solo entra a las defs
+  // con la orden abierta; ETM y Acciones son fijas.
+  const isOrderActive = order.status !== 'completed' && order.status !== 'cancelled'
+  const itemColumns = useMemo<TableColumn[]>(() => [
+    { id: 'etm', label: 'ETM', hideable: false },
+    { id: 'model_code', label: 'Model Code' },
+    { id: 'brand', label: 'Marca' },
+    { id: 'description', label: 'Descripción' },
+    { id: 'qty_approved', label: 'Aprobados' },
+    { id: 'qty_in_stock', label: 'En Stock' },
+    { id: 'location', label: 'Ubicación' },
+    { id: 'qty_to_order', label: 'A Pedir' },
+    { id: 'qty_received', label: 'Recibidos' },
+    { id: 'urrea_status', label: 'Estado de envío' },
+    { id: 'delivery', label: 'Tiempo Entrega' },
+    { id: 'unit_price', label: 'Precio' },
+    { id: 'total', label: 'Total' },
+    ...(isOrderActive ? [{ id: 'actions', label: 'Acciones', hideable: false }] : []),
+  ], [isOrderActive])
+  const cols = useVisibleColumns('order-detail-items', itemColumns)
   const isCancelled = order.status === 'cancelled'
   const isCompleted = order.status === 'completed'
 
@@ -375,8 +448,10 @@ export function OrderDetail({ order }: OrderDetailProps) {
   return (
     <div className="space-y-6">
 
-      {/* Header */}
-      <div className="flex items-start gap-4">
+      {/* Header. flex-wrap + min-w del título: las acciones (5+ botones) son
+          shrink-0 — sin wrap, en pantallas medianas exprimían el título a una
+          columna de letras; ahora bajan a su propia línea. */}
+      <div className="flex items-start gap-4 flex-wrap">
         <Button
           variant="ghost"
           size="icon"
@@ -385,7 +460,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         >
           <ArrowLeft className="size-5" />
         </Button>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-72">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-semibold tracking-tight">
               {order.name || order.customer_name}
@@ -449,8 +524,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+        {/* Actions — ml-auto: alineadas a la derecha también cuando bajan de línea */}
+        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0 ml-auto">
           {!isCancelled && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Estado:</span>
@@ -475,15 +550,23 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
           <Button
             variant="outline"
+            onClick={() => push(`/dashboard/orders/${order.id}/planner`)}
+          >
+            <ClipboardList className="mr-2 size-4" />
+            Planificar compra
+          </Button>
+
+          <Button
+            variant="outline"
             onClick={handleDownloadUrreaOrder}
-            disabled={isDownloading || urreaItemsToOrder.length === 0}
+            disabled={isDownloading}
           >
             {isDownloading ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
               <Download className="mr-2 size-4" />
             )}
-            Pedido URREA ({urreaItemsToOrder.length})
+            Pedido URREA{plan ? ` (${wholesaleRows.length})` : ''}
           </Button>
 
           <Button
@@ -605,9 +688,10 @@ export function OrderDetail({ order }: OrderDetailProps) {
           <div className="flex items-start gap-1.5">
             <Info className="size-3.5 mt-0.5 shrink-0" />
             <span>
-              <strong>Pedido URREA:</strong> el Excel solo incluye productos con{' '}
-              <em>A Pedir &gt; 0</em> y marca <em>URREA</em>. Productos de otras marcas o
-              completamente en stock quedan excluidos.
+              <strong>Pedido URREA:</strong> el Excel se genera con las decisiones de mayoreo
+              guardadas en <em>Planificar compra</em> (piezas = paquetes × STD). Aplica a
+              cualquier producto del catálogo URREA (todas sus líneas); lo decidido a menudeo y
+              lo que no está en el catálogo va en la lista de compra local.
             </span>
           </div>
           <div className="flex items-start gap-1.5">
@@ -627,7 +711,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
             <Package className="size-3" /> Productos
           </p>
-          <p className="text-2xl font-bold">{order.order_items.length}</p>
+          {/* REGLA: separadores fuera de los conteos — contaba order_items.length. */}
+          <p className="text-2xl font-bold">{filterProductItems(order.order_items).length}</p>
         </div>
         <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
           <p className="text-xs font-medium text-blue-700 dark:text-blue-300 flex items-center gap-1 mb-2">
@@ -673,6 +758,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <ColumnPicker tableId="order-detail-items" columns={itemColumns} />
               {!isCompleted && !isCancelled && (
                 <Button size="sm" variant="outline" onClick={() => setAddItemOpen(true)}>
                   <Plus className="size-4 mr-1.5" />
@@ -698,18 +784,18 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>ETM</TableHead>
-                  <TableHead>Model Code</TableHead>
-                  <TableHead>Marca</TableHead>
-                  <TableHead className="max-w-[200px]">Descripción</TableHead>
-                  <TableHead className="text-right">Aprobados</TableHead>
-                  <TableHead className="text-right">En Stock</TableHead>
-                  <TableHead>Ubicación</TableHead>
-                  <TableHead className="text-right">A Pedir</TableHead>
-                  <TableHead className="text-right">Recibidos</TableHead>
-                  <TableHead>Estado de envío</TableHead>
-                  <TableHead>Tiempo Entrega</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  {cols.isVisible('model_code') && <TableHead>Model Code</TableHead>}
+                  {cols.isVisible('brand') && <TableHead>Marca</TableHead>}
+                  {cols.isVisible('description') && <TableHead className="max-w-[200px]">Descripción</TableHead>}
+                  {cols.isVisible('qty_approved') && <TableHead className="text-right">Aprobados</TableHead>}
+                  {cols.isVisible('qty_in_stock') && <TableHead className="text-right">En Stock</TableHead>}
+                  {cols.isVisible('location') && <TableHead>Ubicación</TableHead>}
+                  {cols.isVisible('qty_to_order') && <TableHead className="text-right">A Pedir</TableHead>}
+                  {cols.isVisible('qty_received') && <TableHead className="text-right">Recibidos</TableHead>}
+                  {cols.isVisible('urrea_status') && <TableHead>Estado de envío</TableHead>}
+                  {cols.isVisible('delivery') && <TableHead>Tiempo Entrega</TableHead>}
+                  {cols.isVisible('unit_price') && <TableHead className="text-right">Precio</TableHead>}
+                  {cols.isVisible('total') && <TableHead className="text-right">Total</TableHead>}
                   {!isCompleted && !isCancelled && (
                     <TableHead className="text-center">Acciones</TableHead>
                   )}
@@ -721,7 +807,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   if (item.item_type === 'separator') {
                     return (
                       <TableRow key={item.id} className="border-b border-dashed border-border/60 bg-muted/30 hover:bg-muted/30">
-                        <TableCell colSpan={isCompleted || isCancelled ? 13 : 14} className="px-4 py-2">
+                        <TableCell colSpan={cols.visibleCount} className="px-4 py-2">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <SeparatorHorizontal className="size-3.5 shrink-0" />
                             <span className="font-medium">{item.section_label || 'Sección'}</span>
@@ -740,43 +826,76 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="font-mono text-sm">{item.etm}</TableCell>
-                      <TableCell>{item.model_code}</TableCell>
-                      <TableCell>{item.brand || '—'}</TableCell>
-                      <TableCell className="max-w-[200px] text-sm break-words whitespace-normal">
-                        {item.description}
-                      </TableCell>
-                      <TableCell className="text-right">{item.quantity_approved}</TableCell>
-                      <TableCell className="text-right text-blue-600">
-                        {item.quantity_in_stock}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {item.quantity_in_stock > 0 && item.location
-                          ? item.location
-                          : <span className="text-muted-foreground">{'—'}</span>}
-                      </TableCell>
-                      <TableCell className="text-right text-orange-600">
-                        {item.quantity_to_order}
-                      </TableCell>
+                      {cols.isVisible('model_code') && <TableCell>{item.model_code}</TableCell>}
+                      {cols.isVisible('brand') && <TableCell>{item.brand || '—'}</TableCell>}
+                      {cols.isVisible('description') && (
+                        <TableCell className="max-w-[200px] text-sm break-words whitespace-normal">
+                          {item.description}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('qty_approved') && (
+                        <TableCell className="text-right">{item.quantity_approved}</TableCell>
+                      )}
+                      {cols.isVisible('qty_in_stock') && (
+                        <TableCell className="text-right text-blue-600">
+                          {item.quantity_in_stock}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('location') && (
+                        <TableCell className="font-mono text-sm">
+                          {item.quantity_in_stock > 0 && item.location
+                            ? item.location
+                            : <span className="text-muted-foreground">{'—'}</span>}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('qty_to_order') && (
+                        <TableCell className="text-right text-orange-600">
+                          {item.quantity_to_order}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('qty_received') && (
                       <TableCell className="text-right">
-                        {canEditQuantity ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            max={item.quantity_to_order}
-                            className="w-20 h-8 text-right"
-                            value={edit?.quantity_received ?? item.quantity_received}
-                            onChange={(e) =>
-                              handleItemEdit(
-                                item.id,
-                                'quantity_received',
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                          />
-                        ) : (
-                          <span className="text-green-600">{item.quantity_received}</span>
+                        {canEditQuantity ? (() => {
+                          const effectiveReceived = edit?.quantity_received ?? item.quantity_received
+                          const excess = receptionExcess({
+                            quantity_received: effectiveReceived,
+                            quantity_to_order: item.quantity_to_order,
+                          })
+                          return (
+                            <div className="flex flex-col items-end">
+                              <Input
+                                type="number"
+                                min="0"
+                                className="w-20 h-8 text-right"
+                                value={effectiveReceived}
+                                onChange={(e) =>
+                                  handleItemEdit(
+                                    item.id,
+                                    'quantity_received',
+                                    parseInt(e.target.value) || 0
+                                  )
+                                }
+                              />
+                              {excess > 0 && (
+                                <span className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                                  +{excess} a tienda
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })() : (
+                          <span className="text-green-600">
+                            {item.quantity_received}
+                            {receptionExcess(item) > 0 && (
+                              <span className="block text-xs text-blue-600 dark:text-blue-400">
+                                +{receptionExcess(item)} a tienda
+                              </span>
+                            )}
+                          </span>
                         )}
                       </TableCell>
+                      )}
+                      {cols.isVisible('urrea_status') && (
                       <TableCell>
                         {canEditUrreaStatus ? (
                           <Select
@@ -812,6 +931,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           </Badge>
                         )}
                       </TableCell>
+                      )}
+                      {cols.isVisible('delivery') && (
                       <TableCell>
                         {isOrderOpen ? (
                           <Select
@@ -838,6 +959,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           </span>
                         )}
                       </TableCell>
+                      )}
+                      {cols.isVisible('unit_price') && (
                       <TableCell className="text-right">
                         {isOrderOpen && editingPriceId === item.id ? (
                           <div className="flex items-center justify-end gap-1">
@@ -872,15 +995,13 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           <span>{fmt(item.unit_price)}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {fmt((() => {
-                          let qty = item.quantity_in_stock
-                          if (item.urrea_status !== 'not_supplied') {
-                            qty += item.quantity_received
-                          }
-                          return qty * item.unit_price
-                        })())}
-                      </TableCell>
+                      )}
+                      {cols.isVisible('total') && (
+                        <TableCell className="text-right font-medium">
+                          {/* Total de línea con la misma regla del backend (excedente no se factura) */}
+                          {fmt(calculateDeliveredTotal([item]))}
+                        </TableCell>
+                      )}
                       {isOrderOpen && (
                         <TableCell>
                           <div className="flex items-center justify-center gap-1">
@@ -908,15 +1029,31 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell
-                    colSpan={!isCompleted && !isCancelled ? 13 : 12}
-                    className="text-right font-bold"
-                  >
-                    Total:
-                  </TableCell>
-                  <TableCell className="text-right font-bold">
-                    {fmt(totalAmount)}
-                  </TableCell>
+                  {(() => {
+                    // Alineado a las columnas VISIBLES; si Total está oculta,
+                    // una sola celda fusionada con el monto.
+                    const totalIdx = cols.visibleColumns.findIndex((c) => c.id === 'total')
+                    if (totalIdx < 0) {
+                      return (
+                        <TableCell colSpan={cols.visibleCount} className="text-right font-bold">
+                          Total: {fmt(totalAmount)}
+                        </TableCell>
+                      )
+                    }
+                    return (
+                      <>
+                        <TableCell colSpan={totalIdx} className="text-right font-bold">
+                          Total:
+                        </TableCell>
+                        <TableCell className="text-right font-bold">
+                          {fmt(totalAmount)}
+                        </TableCell>
+                        {cols.visibleColumns.slice(totalIdx + 1).map((c) => (
+                          <TableCell key={c.id} />
+                        ))}
+                      </>
+                    )
+                  })()}
                 </TableRow>
               </TableFooter>
             </Table>
@@ -1029,6 +1166,94 @@ export function OrderDetail({ order }: OrderDetailProps) {
             >
               {removeOrderItem.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
               Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Resumen de recepción antes de confirmar (anti-dedazo, ADR-019) */}
+      <AlertDialog open={receptionDialogOpen} onOpenChange={setReceptionDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar recepción</AlertDialogTitle>
+            <AlertDialogDescription>
+              Revisa las cantidades capturadas antes de aplicarlas
+              {totalExcess > 0
+                ? ` — ${totalExcess} pieza${totalExcess !== 1 ? 's' : ''} de excedente entrará${totalExcess !== 1 ? 'n' : ''} al inventario de tienda.`
+                : '.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-md border max-h-64 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ETM</TableHead>
+                  <TableHead className="text-right">Pedido</TableHead>
+                  <TableHead className="text-right">Recibido</TableHead>
+                  <TableHead className="text-right">Inventario</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {receptionSummary.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    className={row.excess > 0 ? 'bg-amber-500/10' : undefined}
+                  >
+                    <TableCell className="font-mono text-sm">{row.etm}</TableCell>
+                    <TableCell className="text-right">{row.ordered}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {row.received}
+                      {row.suspicious && (
+                        <AlertTriangle className="inline size-3.5 ml-1 text-amber-600" aria-label="Cantidad inusual" />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.excess > 0 ? (
+                        <span className="text-blue-600 dark:text-blue-400">+{row.excess} a tienda</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {receptionSummary.some((row) => row.suspicious) && (
+            <p className="text-xs text-amber-600 flex items-center gap-1.5">
+              <AlertTriangle className="size-3.5 shrink-0" />
+              Hay cantidades que superan por mucho lo pedido — verifica que no sea un error de captura.
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar de nuevo</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeConfirmReception}
+              disabled={confirmReception.isPending}
+            >
+              Sí, confirmar recepción
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Aviso de decisiones de compra desactualizadas (ADR-018) */}
+      <AlertDialog open={staleDialogOpen} onOpenChange={setStaleDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hay decisiones de compra desactualizadas</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cambiaron las cantidades a pedir o el STD del catálogo desde que se planificó la
+              compra. Puedes generar el Excel con las decisiones guardadas o revisar el
+              planificador primero.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => push(`/dashboard/orders/${order.id}/planner`)}>
+              Ir al planificador
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setStaleDialogOpen(false); void generateUrrea() }}>
+              Generar de todos modos
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

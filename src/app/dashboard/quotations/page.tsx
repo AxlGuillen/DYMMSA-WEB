@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { QuotationsTable } from '@/components/quotations/QuotationsTable'
+import { QuotationsTable, QUOTATIONS_COLUMNS } from '@/components/quotations/QuotationsTable'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { useQuotations, useQuotationStats } from '@/hooks/useQuotations'
 import type { QuotationStatus } from '@/types/database'
 
@@ -135,6 +136,7 @@ export default function QuotationsPage() {
             <X className="size-3.5" />
           </button>
         )}
+        <ColumnPicker tableId="quotations-list" columns={QUOTATIONS_COLUMNS} />
       </div>
 
       {/* Table */}

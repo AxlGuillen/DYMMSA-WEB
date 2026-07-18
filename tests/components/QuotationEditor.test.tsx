@@ -3,6 +3,7 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QuotationEditor } from '@/components/quoter/QuotationEditor'
 import { useQuotationStore } from '@/stores/quotationStore'
+import { useColumnStore } from '@/stores/columnStore'
 import { resetStores, seedQuotationItems } from './helpers/stores'
 import { quotationItemRow } from './helpers/fixtures'
 
@@ -137,5 +138,83 @@ describe('QuotationEditor', () => {
 
     expect(screen.getByText('curada Surtek')).toBeInTheDocument()
     expect(screen.queryByText('Oficial URREA 14"')).not.toBeInTheDocument()
+  })
+
+  // ─── Columnas visibles (issue #18) ─────────────────────────────────────
+
+  test('ocultar una columna quita header y celdas, y el separador ajusta su colSpan', async () => {
+    useColumnStore.setState({ hidden: { 'quoter-editor': ['brand'] } })
+    seedQuotationItems([
+      quotationItemRow({ _id: 'a', etm: 'E1', model_code: 'MC1', brand: 'URREA', quantity: 1, unit_price: 10, description: 'x' }),
+      quotationItemRow({ _id: 'sep', item_type: 'separator', section_label: 'Sección' }),
+    ])
+    render(<QuotationEditor />)
+
+    // Tras el frame de useMounted la columna Marca desaparece
+    await waitFor(() =>
+      expect(screen.queryByRole('columnheader', { name: 'Marca' })).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('columnheader', { name: 'ETM' })).toBeInTheDocument()
+    expect(screen.queryByText('URREA', { selector: 'td' })).not.toBeInTheDocument()
+
+    // 13 columnas − 1 oculta = 12 visibles; el label del separador abarca 12 − 2
+    const sepInput = screen.getByPlaceholderText(/nombre de la sección/i)
+    const sepCell = sepInput.closest('td')!
+    expect(sepCell.colSpan).toBe(10)
+  })
+
+  // ─── Rendimiento: umbral drag ↔ virtualización (issue #29) ─────────────
+
+  test('modo normal (≤300 ítems): reordena con drag (grips), sin aviso de flechas', () => {
+    seedQuotationItems([
+      quotationItemRow({ etm: 'A', model_code: 'MC1', quantity: 1, unit_price: 10, description: 'x' }),
+    ])
+    render(<QuotationEditor />)
+
+    expect(screen.getAllByRole('button', { name: 'Arrastrar para reordenar' }).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Reordena con las flechas/)).not.toBeInTheDocument()
+  })
+
+  test('lista grande (>300 ítems): virtualiza y reordena con flechas (sin drag)', () => {
+    const many = Array.from({ length: 301 }, (_, i) =>
+      quotationItemRow({ _id: `r${i}`, etm: `E${i}`, model_code: 'MC', quantity: 1, unit_price: 1, description: 'x' }),
+    )
+    seedQuotationItems(many)
+    render(<QuotationEditor />)
+
+    // El aviso de flechas aparece y el grip de arrastre desaparece.
+    expect(screen.getByText(/Reordena con las flechas/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Arrastrar para reordenar' })).not.toBeInTheDocument()
+  })
+
+  test('editar el nombre de un separador y desmontar sin blur commitea el cambio (#29)', async () => {
+    const user = userEvent.setup()
+    seedQuotationItems([
+      quotationItemRow({ _id: 'sep', item_type: 'separator', section_label: 'Original' }),
+    ])
+    const { unmount } = render(<QuotationEditor />)
+
+    const input = screen.getByPlaceholderText(/nombre de la sección/i)
+    await user.clear(input)
+    await user.type(input, 'Proyecto B')
+    // Sin blur: desmontamos directo — simula el scroll que en modo virtualizado
+    // saca la fila del overscan y la desmonta con el input aún enfocado.
+    unmount()
+
+    const sep = useQuotationStore.getState().items.find((i) => i._id === 'sep')
+    expect(sep?.section_label).toBe('Proyecto B')
+  })
+
+  test('el picker no ofrece las columnas fijas y sí las ocultables', async () => {
+    const user = userEvent.setup()
+    seedQuotationItems([
+      quotationItemRow({ etm: 'E1', model_code: 'MC1', quantity: 1, unit_price: 10, description: 'x' }),
+    ])
+    render(<QuotationEditor />)
+
+    await user.click(screen.getByRole('button', { name: /columnas/i }))
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Marca' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'ETM' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'Acciones' })).not.toBeInTheDocument()
   })
 })

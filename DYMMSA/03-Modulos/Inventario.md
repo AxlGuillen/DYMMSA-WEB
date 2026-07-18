@@ -47,8 +47,8 @@ de estante), y así recolectarlo o verificar existencia más rápido.
 | Crear orden desde cotización | RESTA `quantity_in_stock` | `POST /api/quotations/[id]/create-order` |
 | Agregar ítem a orden existente | RESTA stock disponible | `POST /api/orders/[id]/items` |
 | Eliminar ítem de orden | RESTAURA `quantity_in_stock` | `DELETE /api/orders/[id]/items/[itemId]` |
-| Confirmar recepción de URREA | SUMA `quantity_received` | `POST /api/orders/[id]/confirm-reception` |
-| Cancelar orden | RESTAURA `quantity_in_stock` de todos los ítems | `POST /api/orders/[id]/cancel` |
+| Confirmar recepción de URREA | SUMA solo el **excedente** (`max(0, recibido − pedido)`), por **delta** — re-confirmar es idempotente, corregir a la baja resta (clamp en 0) | `POST /api/orders/[id]/confirm-reception` |
+| Cancelar orden | RESTAURA `in_stock + min(recibido, pedido)` — el excedente NO se re-suma (ya entró en la recepción, ADR-019) | `POST /api/orders/[id]/cancel` |
 
 ## Archivos relevantes
 

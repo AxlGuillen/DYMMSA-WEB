@@ -156,13 +156,6 @@ export function explainPgError(
           isConstraintViolation: true,
           constraintName: constraint,
         }
-      case 'check_received_not_exceed_ordered':
-        return {
-          userMessage:
-            'La cantidad recibida no puede ser mayor a la cantidad pedida.',
-          isConstraintViolation: true,
-          constraintName: constraint,
-        }
       case 'store_inventory_quantity_check':
         return {
           userMessage:
@@ -175,6 +168,13 @@ export function explainPgError(
       case 'order_items_quantity_received_check':
         return {
           userMessage: 'Una de las cantidades de la orden es negativa. Reintenta.',
+          isConstraintViolation: true,
+          constraintName: constraint,
+        }
+      case 'check_decision_covers_needed':
+        return {
+          userMessage:
+            'La decisión de compra no cubre la cantidad necesaria (paquetes × STD + menudeo debe ser al menos la necesidad). Recalcula en el planificador.',
           isConstraintViolation: true,
           constraintName: constraint,
         }

@@ -188,7 +188,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `quantity_approved` | integer | No | — | `> 0 OR item_type='separator'` | Total aprobado (0 en separadores) |
 | `quantity_in_stock` | integer | No | `0` | `>= 0` | Apartado del inventario DYMMSA |
 | `quantity_to_order` | integer | No | `0` | `>= 0` | A pedir a URREA |
-| `quantity_received` | integer | No | `0` | `>= 0` | Recibido de URREA (input manual) |
+| `quantity_received` | integer | No | `0` | `>= 0` | Recibido de URREA (input manual). **Puede superar `quantity_to_order`** — el excedente entra a `store_inventory` (ADR-019; el CHECK `check_received_not_exceed_ordered` se eliminó el 2026-07-16) |
 | `urrea_status` | text | No | `'pending'` | CHECK | `pending \| supplied \| not_supplied` |
 | `unit_price` | numeric | No | — | `>= 0` | |
 | `location` | text | Sí | — | | Snapshot de `store_inventory.location` al crear la orden (gaveta) |
@@ -197,6 +197,87 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 
 **Constraint implícito:** `quantity_in_stock + quantity_to_order = quantity_approved`
 **Constraint `quantity_approved`:** `> 0` para productos; `= 0` permitido en separadores (migración `allow_separators_in_order_items_quantity`, 2026-05-24).
+
+---
+
+## Tabla: `order_purchase_decisions`
+
+**Propósito:** Decisión mayoreo/menudeo del usuario **por orden y por grupo** (nunca verdad global del producto).
+**Módulo:** [[03-Modulos/Ordenes]] · ADR: [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]]
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `order_id` | uuid | No | — | FK → `orders.id` CASCADE | |
+| `model_code` | text | No | — | UNIQUE con order_id+brand | **Normalizado** trim+upper (`catalogKey`) |
+| `brand` | text | No | — | ↑ | **Normalizado** trim+upper |
+| `std_snapshot` | integer | No | — | `> 0` | STD del catálogo al decidir (staleness si cambia) |
+| `needed_qty` | integer | No | — | `> 0` | Necesidad consolidada al decidir (staleness si cambia) |
+| `packages_wholesale` | integer | No | `0` | `>= 0` | Paquetes a pedir a URREA |
+| `qty_retail` | integer | No | `0` | `>= 0` | Piezas a comprar a menudeo local |
+| `decided_at` | timestamptz | No | `now()` | | |
+
+**Constraint de cobertura:** `packages_wholesale × std_snapshot + qty_retail >= needed_qty` (`check_decision_covers_needed`).
+La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (upsert antes del delete de removidas).
+
+---
+
+## Tabla: `app_settings`
+
+**Propósito:** Configuración key-value de la aplicación. **Sin seeds** — los defaults viven en código; fila ausente → default.
+**ADR:** [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]] (§7)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `key` | text | No | — | PK | Whitelist estricta en `/api/settings` |
+| `value` | jsonb | No | — | | |
+| `updated_at` | timestamptz | No | `now()` | trigger | |
+
+**Keys actuales:** `purchase_threshold_money` (default 100 MXN) · `purchase_threshold_pct` (default 0.8).
+
+---
+
+## Tabla: `suppliers`
+
+**Propósito:** Proveedores locales de menudeo (contacto).
+**Módulo:** [[03-Modulos/Proveedores]] (issue #21)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `name` | text | No | — | UNIQUE, CHECK no vacío | |
+| `phone` | text | Sí | — | | Teléfono normal |
+| `whatsapp` | text | Sí | — | | Puede diferir del teléfono; la UI lo liga a wa.me |
+| `email` | text | Sí | — | | |
+| `address` | text | Sí | — | | |
+| `notes` | text | Sí | — | | Horarios, condiciones, quién atiende… |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+---
+
+## Tabla: `brands`
+
+**Propósito:** Catálogo global de marcas (submódulo de proveedores). `name` **normalizado trim+upper** — mismo criterio que las marcas de productos, para cruce futuro **por valor**.
+**Seed:** la migración la sembró con las marcas únicas existentes en `etm_products` + `urrea_catalog` (~42).
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `name` | text | No | — | UNIQUE, CHECK no vacío | Normalizado (`normalizeBrandTag`) |
+| `created_at` | timestamptz | No | `now()` | | |
+
+---
+
+## Tabla: `supplier_brands`
+
+**Propósito:** M2M proveedor↔marca (qué marcas maneja cada proveedor).
+
+| Columna | Tipo | Constraint | Descripción |
+|---------|------|-----------|-------------|
+| `supplier_id` | uuid | PK compuesta; FK → `suppliers` **ON DELETE CASCADE** | |
+| `brand_id` | uuid | PK compuesta; FK → `brands` **sin cascade** | Bloquea eliminar una marca en uso |
+
+Índice: `idx_supplier_brands_brand_id`.
 
 ---
 
@@ -220,3 +301,6 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |
 | `add_brand_to_urrea_catalog` | (2026-07-14) | Columna `brand text NOT NULL DEFAULT 'URREA'` en `urrea_catalog`; `UNIQUE(code)` → `UNIQUE(code, brand)`; índice `idx_urrea_catalog_brand`. Backfill de filas existentes a `'URREA'` |
 | `urrea_catalog_brand_counts_fn` | (2026-07-14) | RPC `urrea_catalog_brand_counts()` — conteo por marca para el filtro del catálogo (`security invoker`) |
+| `create_purchase_planner_tables` | (2026-07-15) | Tablas `order_purchase_decisions` (decisión mayoreo/menudeo por orden a nivel grupo, con snapshots para staleness y CHECK de cobertura) y `app_settings` (key-value jsonb para umbrales). RLS + policy authenticated. ADR-018 |
+| `allow_received_to_exceed_ordered` | (2026-07-16) | DROP `check_received_not_exceed_ordered` en `order_items`: lo recibido puede superar lo pedido (recepción con excedente → inventario, por delta). Se conserva `>= 0`. ADR-019 |
+| `create_suppliers_module` | (2026-07-16) | Tablas `suppliers`, `brands` (sembrada con las marcas existentes) y `supplier_brands` (M2M; brand_id sin cascade → borrar marca en uso se bloquea). RLS + policies. Issue #21 |

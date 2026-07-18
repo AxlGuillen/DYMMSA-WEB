@@ -28,7 +28,20 @@ import { OrderStatusBadge } from './OrderStatusBadge'
 import { useDeleteOrder } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { formatRelative, formatAbsolute } from '@/lib/format'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import type { OrderWithCount } from '@/types/database'
+
+// Columnas de la lista (issue #18). Nombre y acciones son fijas.
+export const ORDERS_COLUMNS: readonly TableColumn[] = [
+  { id: 'odoo_id', label: 'Odoo ID' },
+  { id: 'name', label: 'Nombre', hideable: false },
+  { id: 'customer', label: 'Cliente' },
+  { id: 'status', label: 'Estado' },
+  { id: 'items_count', label: 'Ítems' },
+  { id: 'total', label: 'Total' },
+  { id: 'created_at', label: 'Fecha' },
+  { id: 'actions', label: 'Acciones', hideable: false },
+]
 
 interface OrdersTableProps {
   orders: OrderWithCount[]
@@ -40,6 +53,23 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const deleteOrder = useDeleteOrder()
   const fmt = useCurrency()
+  const cols = useVisibleColumns('orders-list', ORDERS_COLUMNS)
+
+  // Header compartido entre skeleton y tabla real (guards escritos una vez).
+  const tableHeaders = (
+    <TableHeader>
+      <TableRow>
+        {cols.isVisible('odoo_id') && <TableHead>Odoo ID</TableHead>}
+        <TableHead>Nombre</TableHead>
+        {cols.isVisible('customer') && <TableHead>Cliente</TableHead>}
+        {cols.isVisible('status') && <TableHead>Estado</TableHead>}
+        {cols.isVisible('items_count') && <TableHead className="text-center">Ítems</TableHead>}
+        {cols.isVisible('total') && <TableHead className="text-right">Total</TableHead>}
+        {cols.isVisible('created_at') && <TableHead>Fecha</TableHead>}
+        <TableHead />
+      </TableRow>
+    </TableHeader>
+  )
 
   const handleDelete = async () => {
     if (!deletingId) return
@@ -56,28 +86,17 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
     return (
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Odoo ID</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-center">Ítems</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
+          {tableHeaders}
           <TableBody>
             {[...Array(5)].map((_, i) => (
               <TableRow key={i}>
-                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                {cols.isVisible('odoo_id') && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
                 <TableCell><Skeleton className="h-4 w-40" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                <TableCell><Skeleton className="h-6 w-28" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                {cols.isVisible('customer') && <TableCell><Skeleton className="h-4 w-32" /></TableCell>}
+                {cols.isVisible('status') && <TableCell><Skeleton className="h-6 w-28" /></TableCell>}
+                {cols.isVisible('items_count') && <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>}
+                {cols.isVisible('total') && <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
+                {cols.isVisible('created_at') && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
                 <TableCell />
               </TableRow>
             ))}
@@ -110,18 +129,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
     <>
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Odoo ID</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-center">Ítems</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
+          {tableHeaders}
           <TableBody>
             {orders.map((order) => (
               <TableRow
@@ -129,30 +137,42 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
                 className="group cursor-pointer hover:bg-muted/50"
                 onClick={() => push(`/dashboard/orders/${order.id}`)}
               >
-                <TableCell className="text-sm font-mono text-muted-foreground">
-                  {order.odoo_id ?? <span className="text-muted-foreground">{'—'}</span>}
-                </TableCell>
+                {cols.isVisible('odoo_id') && (
+                  <TableCell className="text-sm font-mono text-muted-foreground">
+                    {order.odoo_id ?? <span className="text-muted-foreground">{'—'}</span>}
+                  </TableCell>
+                )}
                 <TableCell className="font-medium">
                   {order.name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{order.customer_name}</TableCell>
-                <TableCell>
-                  <OrderStatusBadge status={order.status} />
-                </TableCell>
-                <TableCell className="text-center tabular-nums text-sm text-muted-foreground">
-                  {order.items_count}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {order.total_amount > 0
-                    ? fmt(order.total_amount)
-                    : <span className="text-muted-foreground text-sm">{'—'}</span>}
-                </TableCell>
-                <TableCell
-                  className="text-muted-foreground text-sm whitespace-nowrap"
-                  title={formatAbsolute(order.created_at)}
-                >
-                  {formatRelative(order.created_at)}
-                </TableCell>
+                {cols.isVisible('customer') && (
+                  <TableCell className="text-sm text-muted-foreground">{order.customer_name}</TableCell>
+                )}
+                {cols.isVisible('status') && (
+                  <TableCell>
+                    <OrderStatusBadge status={order.status} />
+                  </TableCell>
+                )}
+                {cols.isVisible('items_count') && (
+                  <TableCell className="text-center tabular-nums text-sm text-muted-foreground">
+                    {order.items_count}
+                  </TableCell>
+                )}
+                {cols.isVisible('total') && (
+                  <TableCell className="text-right tabular-nums">
+                    {order.total_amount > 0
+                      ? fmt(order.total_amount)
+                      : <span className="text-muted-foreground text-sm">{'—'}</span>}
+                  </TableCell>
+                )}
+                {cols.isVisible('created_at') && (
+                  <TableCell
+                    className="text-muted-foreground text-sm whitespace-nowrap"
+                    title={formatAbsolute(order.created_at)}
+                  >
+                    {formatRelative(order.created_at)}
+                  </TableCell>
+                )}
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Button
                     type="button"

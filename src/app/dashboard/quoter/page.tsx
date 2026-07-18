@@ -43,8 +43,17 @@ export default function QuoterPage() {
     })
   }
 
-  const { name, customer_name, items, setName, setCustomerName, setItems, reset,
-    mergeCatalogDescriptions } = useQuotationStore()
+  // Selectores acotados: la página se suscribe campo por campo en vez de al
+  // store entero. Así una mutación de `items` no re-renderiza por el binding de
+  // `name`, y las acciones (refs estables de Zustand) nunca disparan renders.
+  const name                    = useQuotationStore((s) => s.name)
+  const customer_name           = useQuotationStore((s) => s.customer_name)
+  const items                   = useQuotationStore((s) => s.items)
+  const setName                 = useQuotationStore((s) => s.setName)
+  const setCustomerName         = useQuotationStore((s) => s.setCustomerName)
+  const setItems                = useQuotationStore((s) => s.setItems)
+  const reset                   = useQuotationStore((s) => s.reset)
+  const mergeCatalogDescriptions = useQuotationStore((s) => s.mergeCatalogDescriptions)
 
   const lookupMutation  = useLookupEtms()
   const saveMutation    = useSaveQuotation()

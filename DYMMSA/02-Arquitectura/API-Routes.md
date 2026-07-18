@@ -44,9 +44,37 @@
 | `POST` | `/api/orders/[id]/items` | ✅ | Agregar ítem a orden existente + stock check + deducción inventario |
 | `PATCH` | `/api/orders/[id]/items/[itemId]` | ✅ | Editar precio de un ítem. Recalcula `total_amount` de la orden |
 | `DELETE` | `/api/orders/[id]/items/[itemId]` | ✅ | Eliminar ítem + restaurar `quantity_in_stock` al inventario |
-| `POST` | `/api/orders/[id]/confirm-reception` | ✅ | Confirmar recepción: actualiza `quantity_received` + `urrea_status` + SUMA a inventario |
+| `POST` | `/api/orders/[id]/confirm-reception` | ✅ | Confirmar recepción: actualiza `quantity_received` + `urrea_status`; a inventario entra solo el **excedente** por delta (idempotente, clamp en 0). Respuesta `{ success, inventory_updated, warnings[] }` (ADR-019) |
 | `POST` | `/api/orders/[id]/cancel` | ✅ | Cancelar orden + restaurar `quantity_in_stock` al inventario. Status → `cancelled` |
 | `POST` | `/api/orders/auto-learn` | ✅ | Auto-learn manual desde orden (legacy) |
+| `GET` | `/api/orders/[id]/purchase-plan` | ✅ | Plan de compra mayoreo/menudeo (ADR-018): consolida por `catalogKey`, math STD + recomendación al vuelo, casa decisiones guardadas con staleness. Catálogo/settings degradan a defaults |
+| `PUT` | `/api/orders/[id]/purchase-decisions` | ✅ | **Replace-all** del set de decisiones de la orden: normaliza code/brand, pre-flight del CHECK de cobertura, upsert `(order_id, model_code, brand)` ANTES del delete de removidas. 400 en órdenes `completed`/`cancelled` |
+
+---
+
+## Proveedores (menudeo)
+
+> Módulo: [[03-Modulos/Proveedores]]
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/suppliers` | ✅ | Lista paginada (search nombre/teléfonos/correo, sort whitelist, filtro `brandId`) con marcas embebidas y aplanadas |
+| `POST` | `/api/suppliers` | ✅ | Crear proveedor + links de marcas (**rollback** del padre si fallan los links) |
+| `PATCH` | `/api/suppliers/[id]` | ✅ | Updates sparse + `brandIds` con **replace por diff** (nunca hay ventana sin links) |
+| `DELETE` | `/api/suppliers/[id]` | ✅ | Eliminar (links caen por CASCADE) |
+| `GET` | `/api/brands` | ✅ | Marcas con conteo de proveedores que las usan |
+| `POST` | `/api/brands` | ✅ | Crear marca (normalizada trim+upper; duplicada → 400) |
+| `PATCH` | `/api/brands/[id]` | ✅ | Renombrar marca (normalizado) |
+| `DELETE` | `/api/brands/[id]` | ✅ | **Bloqueado si está en uso** (400 con conteo; FK sin cascade como backstop) |
+
+---
+
+## Configuración
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/settings` | ✅ | Filas de `app_settings` como Record (filtro opcional `?keys=a,b`). Los callers mergean con defaults en código |
+| `PATCH` | `/api/settings` | ✅ | Upsert por key con **whitelist estricta** (key desconocida → 400). Keys: `purchase_threshold_money` (> 0), `purchase_threshold_pct` ((0,1]) |
 
 ---
 

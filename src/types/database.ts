@@ -67,6 +67,40 @@ export type UrreaCatalogInsert =
   Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at' | 'brand'> & { brand?: string }
 export type UrreaCatalogUpdate = Partial<Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at'>>
 
+// ─── Proveedores de menudeo (issue #21) ─────────────────────────────────
+
+export interface Supplier {
+  id: string
+  name: string
+  phone: string | null
+  whatsapp: string | null
+  email: string | null
+  address: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type SupplierInsert = Omit<Supplier, 'id' | 'created_at' | 'updated_at'>
+export type SupplierUpdate = Partial<SupplierInsert>
+
+/** Catálogo global de marcas (submódulo). name normalizado trim+upper. */
+export interface Brand {
+  id: string
+  name: string
+  created_at: string
+}
+
+/** Marca con conteo de proveedores que la usan (GET /api/brands). */
+export interface BrandWithCount extends Brand {
+  suppliersCount: number
+}
+
+/** Proveedor con sus marcas aplanadas (GET /api/suppliers). */
+export interface SupplierWithBrands extends Supplier {
+  brands: Brand[]
+}
+
 // Excel row type for inventory import
 export interface ExcelInventoryRow {
   MODEL_CODE: string
@@ -139,6 +173,30 @@ export type OrderItemInsert =
   Omit<OrderItem, 'id' | 'created_at' | 'location'> & { location?: string | null }
 export type OrderItemUpdate = Partial<Omit<OrderItem, 'id' | 'created_at' | 'order_id'>>
 
+// Decisión mayoreo/menudeo por orden a nivel GRUPO (model_code+brand
+// normalizados) — ADR-018. Nunca es verdad global del producto.
+export interface OrderPurchaseDecision {
+  id: string
+  order_id: string
+  model_code: string // normalizado trim+upper (catalogKey)
+  brand: string // normalizado trim+upper
+  std_snapshot: number // STD del catálogo al decidir (staleness si cambia)
+  needed_qty: number // N consolidado al decidir (staleness si cambia)
+  packages_wholesale: number
+  qty_retail: number
+  decided_at: string
+}
+
+export type OrderPurchaseDecisionInsert =
+  Omit<OrderPurchaseDecision, 'id' | 'decided_at'> & { decided_at?: string }
+
+// Configuración key-value (app_settings) — umbrales del planificador, etc.
+export interface AppSetting {
+  key: string
+  value: unknown // jsonb
+  updated_at: string
+}
+
 // Order with items for detail view
 export interface OrderWithItems extends Order {
   order_items: OrderItem[]
@@ -172,6 +230,14 @@ export interface ConfirmReceptionInput {
     quantity_received: number
     urrea_status: UrreaStatus
   }[]
+}
+
+// Confirm reception response (ADR-019): warnings listos para toast
+// (clamp de inventario en 0, corrección sin fila de inventario, etc.)
+export interface ConfirmReceptionResult {
+  success: boolean
+  inventory_updated: number
+  warnings: string[]
 }
 
 // Auto-learn result

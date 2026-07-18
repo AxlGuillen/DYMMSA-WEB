@@ -37,19 +37,41 @@ ordered ──→ received ──→ delivered ──→ completed
 7. Actualiza `quotations.status` → `converted_to_order`.
 8. Rollback: si falla inserción de ítems → elimina la orden.
 
+## Planificar compra (mayoreo vs menudeo)
+
+**Vista:** `/dashboard/orders/[id]/planner` (`PurchasePlanner`) · ADR: [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]]
+
+Clasifica lo que hay que pedir (`quantity_to_order > 0`) consolidando duplicados
+por `catalogKey(model_code, brand)`:
+
+| Bucket | Criterio | Tratamiento |
+|--------|----------|-------------|
+| URREA | En `urrea_catalog` con precio | Math STD + recomendación |
+| Sin precio | En catálogo, todas las líneas con precio 0 | Solo regla de % |
+| Compra local | No cruza con el catálogo | Lista local, sin math |
+
+Por grupo: `floor(N/STD)` paquetes + resto; la recomendación decide el **resto**
+(dinero parado > $100 → menudeo; % parado ≥ 80% → revisar; si no → redondear).
+El usuario elige Mayoreo/Mixto/Menudeo por grupo y **guarda** (replace-all,
+`PUT /api/orders/[id]/purchase-decisions`). Decisiones con `needed_qty` o STD
+distintos a los actuales se marcan **desactualizadas** (⟳). Umbrales editables
+en un popover (tabla `app_settings`).
+
 ## Generar Excel URREA
 
-**Ruta generada desde:** `OrderDetail` (componente)  
-**Librería:** ExcelJS (`src/lib/excel/generator.ts`)
+**Ruta generada desde:** `OrderDetail` (componente)
+**Librería:** SheetJS + JSZip (`src/lib/excel/generator.ts`, template .xlsm con macros)
 
-Criterios de inclusión:
-- `item_type = 'product'`
-- `brand = 'URREA'` (case insensitive)
-- `quantity_to_order > 0`
+Se genera desde las **decisiones de mayoreo guardadas** del planificador:
+- Filas: decisiones con `packages_wholesale > 0`
+- Piezas = `packages_wholesale × std_snapshot` (múltiplos exactos de STD)
+- Criterio de "pedible a URREA" = **pertenencia al catálogo** (cualquier línea:
+  URREA/SURTEK/FOY...), ya **no** `brand='URREA'`
 
-Columnas del Excel: `model_code` | `quantity_to_order`
-
-Productos de otras marcas se excluyen con notificación al usuario.
+Sin decisiones guardadas → el botón redirige al planificador. Con decisiones
+desactualizadas → AlertDialog de aviso. Máximo 1012 filas (fórmulas del
+template). La contraparte es **Exportar compra local** (restos a menudeo +
+productos sin catálogo) desde el planificador.
 
 ## Edición de ítems de orden
 
@@ -63,12 +85,18 @@ Disponible mientras la orden no esté `completed` ni `cancelled`.
 
 ## Confirmar recepción
 
-**Ruta:** `POST /api/orders/[id]/confirm-reception`
+**Ruta:** `POST /api/orders/[id]/confirm-reception` · ADR: [[04-Decisiones-Tecnicas/ADR-019-Recepcion-Excedente]]
 
-- Input: `{ items: [{ id, quantity_received, urrea_status }] }`
-- SUMA `quantity_received` a `store_inventory` por `model_code`.
-- Actualiza `urrea_status` de cada ítem.
-- Cambia status orden → `received`.
+- Input: `{ items: [{ id, quantity_received, urrea_status }] }` (`quantity_received`
+  entero ≥ 0; **puede superar lo pedido** — el CHECK se eliminó).
+- Inventario: entra **solo el excedente** (`max(0, recibido − pedido)`), ajustado
+  por **delta** contra lo persistido → re-confirmar es idempotente, corregir a la
+  baja resta (clamp en 0 con warning). Recibir ≤ lo pedido no mueve inventario.
+- El excedente **no se factura**: el total recalculado usa `min(recibido, pedido)`.
+- Respuesta: `{ success, inventory_updated, warnings[] }` — la UI toastea los warnings.
+- En la UI, el botón abre un **resumen anti-dedazo** (pedido/recibido/efecto en
+  inventario, ⚠️ si recibido > 2× pedido) antes de ejecutar.
+- El status de la orden se cambia aparte (dropdown → `received`).
 
 ## Cancelar orden
 
@@ -84,11 +112,14 @@ Disponible mientras la orden no esté `completed` ni `cancelled`.
 |-----------|------|-----|
 | `OrdersTable` | `src/components/orders/OrdersTable.tsx` | Lista con filtros, stats cards, fechas relativas |
 | `OrderDetail` | `src/components/orders/OrderDetail.tsx` | Vista completa: header, tabla ítems, acciones |
+| `PurchasePlanner` | `src/components/orders/PurchasePlanner.tsx` | Planificador mayoreo/menudeo (ADR-018) |
 | `OrderStatusBadge` | `src/components/orders/OrderStatusBadge.tsx` | Badge con punto de color por estado |
 
 ## Hooks
 
 - `useOrders.ts`: `useOrders()`, `useOrder(id)`, `useAddOrderItem()`, `useEditOrderItem()`, `useRemoveOrderItem()`, `useConfirmReception()`, `useCancelOrder()`
+- `usePurchasePlan.ts`: `usePurchasePlan(orderId)` (key anidada bajo `['orders', id]` → se invalida con las mutaciones de ítems), `useSavePurchaseDecisions(orderId)`
+- `useSettings.ts`: `useUpdateSettings()` (umbrales del planificador; invalida `['orders']` para re-puntuar planes)
 
 ## Archivos relevantes
 

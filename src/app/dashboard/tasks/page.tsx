@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/table'
 import { useTasks, type TaskStateFilter, type TaskPriorityFilter } from '@/hooks/useTasks'
 import { TaskForm } from '@/components/tasks/TaskForm'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { ColumnPicker } from '@/components/ColumnPicker'
 import { TaskPriorityBadge, TaskStateBadge, PRIORITY_META, PRIORITY_ORDER } from '@/components/tasks/TaskPriorityBadge'
 
 const STATE_TABS: { value: TaskStateFilter; label: string }[] = [
@@ -26,10 +28,21 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// Columnas de la lista de tareas (issue #18). Título es fija (es la navegación).
+const TASKS_COLUMNS: readonly TableColumn[] = [
+  { id: 'number', label: '#' },
+  { id: 'title', label: 'Título', hideable: false },
+  { id: 'priority', label: 'Prioridad' },
+  { id: 'state', label: 'Estado' },
+  { id: 'reporter', label: 'Reportó' },
+  { id: 'created_at', label: 'Creada' },
+]
+
 export default function TasksPage() {
   const [state, setState] = useState<TaskStateFilter>('open')
   const [priority, setPriority] = useState<TaskPriorityFilter>('all')
   const [formOpen, setFormOpen] = useState(false)
+  const cols = useVisibleColumns('tasks', TASKS_COLUMNS)
 
   const { data, isLoading, isFetching, error } = useTasks({ state, priority })
   const tasks = data?.tasks ?? []
@@ -90,6 +103,7 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
+        <ColumnPicker tableId="tasks" columns={TASKS_COLUMNS} className="ml-auto" />
       </div>
 
       {/* Contenido */}
@@ -116,31 +130,39 @@ export default function TasksPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16">#</TableHead>
+                {cols.isVisible('number') && <TableHead className="w-16">#</TableHead>}
                 <TableHead>Título</TableHead>
-                <TableHead className="w-32">Prioridad</TableHead>
-                <TableHead className="w-24">Estado</TableHead>
-                <TableHead className="w-40">Reportó</TableHead>
-                <TableHead className="w-28">Creada</TableHead>
+                {cols.isVisible('priority') && <TableHead className="w-32">Prioridad</TableHead>}
+                {cols.isVisible('state') && <TableHead className="w-24">Estado</TableHead>}
+                {cols.isVisible('reporter') && <TableHead className="w-40">Reportó</TableHead>}
+                {cols.isVisible('created_at') && <TableHead className="w-28">Creada</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {tasks.map((t) => (
                 <TableRow key={t.number} className="cursor-pointer">
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    <Link href={`/dashboard/tasks/${t.number}`} className="block">#{t.number}</Link>
-                  </TableCell>
+                  {cols.isVisible('number') && (
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      <Link href={`/dashboard/tasks/${t.number}`} className="block">#{t.number}</Link>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Link href={`/dashboard/tasks/${t.number}`} className="block font-medium hover:underline">
                       {t.title}
                     </Link>
                   </TableCell>
-                  <TableCell><TaskPriorityBadge priority={t.priority} /></TableCell>
-                  <TableCell>
-                    <TaskStateBadge state={t.state} closedReason={t.closedReason} />
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground truncate max-w-40">{t.reporter ?? '—'}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(t.createdAt)}</TableCell>
+                  {cols.isVisible('priority') && <TableCell><TaskPriorityBadge priority={t.priority} /></TableCell>}
+                  {cols.isVisible('state') && (
+                    <TableCell>
+                      <TaskStateBadge state={t.state} closedReason={t.closedReason} />
+                    </TableCell>
+                  )}
+                  {cols.isVisible('reporter') && (
+                    <TableCell className="text-sm text-muted-foreground truncate max-w-40">{t.reporter ?? '—'}</TableCell>
+                  )}
+                  {cols.isVisible('created_at') && (
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(t.createdAt)}</TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

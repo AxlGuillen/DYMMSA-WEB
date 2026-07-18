@@ -6,10 +6,13 @@ import {
   filterProductItems,
   calculateLineTotal,
   calculateQuotationTotal,
+  calculateApprovedSubtotal,
   calculateOrderTotal,
   calculateDeliveredTotal,
   allocateInventory,
   validateAllocationInvariant,
+  receivedForCustomer,
+  receptionExcess,
   normalizeCatalogCode,
   catalogKey,
   resolveDymmsaDescription,
@@ -219,6 +222,49 @@ describe('isNotSold', () => {
   })
 })
 
+// ─── calculateApprovedSubtotal ───────────────────────────────────────────────
+
+describe('calculateApprovedSubtotal', () => {
+  const items = [
+    { id: 'a', ...makeQuotationItem({ unit_price: 100, quantity: 2 }) },  // 200
+    { id: 'b', ...makeQuotationItem({ unit_price: 50,  quantity: 4 }) },  // 200
+    { id: 'c', ...makeQuotationItem({ unit_price: 100, quantity: 1 }) },  // 100
+  ]
+
+  test('solo suma los ítems cuyo id está en el set de aprobados', () => {
+    expect(calculateApprovedSubtotal(items, new Set(['a', 'c']))).toBe(300)
+  })
+
+  test('set vacío → 0', () => {
+    expect(calculateApprovedSubtotal(items, new Set())).toBe(0)
+  })
+
+  test('excluye separadores aunque su id esté en el set', () => {
+    const withSep = [
+      { id: 'a', ...makeQuotationItem({ unit_price: 100, quantity: 2 }) },
+      { id: 'sep', ...makeQuotationItem({ item_type: 'separator', unit_price: 999, quantity: 1 }) },
+    ]
+    expect(calculateApprovedSubtotal(withSep, new Set(['a', 'sep']))).toBe(200)
+  })
+
+  test('excluye "no lo vendemos" (is_sold === false) aunque esté aprobado', () => {
+    const withNotSold = [
+      { id: 'a', ...makeQuotationItem({ unit_price: 100, quantity: 2, is_sold: true }) },
+      { id: 'x', ...makeQuotationItem({ unit_price: 100, quantity: 5, is_sold: false }) },
+    ]
+    expect(calculateApprovedSubtotal(withNotSold, new Set(['a', 'x']))).toBe(200)
+  })
+
+  test('línea sin precio o sin cantidad no suma', () => {
+    const withNulls = [
+      { id: 'a', ...makeQuotationItem({ unit_price: null, quantity: 3 }) },
+      { id: 'b', ...makeQuotationItem({ unit_price: 20, quantity: null }) },
+      { id: 'c', ...makeQuotationItem({ unit_price: 20, quantity: 2 }) }, // 40
+    ]
+    expect(calculateApprovedSubtotal(withNulls, new Set(['a', 'b', 'c']))).toBe(40)
+  })
+})
+
 // ─── calculateOrderTotal ─────────────────────────────────────────────────────
 
 describe('calculateOrderTotal', () => {
@@ -249,6 +295,7 @@ describe('calculateDeliveredTotal', () => {
   function makeDeliveredItem(overrides: {
     quantity_in_stock?: number
     quantity_received?: number
+    quantity_to_order?: number
     urrea_status?: string
     unit_price?: number
     item_type?: string | null
@@ -256,6 +303,8 @@ describe('calculateDeliveredTotal', () => {
     return {
       quantity_in_stock: 0,
       quantity_received: 0,
+      // Default generoso: lo pedido cubre lo recibido (los casos legacy no cambian)
+      quantity_to_order: overrides.quantity_to_order ?? overrides.quantity_received ?? 0,
       urrea_status: 'pending',
       unit_price: 100,
       item_type: 'product' as const,
@@ -289,6 +338,48 @@ describe('calculateDeliveredTotal', () => {
 
   test('returns 0 for empty array', () => {
     expect(calculateDeliveredTotal([])).toBe(0)
+  })
+
+  test('REGLA (ADR-019): el excedente NO se factura — cap en lo pedido', () => {
+    // in_stock 2 + min(10, 3) = 5 × $100 = $500; los 7 de excedente son stock, no venta
+    const item = makeDeliveredItem({
+      quantity_in_stock: 2, quantity_received: 10, quantity_to_order: 3, unit_price: 100,
+    })
+    expect(calculateDeliveredTotal([item])).toBe(500)
+  })
+
+  test('not_supplied con excedente sigue ignorando lo recibido', () => {
+    const item = makeDeliveredItem({
+      quantity_in_stock: 2, quantity_received: 10, quantity_to_order: 3,
+      urrea_status: 'not_supplied', unit_price: 100,
+    })
+    expect(calculateDeliveredTotal([item])).toBe(200)
+  })
+})
+
+// ─── Recepción con excedente (ADR-019) ──────────────────────────────────────
+
+describe('receivedForCustomer', () => {
+  test('recibido menor o igual a lo pedido → recibido', () => {
+    expect(receivedForCustomer({ quantity_received: 2, quantity_to_order: 5 })).toBe(2)
+    expect(receivedForCustomer({ quantity_received: 5, quantity_to_order: 5 })).toBe(5)
+  })
+  test('recibido mayor a lo pedido → cap en lo pedido', () => {
+    expect(receivedForCustomer({ quantity_received: 10, quantity_to_order: 2 })).toBe(2)
+  })
+  test('to_order 0 → 0 (todo sería excedente)', () => {
+    expect(receivedForCustomer({ quantity_received: 3, quantity_to_order: 0 })).toBe(0)
+  })
+})
+
+describe('receptionExcess', () => {
+  test('ejemplo del issue: 10 recibidos − 2 pedidos → 8 al stock', () => {
+    expect(receptionExcess({ quantity_received: 10, quantity_to_order: 2 })).toBe(8)
+  })
+  test('sin excedente → 0', () => {
+    expect(receptionExcess({ quantity_received: 2, quantity_to_order: 5 })).toBe(0)
+    expect(receptionExcess({ quantity_received: 5, quantity_to_order: 5 })).toBe(0)
+    expect(receptionExcess({ quantity_received: 0, quantity_to_order: 0 })).toBe(0)
   })
 })
 

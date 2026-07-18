@@ -68,6 +68,17 @@ export function normalizeCatalogBrand(brand: string | null | undefined): string 
 }
 
 /**
+ * Normaliza una marca como ETIQUETA (módulo de proveedores, issue #21):
+ * trim + mayúsculas, pero SIN el default 'URREA' — una etiqueta vacía es
+ * inválida (`''`), no una marca implícita. Mismo criterio de normalización
+ * que `normalizeCatalogBrand` para que las marcas de proveedores crucen por
+ * valor con `etm_products.brand` / `urrea_catalog.brand` en el futuro.
+ */
+export function normalizeBrandTag(name: string | null | undefined): string {
+  return (name ?? '').trim().toUpperCase()
+}
+
+/**
  * Llave de cruce con `urrea_catalog`: **código + marca**, ambos normalizados.
  *
  * La identidad del catálogo es `UNIQUE(code, brand)` — el mismo código puede
@@ -173,6 +184,26 @@ export function calculateQuotationTotal<T extends QuotationItemLike>(
   }, 0)
 }
 
+/**
+ * Subtotal de los ítems que el cliente aprobó EN VIVO en `/approve/[token]`.
+ *
+ * A diferencia de `calculateQuotationTotal({ onlyApproved })`, que lee el campo
+ * persistido `is_approved`, aquí la aprobación es el estado local (set de ids)
+ * que el cliente va marcando antes de guardar/enviar. Aplica las mismas reglas:
+ * excluye separadores, "no lo vendemos" y líneas sin precio/cantidad.
+ */
+export function calculateApprovedSubtotal<T extends QuotationItemLike & { id: string }>(
+  items: T[],
+  approvedIds: ReadonlySet<string>,
+): number {
+  return items.reduce((sum, item) => {
+    if (!isProductItem(item)) return sum
+    if (isNotSold(item)) return sum
+    if (!approvedIds.has(item.id)) return sum
+    return sum + (calculateLineTotal(item.unit_price, item.quantity) ?? 0)
+  }, 0)
+}
+
 // ─── Totales de orden ──────────────────────────────────────────────────
 
 type OrderItemLike = {
@@ -194,12 +225,14 @@ export function calculateOrderTotal<T extends OrderItemLike>(items: T[]): number
 
 /**
  * Total real entregado al cliente, usado en confirm-reception.
- * Suma `quantity_in_stock + quantity_received` (si URREA no marcó "no suministrado"),
- * multiplicado por `unit_price`.
+ * Suma `quantity_in_stock + min(recibido, pedido)` (si URREA no marcó
+ * "no suministrado"), multiplicado por `unit_price`. El EXCEDENTE de
+ * recepción nunca se factura — es stock de tienda, no venta (ADR-019).
  */
 export function calculateDeliveredTotal<T extends {
   quantity_in_stock: number
   quantity_received: number
+  quantity_to_order: number
   urrea_status: string
   unit_price: number
   item_type?: string | null
@@ -208,10 +241,35 @@ export function calculateDeliveredTotal<T extends {
     if (!isProductItem(item)) return sum
     let qty = item.quantity_in_stock
     if (item.urrea_status !== 'not_supplied') {
-      qty += item.quantity_received
+      qty += receivedForCustomer(item)
     }
     return sum + qty * item.unit_price
   }, 0)
+}
+
+// ─── Recepción con excedente (ADR-019) ─────────────────────────────────
+
+type ReceptionLike = {
+  quantity_received: number
+  quantity_to_order: number
+}
+
+/**
+ * Porción de lo recibido que corresponde al cliente (facturable/entregable):
+ * `min(recibido, pedido)`. El excedente no se cobra ni aparece en el formato
+ * de entrega — la aprobación ya fijó qué compra el cliente.
+ */
+export function receivedForCustomer<T extends ReceptionLike>(item: T): number {
+  return Math.min(item.quantity_received, item.quantity_to_order)
+}
+
+/**
+ * Excedente de recepción: `max(0, recibido − pedido)`. Es lo ÚNICO que entra
+ * a `store_inventory` al confirmar recepción (por delta — re-confirmar es
+ * idempotente). Independiente de `urrea_status`.
+ */
+export function receptionExcess<T extends ReceptionLike>(item: T): number {
+  return Math.max(0, item.quantity_received - item.quantity_to_order)
 }
 
 // ─── Inventario / Allocation ───────────────────────────────────────────

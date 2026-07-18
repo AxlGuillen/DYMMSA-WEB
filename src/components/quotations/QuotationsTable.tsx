@@ -27,8 +27,20 @@ import {
 import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { useDeleteQuotation } from '@/hooks/useQuotations'
 import { useCurrency } from '@/hooks/useCurrency'
+import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { QuotationWithCount } from '@/types/database'
+
+// Columnas de la lista (issue #18). Nombre y acciones son fijas.
+export const QUOTATIONS_COLUMNS: readonly TableColumn[] = [
+  { id: 'name', label: 'Nombre', hideable: false },
+  { id: 'customer', label: 'Cliente' },
+  { id: 'status', label: 'Estado' },
+  { id: 'items_count', label: 'Ítems' },
+  { id: 'total', label: 'Total' },
+  { id: 'created_at', label: 'Fecha' },
+  { id: 'actions', label: 'Acciones', hideable: false },
+]
 
 interface QuotationsTableProps {
   quotations: QuotationWithCount[]
@@ -40,6 +52,22 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const deleteQuotation = useDeleteQuotation()
   const fmt = useCurrency()
+  const cols = useVisibleColumns('quotations-list', QUOTATIONS_COLUMNS)
+
+  // Header compartido entre skeleton y tabla real (guards escritos una vez).
+  const tableHeaders = (
+    <TableHeader>
+      <TableRow>
+        <TableHead>Nombre</TableHead>
+        {cols.isVisible('customer') && <TableHead>Cliente</TableHead>}
+        {cols.isVisible('status') && <TableHead>Estado</TableHead>}
+        {cols.isVisible('items_count') && <TableHead className="text-center">Ítems</TableHead>}
+        {cols.isVisible('total') && <TableHead className="text-right">Total</TableHead>}
+        {cols.isVisible('created_at') && <TableHead>Fecha</TableHead>}
+        <TableHead />
+      </TableRow>
+    </TableHeader>
+  )
 
   const handleDelete = async () => {
     if (!deletingId) return
@@ -56,26 +84,16 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
     return (
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-center">Ítems</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
+          {tableHeaders}
           <TableBody>
             {[...Array(5)].map((_, i) => (
               <TableRow key={i}>
                 <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-36" /></TableCell>
-                <TableCell><Skeleton className="h-6 w-28" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                {cols.isVisible('customer') && <TableCell><Skeleton className="h-4 w-36" /></TableCell>}
+                {cols.isVisible('status') && <TableCell><Skeleton className="h-6 w-28" /></TableCell>}
+                {cols.isVisible('items_count') && <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>}
+                {cols.isVisible('total') && <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
+                {cols.isVisible('created_at') && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
                 <TableCell />
               </TableRow>
             ))}
@@ -108,17 +126,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
     <>
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-center">Ítems</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
+          {tableHeaders}
           <TableBody>
             {quotations.map((q) => (
               <TableRow
@@ -137,25 +145,35 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{q.customer_name}</TableCell>
-                <TableCell>
-                  <QuotationStatusBadge status={q.status} />
-                </TableCell>
-                <TableCell className="text-center tabular-nums text-sm text-muted-foreground">
-                  {q.items_count}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {q.total_amount > 0
-                    ? fmt(q.total_amount)
-                    : <span className="text-muted-foreground text-sm">{'\u2014'}</span>
-                  }
-                </TableCell>
-                <TableCell
-                  className="text-muted-foreground text-sm whitespace-nowrap"
-                  title={formatAbsolute(q.created_at)}
-                >
-                  {formatRelative(q.created_at)}
-                </TableCell>
+                {cols.isVisible('customer') && (
+                  <TableCell className="text-sm text-muted-foreground">{q.customer_name}</TableCell>
+                )}
+                {cols.isVisible('status') && (
+                  <TableCell>
+                    <QuotationStatusBadge status={q.status} />
+                  </TableCell>
+                )}
+                {cols.isVisible('items_count') && (
+                  <TableCell className="text-center tabular-nums text-sm text-muted-foreground">
+                    {q.items_count}
+                  </TableCell>
+                )}
+                {cols.isVisible('total') && (
+                  <TableCell className="text-right tabular-nums">
+                    {q.total_amount > 0
+                      ? fmt(q.total_amount)
+                      : <span className="text-muted-foreground text-sm">{'\u2014'}</span>
+                    }
+                  </TableCell>
+                )}
+                {cols.isVisible('created_at') && (
+                  <TableCell
+                    className="text-muted-foreground text-sm whitespace-nowrap"
+                    title={formatAbsolute(q.created_at)}
+                  >
+                    {formatRelative(q.created_at)}
+                  </TableCell>
+                )}
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Button
                     type="button"
