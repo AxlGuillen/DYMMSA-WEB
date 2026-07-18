@@ -13,8 +13,8 @@ vi.mock('@/hooks/useUrreaCatalog', () => ({
 }))
 const mockCatalogDesc = vi.mocked(useCatalogDescription)
 
-/** Mockea fetch /api/quotes/lookup devolviendo `found`. */
-function mockLookup(found: string[]) {
+/** Mockea fetch /api/quotes/lookup devolviendo `found` (filas de etm_products). */
+function mockLookup(found: unknown[]) {
   return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
     json: async () => ({ found }),
   } as Response)
@@ -62,9 +62,9 @@ describe('ProductModal', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  test('ETM duplicado en la cotización (existingEtms) → error y NO guarda', async () => {
+  test('ETM duplicado en la cotización → aviso informativo y SÍ guarda (issue #40)', async () => {
     const user = userEvent.setup()
-    const fetchSpy = mockLookup([])
+    mockLookup([]) // duplicado dentro de la cotización, pero no en el catálogo
     const onSave = vi.fn()
 
     render(
@@ -78,26 +78,58 @@ describe('ProductModal', () => {
     )
 
     await fillRequired(user, 'DUP-1')
+    // Aviso en vivo (no error): repetir ETMs es válido — proyectos distintos
+    // dentro de la misma cotización pueden pedir el mismo producto.
+    expect(
+      await screen.findByText('Este ETM ya está en la cotización — se agregará repetido.'),
+    ).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
-    expect(await screen.findByText('Este ETM ya existe en la cotización')).toBeInTheDocument()
-    expect(onSave).not.toHaveBeenCalled()
-    // El duplicado local corta antes de consultar el catálogo.
-    expect(fetchSpy).not.toHaveBeenCalled()
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
+    expect(onSave.mock.calls[0][0]).toMatchObject({ etm: 'DUP-1', quantity: 3 })
   })
 
-  test('ETM duplicado en el catálogo (fetch found) → error y NO guarda', async () => {
+  test('ETM existente en el catálogo → precarga datos y SÍ guarda (issue #40)', async () => {
     const user = userEvent.setup()
-    mockLookup(['CAT-1'])
+    mockLookup([{
+      etm: 'CAT-1',
+      description: 'Bearing puller',
+      description_es: 'Extractor de baleros',
+      model_code: 'MC77',
+      brand: 'URREA',
+      price: 250,
+      is_sold: true,
+      dymmsa_description: 'Extractor 3 patas',
+    }])
     const onSave = vi.fn()
 
     render(<ProductModal mode="create" open onOpenChange={vi.fn()} onSave={onSave} />)
 
-    await fillRequired(user, 'CAT-1')
+    await user.type(screen.getByPlaceholderText('Ej: H7-ET400'), 'CAT-1')
+    await user.tab() // blur → lookup → precarga
+
+    // Aviso informativo (no error) + campos precargados del catálogo
+    expect(await screen.findByText(/datos precargados/)).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Extractor de baleros')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('MC77')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('250')).toBeInTheDocument()
+
+    // La cantidad no viene del catálogo: la captura el usuario
+    await user.type(screen.getByPlaceholderText('0'), '3')
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
-    expect(await screen.findByText('Este ETM ya existe en el catálogo')).toBeInTheDocument()
-    expect(onSave).not.toHaveBeenCalled()
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
+    const [payload] = onSave.mock.calls[0]
+    expect(payload).toMatchObject({
+      etm: 'CAT-1',
+      description_es: 'Extractor de baleros',
+      model_code: 'MC77',
+      brand: 'URREA',
+      unit_price: 250,
+      quantity: 3,
+      _inDb: true, // ya existe en el catálogo → la fila muestra "En catálogo"
+    })
   })
 
   test('con match de catálogo → onCatalogResolved(code normalizado, descripción) al guardar', async () => {
@@ -124,6 +156,22 @@ describe('ProductModal', () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
     expect(onCatalogResolved).toHaveBeenCalledWith('MC9', 'Pinza oficial URREA')
+  })
+
+  test('fallo de red en el lookup → no bloquea: se agrega como nuevo', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'))
+    const onSave = vi.fn()
+
+    render(<ProductModal mode="create" open onOpenChange={vi.fn()} onSave={onSave} />)
+
+    await fillRequired(user, 'NET-1')
+    await user.click(screen.getByRole('button', { name: 'Agregar' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
+    const [payload] = onSave.mock.calls[0]
+    expect(payload).toMatchObject({ etm: 'NET-1', _inDb: false }) // sin precarga, sin error
+    expect(screen.queryByText(/datos precargados/)).not.toBeInTheDocument()
   })
 
   test('modo edit con ETM sin cambios → no consulta el catálogo y guarda', async () => {
