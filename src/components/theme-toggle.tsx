@@ -9,6 +9,35 @@ export function ThemeToggle() {
 
   const toggleTheme = (e: React.MouseEvent<HTMLButtonElement>) => {
     const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
+
+    // Aplica el tema al DOM de forma SÍNCRONA. next-themes lo hace en un
+    // useEffect pasivo (asíncrono): dentro del callback de startViewTransition
+    // el snapshot "new" se capturaría con el tema VIEJO todavía → el círculo no
+    // revela nada y el cambio salta de golpe fuera de la transición ("la gota
+    // sale de otro lado"). Aplicando la clase aquí, el snapshot "new" ya trae el
+    // tema correcto. setTheme se llama igual para persistir/sincronizar el estado
+    // (idempotente: su efecto reaplica la misma clase, sin parpadeo).
+    //
+    // ACOPLADO a la config del provider: `attribute="class"` + enableColorScheme
+    // (layout.tsx). Replica a mano lo que hace next-themes; si el provider cambia
+    // a `attribute="data-theme"` o a un `value` map, actualizar este bloque.
+    const applyTheme = () => {
+      const root = document.documentElement
+      root.classList.remove('light', 'dark')
+      root.classList.add(newTheme)
+      root.style.colorScheme = newTheme
+      setTheme(newTheme)
+    }
+
+    const reducedMotion =
+      typeof window !== 'undefined' &&
+      !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+    if (!document.startViewTransition || reducedMotion) {
+      applyTheme()
+      return
+    }
+
     const x = e.clientX
     const y = e.clientY
     const endRadius = Math.hypot(
@@ -16,15 +45,8 @@ export function ThemeToggle() {
       Math.max(y, window.innerHeight - y)
     )
 
-    if (!document.startViewTransition) {
-      setTheme(newTheme)
-      return
-    }
-
     // oxlint-disable-next-line react-doctor/no-document-start-view-transition -- intentional View Transitions API for theme toggle animation
-    const transition = document.startViewTransition(() => {
-      setTheme(newTheme)
-    })
+    const transition = document.startViewTransition(applyTheme)
 
     transition.ready.then(() => {
       document.documentElement.animate(
