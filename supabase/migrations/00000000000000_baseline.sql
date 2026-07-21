@@ -353,6 +353,17 @@ CREATE POLICY "Authenticated users can manage suppliers" ON public.suppliers FOR
 CREATE POLICY "Authenticated users can manage brands" ON public.brands FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can manage supplier brands" ON public.supplier_brands FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- ─── GRANTs de rol ──────────────────────────────────────────────────────────
+-- En la nube, Supabase concede estos privilegios de tabla por default; el
+-- snapshot schema.sql no los captura. Sin ellos, `authenticated` recibe
+-- "permission denied" pese a las policies RLS (RLS gatea FILAS, el GRANT gatea
+-- la TABLA). service_role bypassa RLS. Necesario para que el local se comporte
+-- como producción.
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
 -- ─── Storage ────────────────────────────────────────────────────────────────
 -- bucket task-images · public=true · límite 5 MB · PNG/JPEG/GIF/WEBP
 -- (creado por la migración create_task_images_bucket, ADR-014)
