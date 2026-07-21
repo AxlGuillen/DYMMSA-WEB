@@ -62,7 +62,9 @@ const FIXTURES_SQL = `
  */
 export async function resetDb(): Promise<void> {
   await getPool().query(`
-    TRUNCATE public.quotations, public.orders, public.order_purchase_decisions RESTART IDENTITY CASCADE;
+    TRUNCATE public.quotations, public.orders, public.order_purchase_decisions,
+             public.suppliers, public.brands, public.supplier_brands
+      RESTART IDENTITY CASCADE;
     ${FIXTURES_SQL}
   `)
 }
