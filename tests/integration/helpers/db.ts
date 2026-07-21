@@ -60,6 +60,62 @@ const FIXTURES_SQL = `
  * borra lo transaccional (cotizaciones/órdenes/decisiones) y reaplica los
  * fixtures de catálogo/inventario. El usuario de auth y el resto se conservan.
  */
+export interface SeedItem {
+  item_type?: 'product' | 'separator'
+  etm?: string
+  model_code?: string
+  brand?: string
+  unit_price?: number | null
+  quantity?: number | null
+  is_approved?: boolean | null
+  is_sold?: boolean | null
+  section_label?: string | null
+}
+
+/**
+ * Inserta una cotización + sus ítems vía SQL directo (arreglo de estado para
+ * los tests de capas 2-5). Devuelve id, approval_token y los ids de ítems en
+ * orden. sort_order = índice del array.
+ */
+export async function seedQuotation(opts: {
+  name?: string
+  customer?: string
+  status?: string
+  items: SeedItem[]
+}): Promise<{ id: string; token: string; itemIds: string[] }> {
+  const [q] = await sql<{ id: string; approval_token: string }>(
+    `INSERT INTO quotations (name, customer_name, status)
+     VALUES ($1, $2, $3) RETURNING id, approval_token`,
+    [opts.name ?? 'Q Test', opts.customer ?? 'ACME', opts.status ?? 'draft'],
+  )
+  const itemIds: string[] = []
+  for (let i = 0; i < opts.items.length; i++) {
+    const it = opts.items[i]
+    const sep = it.item_type === 'separator'
+    const [row] = await sql<{ id: string }>(
+      `INSERT INTO quotation_items
+        (quotation_id, item_type, section_label, etm, model_code, brand,
+         unit_price, quantity, is_approved, is_sold, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [
+        q.id,
+        it.item_type ?? 'product',
+        sep ? (it.section_label ?? '') : null,
+        sep ? null : (it.etm ?? null),
+        sep ? null : (it.model_code ?? null),
+        sep ? null : (it.brand ?? null),
+        sep ? null : (it.unit_price ?? null),
+        sep ? null : (it.quantity ?? null),
+        sep ? null : (it.is_approved ?? null),
+        sep ? null : (it.is_sold ?? null),
+        i,
+      ],
+    )
+    itemIds.push(row.id)
+  }
+  return { id: q.id, token: q.approval_token, itemIds }
+}
+
 export async function resetDb(): Promise<void> {
   await getPool().query(`
     TRUNCATE public.quotations, public.orders, public.order_purchase_decisions,
