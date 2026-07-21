@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Artefactos generados de cobertura (vitest --coverage) — no son código nuestro.
+    "coverage/**",
     // Scripts one-shot históricos (Fase 0) — archivados, no se mantienen.
     "scripts/archive/**",
   ]),
