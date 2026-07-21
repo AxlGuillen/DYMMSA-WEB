@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify": "bun run check && bun run test:integration && bun run test:e2e"
   },
   "dependencies": {
     "@animateicons/react": "^0.3.4",

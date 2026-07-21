@@ -160,7 +160,8 @@ Complemento a la batería mockeada: corren contra un **Supabase local real** (CL
 ```bash
 bunx supabase start          # levanta el stack local (Docker) — una vez
 bun run test:integration     # tests/integration/ — route handlers vs BD real
-bun run test:e2e             # tests/e2e/ — Playwright (login → Excel → guardar)
+bun run test:e2e             # tests/e2e/ — Playwright (cotizador + página de aprobación)
+bun run verify               # pre-push: check + integration + e2e (con el stack arriba)
 bunx supabase stop           # apaga el stack (libera RAM); db reset lo reconstruye
 ```
 

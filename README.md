@@ -272,6 +272,7 @@ bun run test:watch     # Run tests in watch mode
 bun run test:coverage  # Run tests with coverage
 bun run test:integration  # Integration tests vs a local Supabase (needs the stack up)
 bun run test:e2e          # Playwright browser E2E vs a local Supabase
+bun run verify            # check + integration + e2e (pre-push, with the stack up)
 ```
 
 > Use `bun run test` (not `bun test`): the latter invokes Bun's built-in runner and fails on `vitest` imports.
@@ -314,7 +315,8 @@ file-upload UI. These are **not part of CI** (they need the local stack).
 ```bash
 bunx supabase start          # bring up the local stack (Docker) — once
 bun run test:integration     # tests/integration/ — route handlers vs the real DB
-bun run test:e2e             # tests/e2e/ — Playwright (login → upload Excel → save)
+bun run test:e2e             # tests/e2e/ — Playwright (upload/save + public approval page)
+bun run verify               # pre-push gate: check + integration + e2e
 bunx supabase stop           # tear down (frees RAM); `bunx supabase db reset` rebuilds it
 ```
 
