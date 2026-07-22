@@ -69,7 +69,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { OrderStatusBadge } from './OrderStatusBadge'
-import { generateUrreaOrderExcel, downloadUrreaOrder, generateDeliveryExcel, downloadDeliveryExcel } from '@/lib/excel/generator'
 import {
   useUpdateOrderStatus,
   useConfirmReception,
@@ -193,7 +192,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingDelivery, setIsDownloadingDelivery] = useState(false)
 
-  const handleDownloadDeliveryExcel = () => {
+  const handleDownloadDeliveryExcel = async () => {
     const deliveredItems = order.order_items.filter(
       (item) =>
         (!item.item_type || item.item_type === 'product') &&
@@ -207,6 +206,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
     setIsDownloadingDelivery(true)
     try {
+      // Carga diferida: xlsx solo baja al descargar el formato de entrega.
+      const { generateDeliveryExcel, downloadDeliveryExcel } = await import('@/lib/excel/generator')
       const blob = generateDeliveryExcel(order.order_items, order.customer_name)
       downloadDeliveryExcel(blob, order.customer_name)
       toast.success(`Formato de entrega descargado (${deliveredItems.length} productos)`)
@@ -237,6 +238,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
     setIsDownloading(true)
     try {
+      // Carga diferida: xlsx/jszip solo bajan al generar el pedido URREA.
+      const { generateUrreaOrderExcel, downloadUrreaOrder } = await import('@/lib/excel/generator')
       const blob = await generateUrreaOrderExcel(wholesaleRows)
       downloadUrreaOrder(blob, order.customer_name)
       toast.success(`Excel de pedido URREA descargado (${wholesaleRows.length} productos)`)

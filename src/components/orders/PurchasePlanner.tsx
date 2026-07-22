@@ -44,11 +44,7 @@ import {
   type PurchaseGroupPlan,
   type PurchaseThresholds,
 } from '@/lib/purchase-plan'
-import {
-  generateLocalPurchaseExcel,
-  downloadLocalPurchaseExcel,
-  type LocalPurchaseRow,
-} from '@/lib/excel/generator'
+import type { LocalPurchaseRow } from '@/lib/excel/generator'
 
 interface PurchasePlannerProps {
   data: PurchasePlanResponse
@@ -139,7 +135,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
     }
   }
 
-  const handleExportLocal = () => {
+  const handleExportLocal = async () => {
     const rows: LocalPurchaseRow[] = []
     for (const group of mathGroups) {
       const choice = effectiveChoice(group)
@@ -172,6 +168,8 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       toast.info('No hay nada para compra local')
       return
     }
+    // Carga diferida: xlsx solo baja al exportar la lista de compra local.
+    const { generateLocalPurchaseExcel, downloadLocalPurchaseExcel } = await import('@/lib/excel/generator')
     downloadLocalPurchaseExcel(generateLocalPurchaseExcel(rows), order.customer_name)
     toast.success(`Lista de compra local descargada (${rows.length} filas)`)
   }
