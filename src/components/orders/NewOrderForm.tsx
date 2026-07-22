@@ -15,7 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { detectApprovedProducts } from '@/lib/excel/detect-approved'
 import { useCreateOrder, useAutoLearn } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import type { ApprovedProduct } from '@/types/database'
@@ -47,6 +46,8 @@ export function NewOrderForm() {
 
     try {
       const buffer = await uploadedFile.arrayBuffer()
+      // Carga diferida: exceljs (~130 KB gzip) solo baja al subir el Excel aprobado.
+      const { detectApprovedProducts } = await import('@/lib/excel/detect-approved')
       const result = await detectApprovedProducts(buffer)
 
       setDetectionResult({

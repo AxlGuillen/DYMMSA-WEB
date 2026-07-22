@@ -3,6 +3,14 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-22
+
+### Mejorado
+- **El cotizador y las órdenes abren más rápido.** Las librerías que leen y generan
+  archivos de Excel (unas pesadas) ya no se descargan al abrir esas pantallas: ahora
+  se cargan solo en el momento en que subes o descargas un Excel. La primera carga de
+  esas páginas baja alrededor de **130–250 KB**, así que se sienten más ágiles al entrar.
+
 ## 2026-07-17
 
 ### Nuevo

@@ -7,7 +7,6 @@ import { FileUploader } from '@/components/quoter/FileUploader'
 import { QuotationEditor } from '@/components/quoter/QuotationEditor'
 import { useLookupEtms } from '@/hooks/useQuotes'
 import { useSaveQuotation, ApiError } from '@/hooks/useQuotations'
-import { extractProductRowsFromExcel } from '@/lib/excel/parser'
 import { useQuotationStore } from '@/stores/quotationStore'
 import {
   getBlockingIssues,
@@ -70,6 +69,8 @@ export default function QuoterPage() {
   const handleFileSelected = async (file: File) => {
     try {
       const buffer = await file.arrayBuffer()
+      // Carga diferida: xlsx (~250 KB gzip) solo baja al subir un Excel, no al abrir el cotizador.
+      const { extractProductRowsFromExcel } = await import('@/lib/excel/parser')
       const { rows, sheetsProcessed, sheetsWithEtm } =
         extractProductRowsFromExcel(buffer)
 
