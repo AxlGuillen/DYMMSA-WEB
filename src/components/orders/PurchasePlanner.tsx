@@ -168,10 +168,14 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       toast.info('No hay nada para compra local')
       return
     }
-    // Carga diferida: xlsx solo baja al exportar la lista de compra local.
-    const { generateLocalPurchaseExcel, downloadLocalPurchaseExcel } = await import('@/lib/excel/generator')
-    downloadLocalPurchaseExcel(generateLocalPurchaseExcel(rows), order.customer_name)
-    toast.success(`Lista de compra local descargada (${rows.length} filas)`)
+    try {
+      // Carga diferida: xlsx solo baja al exportar la lista de compra local.
+      const { generateLocalPurchaseExcel, downloadLocalPurchaseExcel } = await import('@/lib/excel/generator')
+      downloadLocalPurchaseExcel(generateLocalPurchaseExcel(rows), order.customer_name)
+      toast.success(`Lista de compra local descargada (${rows.length} filas)`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo exportar la lista de compra local')
+    }
   }
 
   return (
