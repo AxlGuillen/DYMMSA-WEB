@@ -153,7 +153,24 @@ tests/
 - **Componentes:** jsdom + Testing Library. Hooks de TanStack se mockean a nivel de módulo (`vi.mock('@/hooks/*')` → `{ mutateAsync: vi.fn(), isPending: false }`); los stores Zustand se resetean con `resetStores()`. DnD (drag&drop) y flujos completos quedan para E2E.
 - **Al agregar/cambiar lógica de negocio o un route handler, agregar o actualizar su test.**
 
-> 📚 Detalle y rationale: `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md`
+### Integración + E2E contra Supabase local (ADR-021, fuera del CI)
+
+Complemento a la batería mockeada: corren contra un **Supabase local real** (CLI + Docker), así que validan lo que el mock finge (constraints, RLS/GRANT, transaccionalidad, flujos encadenados, login/upload). **NO** entran en `bun run check`/CI (necesitan el stack local).
+
+```bash
+bunx supabase start          # levanta el stack local (Docker) — una vez
+bun run test:integration     # tests/integration/ — route handlers vs BD real
+bun run test:e2e             # tests/e2e/ — Playwright (cotizador + página de aprobación)
+bun run verify               # pre-push: check + integration + e2e (con el stack arriba)
+bunx supabase stop           # apaga el stack (libera RAM); db reset lo reconstruye
+```
+
+- **Baseline solo-local**: `supabase/migrations/00000000000000_baseline.sql` (desde `schema.sql` + extensión `moddatetime` + bucket `task-images` + `GRANT`s a anon/authenticated/service_role). **La nube sigue siendo la fuente de verdad vía MCP**; refrescar el baseline al cambiar el schema.
+- **Seed** (`supabase/seed.sql`): usuario de prueba (`test@dymmsa.local`/`testpassword123`) + fixtures deterministas. Nunca datos reales.
+- **Integración**: reusa `injectSupabaseServer`/`injectSupabaseAdmin` pero devuelve un cliente **real autenticado** (no mock). `resetDb()` (pg) aísla por test. Env/llaves demo en `.env.test.example`.
+- **Playwright**: dev server propio en `:3100` con env local (no interfiere con `bun run dev` ni con producción).
+
+> 📚 Detalle y rationale: `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md` + `ADR-021-Testing-E2E-Supabase-Local.md`
 
 ---
 

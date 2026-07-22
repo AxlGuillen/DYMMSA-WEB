@@ -270,6 +270,9 @@ bun lint               # Run ESLint
 bun run test           # Run the test suite (Vitest)
 bun run test:watch     # Run tests in watch mode
 bun run test:coverage  # Run tests with coverage
+bun run test:integration  # Integration tests vs a local Supabase (needs the stack up)
+bun run test:e2e          # Playwright browser E2E vs a local Supabase
+bun run verify            # check + integration + e2e (pre-push, with the stack up)
 ```
 
 > Use `bun run test` (not `bun test`): the latter invokes Bun's built-in runner and fails on `vitest` imports.
@@ -301,6 +304,31 @@ bun run test           # 226 tests
 ```
 
 See `DYMMSA/04-Decisiones-Tecnicas/ADR-007-Estrategia-Testing.md` for the full rationale.
+
+### Integration & E2E against a local Supabase (ADR-021)
+
+Beyond the mocked unit suite, there's an optional layer that runs against a **real
+local Supabase** (CLI + Docker) — it validates what mocks can only fake: DB
+constraints, RLS/GRANTs, transactional integrity, chained flows, and the login +
+file-upload UI. These are **not part of CI** (they need the local stack).
+
+```bash
+bunx supabase start          # bring up the local stack (Docker) — once
+bun run test:integration     # tests/integration/ — route handlers vs the real DB
+bun run test:e2e             # tests/e2e/ — Playwright (upload/save + public approval page)
+bun run verify               # pre-push gate: check + integration + e2e
+bunx supabase stop           # tear down (frees RAM); `bunx supabase db reset` rebuilds it
+```
+
+- The local stack schema comes from a **local-only baseline** migration
+  (`supabase/migrations/00000000000000_baseline.sql`); the cloud project stays the
+  source of truth. Fixtures + a test user live in `supabase/seed.sql`. Local
+  connection values are in `.env.test.example` (the local demo keys are public).
+- Integration tests reuse the existing mock-injection seam but return a **real
+  authenticated client**; Playwright starts its own dev server on port `3100`
+  pointed at the local stack (so it never touches your normal `bun dev` or prod).
+
+See `DYMMSA/04-Decisiones-Tecnicas/ADR-021-Testing-E2E-Supabase-Local.md`.
 
 ## Deployment
 
