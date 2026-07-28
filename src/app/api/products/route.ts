@@ -7,12 +7,14 @@ const SORT_COLUMNS = ['etm', 'description_es', 'model_code', 'price'] as const
 type SortColumn = (typeof SORT_COLUMNS)[number]
 
 /**
- * Escapa el patrón de búsqueda. Además de `%` (comodín de ilike), quita `,`
- * `(` y `)` porque el término se interpola en el filtro de `.or()`, donde esos
- * caracteres son separadores: sin esto, una búsqueda podría alterar el filtro.
+ * Escapa el patrón de búsqueda:
+ *  - `,` `(` `)` son separadores del filtro de `.or()`, donde el término se
+ *    interpola: sin quitarlos, una búsqueda podría alterar el filtro.
+ *  - `%` y `*` son comodines de `ilike` en PostgREST — buscarlos literalmente
+ *    devolvería resultados de más en vez de coincidencias exactas.
  */
 function sanitizeSearch(raw: string): string {
-  return raw.replace(/[%,()]/g, ' ').trim()
+  return raw.replace(/[%*,()]/g, ' ').trim()
 }
 
 /** Columnas TEXT NOT NULL: se normalizan a cadena recortada (nunca null). */

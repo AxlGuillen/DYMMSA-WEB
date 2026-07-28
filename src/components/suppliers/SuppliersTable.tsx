@@ -185,7 +185,7 @@ export function SuppliersTable({
           {tableHeaders}
           <TableBody>
             {suppliers.map((supplier) => (
-              <TableRow key={supplier.id} className="bg-background">
+              <TableRow key={supplier.id} className="bg-background hover:bg-muted">
                 <TableCell className="font-medium">{supplier.name}</TableCell>
                 {cols.isVisible('whatsapp') && (
                   <TableCell>

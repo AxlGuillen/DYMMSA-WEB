@@ -169,7 +169,7 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
           {tableHeaders}
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id} className="bg-background">
+              <TableRow key={item.id} className="bg-background hover:bg-muted">
                 <TableCell className="font-mono text-sm">{item.code}</TableCell>
                 {cols.isVisible('brand') && (
                   <TableCell>

@@ -101,10 +101,15 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
     return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">{quantity}</Badge>
   }
 
+  // Los tonos van OPACOS vía color-mix (mismo color resultante que un `/50` o
+  // `/20` sobre el fondo, pero sin canal alfa): la columna fija de acciones
+  // hereda este color con `bg-inherit`, y con transparencia se alcanzaría a ver
+  // el contenido de las columnas que pasan por debajo al hacer scroll lateral.
   const getRowClass = (quantity: number) => {
-    if (quantity === 0)  return 'bg-red-50/50 dark:bg-red-950/20'
-    if (quantity <= 5)   return 'bg-yellow-50/50 dark:bg-yellow-950/20'
-    // Opaco a propósito: la columna fija de acciones hereda ESTE fondo.
+    if (quantity === 0)
+      return 'bg-[color-mix(in_oklab,var(--color-red-50)_50%,var(--background))] dark:bg-[color-mix(in_oklab,var(--color-red-950)_20%,var(--background))]'
+    if (quantity <= 5)
+      return 'bg-[color-mix(in_oklab,var(--color-yellow-50)_50%,var(--background))] dark:bg-[color-mix(in_oklab,var(--color-yellow-950)_20%,var(--background))]'
     return 'bg-background'
   }
 
@@ -154,7 +159,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
           {tableHeaders}
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id} className={getRowClass(item.quantity)}>
+              <TableRow key={item.id} className={`hover:bg-muted ${getRowClass(item.quantity)}`}>
                 <TableCell className="font-mono text-sm">{item.model_code}</TableCell>
                 {cols.isVisible('quantity') && (
                   <TableCell>{getQuantityBadge(item.quantity)}</TableCell>

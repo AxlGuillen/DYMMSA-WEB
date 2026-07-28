@@ -28,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PackageSearch, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/icons'
 import { useDeleteProduct, useSetProductSold } from '@/hooks/useProducts'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { useCurrency } from '@/hooks/useCurrency'
 import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL } from '@/hooks/useColumnWidths'
 import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
@@ -118,6 +119,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
   const [deleteTarget, setDeleteTarget] = useState<EtmProduct | null>(null)
   const deleteProduct = useDeleteProduct()
   const setSold = useSetProductSold()
+  const fmt = useCurrency()
   const cols = useVisibleColumns('products', PRODUCTS_COLUMNS)
   const widths = useColumnWidths('products', PRODUCTS_COLUMNS)
 
@@ -216,7 +218,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
           {tableHeaders}
           <TableBody>
             {products.map((product) => (
-              <TableRow key={product.id} className="group bg-background">
+              <TableRow key={product.id} className="group bg-background hover:bg-muted">
                 <TableCell className="font-mono text-sm">{product.etm}</TableCell>
                 {cols.isVisible('description_es') && (
                   <TableCell className="max-w-[260px]">
@@ -272,7 +274,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                 {cols.isVisible('brand') && <TableCell>{product.brand || '—'}</TableCell>}
                 {cols.isVisible('price') && (
                   <TableCell className="tabular-nums">
-                    ${(product.price ?? 0).toFixed(2)}
+                    {fmt(product.price ?? 0)}
                   </TableCell>
                 )}
                 {cols.isVisible('sold') && (

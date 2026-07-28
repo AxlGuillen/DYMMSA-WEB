@@ -55,15 +55,15 @@ describe('GET /products (list)', () => {
     expect(findFilter(rec, 'price', 'order')).toBeTruthy()
   })
 
-  test('búsqueda usa .or() y sanea los separadores del filtro', async () => {
+  test('búsqueda usa .or() y sanea separadores y comodines', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: okList })
-    await listRoute.GET(makeRequest(undefined, url('?search=' + encodeURIComponent('AB,C(x)%'))))
+    await listRoute.GET(makeRequest(undefined, url('?search=' + encodeURIComponent('AB,C(x)%*'))))
     const rec = activeClient.callsTo('etm_products', 'select')[0]
     const or = rec.filters.find((f) => f.method === 'or')
     expect(or).toBeTruthy()
-    // Ni comas ni paréntesis del término llegan al filtro (romperían el .or()).
+    // Ni separadores del .or() ni comodines de ilike (`%`, `*`) llegan al filtro.
     const term = String(or!.args[0]).split('etm.ilike.%')[1]?.split('%')[0] ?? ''
-    expect(term).not.toMatch(/[,()]/)
+    expect(term).not.toMatch(/[,()*]/)
   })
 })
 
