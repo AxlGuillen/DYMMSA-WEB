@@ -30,7 +30,7 @@ import {
 } from '@/components/icons'
 import { useDeleteSupplier, type SupplierSortField } from '@/hooks/useSuppliers'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
-import { useColumnWidths, RESIZABLE_TABLE_CLASS, type ColumnWidths } from '@/hooks/useColumnWidths'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL, type ColumnWidths } from '@/hooks/useColumnWidths'
 import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import { toast } from 'sonner'
@@ -131,7 +131,7 @@ export function SuppliersTable({
         {cols.isVisible('updated_at') && (
           <SortHeader label="Última actualización" field="updated_at" active={sortField === 'updated_at'} dir={sortDir} onSort={onSort} widths={widths} />
         )}
-        <ResizableHead id="actions" label="Acciones" widths={widths} />
+        <ResizableHead id="actions" label="Acciones" widths={widths} sticky />
       </TableRow>
     </TableHeader>
   )
@@ -185,7 +185,7 @@ export function SuppliersTable({
           {tableHeaders}
           <TableBody>
             {suppliers.map((supplier) => (
-              <TableRow key={supplier.id}>
+              <TableRow key={supplier.id} className="bg-background">
                 <TableCell className="font-medium">{supplier.name}</TableCell>
                 {cols.isVisible('whatsapp') && (
                   <TableCell>
@@ -233,7 +233,7 @@ export function SuppliersTable({
                     {formatRelative(supplier.updated_at)}
                   </TableCell>
                 )}
-                <TableCell>
+                <TableCell className={STICKY_ACTIONS_CELL}>
                   <RowActions
                     what={supplier.name}
                     onEdit={() => onEdit(supplier)}

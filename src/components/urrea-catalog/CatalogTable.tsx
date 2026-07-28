@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteCatalogItem } from '@/hooks/useUrreaCatalog'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
-import { useColumnWidths, RESIZABLE_TABLE_CLASS, type ColumnWidths } from '@/hooks/useColumnWidths'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL, type ColumnWidths } from '@/hooks/useColumnWidths'
 import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import type { CatalogSortField, SortDir } from '@/hooks/useUrreaCatalog'
@@ -117,7 +117,7 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
           <SortHeader label="STD" field="std" active={sortField === 'std'} dir={sortDir} onSort={onSort} widths={widths} />
         )}
         {cols.isVisible('updated_at') && <ResizableHead id="updated_at" label="Última actualización" widths={widths} />}
-        <ResizableHead id="actions" label="Acciones" widths={widths} />
+        <ResizableHead id="actions" label="Acciones" widths={widths} sticky />
       </TableRow>
     </TableHeader>
   )
@@ -169,7 +169,7 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
           {tableHeaders}
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id}>
+              <TableRow key={item.id} className="bg-background">
                 <TableCell className="font-mono text-sm">{item.code}</TableCell>
                 {cols.isVisible('brand') && (
                   <TableCell>
@@ -187,7 +187,7 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
                     {formatRelative(item.updated_at)}
                   </TableCell>
                 )}
-                <TableCell>
+                <TableCell className={STICKY_ACTIONS_CELL}>
                   <RowActions
                     what={item.code}
                     onEdit={() => onEdit(item)}

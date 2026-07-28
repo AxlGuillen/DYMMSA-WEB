@@ -26,13 +26,13 @@ import {
 } from '@/components/ui/tooltip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PackageSearch, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/icons'
-import { useDeleteProduct } from '@/hooks/useProducts'
+import { useDeleteProduct, useSetProductSold } from '@/hooks/useProducts'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
-import { useColumnWidths, RESIZABLE_TABLE_CLASS } from '@/hooks/useColumnWidths'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL } from '@/hooks/useColumnWidths'
 import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import type { ProductSortBy, SortDir } from '@/hooks/useProducts'
-import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
+import { SoldStatusToggle } from '@/components/quotations/SoldStatusToggle'
 import { toast } from 'sonner'
 import type { EtmProduct } from '@/types/database'
 
@@ -73,6 +73,7 @@ function Head({
   currentDir,
   onSort,
   className,
+  sticky,
 }: {
   id: string
   label: string
@@ -82,11 +83,12 @@ function Head({
   currentDir?: SortDir
   onSort?: (col: ProductSortBy) => void
   className?: string
+  sticky?: boolean
 }) {
   const isActive = !!sortCol && currentSort === sortCol
 
   return (
-    <ResizableHead id={id} label={label} widths={widths} className={className}>
+    <ResizableHead id={id} label={label} widths={widths} className={className} sticky={sticky}>
       {sortCol && onSort ? (
         <button type="button"
           onClick={() => onSort(sortCol)}
@@ -115,6 +117,7 @@ function Head({
 export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, onSort }: ProductsTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<EtmProduct | null>(null)
   const deleteProduct = useDeleteProduct()
+  const setSold = useSetProductSold()
   const cols = useVisibleColumns('products', PRODUCTS_COLUMNS)
   const widths = useColumnWidths('products', PRODUCTS_COLUMNS)
 
@@ -138,10 +141,21 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
           <Head id="price" label="Precio" widths={widths} sortCol="price" {...sortProps} />
         )}
         {cols.isVisible('sold') && <Head id="sold" label="Venta" widths={widths} className="text-center" />}
-        <Head id="actions" label="Acciones" widths={widths} />
+        <Head id="actions" label="Acciones" widths={widths} sticky />
       </TableRow>
     </TableHeader>
   )
+
+  // El cambio se pinta al instante (update optimista) y el hook revierte si el
+  // PATCH falla; el toast solo aparece en el error, para no interrumpir cuando
+  // se marcan muchos productos seguidos.
+  const handleSoldChange = async (product: EtmProduct, is_sold: boolean | null) => {
+    try {
+      await setSold.mutateAsync({ id: product.id, is_sold })
+    } catch {
+      toast.error(`No se pudo actualizar "${product.etm}"`)
+    }
+  }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -202,7 +216,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
           {tableHeaders}
           <TableBody>
             {products.map((product) => (
-              <TableRow key={product.id} className="group">
+              <TableRow key={product.id} className="group bg-background">
                 <TableCell className="font-mono text-sm">{product.etm}</TableCell>
                 {cols.isVisible('description_es') && (
                   <TableCell className="max-w-[260px]">
@@ -263,10 +277,13 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                 )}
                 {cols.isVisible('sold') && (
                   <TableCell className="text-center">
-                    <SoldStatusBadge value={product.is_sold} />
+                    <SoldStatusToggle
+                      value={product.is_sold}
+                      onChange={(is_sold) => handleSoldChange(product, is_sold)}
+                    />
                   </TableCell>
                 )}
-                <TableCell>
+                <TableCell className={STICKY_ACTIONS_CELL}>
                   <RowActions
                     what={product.etm}
                     onEdit={() => onEdit(product)}

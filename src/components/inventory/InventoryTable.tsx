@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Package, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteInventoryItem } from '@/hooks/useInventory'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
-import { useColumnWidths, RESIZABLE_TABLE_CLASS } from '@/hooks/useColumnWidths'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL } from '@/hooks/useColumnWidths'
 import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import { toast } from 'sonner'
@@ -72,7 +72,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
         )}
         {cols.isVisible('location') && <ResizableHead id="location" label="Ubicación" widths={widths} />}
         {cols.isVisible('updated_at') && <ResizableHead id="updated_at" label="Última Actualización" widths={widths} />}
-        <ResizableHead id="actions" label="Acciones" widths={widths} />
+        <ResizableHead id="actions" label="Acciones" widths={widths} sticky />
       </TableRow>
     </TableHeader>
   )
@@ -104,7 +104,8 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
   const getRowClass = (quantity: number) => {
     if (quantity === 0)  return 'bg-red-50/50 dark:bg-red-950/20'
     if (quantity <= 5)   return 'bg-yellow-50/50 dark:bg-yellow-950/20'
-    return ''
+    // Opaco a propósito: la columna fija de acciones hereda ESTE fondo.
+    return 'bg-background'
   }
 
   if (isLoading) {
@@ -173,7 +174,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
                     {formatRelative(item.updated_at)}
                   </TableCell>
                 )}
-                <TableCell>
+                <TableCell className={STICKY_ACTIONS_CELL}>
                   <RowActions
                     what={item.model_code}
                     onEdit={() => onEdit(item)}

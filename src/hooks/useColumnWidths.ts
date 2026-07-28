@@ -23,6 +23,14 @@ export const RESIZABLE_TABLE_CLASS =
   'table-fixed w-max min-w-full [&_td]:overflow-hidden [&_td]:text-ellipsis'
 
 /**
+ * Celda de datos de la columna fija de acciones (par del `sticky` de
+ * `ResizableHead`). `bg-inherit` en vez de un color fijo para heredar el fondo
+ * de SU fila: así respeta el resaltado por stock del inventario y el hover, en
+ * lugar de pintar un parche opaco encima.
+ */
+export const STICKY_ACTIONS_CELL = 'sticky right-0 z-10 bg-inherit border-l'
+
+/**
  * Anchos de columna redimensionables por tabla (issue #55).
  *
  * SSR-safe igual que `useVisibleColumns`: hasta el primer frame pintado
