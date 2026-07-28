@@ -9,12 +9,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -27,11 +21,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, Pencil, Trash2, Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
+import { Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteCatalogItem } from '@/hooks/useUrreaCatalog'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { useColumnWidths, RESIZABLE_TABLE_CLASS, type ColumnWidths } from '@/hooks/useColumnWidths'
 import { ResizableHead } from '@/components/ResizableHead'
+import { RowActions } from '@/components/RowActions'
 import type { CatalogSortField, SortDir } from '@/hooks/useUrreaCatalog'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
@@ -193,23 +188,11 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
                   </TableCell>
                 )}
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(item)}>
-                        <Pencil className="mr-2 size-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(item.id)}>
-                        <Trash2 className="mr-2 size-4" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <RowActions
+                    what={item.code}
+                    onEdit={() => onEdit(item)}
+                    onDelete={() => setDeleteId(item.id)}
+                  />
                 </TableCell>
               </TableRow>
             ))}

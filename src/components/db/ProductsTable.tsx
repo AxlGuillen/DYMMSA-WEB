@@ -9,12 +9,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -30,13 +24,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PackageSearch, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/icons'
+import { PackageSearch, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/icons'
 import { useDeleteProduct } from '@/hooks/useProducts'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { useColumnWidths, RESIZABLE_TABLE_CLASS } from '@/hooks/useColumnWidths'
 import { ResizableHead } from '@/components/ResizableHead'
+import { RowActions } from '@/components/RowActions'
 import type { ProductSortBy, SortDir } from '@/hooks/useProducts'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import { toast } from 'sonner'
@@ -273,30 +267,11 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
                   </TableCell>
                 )}
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(product)}>
-                        <Pencil className="mr-2 size-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeleteTarget(product)}
-                      >
-                        <Trash2 className="mr-2 size-4 text-destructive" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <RowActions
+                    what={product.etm}
+                    onEdit={() => onEdit(product)}
+                    onDelete={() => setDeleteTarget(product)}
+                  />
                 </TableCell>
               </TableRow>
             ))}

@@ -9,12 +9,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -28,9 +22,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  MoreHorizontal,
-  Pencil,
-  Trash2,
   Truck,
   Plus,
   ArrowUpDown,
@@ -41,6 +32,7 @@ import { useDeleteSupplier, type SupplierSortField } from '@/hooks/useSuppliers'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { useColumnWidths, RESIZABLE_TABLE_CLASS, type ColumnWidths } from '@/hooks/useColumnWidths'
 import { ResizableHead } from '@/components/ResizableHead'
+import { RowActions } from '@/components/RowActions'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { SupplierWithBrands } from '@/types/database'
@@ -242,23 +234,11 @@ export function SuppliersTable({
                   </TableCell>
                 )}
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(supplier)}>
-                        <Pencil className="mr-2 size-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(supplier.id)}>
-                        <Trash2 className="mr-2 size-4" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <RowActions
+                    what={supplier.name}
+                    onEdit={() => onEdit(supplier)}
+                    onDelete={() => setDeleteId(supplier.id)}
+                  />
                 </TableCell>
               </TableRow>
             ))}
