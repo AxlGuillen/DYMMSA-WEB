@@ -5,7 +5,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -40,6 +39,8 @@ import {
 } from '@/components/icons'
 import { useDeleteSupplier, type SupplierSortField } from '@/hooks/useSuppliers'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, type ColumnWidths } from '@/hooks/useColumnWidths'
+import { ResizableHead } from '@/components/ResizableHead'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { SupplierWithBrands } from '@/types/database'
@@ -58,14 +59,14 @@ interface SuppliersTableProps {
 
 // Columnas de proveedores (issue #18). Nombre y acciones son fijas.
 export const SUPPLIERS_COLUMNS: readonly TableColumn[] = [
-  { id: 'name', label: 'Nombre', hideable: false },
-  { id: 'whatsapp', label: 'WhatsApp' },
-  { id: 'phone', label: 'Teléfono' },
-  { id: 'email', label: 'Correo' },
-  { id: 'address', label: 'Dirección' },
-  { id: 'brands', label: 'Marcas' },
-  { id: 'updated_at', label: 'Última actualización' },
-  { id: 'actions', label: 'Acciones', hideable: false },
+  { id: 'name', label: 'Nombre', hideable: false, width: 220 },
+  { id: 'whatsapp', label: 'WhatsApp', width: 150 },
+  { id: 'phone', label: 'Teléfono', width: 140 },
+  { id: 'email', label: 'Correo', width: 220 },
+  { id: 'address', label: 'Dirección', width: 260 },
+  { id: 'brands', label: 'Marcas', width: 200 },
+  { id: 'updated_at', label: 'Última actualización', width: 170 },
+  { id: 'actions', label: 'Acciones', hideable: false, width: 100 },
 ]
 
 /**
@@ -78,27 +79,29 @@ function waLink(whatsapp: string): string {
 }
 
 function SortHeader({
-  label, field, active, dir, onSort, className,
+  label, field, active, dir, onSort, widths, className,
 }: {
   label: string
   field: SupplierSortField
   active: boolean
   dir: SortDir
   onSort: (f: SupplierSortField) => void
+  widths: ColumnWidths
   className?: string
 }) {
   const Icon = active ? (dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+  // `field` coincide con el id de columna del picker: sirve de llave del ancho.
   return (
-    <TableHead className={className}>
+    <ResizableHead id={field} label={label} widths={widths} className={className}>
       <button
         type="button"
         onClick={() => onSort(field)}
-        className="flex items-center gap-1.5 font-medium transition-colors hover:text-foreground"
+        className="flex max-w-full items-center gap-1.5 font-medium transition-colors hover:text-foreground"
       >
-        {label}
-        <Icon className={`h-3.5 w-3.5 ${active ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+        <span className="truncate">{label}</span>
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-foreground' : 'text-muted-foreground/50'}`} />
       </button>
-    </TableHead>
+    </ResizableHead>
   )
 }
 
@@ -110,6 +113,7 @@ export function SuppliersTable({
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const deleteSupplier = useDeleteSupplier()
   const cols = useVisibleColumns('suppliers', SUPPLIERS_COLUMNS)
+  const widths = useColumnWidths('suppliers', SUPPLIERS_COLUMNS)
 
   const handleDelete = async () => {
     if (!deleteId) return
@@ -126,16 +130,16 @@ export function SuppliersTable({
   const tableHeaders = (
     <TableHeader>
       <TableRow>
-        <SortHeader label="Nombre" field="name" active={sortField === 'name'} dir={sortDir} onSort={onSort} />
-        {cols.isVisible('whatsapp') && <TableHead className="w-[140px]">WhatsApp</TableHead>}
-        {cols.isVisible('phone') && <TableHead className="w-[130px]">Teléfono</TableHead>}
-        {cols.isVisible('email') && <TableHead>Correo</TableHead>}
-        {cols.isVisible('address') && <TableHead>Dirección</TableHead>}
-        {cols.isVisible('brands') && <TableHead>Marcas</TableHead>}
+        <SortHeader label="Nombre" field="name" active={sortField === 'name'} dir={sortDir} onSort={onSort} widths={widths} />
+        {cols.isVisible('whatsapp') && <ResizableHead id="whatsapp" label="WhatsApp" widths={widths} />}
+        {cols.isVisible('phone') && <ResizableHead id="phone" label="Teléfono" widths={widths} />}
+        {cols.isVisible('email') && <ResizableHead id="email" label="Correo" widths={widths} />}
+        {cols.isVisible('address') && <ResizableHead id="address" label="Dirección" widths={widths} />}
+        {cols.isVisible('brands') && <ResizableHead id="brands" label="Marcas" widths={widths} />}
         {cols.isVisible('updated_at') && (
-          <SortHeader label="Última actualización" field="updated_at" active={sortField === 'updated_at'} dir={sortDir} onSort={onSort} className="w-[160px]" />
+          <SortHeader label="Última actualización" field="updated_at" active={sortField === 'updated_at'} dir={sortDir} onSort={onSort} widths={widths} />
         )}
-        <TableHead className="w-[80px]">Acciones</TableHead>
+        <ResizableHead id="actions" label="Acciones" widths={widths} />
       </TableRow>
     </TableHeader>
   )
@@ -143,7 +147,7 @@ export function SuppliersTable({
   if (isLoading) {
     return (
       <div className="rounded-md border">
-        <Table>
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {Array.from({ length: 6 }).map((_, i) => (
@@ -185,7 +189,7 @@ export function SuppliersTable({
   return (
     <>
       <div className="rounded-md border">
-        <Table>
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {suppliers.map((supplier) => (

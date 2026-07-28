@@ -5,7 +5,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -31,6 +30,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { MoreHorizontal, Pencil, Trash2, Package, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteInventoryItem } from '@/hooks/useInventory'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS } from '@/hooks/useColumnWidths'
+import { ResizableHead } from '@/components/ResizableHead'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { StoreInventory } from '@/types/database'
@@ -38,11 +39,11 @@ import type { QuantitySort } from '@/hooks/useInventory'
 
 // Columnas del inventario (issue #18). Código y acciones son fijas.
 export const INVENTORY_COLUMNS: readonly TableColumn[] = [
-  { id: 'model_code', label: 'Código Modelo', hideable: false },
-  { id: 'quantity', label: 'Cantidad' },
-  { id: 'location', label: 'Ubicación' },
-  { id: 'updated_at', label: 'Última Actualización' },
-  { id: 'actions', label: 'Acciones', hideable: false },
+  { id: 'model_code', label: 'Código Modelo', hideable: false, width: 220 },
+  { id: 'quantity', label: 'Cantidad', width: 160 },
+  { id: 'location', label: 'Ubicación', width: 150 },
+  { id: 'updated_at', label: 'Última Actualización', width: 200 },
+  { id: 'actions', label: 'Acciones', hideable: false, width: 100 },
 ]
 
 interface InventoryTableProps {
@@ -57,25 +58,26 @@ interface InventoryTableProps {
 export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, onSortQuantity }: InventoryTableProps) {
   const SortIcon = quantitySort === 'desc' ? ArrowDown : quantitySort === 'asc' ? ArrowUp : ArrowUpDown
   const cols = useVisibleColumns('inventory', INVENTORY_COLUMNS)
+  const widths = useColumnWidths('inventory', INVENTORY_COLUMNS)
 
   const tableHeaders = (
     <TableHeader>
       <TableRow>
-        <TableHead className="w-[220px]">Código Modelo</TableHead>
+        <ResizableHead id="model_code" label="Código Modelo" widths={widths} />
         {cols.isVisible('quantity') && (
-          <TableHead className="w-[160px]">
+          <ResizableHead id="quantity" label="Cantidad" widths={widths}>
             <button type="button"
               onClick={onSortQuantity}
-              className="flex items-center gap-1.5 hover:text-foreground transition-colors font-medium"
+              className="flex max-w-full items-center gap-1.5 hover:text-foreground transition-colors font-medium"
             >
-              Cantidad
-              <SortIcon className={`h-3.5 w-3.5 ${quantitySort ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+              <span className="truncate">Cantidad</span>
+              <SortIcon className={`h-3.5 w-3.5 shrink-0 ${quantitySort ? 'text-foreground' : 'text-muted-foreground/50'}`} />
             </button>
-          </TableHead>
+          </ResizableHead>
         )}
-        {cols.isVisible('location') && <TableHead className="w-[140px]">Ubicación</TableHead>}
-        {cols.isVisible('updated_at') && <TableHead>Última Actualización</TableHead>}
-        <TableHead className="w-[80px]">Acciones</TableHead>
+        {cols.isVisible('location') && <ResizableHead id="location" label="Ubicación" widths={widths} />}
+        {cols.isVisible('updated_at') && <ResizableHead id="updated_at" label="Última Actualización" widths={widths} />}
+        <ResizableHead id="actions" label="Acciones" widths={widths} />
       </TableRow>
     </TableHeader>
   )
@@ -113,7 +115,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
   if (isLoading) {
     return (
       <div className="rounded-md border">
-        <Table>
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {Array.from({ length: 8 }).map((_, i) => (
@@ -152,7 +154,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
   return (
     <>
       <div className="rounded-md border">
-        <Table>
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {items.map((item) => (
