@@ -3,6 +3,26 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-28
+
+### Nuevo
+- **Columnas ajustables como en Excel.** En las tablas de Base de datos, Inventario,
+  Catálogo URREA y Proveedores puedes **arrastrar el borde de cada encabezado** para
+  hacer la columna más ancha o más angosta — útil cuando una descripción no se
+  alcanza a leer completa. Cada tabla recuerda tus anchos en tu navegador. Doble
+  click en el borde regresa la columna a su ancho original.
+- **Marcar "se vende / no se vende" de un solo click.** En Base de datos, la columna
+  **Venta** ahora trae los botones ✓ y ✗ directamente en cada fila, igual que cuando
+  el cliente aprueba productos. Ya no hay que abrir el producto para cambiarlo, y
+  volver a hacer click en el botón activo lo regresa a "sin definir".
+
+### Mejorado
+- **Editar y eliminar a un solo click.** En las cuatro tablas los botones salieron del
+  menú de tres puntitos: ahora están siempre visibles en la fila. Además el botón de
+  editar **por fin se ve como un lápiz** — antes mostraba un engrane y parecía
+  "ajustes". La columna de acciones queda **fija a la derecha**, así que sigue a la
+  vista aunque muevas la tabla de lado.
+
 ## 2026-07-22
 
 ### Mejorado

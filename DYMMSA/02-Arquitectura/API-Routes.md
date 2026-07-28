@@ -85,8 +85,14 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `POST` | `/api/quotes/lookup` | ✅ | Lookup masivo de ETMs en `etm_products`. Body: `{ etmCodes: string[], modelCodes?: string[] }`. Devuelve `{ found, notFound, catalogDescriptions }` — `catalogDescriptions` mapea `code` normalizado → descripción oficial de `urrea_catalog` (union de codes de productos encontrados + `modelCodes` del Excel) para resolver la Descripción DYMMSA ([[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]]) |
+| `GET` | `/api/products` | ✅ | Lista paginada de `etm_products`. Query: `page`, `pageSize` (máx 100), `search`, `sortBy` (whitelist: `etm`/`description_es`/`model_code`/`price`), `sortDir`. El término de búsqueda se sanea de `%,()` porque se interpola en el filtro `.or()` |
+| `POST` | `/api/products` | ✅ | Crea un producto del catálogo ETM. ETM obligatorio; duplicado (`23505`) → 400 descriptivo |
+| `PATCH` | `/api/products/[id]` | ✅ | Actualiza un producto. `is_sold` es **tri-estado**: ausente = no se toca, `null` explícito **sí se persiste** (sin cambios aplicables → 400) |
+| `DELETE` | `/api/products/[id]` | ✅ | Elimina un producto del catálogo ETM |
 | `POST` | `/api/products/import` | ✅ | Importación masiva de catálogo desde Excel. Upsert por ETM |
 | `GET` | `/api/products/next-dymmsa-code` | ✅ | Retorna el siguiente código `DYMMSA-{n}` disponible |
+
+> **Migración (2026-07-28, issue #55):** `useProducts` dejó de llamar a Supabase directo desde el cliente y pasa por estas rutas. Habilita el toggle rápido de `is_sold` desde la tabla (`useSetProductSold`, con update optimista + rollback).
 
 ---
 
