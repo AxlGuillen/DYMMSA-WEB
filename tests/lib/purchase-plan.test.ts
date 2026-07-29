@@ -473,6 +473,14 @@ describe('summarizePlanDecisions', () => {
     expect(totals.wholesalePieces).toBe(12)
   })
 
+  test('menudeo sobre paquete exacto: piezas a local, sin ahorro (no había excedente)', () => {
+    const totals = summarizePlanDecisions([g('A', 12, 12, 200)], pick({ A: 'retail' }))
+    expect(totals.retailPieces).toBe(12)
+    expect(totals.savedGroups).toBe(0)
+    expect(totals.savedMoney).toBe(0)
+    expect(totals.wholesalePackages).toBe(0)
+  })
+
   test('grupo sin decidir no para ni ahorra, solo se cuenta', () => {
     const totals = summarizePlanDecisions([g('A', 14, 12, 200)], pick({ A: null }))
     expect(totals.undecidedGroups).toBe(1)

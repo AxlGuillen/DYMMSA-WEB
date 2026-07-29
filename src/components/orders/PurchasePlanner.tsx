@@ -187,12 +187,26 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       toast.error(missingDecisionsMessage())
       return
     }
-    const rows = mathGroups.flatMap((group) => {
-      const { packagesWholesale } = applyChoice(group.math!, effectiveChoice(group)!)
-      return packagesWholesale > 0
-        ? [{ code: group.modelCode, pieces: packagesWholesale * group.math!.std }]
-        : []
-    })
+    // En una orden cerrada no se puede guardar, así que el archivo sale
+    // EXCLUSIVAMENTE de lo persistido: `effectiveChoice` caería en la
+    // recomendación de un grupo que quizá nunca se decidió, y eso no
+    // corresponde a la orden.
+    const rows = isReadOnly
+      ? mathGroups.flatMap((group) => {
+          const saved = group.decision
+          return saved && saved.packages_wholesale > 0
+            ? [{
+                code: saved.model_code,
+                pieces: saved.packages_wholesale * saved.std_snapshot,
+              }]
+            : []
+        })
+      : mathGroups.flatMap((group) => {
+          const { packagesWholesale } = applyChoice(group.math!, effectiveChoice(group)!)
+          return packagesWholesale > 0
+            ? [{ code: group.modelCode, pieces: packagesWholesale * group.math!.std }]
+            : []
+        })
     if (rows.length === 0) {
       toast.info('Ninguna decisión manda piezas a URREA (todo quedó en menudeo)')
       return
