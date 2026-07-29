@@ -30,11 +30,12 @@ import { RowActions } from '@/components/RowActions'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { StoreInventory } from '@/types/database'
-import type { QuantitySort } from '@/hooks/useInventory'
+import type { QuantitySort, StoreInventoryWithBrand } from '@/hooks/useInventory'
 
 // Columnas del inventario (issue #18). Código y acciones son fijas.
 export const INVENTORY_COLUMNS: readonly TableColumn[] = [
   { id: 'model_code', label: 'Código Modelo', hideable: false, width: 220 },
+  { id: 'brand', label: 'Marca', width: 140 },
   { id: 'quantity', label: 'Cantidad', width: 160 },
   { id: 'location', label: 'Ubicación', width: 150 },
   { id: 'updated_at', label: 'Última Actualización', width: 200 },
@@ -42,7 +43,7 @@ export const INVENTORY_COLUMNS: readonly TableColumn[] = [
 ]
 
 interface InventoryTableProps {
-  items: StoreInventory[]
+  items: StoreInventoryWithBrand[]
   isLoading: boolean
   onEdit: (item: StoreInventory) => void
   onAdd?: () => void
@@ -59,6 +60,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
     <TableHeader>
       <TableRow>
         <ResizableHead id="model_code" label="Código Modelo" widths={widths} />
+        {cols.isVisible('brand') && <ResizableHead id="brand" label="Marca" widths={widths} />}
         {cols.isVisible('quantity') && (
           <ResizableHead id="quantity" label="Cantidad" widths={widths}>
             <button type="button"
@@ -122,6 +124,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
             {Array.from({ length: 8 }).map((_, i) => (
               <TableRow key={i}>
                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                {cols.isVisible('brand') && <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>}
                 {cols.isVisible('quantity') && <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>}
                 {cols.isVisible('location') && <TableCell><Skeleton className="h-4 w-16" /></TableCell>}
                 {cols.isVisible('updated_at') && <TableCell><Skeleton className="h-4 w-32" /></TableCell>}
@@ -161,6 +164,13 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
             {items.map((item) => (
               <TableRow key={item.id} className={`hover:bg-muted ${getRowClass(item.quantity)}`}>
                 <TableCell className="font-mono text-sm">{item.model_code}</TableCell>
+                {cols.isVisible('brand') && (
+                  <TableCell>
+                    {item.brand
+                      ? <Badge variant="secondary" className="font-normal">{item.brand}</Badge>
+                      : <span className="text-muted-foreground text-xs italic">Sin marca</span>}
+                  </TableCell>
+                )}
                 {cols.isVisible('quantity') && (
                   <TableCell>{getQuantityBadge(item.quantity)}</TableCell>
                 )}

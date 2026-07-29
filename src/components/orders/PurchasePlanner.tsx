@@ -24,6 +24,13 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -83,6 +90,9 @@ const CHOICE_ROW_CLASS: Record<PurchaseChoice | 'undecided', string> = {
   undecided: 'bg-amber-500/10 border-amber-500/40',
 }
 
+/** Valor del selector cuando no se filtra por marca (issue #53). */
+const ALL_BRANDS = '__all__'
+
 // Columnas de la vista plana (issue #18). Código es la identidad del grupo.
 const FLAT_COLUMNS: readonly TableColumn[] = [
   { id: 'section', label: 'Sección' },
@@ -104,12 +114,29 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
   const [overrides, setOverrides] = useState<Record<string, PurchaseChoice>>({})
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [flatView, setFlatView] = useState(false)
+  const [brandFilter, setBrandFilter] = useState<string>(ALL_BRANDS)
   const [isDownloadingUrrea, setIsDownloadingUrrea] = useState(false)
   const [isDownloadingLocal, setIsDownloadingLocal] = useState(false)
 
   const mathGroups = plan.groups.filter((g) => g.bucket !== 'local')
   const localGroups = plan.groups.filter((g) => g.bucket === 'local')
   const isReadOnly = ['completed', 'cancelled'].includes(order.status)
+
+  /**
+   * Filtro por marca (issue #53). Es SOLO VISUAL: guardar, los totales y ambos
+   * Excel siguen corriendo sobre `mathGroups`/`localGroups` completos. Filtrar
+   * lo que se descarga produciría un pedido incompleto sin avisar.
+   */
+  // `filter(Boolean)` es defensivo: hoy `normalizeCatalogBrand` nunca devuelve
+  // vacío (cae a URREA), pero un `SelectItem` con value="" hace que Radix lance
+  // y tumbe la página — no vale la pena depender de esa invariante remota.
+  const brandOptions = [...new Set(plan.groups.map((g) => g.brand))].filter(Boolean).sort()
+  const visibleMathGroups =
+    brandFilter === ALL_BRANDS ? mathGroups : mathGroups.filter((g) => g.brand === brandFilter)
+  const visibleLocalGroups =
+    brandFilter === ALL_BRANDS ? localGroups : localGroups.filter((g) => g.brand === brandFilter)
+  const visibleGroups =
+    brandFilter === ALL_BRANDS ? plan.groups : plan.groups.filter((g) => g.brand === brandFilter)
 
   const effectiveChoice = (group: PurchaseGroupPlan): PurchaseChoice | null =>
     overrides[group.key] ?? savedChoice(group) ?? group.recommendation?.suggested ?? null
@@ -315,6 +342,19 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {brandOptions.length > 1 && (
+            <Select value={brandFilter} onValueChange={setBrandFilter}>
+              <SelectTrigger size="sm" className="w-auto min-w-[150px]">
+                <SelectValue placeholder="Todas las marcas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_BRANDS}>Todas las marcas</SelectItem>
+                {brandOptions.map((b) => (
+                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <ThresholdsPopover thresholds={plan.thresholds} orderId={order.id} groups={plan.groups} />
           {flatView && <ColumnPicker tableId="purchase-planner-flat" columns={FLAT_COLUMNS} />}
           <Button
@@ -342,7 +382,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       )}
 
       {flatView ? (
-        <FlatLinesTable groups={plan.groups} fmt={fmt} />
+        <FlatLinesTable groups={visibleGroups} fmt={fmt} />
       ) : (
         <>
           {/* Grupos con matemática (URREA + sin precio) */}
@@ -350,16 +390,19 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Package className="size-4" />
-                Candidatos a pedido URREA ({mathGroups.length})
+                Candidatos a pedido URREA ({visibleMathGroups.length}
+                {brandFilter !== ALL_BRANDS && ` de ${mathGroups.length}`})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mathGroups.length === 0 && (
+              {visibleMathGroups.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Ningún producto a pedir cruza con el catálogo URREA.
+                  {mathGroups.length === 0
+                    ? 'Ningún producto a pedir cruza con el catálogo URREA.'
+                    : `Ningún candidato de la marca ${brandFilter}.`}
                 </p>
               )}
-              {mathGroups.map((group) => (
+              {visibleMathGroups.map((group) => (
                 <GroupRow
                   key={group.key}
                   group={group}
@@ -381,13 +424,16 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShoppingCart className="size-4" />
-                Compra local — sin catálogo URREA ({localGroups.length})
+                Compra local — sin catálogo URREA ({visibleLocalGroups.length}
+                {brandFilter !== ALL_BRANDS && ` de ${localGroups.length}`})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {localGroups.length === 0 ? (
+              {visibleLocalGroups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Todos los productos a pedir están en el catálogo URREA.
+                  {localGroups.length === 0
+                    ? 'Todos los productos a pedir están en el catálogo URREA.'
+                    : `Nada de compra local para la marca ${brandFilter}.`}
                 </p>
               ) : (
                 <Table>
@@ -400,7 +446,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {localGroups.map((group) => (
+                    {visibleLocalGroups.map((group) => (
                       <TableRow key={group.key}>
                         <TableCell className="font-mono text-sm">
                           {group.modelCode || group.lines[0]?.modelCodeRaw || '—'}

@@ -3,6 +3,23 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-29 (II)
+
+### Nuevo
+- **Filtrar por marca en Inventario.** Junto al buscador hay un selector de **marca** que te
+  dice, en cada opción, **cuántos tienen stock de cuántos** (ej. "URREA (57/171)") para que no
+  entres a ciegas. También hay una opción **"Sin marca"** para los productos cuyo ETM no la
+  tiene registrada — son ~40 y varios tienen existencias, así que no se esconden. La tabla
+  ahora incluye una columna **Marca** (se puede ocultar desde "Columnas").
+- **Filtrar por marca en Planificar compra.** Un selector arriba a la derecha te deja revisar
+  la compra marca por marca. Es solo para ver: **los Excel y los totales siguen cubriendo la
+  orden completa**, para que nunca descargues un pedido a medias.
+
+### Mejorado
+- **Inventario abre mostrando solo lo que tienes.** La página arranca en la nueva tarjeta
+  **"Con stock"** (de ~271 productos, unos 83 tienen existencias) en vez de listar todo el
+  histórico. Para ver los que están en cero, un click en **"Total"** o **"Sin stock"**.
+
 ## 2026-07-29
 
 ### Nuevo
