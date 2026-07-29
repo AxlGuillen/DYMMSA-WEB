@@ -38,11 +38,13 @@ import { useSavePurchaseDecisions, type PurchasePlanResponse } from '@/hooks/use
 import { useUpdateSettings } from '@/hooks/useSettings'
 import {
   applyChoice,
+  summarizePlanDecisions,
   SETTING_THRESHOLD_MONEY,
   SETTING_THRESHOLD_PCT,
   type PurchaseChoice,
   type PurchaseGroupPlan,
   type PurchaseThresholds,
+  type PurchasePlanTotals,
 } from '@/lib/purchase-plan'
 import type { LocalPurchaseRow } from '@/lib/excel/generator'
 
@@ -67,6 +69,18 @@ const RECOMMENDATION_BADGE: Record<
   wholesale_rounded: { label: 'Mayoreo', className: 'bg-green-500/15 text-green-700 dark:text-green-400' },
   mixed: { label: 'Mixto', className: 'bg-blue-500/15 text-blue-700 dark:text-blue-400' },
   review: { label: 'Revisar', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' },
+}
+
+/**
+ * Fondo sutil por decisión, para leer de un vistazo cómo quedó repartida la
+ * compra. Mismos colores que los badges de recomendación (verde mayoreo, azul
+ * mixto, ámbar por decidir) y opacidad baja: tiñe sin competir con el texto.
+ */
+const CHOICE_ROW_CLASS: Record<PurchaseChoice | 'undecided', string> = {
+  wholesale: 'bg-green-500/5 border-green-500/30',
+  mixed: 'bg-blue-500/5 border-blue-500/30',
+  retail: 'bg-orange-500/5 border-orange-500/30',
+  undecided: 'bg-amber-500/10 border-amber-500/40',
 }
 
 // Columnas de la vista plana (issue #18). Código es la identidad del grupo.
@@ -101,6 +115,10 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
     overrides[group.key] ?? savedChoice(group) ?? group.recommendation?.suggested ?? null
 
   const pendingCount = mathGroups.filter((g) => !effectiveChoice(g)).length
+
+  // Resumen económico de lo decidido AHORA (incluye overrides sin guardar), para
+  // que el efecto de mover una decisión se vea al instante.
+  const totals = summarizePlanDecisions(plan.groups, effectiveChoice)
 
   const toggleExpanded = (key: string) => {
     setExpanded((prev) => {
@@ -295,6 +313,8 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
         </div>
       </div>
 
+      <PlanOverview totals={totals} fmt={fmt} />
+
       {plan.orphanDecisions.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
           <AlertTriangle className="size-4 mt-0.5 shrink-0 text-amber-600" />
@@ -440,6 +460,80 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
   )
 }
 
+// ─── Mini-overview económico ────────────────────────────────────────────
+
+function OverviewCard({
+  label, value, hint, tone,
+}: {
+  label: string
+  value: string
+  hint?: string
+  tone: 'neutral' | 'parked' | 'saved'
+}) {
+  const toneClass =
+    tone === 'parked'
+      ? 'text-amber-700 dark:text-amber-400'
+      : tone === 'saved'
+        ? 'text-green-700 dark:text-green-400'
+        : 'text-foreground'
+
+  return (
+    <div className="rounded-lg border bg-card px-4 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`mt-0.5 text-xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+/**
+ * Lectura rápida del plan: qué se está parando, qué se evitó parar y cómo
+ * queda repartida la compra. Refleja las decisiones EN PANTALLA (incluidas las
+ * no guardadas) para que mover una opción se sienta de inmediato.
+ */
+function PlanOverview({
+  totals,
+  fmt,
+}: {
+  totals: PurchasePlanTotals
+  fmt: (value: number | null | undefined) => string
+}) {
+  const pieces = (n: number) => `${n} pz${n !== 1 ? 's' : ''}`
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <OverviewCard
+        tone="parked"
+        label="Dinero parado"
+        value={fmt(totals.parkedMoney)}
+        hint={`${pieces(totals.parkedPieces)} en ${totals.parkedGroups} producto${totals.parkedGroups !== 1 ? 's' : ''}`}
+      />
+      <OverviewCard
+        tone="saved"
+        label="Ahorrado en mixto/menudeo"
+        value={fmt(totals.savedMoney)}
+        hint={`${pieces(totals.savedPieces)} que no se compraron de más`}
+      />
+      <OverviewCard
+        tone="neutral"
+        label="A pedir a URREA"
+        value={`${totals.wholesalePackages} paq`}
+        hint={pieces(totals.wholesalePieces)}
+      />
+      <OverviewCard
+        tone="neutral"
+        label="A comprar local"
+        value={pieces(totals.retailPieces)}
+        hint={
+          totals.undecidedGroups > 0
+            ? `${totals.undecidedGroups} grupo${totals.undecidedGroups !== 1 ? 's' : ''} sin decidir`
+            : 'todo decidido'
+        }
+      />
+    </div>
+  )
+}
+
 // ─── Fila de grupo con math + decisión ──────────────────────────────────
 
 interface GroupRowProps {
@@ -471,7 +565,10 @@ function GroupRow({
   const showMixed = math.remainder > 0 && math.packagesFull > 0
 
   return (
-    <div className="rounded-md border p-3 space-y-2" data-group-key={group.key}>
+    <div
+      className={`rounded-md border p-3 space-y-2 transition-colors ${CHOICE_ROW_CLASS[choice ?? 'undecided']}`}
+      data-group-key={group.key}
+    >
       {/* Línea principal */}
       <div className="flex items-center gap-3 flex-wrap">
         <button
@@ -508,10 +605,31 @@ function GroupRow({
           {math.packagesFull} paq completo{math.packagesFull !== 1 ? 's' : ''}
           {math.remainder > 0 && ` + ${math.remainder} resto`}
         </span>
+        {math.unitPrice != null && (
+          <>
+            <span>
+              Unitario: <strong className="text-foreground">{fmt(math.unitPrice)}</strong>
+            </span>
+            <span>
+              Paquete ({math.std} pzs):{' '}
+              <strong className="text-foreground">{fmt(math.unitPrice * math.std)}</strong>
+            </span>
+          </>
+        )}
         {math.remainder > 0 && (
           <span>
-            Parado si redondea:{' '}
-            <strong className="text-foreground">
+            {/* Se nombra distinto según la decisión: el mismo número es dinero
+                parado si se redondea, o dinero ahorrado si el resto va a menudeo. */}
+            {choice === 'wholesale' ? 'Queda parado:' : choice ? 'Ahorras:' : 'Parado si redondea:'}{' '}
+            <strong
+              className={
+                choice === 'wholesale'
+                  ? 'text-amber-700 dark:text-amber-400'
+                  : choice
+                    ? 'text-green-700 dark:text-green-400'
+                    : 'text-foreground'
+              }
+            >
               {math.excess} pzs{math.parkedMoney != null && ` ≈ ${fmt(math.parkedMoney)}`}
             </strong>
           </span>

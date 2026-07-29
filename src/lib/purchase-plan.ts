@@ -286,6 +286,87 @@ export function applyChoice(
   }
 }
 
+// ─── Resumen económico del plan ────────────────────────────────────────
+
+export interface PurchasePlanTotals {
+  /** Piezas que sobran por redondear al paquete, según lo YA decidido. */
+  parkedPieces: number
+  /** Dinero de esas piezas (excedente × precio). Grupos sin precio no suman. */
+  parkedMoney: number
+  /** Grupos que están parando dinero (mayoreo con resto). */
+  parkedGroups: number
+  /** Piezas que se evitó parar al mandar el resto a menudeo (mixto/menudeo). */
+  savedPieces: number
+  /** Dinero evitado con esas decisiones — el "ahorro" frente a redondear todo. */
+  savedMoney: number
+  savedGroups: number
+  /** Paquetes y piezas que van a URREA. */
+  wholesalePackages: number
+  wholesalePieces: number
+  /** Piezas que van a menudeo (restos + grupos completos a menudeo). */
+  retailPieces: number
+  /** Grupos aún sin decidir (marcados "Revisar"). */
+  undecidedGroups: number
+}
+
+const EMPTY_TOTALS: PurchasePlanTotals = {
+  parkedPieces: 0, parkedMoney: 0, parkedGroups: 0,
+  savedPieces: 0, savedMoney: 0, savedGroups: 0,
+  wholesalePackages: 0, wholesalePieces: 0, retailPieces: 0,
+  undecidedGroups: 0,
+}
+
+/**
+ * Agrega el efecto económico de las decisiones vigentes (ADR-018), para el
+ * resumen del planificador.
+ *
+ * "Parado" mide lo que REALMENTE se para con lo decidido —solo los grupos que
+ * van a mayoreo teniendo resto—, no el teórico de redondear todo. Su espejo es
+ * "ahorrado": el mismo excedente en los grupos donde el resto se mandó a
+ * menudeo. Un grupo sin decidir no cuenta en ninguno: todavía no para ni
+ * ahorra nada.
+ *
+ * Los grupos sin precio (`parkedMoney` null en su math) sí suman piezas pero
+ * no dinero — de otro modo el total mentiría hacia abajo sin avisar.
+ */
+export function summarizePlanDecisions(
+  groups: readonly PurchaseGroupPlan[],
+  choiceOf: (group: PurchaseGroupPlan) => PurchaseChoice | null,
+): PurchasePlanTotals {
+  const totals = { ...EMPTY_TOTALS }
+
+  for (const group of groups) {
+    const math = group.math
+    if (!math) continue // bucket 'local': sin STD no hay math que agregar
+
+    const choice = choiceOf(group)
+    if (!choice) {
+      totals.undecidedGroups++
+      continue
+    }
+
+    const { packagesWholesale, qtyRetail } = applyChoice(math, choice)
+    totals.wholesalePackages += packagesWholesale
+    totals.wholesalePieces += packagesWholesale * math.std
+    totals.retailPieces += qtyRetail
+
+    if (math.remainder === 0) continue // encaja exacto: no hay excedente en juego
+
+    const money = math.parkedMoney ?? 0
+    if (choice === 'wholesale') {
+      totals.parkedPieces += math.excess
+      totals.parkedMoney += money
+      totals.parkedGroups++
+    } else {
+      totals.savedPieces += math.excess
+      totals.savedMoney += money
+      totals.savedGroups++
+    }
+  }
+
+  return totals
+}
+
 // ─── Staleness ─────────────────────────────────────────────────────────
 
 /**
