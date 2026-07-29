@@ -34,7 +34,7 @@ import {
 import { useCurrency } from '@/hooks/useCurrency'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { ColumnPicker } from '@/components/ColumnPicker'
-import { useSavePurchaseDecisions, type PurchasePlanResponse } from '@/hooks/usePurchasePlan'
+import { usePurchasePlan, useSavePurchaseDecisions, type PurchasePlanResponse } from '@/hooks/usePurchasePlan'
 import { useUpdateSettings } from '@/hooks/useSettings'
 import {
   applyChoice,
@@ -301,7 +301,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ThresholdsPopover thresholds={plan.thresholds} />
+          <ThresholdsPopover thresholds={plan.thresholds} orderId={order.id} groups={plan.groups} />
           {flatView && <ColumnPicker tableId="purchase-planner-flat" columns={FLAT_COLUMNS} />}
           <Button
             variant="outline"
@@ -764,11 +764,24 @@ function FlatLinesTable({
 
 // ─── Popover de umbrales ────────────────────────────────────────────────
 
-function ThresholdsPopover({ thresholds }: { thresholds: PurchaseThresholds }) {
+function ThresholdsPopover({
+  thresholds,
+  orderId,
+  groups,
+}: {
+  thresholds: PurchaseThresholds
+  orderId: string
+  /** Grupos vigentes: se usan para medir el efecto del cambio de umbrales. */
+  groups: readonly PurchaseGroupPlan[]
+}) {
   const updateSettings = useUpdateSettings()
+  const { refetch } = usePurchasePlan(orderId)
   const [open, setOpen] = useState(false)
   const [money, setMoney] = useState('')
   const [pct, setPct] = useState('')
+  // Cubre mutación + refetch: el plan se recalcula en el server, así que el
+  // botón sigue ocupado hasta tener los datos nuevos con los que comparar.
+  const [isApplying, setIsApplying] = useState(false)
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
@@ -789,15 +802,30 @@ function ThresholdsPopover({ thresholds }: { thresholds: PurchaseThresholds }) {
       toast.error('El % parado debe estar entre 1 y 100')
       return
     }
+    // La recomendación se recalcula en el server con los umbrales nuevos, así
+    // que se compara contra una foto previa para decir cuántos se movieron.
+    const before = new Map(groups.map((g) => [g.key, g.recommendation?.suggested ?? null]))
+    setIsApplying(true)
     try {
       await updateSettings.mutateAsync({
         [SETTING_THRESHOLD_MONEY]: moneyValue,
         [SETTING_THRESHOLD_PCT]: pctValue / 100,
       })
-      toast.success('Umbrales actualizados')
+      const { data: fresh } = await refetch()
+      const changed = (fresh?.plan.groups ?? []).filter(
+        (g) => g.math && before.get(g.key) !== (g.recommendation?.suggested ?? null),
+      ).length
+
+      toast.success(
+        changed === 0
+          ? 'Umbrales actualizados · ninguna recomendación cambió'
+          : `Umbrales actualizados · ${changed} producto${changed !== 1 ? 's' : ''} cambió de recomendación`,
+      )
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al guardar umbrales')
+    } finally {
+      setIsApplying(false)
     }
   }
 
@@ -836,16 +864,9 @@ function ThresholdsPopover({ thresholds }: { thresholds: PurchaseThresholds }) {
             onChange={(e) => setPct(e.target.value)}
           />
         </div>
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={handleSave}
-          disabled={updateSettings.isPending}
-        >
-          {updateSettings.isPending ? (
-            <Loader2 className="mr-2 size-4 animate-spin" />
-          ) : null}
-          Guardar umbrales
+        <Button size="sm" className="w-full" onClick={handleSave} disabled={isApplying}>
+          {isApplying ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+          {isApplying ? 'Recalculando…' : 'Guardar umbrales'}
         </Button>
       </PopoverContent>
     </Popover>
