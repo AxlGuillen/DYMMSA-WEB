@@ -10,9 +10,12 @@ import {
   applyChoice,
   isDecisionStale,
   buildPurchasePlan,
+  summarizePlanDecisions,
   type PlannableItem,
   type CatalogEntry,
   type PurchaseThresholds,
+  type PurchaseChoice,
+  type PurchaseGroupPlan,
 } from '@/lib/purchase-plan'
 import type { OrderPurchaseDecision } from '@/types/database'
 
@@ -404,5 +407,108 @@ describe('buildPurchasePlan', () => {
     const plan = buildPurchasePlan([item({ quantity_to_order: 0 })], new Map(), [], T)
     expect(plan.groups).toHaveLength(0)
     expect(plan.summary).toEqual({ urrea: 0, noData: 0, local: 0, decided: 0, stale: 0 })
+  })
+})
+
+describe('summarizePlanDecisions', () => {
+  /** Grupo mínimo con math; `needed`/`std`/`unitPrice` mandan la matemática. */
+  const g = (
+    key: string,
+    needed: number,
+    std: number,
+    unitPrice: number | null,
+  ): PurchaseGroupPlan => ({
+    key,
+    modelCode: key,
+    brand: 'URREA',
+    bucket: unitPrice == null ? 'no_data' : 'urrea',
+    catalogDescription: null,
+    std,
+    needed,
+    unitPrice,
+    lines: [],
+    math: computeGroupMath(needed, std, unitPrice),
+    recommendation: null,
+    decision: null,
+  })
+
+  const pick = (map: Record<string, PurchaseChoice | null>) =>
+    (group: PurchaseGroupPlan) => map[group.key] ?? null
+
+  test('mayoreo con resto: para piezas y dinero', () => {
+    // needed 14, STD 12 → 1 paq + resto 2; redondear deja 10 pzs paradas.
+    const totals = summarizePlanDecisions([g('A', 14, 12, 200)], pick({ A: 'wholesale' }))
+    expect(totals.parkedPieces).toBe(10)
+    expect(totals.parkedMoney).toBe(2000)
+    expect(totals.parkedGroups).toBe(1)
+    expect(totals.savedMoney).toBe(0)
+    // Mayoreo redondea al paquete extra: 2 paq = 24 pzs, nada a menudeo.
+    expect(totals.wholesalePackages).toBe(2)
+    expect(totals.wholesalePieces).toBe(24)
+    expect(totals.retailPieces).toBe(0)
+  })
+
+  test('el mismo grupo en mixto AHORRA ese dinero en vez de pararlo', () => {
+    const totals = summarizePlanDecisions([g('A', 14, 12, 200)], pick({ A: 'mixed' }))
+    expect(totals.parkedMoney).toBe(0)
+    expect(totals.savedPieces).toBe(10)
+    expect(totals.savedMoney).toBe(2000)
+    expect(totals.savedGroups).toBe(1)
+    expect(totals.wholesalePackages).toBe(1)
+    expect(totals.retailPieces).toBe(2)
+  })
+
+  test('menudeo puro también cuenta como ahorro', () => {
+    const totals = summarizePlanDecisions([g('A', 2, 20, 100)], pick({ A: 'retail' }))
+    expect(totals.savedMoney).toBe(1800)
+    expect(totals.wholesalePackages).toBe(0)
+    expect(totals.retailPieces).toBe(2)
+  })
+
+  test('paquete exacto no para ni ahorra (no hay excedente en juego)', () => {
+    const totals = summarizePlanDecisions([g('A', 12, 12, 200)], pick({ A: 'wholesale' }))
+    expect(totals.parkedGroups).toBe(0)
+    expect(totals.savedGroups).toBe(0)
+    expect(totals.parkedMoney).toBe(0)
+    expect(totals.wholesalePieces).toBe(12)
+  })
+
+  test('menudeo sobre paquete exacto: piezas a local, sin ahorro (no había excedente)', () => {
+    const totals = summarizePlanDecisions([g('A', 12, 12, 200)], pick({ A: 'retail' }))
+    expect(totals.retailPieces).toBe(12)
+    expect(totals.savedGroups).toBe(0)
+    expect(totals.savedMoney).toBe(0)
+    expect(totals.wholesalePackages).toBe(0)
+  })
+
+  test('grupo sin decidir no para ni ahorra, solo se cuenta', () => {
+    const totals = summarizePlanDecisions([g('A', 14, 12, 200)], pick({ A: null }))
+    expect(totals.undecidedGroups).toBe(1)
+    expect(totals.parkedMoney).toBe(0)
+    expect(totals.savedMoney).toBe(0)
+    expect(totals.wholesalePieces).toBe(0)
+  })
+
+  test('sin precio suma piezas pero no dinero (no miente hacia abajo)', () => {
+    const totals = summarizePlanDecisions([g('A', 14, 12, null)], pick({ A: 'wholesale' }))
+    expect(totals.parkedPieces).toBe(10)
+    expect(totals.parkedMoney).toBe(0)
+    expect(totals.parkedGroups).toBe(1)
+  })
+
+  test('los grupos sin math (bucket local) se ignoran', () => {
+    const local = { ...g('L', 8, 1, 45), bucket: 'local' as const, math: null, std: null }
+    const totals = summarizePlanDecisions([local], pick({ L: 'retail' }))
+    expect(totals).toMatchObject({ retailPieces: 0, undecidedGroups: 0, parkedMoney: 0 })
+  })
+
+  test('agrega varios grupos con decisiones distintas', () => {
+    const totals = summarizePlanDecisions(
+      [g('A', 14, 12, 200), g('B', 13, 10, 150), g('C', 12, 6, 50)],
+      pick({ A: 'wholesale', B: 'mixed', C: 'wholesale' }),
+    )
+    expect(totals.parkedMoney).toBe(2000)   // solo A (C es exacto)
+    expect(totals.savedMoney).toBe(1050)    // B: excess 7 × 150
+    expect(totals.wholesalePackages).toBe(2 + 1 + 2)
   })
 })

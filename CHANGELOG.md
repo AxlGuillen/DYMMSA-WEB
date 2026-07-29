@@ -3,6 +3,35 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-29
+
+### Nuevo
+- **Resumen de dinero en Planificar compra.** Arriba de la página ahora ves cuatro
+  números para entender la compra de un vistazo: **cuánto dinero se queda parado**
+  (y en cuántos productos), **cuánto te ahorras** al mandar los restos a menudeo,
+  **cuántos paquetes** van a URREA y **cuántas piezas** a compra local. Se actualiza
+  al instante conforme cambias las decisiones, sin necesidad de guardar.
+- **Los dos Excel se descargan desde Planificar compra.** El **Pedido URREA (mayoreo)**
+  y la **Compra local (menudeo)** ahora están juntos en la página donde tomas las
+  decisiones. Si tenías cambios sin guardar, el botón los **guarda y descarga en un
+  solo paso**, para que el archivo siempre coincida con la orden.
+
+### Mejorado
+- **Más detalle de precios por producto.** En cada producto ahora se ve el **precio
+  unitario** y el **precio del paquete completo**, además del dinero del excedente —
+  que se llama **"Queda parado"** (ámbar) si decides redondear, o **"Ahorras"** (verde)
+  si mandas el resto a menudeo.
+- **Se distingue de un vistazo qué es mayoreo y qué menudeo:** cada producto se tiñe
+  con un color suave según la decisión (verde mayoreo, azul mixto, naranja menudeo,
+  ámbar los que faltan por decidir).
+- **Al cambiar los umbrales te dice qué pasó.** El botón muestra "Recalculando…"
+  mientras se rehace el plan y al terminar te avisa **cuántos productos cambiaron de
+  recomendación**, en vez de dejarte comparar a mano.
+- **La página de Planificar compra ya no arranca en blanco:** mientras carga muestra
+  la silueta del contenido en vez de una rueda girando.
+- El botón de **Pedido URREA salió del detalle de la orden** (ahí se queda el Formato
+  de Entrega, que es el documento del cliente).
+
 ## 2026-07-28
 
 ### Nuevo

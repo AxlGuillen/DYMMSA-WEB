@@ -81,7 +81,6 @@ import {
   useUpdateOrderOdooId,
 } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
-import { usePurchasePlan } from '@/hooks/usePurchasePlan'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import {
@@ -189,7 +188,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
-  const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingDelivery, setIsDownloadingDelivery] = useState(false)
 
   const handleDownloadDeliveryExcel = async () => {
@@ -216,53 +214,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
     } finally {
       setIsDownloadingDelivery(false)
     }
-  }
-
-  // El Excel URREA sale de las decisiones GUARDADAS del planificador (ADR-018):
-  // piezas = paquetes × STD, criterio = pertenencia al catálogo (ya no brand).
-  const { data: planData } = usePurchasePlan(order.id)
-  const plan = planData?.plan
-  const wholesaleRows = (plan?.groups ?? [])
-    .filter((g) => g.decision && g.decision.packages_wholesale > 0)
-    .map((g) => ({
-      code: g.decision!.model_code,
-      pieces: g.decision!.packages_wholesale * g.decision!.std_snapshot,
-    }))
-
-  const [staleDialogOpen, setStaleDialogOpen] = useState(false)
-
-  const generateUrrea = async () => {
-    if (wholesaleRows.length === 0) {
-      toast.info('Ninguna decisión manda piezas a URREA (todo quedó en menudeo o stock)')
-      return
-    }
-    setIsDownloading(true)
-    try {
-      // Carga diferida: xlsx/jszip solo bajan al generar el pedido URREA.
-      const { generateUrreaOrderExcel, downloadUrreaOrder } = await import('@/lib/excel/generator')
-      const blob = await generateUrreaOrderExcel(wholesaleRows)
-      downloadUrreaOrder(blob, order.customer_name)
-      toast.success(`Excel de pedido URREA descargado (${wholesaleRows.length} productos)`)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al generar pedido URREA')
-    } finally {
-      setIsDownloading(false)
-    }
-  }
-
-  const handleDownloadUrreaOrder = async () => {
-    // Sin decisiones guardadas no hay pedido que armar → llevar al planificador.
-    if (!plan || plan.summary.decided === 0) {
-      toast.info('Primero planifica la compra (mayoreo vs menudeo)')
-      push(`/dashboard/orders/${order.id}/planner`)
-      return
-    }
-    // Decisiones desactualizadas: avisar antes de generar con múltiplos viejos.
-    if (plan.summary.stale > 0) {
-      setStaleDialogOpen(true)
-      return
-    }
-    await generateUrrea()
   }
 
   const handleItemEdit = (itemId: string, field: keyof ItemEdit, value: number | UrreaStatus) => {
@@ -561,19 +512,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
           <Button
             variant="outline"
-            onClick={handleDownloadUrreaOrder}
-            disabled={isDownloading}
-          >
-            {isDownloading ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 size-4" />
-            )}
-            Pedido URREA{plan ? ` (${wholesaleRows.length})` : ''}
-          </Button>
-
-          <Button
-            variant="outline"
             onClick={handleDownloadDeliveryExcel}
             disabled={isDownloadingDelivery}
           >
@@ -691,10 +629,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
           <div className="flex items-start gap-1.5">
             <Info className="size-3.5 mt-0.5 shrink-0" />
             <span>
-              <strong>Pedido URREA:</strong> el Excel se genera con las decisiones de mayoreo
-              guardadas en <em>Planificar compra</em> (piezas = paquetes × STD). Aplica a
-              cualquier producto del catálogo URREA (todas sus líneas); lo decidido a menudeo y
-              lo que no está en el catálogo va en la lista de compra local.
+              <strong>Compras:</strong> los Excel de pedido (mayoreo URREA y compra local a
+              menudeo) se descargan desde <em>Planificar compra</em>, que es donde se toman
+              esas decisiones.
             </span>
           </div>
           <div className="flex items-start gap-1.5">
@@ -1240,27 +1177,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Aviso de decisiones de compra desactualizadas (ADR-018) */}
-      <AlertDialog open={staleDialogOpen} onOpenChange={setStaleDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Hay decisiones de compra desactualizadas</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cambiaron las cantidades a pedir o el STD del catálogo desde que se planificó la
-              compra. Puedes generar el Excel con las decisiones guardadas o revisar el
-              planificador primero.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => push(`/dashboard/orders/${order.id}/planner`)}>
-              Ir al planificador
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setStaleDialogOpen(false); void generateUrrea() }}>
-              Generar de todos modos
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
