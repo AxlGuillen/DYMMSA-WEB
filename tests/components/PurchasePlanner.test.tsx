@@ -21,9 +21,13 @@ import type { OrderPurchaseDecision } from '@/types/database'
 
 const saveMutateAsync = vi.hoisted(() => vi.fn())
 const settingsMutateAsync = vi.hoisted(() => vi.fn())
+const refetchPlan = vi.hoisted(() => vi.fn(async () => ({ data: undefined })))
 
 vi.mock('@/hooks/usePurchasePlan', () => ({
   useSavePurchaseDecisions: () => ({ mutateAsync: saveMutateAsync, isPending: false }),
+  // El popover de umbrales refetchea el plan para contar cuántas
+  // recomendaciones cambiaron (issue #54).
+  usePurchasePlan: () => ({ refetch: refetchPlan }),
 }))
 vi.mock('@/hooks/useSettings', () => ({
   useUpdateSettings: () => ({ mutateAsync: settingsMutateAsync, isPending: false }),

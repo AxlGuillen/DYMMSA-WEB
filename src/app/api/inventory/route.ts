@@ -3,8 +3,16 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import type { StoreInventoryInsert } from '@/types/database'
 
-const STOCK_FILTERS = ['all', 'in_stock', 'low_stock', 'sin_stock'] as const
+const STOCK_FILTERS = ['all', 'with_stock', 'in_stock', 'low_stock', 'sin_stock'] as const
 type StockFilter = (typeof STOCK_FILTERS)[number]
+
+/**
+ * Marca vacía en el filtro. `store_inventory` no guarda la marca: se resuelve
+ * contra `etm_products` en la vista `store_inventory_with_brand`, y hay ~40
+ * productos (con stock real) cuyos ETM no la traen. Necesitan ser filtrables,
+ * así que se les da un valor propio en vez de esconderlos (issue #53).
+ */
+export const NO_BRAND = '__none__'
 
 /** Escapa el patrón de búsqueda para `ilike` (model_code no usa `.or()`). */
 function sanitizeSearch(raw: string): string {
@@ -31,11 +39,19 @@ export async function GET(request: NextRequest) {
     const quantitySortParam = searchParams.get('quantitySort')
     const quantitySort = quantitySortParam === 'asc' || quantitySortParam === 'desc' ? quantitySortParam : null
 
-    let query = supabase.from('store_inventory').select('*', { count: 'exact' })
+    const brand = (searchParams.get('brand') ?? '').trim()
+
+    // Se lee de la vista (no de la tabla) para que el filtro por marca ocurra
+    // ANTES de paginar: la marca vive en etm_products, no aquí.
+    let query = supabase.from('store_inventory_with_brand').select('*', { count: 'exact' })
 
     if (search) query = query.ilike('model_code', `%${search}%`)
 
+    if (brand === NO_BRAND) query = query.is('brand', null)
+    else if (brand) query = query.eq('brand', brand.toUpperCase())
+
     if (stockFilter === 'sin_stock') query = query.eq('quantity', 0)
+    else if (stockFilter === 'with_stock') query = query.gt('quantity', 0)
     else if (stockFilter === 'low_stock') query = query.gt('quantity', 0).lte('quantity', 5)
     else if (stockFilter === 'in_stock') query = query.gt('quantity', 5)
 

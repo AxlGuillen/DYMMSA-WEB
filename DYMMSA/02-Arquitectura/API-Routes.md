@@ -102,8 +102,8 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/inventory` | ✅ | Lista paginada. Query: `page, pageSize, search (ilike model_code), stockFilter (all/in_stock/low_stock/sin_stock), quantitySort (asc/desc)`. Devuelve `{ data, count, page, pageSize, totalPages }` |
-| `GET` | `/api/inventory/stats` | ✅ | Conteos por rango de stock: `{ total, in_stock, low_stock, sin_stock }` |
+| `GET` | `/api/inventory` | ✅ | Lista paginada. **Lee de la vista `store_inventory_with_brand`** (issue #53) para poder filtrar por marca ANTES de paginar. Query: `page, pageSize, search (ilike model_code), brand (marca exacta, `__none__` = sin marca, vacío = todas), stockFilter (all/**with_stock**/in_stock/low_stock/sin_stock), quantitySort (asc/desc)`. Cada fila incluye `brand` (puede ser `null`) |
+| `GET` | `/api/inventory/stats` | ✅ | Conteos por rango de stock + marcas: `{ total, with_stock, in_stock, low_stock, sin_stock, brands: [{ brand, total, with_stock }] }`. Las marcas salen de la RPC `inventory_brand_counts()`; si falla se devuelve `[]` sin tumbar las métricas |
 | `POST` | `/api/inventory` | ✅ | Crear producto. Body: `{ model_code, quantity, location? }`. Normaliza `quantity` a ≥ 0; `location` vacío → null |
 | `PATCH` | `/api/inventory/[id]` | ✅ | Editar `model_code`/`quantity`/`location` (solo se toca lo que viene en el body) |
 | `DELETE` | `/api/inventory/[id]` | ✅ | Eliminar producto |

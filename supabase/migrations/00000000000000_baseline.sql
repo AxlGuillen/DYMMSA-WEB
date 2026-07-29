@@ -373,3 +373,48 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES ('task-images', 'task-images', true, 5242880,
         ARRAY['image/png','image/jpeg','image/gif','image/webp'])
 ON CONFLICT (id) DO NOTHING;
+
+-- ─── Inventario con marca resuelta (issue #53) ──────────────────────────────
+-- `store_inventory` no guarda la marca: se cruza POR VALOR con `etm_products`
+-- (misma filosofía que `urrea_catalog`). La vista la resuelve para poder
+-- FILTRAR y PAGINAR server-side. Prefiere la fila de etm_products que SÍ trae
+-- marca: muchos ETM la tienen vacía y hay `model_code` duplicados, así que
+-- quedarse con "el más reciente" devolvería vacío aunque un hermano sí la
+-- tenga. Sin ninguna coincidencia con marca → NULL ("sin marca").
+
+CREATE INDEX IF NOT EXISTS idx_etm_products_model_code_norm
+  ON public.etm_products (upper(trim(model_code)));
+
+CREATE OR REPLACE VIEW public.store_inventory_with_brand
+WITH (security_invoker = on) AS
+SELECT
+  i.id,
+  i.model_code,
+  i.quantity,
+  i.location,
+  i.updated_at,
+  (SELECT upper(trim(e.brand))
+     FROM public.etm_products e
+    WHERE upper(trim(e.model_code)) = upper(trim(i.model_code))
+      AND nullif(trim(e.brand), '') IS NOT NULL
+    ORDER BY e.updated_at DESC NULLS LAST
+    LIMIT 1) AS brand
+FROM public.store_inventory i;
+
+-- Conteos para el selector de marca (PostgREST no hace GROUP BY).
+CREATE OR REPLACE FUNCTION public.inventory_brand_counts()
+ RETURNS TABLE(brand text, total bigint, with_stock bigint)
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path = public
+AS $function$
+  SELECT v.brand,
+         count(*) AS total,
+         count(*) FILTER (WHERE v.quantity > 0) AS with_stock
+  FROM public.store_inventory_with_brand v
+  GROUP BY v.brand
+  ORDER BY count(*) DESC, v.brand ASC;
+$function$;
+
+GRANT SELECT ON public.store_inventory_with_brand TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.inventory_brand_counts() TO anon, authenticated, service_role;
