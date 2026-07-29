@@ -127,7 +127,10 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
    * Excel siguen corriendo sobre `mathGroups`/`localGroups` completos. Filtrar
    * lo que se descarga produciría un pedido incompleto sin avisar.
    */
-  const brandOptions = [...new Set(plan.groups.map((g) => g.brand))].sort()
+  // `filter(Boolean)` es defensivo: hoy `normalizeCatalogBrand` nunca devuelve
+  // vacío (cae a URREA), pero un `SelectItem` con value="" hace que Radix lance
+  // y tumbe la página — no vale la pena depender de esa invariante remota.
+  const brandOptions = [...new Set(plan.groups.map((g) => g.brand))].filter(Boolean).sort()
   const visibleMathGroups =
     brandFilter === ALL_BRANDS ? mathGroups : mathGroups.filter((g) => g.brand === brandFilter)
   const visibleLocalGroups =
@@ -387,13 +390,16 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Package className="size-4" />
-                Candidatos a pedido URREA ({visibleMathGroups.length}{brandFilter !== ALL_BRANDS && ` de `})
+                Candidatos a pedido URREA ({visibleMathGroups.length}
+                {brandFilter !== ALL_BRANDS && ` de ${mathGroups.length}`})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mathGroups.length === 0 && (
+              {visibleMathGroups.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Ningún producto a pedir cruza con el catálogo URREA.
+                  {mathGroups.length === 0
+                    ? 'Ningún producto a pedir cruza con el catálogo URREA.'
+                    : `Ningún candidato de la marca ${brandFilter}.`}
                 </p>
               )}
               {visibleMathGroups.map((group) => (
@@ -418,13 +424,16 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShoppingCart className="size-4" />
-                Compra local — sin catálogo URREA ({visibleLocalGroups.length}{brandFilter !== ALL_BRANDS && ` de `})
+                Compra local — sin catálogo URREA ({visibleLocalGroups.length}
+                {brandFilter !== ALL_BRANDS && ` de ${localGroups.length}`})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {localGroups.length === 0 ? (
+              {visibleLocalGroups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Todos los productos a pedir están en el catálogo URREA.
+                  {localGroups.length === 0
+                    ? 'Todos los productos a pedir están en el catálogo URREA.'
+                    : `Nada de compra local para la marca ${brandFilter}.`}
                 </p>
               ) : (
                 <Table>

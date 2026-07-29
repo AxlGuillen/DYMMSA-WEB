@@ -155,6 +155,36 @@ describe('PurchasePlanner', () => {
     ])
   })
 
+  // El filtro por marca (issue #53) es SOLO visual. Este test cubre el contador
+  // y el mensaje de vacío: ambos se leían de las listas completas y mostraban
+  // "(1 de )" y una card sin filas ni texto al filtrar.
+  test('filtrar por marca acota las cards, con contador y mensaje propios', async () => {
+    const user = userEvent.setup()
+    const data = makeData(
+      [
+        item({ model_code: 'URR-1', brand: 'URREA' }),
+        item({ model_code: 'SUR-1', brand: 'SURTEK' }),
+        // Fuera del catálogo → compra local, y de otra marca que la filtrada.
+        item({ model_code: 'FUERA-1', brand: 'URREA' }),
+      ],
+      {
+        'URREA|URR-1': { std: 10, description: null },
+        'SURTEK|SUR-1': { std: 10, description: null },
+      },
+    )
+    renderWithProviders(<PurchasePlanner data={data} />)
+
+    expect(screen.getByText('Candidatos a pedido URREA (2)')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('combobox')[0])
+    await user.click(screen.getByRole('option', { name: 'SURTEK' }))
+
+    // El total no se pierde: "1 de 2", nunca "1 de ".
+    expect(screen.getByText(/Candidatos a pedido URREA \(1 de 2\)/)).toBeInTheDocument()
+    // Y la sección sin coincidencias explica por qué está vacía.
+    expect(screen.getByText(/Nada de compra local para la marca SURTEK/)).toBeInTheDocument()
+  })
+
   test('vista plana lista las líneas de origen read-only', async () => {
     const user = userEvent.setup()
     const data = makeData(
