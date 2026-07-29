@@ -90,6 +90,8 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
   const [overrides, setOverrides] = useState<Record<string, PurchaseChoice>>({})
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [flatView, setFlatView] = useState(false)
+  const [isDownloadingUrrea, setIsDownloadingUrrea] = useState(false)
+  const [isDownloadingLocal, setIsDownloadingLocal] = useState(false)
 
   const mathGroups = plan.groups.filter((g) => g.bucket !== 'local')
   const localGroups = plan.groups.filter((g) => g.bucket === 'local')
@@ -109,14 +111,9 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
     })
   }
 
-  const handleSave = async () => {
-    if (pendingCount > 0) {
-      toast.error(
-        `Falta decidir ${pendingCount} grupo${pendingCount !== 1 ? 's' : ''} marcado${pendingCount !== 1 ? 's' : ''} como "Revisar".`,
-      )
-      return
-    }
-    const decisions = mathGroups.map((group) => {
+  /** Payload de decisiones a partir de las elecciones efectivas en pantalla. */
+  const buildDecisions = () =>
+    mathGroups.map((group) => {
       const split = applyChoice(group.math!, effectiveChoice(group)!)
       return {
         model_code: group.modelCode,
@@ -127,11 +124,78 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
         qty_retail: split.qtyRetail,
       }
     })
+
+  /**
+   * Hay algo por guardar si la elección en pantalla no coincide con lo
+   * persistido — incluye grupos sin decisión previa y decisiones marcadas
+   * stale (cambió la cantidad o el STD del catálogo desde que se decidió).
+   */
+  const isDirty = mathGroups.some((group) => {
+    const choice = effectiveChoice(group)
+    if (!choice) return true
+    const split = applyChoice(group.math!, choice)
+    const saved = group.decision
+    return (
+      !saved ||
+      saved.isStale ||
+      saved.packages_wholesale !== split.packagesWholesale ||
+      saved.qty_retail !== split.qtyRetail
+    )
+  })
+
+  const missingDecisionsMessage = () =>
+    `Falta decidir ${pendingCount} grupo${pendingCount !== 1 ? 's' : ''} marcado${pendingCount !== 1 ? 's' : ''} como "Revisar".`
+
+  const handleSave = async () => {
+    if (pendingCount > 0) {
+      toast.error(missingDecisionsMessage())
+      return
+    }
     try {
-      await saveDecisions.mutateAsync(decisions)
+      await saveDecisions.mutateAsync(buildDecisions())
       toast.success('Decisiones de compra guardadas')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al guardar las decisiones')
+    }
+  }
+
+  /**
+   * Excel de pedido URREA (mayoreo). El archivo debe reflejar lo GUARDADO
+   * (ADR-018), así que si hay cambios en pantalla se persisten primero y
+   * luego se genera — en un solo paso, sin mandar al usuario a guardar aparte.
+   */
+  const handleDownloadUrrea = async () => {
+    if (pendingCount > 0) {
+      toast.error(missingDecisionsMessage())
+      return
+    }
+    const rows = mathGroups.flatMap((group) => {
+      const { packagesWholesale } = applyChoice(group.math!, effectiveChoice(group)!)
+      return packagesWholesale > 0
+        ? [{ code: group.modelCode, pieces: packagesWholesale * group.math!.std }]
+        : []
+    })
+    if (rows.length === 0) {
+      toast.info('Ninguna decisión manda piezas a URREA (todo quedó en menudeo)')
+      return
+    }
+
+    setIsDownloadingUrrea(true)
+    try {
+      if (isDirty && !isReadOnly) {
+        await saveDecisions.mutateAsync(buildDecisions())
+      }
+      // Carga diferida: xlsx/jszip solo bajan al generar el pedido.
+      const { generateUrreaOrderExcel, downloadUrreaOrder } = await import('@/lib/excel/generator')
+      const blob = await generateUrreaOrderExcel(rows)
+      downloadUrreaOrder(blob, order.customer_name)
+      toast.success(
+        `Pedido URREA descargado (${rows.length} productos)${isDirty ? ' · decisiones guardadas' : ''}`,
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al generar el pedido URREA')
+    } finally {
+      setIsDownloadingUrrea(false)
     }
   }
 
@@ -168,6 +232,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       toast.info('No hay nada para compra local')
       return
     }
+    setIsDownloadingLocal(true)
     try {
       // Carga diferida: xlsx solo baja al exportar la lista de compra local.
       const { generateLocalPurchaseExcel, downloadLocalPurchaseExcel } = await import('@/lib/excel/generator')
@@ -175,6 +240,8 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       toast.success(`Lista de compra local descargada (${rows.length} filas)`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo exportar la lista de compra local')
+    } finally {
+      setIsDownloadingLocal(false)
     }
   }
 
@@ -329,9 +396,31 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             )}
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportLocal}>
-              <Download className="mr-2 size-4" />
-              Exportar compra local
+            <Button
+              variant="outline"
+              onClick={handleDownloadUrrea}
+              disabled={isDownloadingUrrea || saveDecisions.isPending || mathGroups.length === 0}
+              title="Formato .xlsm de pedido a URREA (piezas en múltiplos de STD)"
+            >
+              {isDownloadingUrrea ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 size-4" />
+              )}
+              Pedido URREA (mayoreo)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportLocal}
+              disabled={isDownloadingLocal}
+              title="Excel con los restos a menudeo y lo que no está en el catálogo"
+            >
+              {isDownloadingLocal ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 size-4" />
+              )}
+              Compra local (menudeo)
             </Button>
             <Button
               onClick={handleSave}
