@@ -9,6 +9,8 @@ import {
   DEFAULT_CUT_MARGIN_MM,
   SETTING_CUT_MARGIN_MM,
   resolveCutMargin,
+  formatMm,
+  formatMm2,
   tubeNetNeeds,
   plateNetNeeds,
   packBars,
@@ -42,6 +44,27 @@ describe('resolveCutMargin', () => {
     expect(resolveCutMargin({ [SETTING_CUT_MARGIN_MM]: 'garbage' })).toBe(DEFAULT_CUT_MARGIN_MM)
     expect(resolveCutMargin({ [SETTING_CUT_MARGIN_MM]: -5 })).toBe(DEFAULT_CUT_MARGIN_MM)
     expect(resolveCutMargin({ [SETTING_CUT_MARGIN_MM]: NaN })).toBe(DEFAULT_CUT_MARGIN_MM)
+  })
+})
+
+// ─── Formateo ────────────────────────────────────────────────────────────
+
+describe('formatMm / formatMm2', () => {
+  test('mm bajo el metro; metros con hasta 2 decimales sin ceros de cola', () => {
+    expect(formatMm(300)).toBe('300 mm')
+    expect(formatMm(999)).toBe('999 mm')
+    expect(formatMm(1000)).toBe('1 m')
+    expect(formatMm(6000)).toBe('6 m')
+    expect(formatMm(2500)).toBe('2.5 m')
+    expect(formatMm(1020)).toBe('1.02 m')
+    expect(formatMm(12.7)).toBe('12.7 mm')
+  })
+
+  test('área en cm² bajo el m²; m² desde 1', () => {
+    expect(formatMm2(60_000)).toBe('600 cm²')
+    expect(formatMm2(1_000_000)).toBe('1 m²')
+    expect(formatMm2(130_000)).toBe('1300 cm²')
+    expect(formatMm2(2_340_000)).toBe('2.34 m²')
   })
 })
 

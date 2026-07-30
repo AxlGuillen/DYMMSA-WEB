@@ -9,6 +9,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Download,
   Loader2,
   Plus,
   Trash2,
@@ -30,22 +31,30 @@ import { useSaveCutPlan, useSavePresentation, type CutPlanResponse, type CutPlan
 import { useUpdateSettings } from '@/hooks/useSettings'
 import {
   formatMm,
+  formatMm2,
   packBars,
+  packStrip,
+  plateNetNeeds,
   tubeNetNeeds,
   SETTING_CUT_MARGIN_MM,
+  type PlatePieceInput,
   type TubePieceInput,
 } from '@/lib/cut-plan'
 import { CutBarDiagram } from '@/components/orders/CutBarDiagram'
-import type { CutPlanPiece } from '@/types/database'
+import { CutStripDiagram } from '@/components/orders/CutStripDiagram'
+import type { CutMaterialType, CutPlanPiece } from '@/types/database'
 
 interface CutPlannerProps {
   data: CutPlanResponse
 }
 
-/** Fila editable de la lista (inputs como string; se parsea al calcular/guardar). */
+/** Fila editable (inputs como string; se parsea al calcular/guardar). */
 interface PieceDraft {
   key: string
+  type: CutMaterialType
   diameter: string
+  thickness: string
+  width: string
   length: string
   quantity: string
   requestedLabel: string
@@ -61,7 +70,10 @@ interface UnitRef {
 
 const toDraft = (piece: CutPlanPiece): PieceDraft => ({
   key: piece.id,
+  type: piece.material_type,
   diameter: String(piece.diameter_mm ?? ''),
+  thickness: String(piece.thickness_mm ?? ''),
+  width: String(piece.width_mm ?? ''),
   length: String(piece.length_mm),
   quantity: String(piece.quantity),
   requestedLabel: piece.requested_label ?? '',
@@ -69,13 +81,28 @@ const toDraft = (piece: CutPlanPiece): PieceDraft => ({
   etm: null,
 })
 
-const parseDraft = (draft: PieceDraft): TubePieceInput | null => {
-  const diameterMm = Number(draft.diameter)
+const parseCommon = (draft: PieceDraft) => {
   const lengthMm = Number(draft.length)
   const quantity = Number(draft.quantity)
-  if (!(diameterMm > 0) || !(lengthMm > 0)) return null
-  if (!Number.isInteger(quantity) || quantity < 1) return null
-  return { id: draft.key, diameterMm, lengthMm, quantity }
+  if (!(lengthMm > 0) || !Number.isInteger(quantity) || quantity < 1) return null
+  return { lengthMm, quantity }
+}
+
+const parseTube = (draft: PieceDraft): TubePieceInput | null => {
+  if (draft.type !== 'tube') return null
+  const base = parseCommon(draft)
+  const diameterMm = Number(draft.diameter)
+  if (!base || !(diameterMm > 0)) return null
+  return { id: draft.key, diameterMm, ...base }
+}
+
+const parsePlate = (draft: PieceDraft): PlatePieceInput | null => {
+  if (draft.type !== 'plate') return null
+  const base = parseCommon(draft)
+  const thicknessMm = Number(draft.thickness)
+  const widthMm = Number(draft.width)
+  if (!base || !(thicknessMm > 0) || !(widthMm > 0)) return null
+  return { id: draft.key, thicknessMm, widthMm, ...base }
 }
 
 /** Firma de las entradas del acomodo: si cambia, el layout manual se descarta. */
@@ -99,15 +126,10 @@ export function CutPlanner({ data }: CutPlannerProps) {
 
   const isReadOnly = ['completed', 'cancelled'].includes(order.status)
 
-  // La UI de esta fase es de TUBOS; las piezas de placa guardadas se conservan
-  // tal cual al guardar (passthrough) — su interfaz llega en la Fase 4.
-  const platePieces = data.pieces.filter((piece) => piece.material_type === 'plate')
-
-  const [drafts, setDrafts] = useState<PieceDraft[]>(() =>
-    data.pieces.filter((piece) => piece.material_type === 'tube').map(toDraft),
-  )
+  const [drafts, setDrafts] = useState<PieceDraft[]>(() => data.pieces.map(toDraft))
   const [margin, setMargin] = useState(String(data.marginMm))
   const [barLen, setBarLen] = useState<Record<string, string>>({})
+  const [stripWidth, setStripWidth] = useState<Record<string, string>>({})
   const [manualLayouts, setManualLayouts] = useState<
     Record<string, { sig: string; bars: UnitRef[][] }>
   >({})
@@ -115,28 +137,32 @@ export function CutPlanner({ data }: CutPlannerProps) {
   const marginParsed = Number(margin)
   const marginMm = Number.isFinite(marginParsed) && marginParsed >= 0 ? marginParsed : data.marginMm
 
-  const parsed = drafts.map((draft) => ({ draft, piece: parseDraft(draft) }))
-  const validPieces = parsed.flatMap(({ piece }) => (piece ? [piece] : []))
-  const invalidCount = parsed.filter(({ piece }) => !piece).length
+  const tubeDrafts = drafts.filter((d) => d.type === 'tube')
+  const plateDrafts = drafts.filter((d) => d.type === 'plate')
+  const validTubes = tubeDrafts.flatMap((d) => (parseTube(d) ? [parseTube(d)!] : []))
+  const validPlates = plateDrafts.flatMap((d) => (parsePlate(d) ? [parsePlate(d)!] : []))
+  const invalidCount = drafts.length - validTubes.length - validPlates.length
 
-  const needs = tubeNetNeeds(validPieces, marginMm)
+  const tubeNeeds = tubeNetNeeds(validTubes, marginMm)
+  const plateNeeds = plateNetNeeds(validPlates)
 
   const candidates = data.candidates.filter(
-    (candidate) =>
-      !drafts.some((draft) => draft.sourceItemId === candidate.itemId) &&
-      !platePieces.some((piece) => piece.source_item_id === candidate.itemId),
+    (candidate) => !drafts.some((draft) => draft.sourceItemId === candidate.itemId),
   )
 
   const updateDraft = (key: string, patch: Partial<PieceDraft>) =>
     setDrafts((prev) => prev.map((d) => (d.key === key ? { ...d, ...patch } : d)))
 
-  const addDraft = (candidate?: CutPlanCandidate) =>
+  const addDraft = (type: CutMaterialType, candidate?: CutPlanCandidate) =>
     setDrafts((prev) => [
       ...prev,
       {
         key: crypto.randomUUID(),
-        diameter: candidate?.cutKind === 'tube' && candidate.diameterMm ? String(candidate.diameterMm) : '',
-        length: candidate?.cutKind === 'tube' && candidate.lengthMm ? String(candidate.lengthMm) : '',
+        type,
+        diameter: type === 'tube' && candidate?.diameterMm ? String(candidate.diameterMm) : '',
+        thickness: type === 'plate' && candidate?.thicknessMm ? String(candidate.thicknessMm) : '',
+        width: type === 'plate' && candidate?.widthMm ? String(candidate.widthMm) : '',
+        length: candidate?.lengthMm ? String(candidate.lengthMm) : '',
         quantity: String(candidate?.quantity ?? 1),
         requestedLabel: candidate?.description ?? '',
         sourceItemId: candidate?.itemId ?? null,
@@ -166,7 +192,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
   }
 
   const buildPayload = (): SaveCutPieceInput[] => [
-    ...validPieces.map((piece) => {
+    ...validTubes.map((piece) => {
       const draft = drafts.find((d) => d.key === piece.id)!
       return {
         material_type: 'tube' as const,
@@ -177,38 +203,36 @@ export function CutPlanner({ data }: CutPlannerProps) {
         source_item_id: draft.sourceItemId,
       }
     }),
-    ...platePieces.map((piece) => ({
-      material_type: 'plate' as const,
-      thickness_mm: piece.thickness_mm,
-      width_mm: piece.width_mm,
-      length_mm: piece.length_mm,
-      quantity: piece.quantity,
-      requested_label: piece.requested_label,
-      source_item_id: piece.source_item_id,
-    })),
+    ...validPlates.map((piece) => {
+      const draft = drafts.find((d) => d.key === piece.id)!
+      return {
+        material_type: 'plate' as const,
+        thickness_mm: piece.thicknessMm,
+        width_mm: piece.widthMm,
+        length_mm: piece.lengthMm,
+        quantity: piece.quantity,
+        requested_label: draft.requestedLabel || null,
+        source_item_id: draft.sourceItemId,
+      }
+    }),
   ]
 
   const handleSave = async () => {
     if (invalidCount > 0) {
       toast.error(
-        `Hay ${invalidCount} pieza${invalidCount !== 1 ? 's' : ''} incompleta${invalidCount !== 1 ? 's' : ''} (diámetro, longitud y cantidad son obligatorios).`,
+        `Hay ${invalidCount} pieza${invalidCount !== 1 ? 's' : ''} incompleta${invalidCount !== 1 ? 's' : ''} — revisa medidas y cantidades.`,
       )
       return
     }
     try {
       await saveCutPlan.mutateAsync(buildPayload())
-      // Presentaciones capturadas → catálogo que se arma solo. Fallo aislado:
-      // no revierte el guardado de la lista.
-      const captures = needs
-        .map((group) => Number(barLen[String(group.diameterMm)]))
-        .map((length, i) => ({ length, diameter: needs[i].diameterMm }))
+      // Presentaciones capturadas → catálogo que se arma solo (v1: tubos; las
+      // tiras de placa se venden por largo y no tienen presentación fija).
+      const captures = tubeNeeds
+        .map((group) => ({ diameter: group.diameterMm, length: Number(barLen[String(group.diameterMm)]) }))
         .filter(({ length }) => length > 0)
-        .map(({ length, diameter }) =>
-          savePresentation.mutateAsync({
-            material_type: 'tube',
-            diameter_mm: diameter,
-            length_mm: length,
-          }),
+        .map(({ diameter, length }) =>
+          savePresentation.mutateAsync({ material_type: 'tube', diameter_mm: diameter, length_mm: length }),
         )
       const results = await Promise.allSettled(captures)
       if (results.some((r) => r.status === 'rejected')) {
@@ -230,14 +254,148 @@ export function CutPlanner({ data }: CutPlannerProps) {
     }
   }
 
+  /** Excel del pedido al proveedor: la necesidad neta por medida (momento 1). */
+  const handleExportRequest = async () => {
+    const rows = [
+      ...tubeNeeds.map((group) => ({
+        material: 'Tubo cobre',
+        measure: `Ø${group.diameterMm} mm`,
+        pieces: group.totalUnits,
+        request: formatMm(group.netLengthMm),
+      })),
+      ...plateNeeds.map((group) => {
+        const width = Number(stripWidth[String(group.thicknessMm)])
+        const pack = width > 0
+          ? packStrip(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), width, marginMm)
+          : null
+        return {
+          material: 'Placa cobre',
+          measure: `${group.thicknessMm} mm · ancho ≥ ${group.minWidthMm} mm`,
+          pieces: group.totalUnits,
+          request: pack && pack.impossible.length === 0
+            ? `${formatMm(pack.totalLengthMm)} de tira de ${formatMm(width)}`
+            : `área ${formatMm2(group.areaMm2)}`,
+        }
+      }),
+    ]
+    if (rows.length === 0) {
+      toast.info('No hay piezas válidas que pedir')
+      return
+    }
+    try {
+      // Carga diferida: xlsx solo baja al exportar.
+      const { generateCutRequestExcel, downloadCutRequestExcel } = await import('@/lib/excel/generator')
+      downloadCutRequestExcel(generateCutRequestExcel(rows), order.customer_name)
+      toast.success(`Pedido de material descargado (${rows.length} medidas)`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo exportar el pedido')
+    }
+  }
+
+  const draftsTable = (rows: PieceDraft[], type: CutMaterialType) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {type === 'tube' ? (
+            <TableHead className="w-[110px]">Ø (mm)</TableHead>
+          ) : (
+            <>
+              <TableHead className="w-[110px]">Espesor (mm)</TableHead>
+              <TableHead className="w-[110px]">Ancho (mm)</TableHead>
+            </>
+          )}
+          <TableHead className="w-[130px]">Longitud (mm)</TableHead>
+          <TableHead className="w-[100px]">Cantidad</TableHead>
+          <TableHead>Pedido original</TableHead>
+          <TableHead className="w-[120px]">Origen</TableHead>
+          <TableHead className="w-[60px] print:hidden" />
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((draft) => {
+          const invalid = type === 'tube' ? !parseTube(draft) : !parsePlate(draft)
+          return (
+            <TableRow key={draft.key} className={invalid ? 'bg-amber-500/10' : undefined}>
+              {type === 'tube' ? (
+                <TableCell>
+                  <Input
+                    type="number" min="0" className="h-8" value={draft.diameter}
+                    disabled={isReadOnly} aria-label="Diámetro (mm)"
+                    onChange={(e) => updateDraft(draft.key, { diameter: e.target.value })}
+                  />
+                </TableCell>
+              ) : (
+                <>
+                  <TableCell>
+                    <Input
+                      type="number" min="0" className="h-8" value={draft.thickness}
+                      disabled={isReadOnly} aria-label="Espesor (mm)"
+                      onChange={(e) => updateDraft(draft.key, { thickness: e.target.value })}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number" min="0" className="h-8" value={draft.width}
+                      disabled={isReadOnly} aria-label="Ancho (mm)"
+                      onChange={(e) => updateDraft(draft.key, { width: e.target.value })}
+                    />
+                  </TableCell>
+                </>
+              )}
+              <TableCell>
+                <Input
+                  type="number" min="0" className="h-8" value={draft.length}
+                  disabled={isReadOnly} aria-label="Longitud (mm)"
+                  onChange={(e) => updateDraft(draft.key, { length: e.target.value })}
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="number" min="1" className="h-8" value={draft.quantity}
+                  disabled={isReadOnly} aria-label="Cantidad"
+                  onChange={(e) => updateDraft(draft.key, { quantity: e.target.value })}
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  className="h-8" value={draft.requestedLabel}
+                  disabled={isReadOnly} placeholder="Lo que pidió el cliente"
+                  aria-label="Pedido original"
+                  onChange={(e) => updateDraft(draft.key, { requestedLabel: e.target.value })}
+                />
+              </TableCell>
+              <TableCell>
+                {draft.etm || draft.sourceItemId ? (
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    {draft.etm ?? 'de la orden'}
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground">manual</span>
+                )}
+              </TableCell>
+              <TableCell className="print:hidden">
+                <Button
+                  size="icon" variant="ghost"
+                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={isReadOnly} aria-label="Quitar pieza"
+                  onClick={() => setDrafts((prev) => prev.filter((d) => d.key !== draft.key))}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
+  )
+
   return (
     <div className="space-y-6 pb-24">
       {/* Header */}
       <div className="flex items-start gap-4 print:hidden">
         <Button
-          variant="ghost"
-          size="icon"
-          className="mt-0.5 shrink-0"
+          variant="ghost" size="icon" className="mt-0.5 shrink-0"
           onClick={() => push(`/dashboard/orders/${order.id}`)}
         >
           <ArrowLeft className="size-5" />
@@ -245,8 +403,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-tight">Planificar corte</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {order.name || order.customer_name} · tubos de cobre (DYMMSA) — necesidad neta y
-            patrón de corte
+            {order.name || order.customer_name} · tubos y placas de cobre (DYMMSA)
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
@@ -255,16 +412,16 @@ export function CutPlanner({ data }: CutPlannerProps) {
               Margen por corte (mm)
             </Label>
             <Input
-              id="cut-margin"
-              type="number"
-              min="0"
-              className="h-8 w-20 text-right"
-              value={margin}
-              disabled={isReadOnly}
+              id="cut-margin" type="number" min="0" className="h-8 w-20 text-right"
+              value={margin} disabled={isReadOnly}
               onChange={(e) => setMargin(e.target.value)}
               onBlur={handleMarginBlur}
             />
           </div>
+          <Button variant="outline" size="sm" onClick={handleExportRequest}>
+            <Download className="mr-2 size-4" />
+            Excel pedido
+          </Button>
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             Imprimir
           </Button>
@@ -289,136 +446,87 @@ export function CutPlanner({ data }: CutPlannerProps) {
                 <span className="shrink-0 tabular-nums text-muted-foreground">
                   ×{candidate.quantity}
                 </span>
-                <Button size="sm" variant="outline" onClick={() => addDraft(candidate)}>
-                  <Plus className="mr-1 size-3.5" />
-                  Agregar
-                </Button>
+                {candidate.cutKind ? (
+                  <Button size="sm" variant="outline" onClick={() => addDraft(candidate.cutKind!, candidate)}>
+                    <Plus className="mr-1 size-3.5" />
+                    Agregar
+                  </Button>
+                ) : (
+                  // Sin medidas nominales no se sabe qué es: el usuario decide.
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" onClick={() => addDraft('tube', candidate)}>
+                      Tubo
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => addDraft('plate', candidate)}>
+                      Placa
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </CardContent>
         </Card>
       )}
 
-      {/* Lista de corte */}
+      {/* Lista de corte: tubos */}
       <Card>
         <CardHeader className="print:hidden">
-          <CardTitle className="text-base">Lista de corte — tubos ({drafts.length})</CardTitle>
+          <CardTitle className="text-base">Lista de corte — tubos ({tubeDrafts.length})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {drafts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Agrega piezas desde la orden o captura una manual.
-            </p>
+          {tubeDrafts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Sin piezas de tubo.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[110px]">Ø (mm)</TableHead>
-                  <TableHead className="w-[130px]">Longitud (mm)</TableHead>
-                  <TableHead className="w-[100px]">Cantidad</TableHead>
-                  <TableHead>Pedido original</TableHead>
-                  <TableHead className="w-[120px]">Origen</TableHead>
-                  <TableHead className="w-[60px] print:hidden" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {drafts.map((draft) => {
-                  const invalid = !parseDraft(draft)
-                  return (
-                    <TableRow key={draft.key} className={invalid ? 'bg-amber-500/10' : undefined}>
-                      <TableCell>
-                        <Input
-                          type="number" min="0" className="h-8" value={draft.diameter}
-                          disabled={isReadOnly}
-                          aria-label="Diámetro (mm)"
-                          onChange={(e) => updateDraft(draft.key, { diameter: e.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number" min="0" className="h-8" value={draft.length}
-                          disabled={isReadOnly}
-                          aria-label="Longitud (mm)"
-                          onChange={(e) => updateDraft(draft.key, { length: e.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number" min="1" className="h-8" value={draft.quantity}
-                          disabled={isReadOnly}
-                          aria-label="Cantidad"
-                          onChange={(e) => updateDraft(draft.key, { quantity: e.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="h-8" value={draft.requestedLabel}
-                          disabled={isReadOnly}
-                          placeholder="Lo que pidió el cliente"
-                          aria-label="Pedido original"
-                          onChange={(e) => updateDraft(draft.key, { requestedLabel: e.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {draft.etm || draft.sourceItemId ? (
-                          <Badge variant="secondary" className="font-mono text-xs">
-                            {draft.etm ?? 'de la orden'}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">manual</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="print:hidden">
-                        <Button
-                          size="icon" variant="ghost"
-                          className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          disabled={isReadOnly}
-                          aria-label="Quitar pieza"
-                          onClick={() => setDrafts((prev) => prev.filter((d) => d.key !== draft.key))}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+            draftsTable(tubeDrafts, 'tube')
           )}
           {!isReadOnly && (
-            <Button variant="outline" size="sm" className="print:hidden" onClick={() => addDraft()}>
+            <Button variant="outline" size="sm" className="print:hidden" onClick={() => addDraft('tube')}>
               <Plus className="mr-2 size-4" />
-              Agregar pieza manual
+              Agregar tubo manual
             </Button>
-          )}
-          {platePieces.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Esta orden también tiene {platePieces.length} pieza{platePieces.length !== 1 ? 's' : ''} de
-              placa guardada{platePieces.length !== 1 ? 's' : ''}; su interfaz llega en la siguiente
-              fase y se conservan al guardar.
-            </p>
           )}
         </CardContent>
       </Card>
 
-      {/* Necesidad neta + acomodo por diámetro */}
-      {needs.map((group) => {
+      {/* Lista de corte: placas */}
+      <Card>
+        <CardHeader className="print:hidden">
+          <CardTitle className="text-base">Lista de corte — placas ({plateDrafts.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {plateDrafts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Sin piezas de placa.</p>
+          ) : (
+            draftsTable(plateDrafts, 'plate')
+          )}
+          {!isReadOnly && (
+            <Button variant="outline" size="sm" className="print:hidden" onClick={() => addDraft('plate')}>
+              <Plus className="mr-2 size-4" />
+              Agregar placa manual
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tubos: necesidad + acomodo por diámetro */}
+      {tubeNeeds.map((group) => {
         const diameterKey = String(group.diameterMm)
         const barLength = Number(barLen[diameterKey])
         const suggestions = data.presentations
           .filter((p) => p.material_type === 'tube' && p.diameter_mm === group.diameterMm)
           .slice(0, 4)
 
-        const pack = barLength > 0 ? packBars(group.pieces.map((p) => ({ id: p.id, lengthMm: p.lengthMm, quantity: p.quantity })), barLength, marginMm) : null
+        const pack = barLength > 0
+          ? packBars(group.pieces.map((p) => ({ id: p.id, lengthMm: p.lengthMm, quantity: p.quantity })), barLength, marginMm)
+          : null
 
-        // Unidades con identidad estable para poder moverlas entre barras.
         const autoBars = toUnitBars(pack?.bars ?? [])
         const sig = layoutSignature(group.pieces, barLength, marginMm)
         const manual = manualLayouts[diameterKey]
         const bars = manual && manual.sig === sig ? manual.bars : autoBars
 
         return (
-          <Card key={diameterKey}>
+          <Card key={`tube-${diameterKey}`}>
             <CardHeader>
               <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                 Ø{group.diameterMm} mm
@@ -438,8 +546,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
                   Barra del proveedor (mm)
                 </Label>
                 <Input
-                  id={`bar-${diameterKey}`}
-                  type="number" min="0" className="h-8 w-28"
+                  id={`bar-${diameterKey}`} type="number" min="0" className="h-8 w-28"
                   placeholder="p. ej. 6000"
                   value={barLen[diameterKey] ?? ''}
                   onChange={(e) => setBarLen((prev) => ({ ...prev, [diameterKey]: e.target.value }))}
@@ -509,11 +616,72 @@ export function CutPlanner({ data }: CutPlannerProps) {
         )
       })}
 
+      {/* Placas: necesidad + acomodo en tira por espesor */}
+      {plateNeeds.map((group) => {
+        const thicknessKey = String(group.thicknessMm)
+        const width = Number(stripWidth[thicknessKey])
+        const pack = width > 0
+          ? packStrip(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), width, marginMm)
+          : null
+
+        return (
+          <Card key={`plate-${thicknessKey}`}>
+            <CardHeader>
+              <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+                Placa {group.thicknessMm} mm
+                <Badge variant="secondary">
+                  {group.totalUnits} pzs · área {formatMm2(group.areaMm2)}
+                </Badge>
+                <Badge variant="outline">ancho mínimo {formatMm(group.minWidthMm)}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2 print:hidden">
+                <Label htmlFor={`strip-${thicknessKey}`} className="text-xs text-muted-foreground">
+                  Ancho de la tira del proveedor (mm)
+                </Label>
+                <Input
+                  id={`strip-${thicknessKey}`} type="number" min="0" className="h-8 w-28"
+                  placeholder={`≥ ${group.minWidthMm}`}
+                  value={stripWidth[thicknessKey] ?? ''}
+                  onChange={(e) => setStripWidth((prev) => ({ ...prev, [thicknessKey]: e.target.value }))}
+                />
+                <span className="text-xs text-muted-foreground">
+                  La tira se compra por largo: captura el ancho que ofrezca el proveedor.
+                </span>
+              </div>
+
+              {pack && pack.impossible.length > 0 && (
+                <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" />
+                  <span>
+                    Hay pieza{pack.impossible.length !== 1 ? 's' : ''} más ancha
+                    {pack.impossible.length !== 1 ? 's' : ''} que la tira de {formatMm(width)} — se
+                    necesita al menos {formatMm(group.minWidthMm)} de ancho.
+                  </span>
+                </div>
+              )}
+
+              {pack && pack.shelves.length > 0 && (
+                <CutStripDiagram
+                  stripWidthMm={width}
+                  marginMm={marginMm}
+                  shelves={pack.shelves}
+                  totalLengthMm={pack.totalLengthMm}
+                />
+              )}
+            </CardContent>
+          </Card>
+        )
+      })}
+
       {/* Footer sticky */}
       <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-3">
           <p className="text-sm text-muted-foreground">
-            {validPieces.length} pieza{validPieces.length !== 1 ? 's' : ''} lista{validPieces.length !== 1 ? 's' : ''}
+            {validTubes.length + validPlates.length} pieza
+            {validTubes.length + validPlates.length !== 1 ? 's' : ''} lista
+            {validTubes.length + validPlates.length !== 1 ? 's' : ''}
             {invalidCount > 0 && (
               <span className="text-amber-600"> · {invalidCount} incompleta{invalidCount !== 1 ? 's' : ''}</span>
             )}

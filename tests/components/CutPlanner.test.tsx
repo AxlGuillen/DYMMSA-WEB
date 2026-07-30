@@ -1,8 +1,7 @@
 /**
- * CutPlanner (issue #59, Fase 3 — tubos): necesidad neta desde el fixture,
- * acomodo al capturar la presentación, payload del guardado (con passthrough de
- * placas: la UI de placas no existe aún y NO deben perderse al guardar) y el
- * diagrama SVG en sus dos estados (sobrante / excede).
+ * CutPlanner (issue #59, Fases 3-4): necesidad neta de tubos y placas desde el
+ * fixture, acomodo al capturar la presentación (barra / ancho de tira), payload
+ * del guardado con AMBOS tipos, y los diagramas SVG en sus estados clave.
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
@@ -37,8 +36,6 @@ const data = (): CutPlanResponse => ({
       quantity: 4, requested_label: 'Botador 30', source_item_id: null,
       sort_order: 0, created_at: '', updated_at: '',
     },
-    // Placa guardada: la UI de esta fase no la muestra, pero al guardar DEBE
-    // viajar intacta en el payload (perderla sería un bug de datos).
     {
       id: 'pp', order_id: 'o1', material_type: 'plate',
       diameter_mm: null, thickness_mm: 5, width_mm: 200, length_mm: 300,
@@ -64,15 +61,17 @@ const data = (): CutPlanResponse => ({
 describe('CutPlanner', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  test('necesidad neta por diámetro: Σ (longitud + margen) × cantidad', () => {
+  test('necesidad neta: tubos con margen por pieza; placas con área y ancho mínimo', () => {
     renderWithProviders(<CutPlanner data={data()} />)
-    // 4 × (300 + 20) = 1280 → "1.28 m"
+    // Tubos: 4 × (300 + 20) = 1280 → "1.28 m"
     expect(screen.getByText(/pedir 1\.28 m · 4 pzs/)).toBeInTheDocument()
-    // Y avisa que hay placas guardadas que se conservan.
-    expect(screen.getByText(/pieza de placa guardada/)).toBeInTheDocument()
+    // Placas: 2 × (200×300) = 120,000 mm² → "1200 cm²"; la pieza más ancha manda.
+    expect(screen.getByText(/Placa 5 mm/)).toBeInTheDocument()
+    expect(screen.getByText(/2 pzs · área 1200 cm²/)).toBeInTheDocument()
+    expect(screen.getByText(/ancho mínimo 200 mm/)).toBeInTheDocument()
   })
 
-  test('capturar la presentación (chip sugerida) calcula y dibuja el acomodo', async () => {
+  test('capturar la barra (chip sugerida) calcula y dibuja el acomodo de tubos', async () => {
     const user = userEvent.setup()
     renderWithProviders(<CutPlanner data={data()} />)
 
@@ -84,7 +83,27 @@ describe('CutPlanner', () => {
     expect(screen.getByRole('img', { name: /Barra de 6 m con 4 piezas/ })).toBeInTheDocument()
   })
 
-  test('guardar: payload con los tubos normalizados Y las placas intactas + presentación capturada', async () => {
+  test('capturar el ancho de tira acomoda las placas por filas', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<CutPlanner data={data()} />)
+
+    // 2 piezas de 200 de ancho en tira de 450: 200+20+200 = 420 ≤ 450 → una
+    // fila de 300 mm de largo; aprovechamiento 120000/(300×450) ≈ 89 %.
+    await user.type(screen.getByLabelText(/Ancho de la tira del proveedor/), '450')
+    expect(screen.getByText(/Pide 300 mm de tira de 450 mm/)).toBeInTheDocument()
+    expect(screen.getByText(/aprovechamiento 89%/)).toBeInTheDocument()
+  })
+
+  test('tira más angosta que la pieza → aviso con el ancho mínimo, sin diagrama', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<CutPlanner data={data()} />)
+
+    await user.type(screen.getByLabelText(/Ancho de la tira del proveedor/), '150')
+    expect(screen.getByText(/se necesita al menos 200 mm de ancho/)).toBeInTheDocument()
+    expect(screen.queryByText(/Pide .* de tira/)).not.toBeInTheDocument()
+  })
+
+  test('guardar: payload con tubos y placas normalizados + presentación capturada', async () => {
     saveMut.mockResolvedValue({ pieces: [] })
     presMut.mockResolvedValue({})
     const user = userEvent.setup()
@@ -103,7 +122,8 @@ describe('CutPlanner', () => {
         quantity: 2, requested_label: 'Placa X', source_item_id: null,
       },
     ])
-    // La barra capturada queda registrada como presentación del proveedor.
+    // La barra capturada queda registrada como presentación del proveedor
+    // (solo tubos: las tiras de placa se venden por largo, sin presentación fija).
     expect(presMut).toHaveBeenCalledWith({ material_type: 'tube', diameter_mm: 30, length_mm: 6000 })
   })
 

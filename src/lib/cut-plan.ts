@@ -47,6 +47,12 @@ export function formatMm(mm: number): string {
   return `${meters} m`
 }
 
+/** mm² legibles: bajo el m² usa cm² ("600 cm²"); desde 1 m² usa m². */
+export function formatMm2(mm2: number): string {
+  if (mm2 < 1_000_000) return `${Math.round(mm2 / 100)} cm²`
+  return `${Math.round((mm2 / 1_000_000) * 100) / 100} m²`
+}
+
 // ─── Entradas ──────────────────────────────────────────────────────────
 
 export interface TubePieceInput {
