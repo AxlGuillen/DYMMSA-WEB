@@ -281,6 +281,42 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 
 ---
 
+## Tabla: `cut_plan_pieces`
+
+**Propósito:** Lista de corte de una orden (issue #59): piezas de tubo/placa de cobre (marca DYMMSA) que se mandan a hacer. Las longitudes pedidas **varían por pedido**, por eso viven aquí y no como columnas fijas del producto. Unidades **siempre en mm** (numeric — hay imperiales tipo 1/2" = 12.7 mm).
+**Módulo:** [[03-Modulos/Ordenes]]
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `order_id` | uuid | No | — | FK → `orders.id` CASCADE | |
+| `material_type` | text | No | — | `IN ('tube','plate')` | |
+| `diameter_mm` | numeric | Sí | — | `> 0` · CHECK forma | Solo tubos |
+| `thickness_mm` | numeric | Sí | — | `> 0` · CHECK forma | Solo placas |
+| `width_mm` | numeric | Sí | — | `> 0` · CHECK forma | Solo placas (ancho de la pieza) |
+| `length_mm` | numeric | No | — | `> 0` | Longitud pedida |
+| `quantity` | integer | No | — | `> 0` | |
+| `requested_label` | text | Sí | — | | Lo que pidió el cliente (registro del match con la medida usada) |
+| `source_item_id` | uuid | Sí | — | FK → `order_items.id` SET NULL | Ítem DYMMSA de origen, si vino de la orden |
+| `sort_order` | integer | No | `0` | | |
+
+> `cut_piece_shape` obliga la forma por tipo: tubo → solo `diameter_mm`; placa → `thickness_mm`+`width_mm` (y `diameter_mm` NULL). Nace por-orden pero agregarse en lote multi-orden después sería una vista, no un refactor.
+
+## Tabla: `material_presentations`
+
+**Propósito:** Presentaciones de materia prima del proveedor ("barras de 6 m de Ø30"). **Catálogo que se arma solo**: no se conoce el catálogo completo del proveedor, cada presentación capturada al planificar queda guardada y se sugiere después.
+**Módulo:** [[03-Modulos/Ordenes]]
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `material_type` | text | No | — | `IN ('tube','plate')` | |
+| `diameter_mm` / `thickness_mm` / `width_mm` | numeric | Sí | — | CHECK forma (igual que `cut_plan_pieces`) | |
+| `length_mm` | numeric | No | — | `> 0` | Largo comercial de la barra/tira |
+| `last_used_at` | timestamptz | Sí | `now()` | | Para ordenar sugerencias |
+
+> `material_presentation_unique` es **UNIQUE NULLS NOT DISTINCT** sobre las 5 medidas: sin él, los NULL del tipo contrario colarían duplicados.
+
 ## Historial de migraciones
 
 | Versión | Nombre | Descripción |
@@ -295,6 +331,7 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `20260401050143` | `link_orders_to_quotations_and_fix_sort_order` | FK quotation_id en orders + fix sort_order |
 | `20260409055423` | `rename_order_statuses_to_generic` | Renombra estados: `pending_urrea_order→ordered`, `received_from_urrea→received`, etc. |
 | `add_is_sold_to_etm_and_quotation_items` | (2026-07-06) | Columna `is_sold boolean` (nullable, sin default) en `etm_products` y `quotation_items` — tri-estado "¿lo vendemos?" |
+| `cut_module_tables` | (2026-07-31) | Módulo de corte (issue #59, Fase 1): `cut_plan_pieces` + `material_presentations` + 5 columnas nominales `cut_*` en `etm_products` (solo pre-llenado). RLS authenticated |
 | `add_location_to_inventory_and_order_items` | (2026-07-07) | Columna `location text` (nullable) en `store_inventory` y `order_items` — ubicación física (gaveta) |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
