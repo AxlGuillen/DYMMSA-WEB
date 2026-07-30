@@ -307,7 +307,7 @@ export function Sidebar() {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="md:hidden fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4">
+      <div className="md:hidden fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 print:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -337,7 +337,7 @@ export function Sidebar() {
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'hidden md:flex fixed inset-y-0 left-0 z-40 flex-col border-r bg-card',
+          'hidden md:flex fixed inset-y-0 left-0 z-40 flex-col border-r bg-card print:hidden',
           mounted && 'transition-[width] duration-200 ease-in-out',
           collapsed ? 'w-16' : 'w-64'
         )}

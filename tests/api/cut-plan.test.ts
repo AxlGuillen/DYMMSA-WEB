@@ -52,8 +52,11 @@ describe('GET /orders/[id]/cut-plan', () => {
         },
         'order_items.select': {
           data: [
-            { id: 'i1', etm: 'DY-1', description: 'Botador', quantity_approved: 4, item_type: 'product', brand: 'DYMMSA' },
+            // ' dymmsa ' con basura: la normalización debe ser la MISMA
+            // trim+upper que usa el botón de OrderDetail.
+            { id: 'i1', etm: 'DY-1', description: 'Botador', quantity_approved: 4, item_type: 'product', brand: ' dymmsa ' },
             { id: 'i2', etm: null, description: 'Proyecto A', quantity_approved: 0, item_type: 'separator', brand: 'DYMMSA' },
+            { id: 'i3', etm: 'U-1', description: 'Llave', quantity_approved: 2, item_type: 'product', brand: 'URREA' },
           ],
           error: null,
         },

@@ -127,6 +127,25 @@ describe('CutPlanner', () => {
     expect(presMut).toHaveBeenCalledWith({ material_type: 'tube', diameter_mm: 30, length_mm: 6000 })
   })
 
+  test('ajuste manual: mover una pieza abre barra nueva; cambiar el margen lo descarta', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<CutPlanner data={data()} />)
+
+    await user.click(screen.getByRole('button', { name: '6 m' }))
+    expect(screen.queryByText('Barra 2')).not.toBeInTheDocument()
+
+    // Mover la primera pieza de la última barra a una nueva.
+    await user.click(screen.getAllByRole('button', { name: 'Mover a una barra nueva' })[0])
+    expect(screen.getByText('Barra 2')).toBeInTheDocument()
+
+    // Cambiar el margen invalida la firma → el layout manual se descarta y
+    // vuelve el acomodo automático (una sola barra). Nunca queda un layout
+    // manual obsoleto en silencio.
+    await user.clear(screen.getByLabelText(/Margen por corte/))
+    await user.type(screen.getByLabelText(/Margen por corte/), '30')
+    expect(screen.queryByText('Barra 2')).not.toBeInTheDocument()
+  })
+
   test('agregar candidato DYMMSA pre-llena con las medidas nominales', async () => {
     const user = userEvent.setup()
     renderWithProviders(<CutPlanner data={data()} />)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, notFound, badRequest, serverError } from '@/lib/api-helpers'
 import { resolveCutMargin, SETTING_CUT_MARGIN_MM } from '@/lib/cut-plan'
+import { explainPgError } from '@/lib/supabase-errors'
 import type { CutMaterialType, CutPlanPieceInsert } from '@/types/database'
 
 interface RouteContext {
@@ -39,12 +40,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
         .select('*')
         .eq('order_id', id)
         .order('sort_order', { ascending: true }),
-      // Candidatos: ítems DYMMSA de la orden (los que se mandan a hacer).
+      // Candidatos: ítems DYMMSA de la orden (los que se mandan a hacer). Se
+      // filtra en JS (no con ilike) para usar EXACTAMENTE la misma
+      // normalización trim+upper que el botón de OrderDetail — si divergen,
+      // el botón aparece pero la página no ofrece candidatos.
       supabase
         .from('order_items')
         .select('id, etm, description, quantity_approved, item_type, brand')
-        .eq('order_id', id)
-        .ilike('brand', 'dymmsa'),
+        .eq('order_id', id),
       supabase
         .from('material_presentations')
         .select('*')
@@ -59,7 +62,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     // Medidas nominales del producto para PRE-LLENAR los candidatos.
     const candidateItems = (itemsRes.data ?? []).filter(
-      (item) => !item.item_type || item.item_type === 'product',
+      (item) =>
+        (!item.item_type || item.item_type === 'product') &&
+        (item.brand ?? '').trim().toUpperCase() === 'DYMMSA',
     )
     const etms = [...new Set(candidateItems.map((item) => item.etm).filter(Boolean))]
     const { data: products } = etms.length
@@ -229,7 +234,12 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
         )
         if (restoreError) console.error('cut-plan restore error:', restoreError)
       }
-      return serverError('Error al guardar la lista de corte')
+      // Violación de regla (p. ej. FK de un ítem borrado entre GET y PUT, o el
+      // CHECK de forma) → 400 descriptivo, no 500 (ADR-009).
+      const explanation = explainPgError(insertError)
+      return explanation.isConstraintViolation
+        ? badRequest(explanation.userMessage)
+        : serverError('Error al guardar la lista de corte')
     }
 
     return NextResponse.json({ pieces: saved ?? [] })
