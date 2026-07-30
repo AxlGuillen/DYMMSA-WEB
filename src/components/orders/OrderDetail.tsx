@@ -21,6 +21,7 @@ import {
   Check,
   ClipboardList,
   Info,
+  Scissors,
   SeparatorHorizontal,
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -187,6 +188,13 @@ export function OrderDetail({ order }: OrderDetailProps) {
       toast.error(error instanceof Error ? error.message : 'Error al actualizar estado')
     }
   }
+
+  // Solo los productos DYMMSA se mandan a hacer: sin ellos, el corte no aplica.
+  const hasDymmsaItems = order.order_items.some(
+    (item) =>
+      (!item.item_type || item.item_type === 'product') &&
+      (item.brand ?? '').trim().toUpperCase() === 'DYMMSA',
+  )
 
   const [isDownloadingDelivery, setIsDownloadingDelivery] = useState(false)
 
@@ -509,6 +517,16 @@ export function OrderDetail({ order }: OrderDetailProps) {
             <ClipboardList className="mr-2 size-4" />
             Planificar compra
           </Button>
+
+          {hasDymmsaItems && (
+            <Button
+              variant="outline"
+              onClick={() => push(`/dashboard/orders/${order.id}/cutting`)}
+            >
+              <Scissors className="mr-2 size-4" />
+              Planificar corte
+            </Button>
+          )}
 
           <Button
             variant="outline"

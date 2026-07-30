@@ -3,6 +3,26 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-07-31
+
+### Nuevo
+- **Planificar corte: el nuevo módulo para los productos DYMMSA que se mandan a hacer.**
+  En las órdenes con piezas DYMMSA (tubos y placas de cobre) aparece el botón
+  **"Planificar corte"**. Lo que antes se calculaba a mano ahora lo hace el sistema:
+  - **Antes de hablar con el proveedor** te dice cuánto material necesitas por medida
+    ("pide 1.28 m de tubo de Ø30"), ya con el **margen de corte** incluido (configurable,
+    el clásico 1–2 cm por partición).
+  - **Cuando el proveedor te dice qué tiene** ("barras de 6 m"), capturas esa medida y el
+    sistema te **dibuja cómo partir cada barra**: las piezas, los cortes y cuánto sobra.
+    Puedes mover piezas de una barra a otra si en el taller conviene distinto — si algo
+    ya no cabe, te lo marca en rojo con los milímetros exactos.
+  - **Con las placas** capturas el ancho de la tira que ofrece el proveedor y te dice
+    cuánto largo pedir, con el acomodo dibujado y el **% de aprovechamiento**.
+  - Las medidas que captures del proveedor **se recuerdan** y se sugieren la próxima vez.
+  - La lista se pre-llena con las piezas DYMMSA de la orden, guarda **lo que pidió el
+    cliente originalmente** junto a la medida usada, y todo se puede **imprimir** para
+    llevarlo al taller o exportar a **Excel** para pedirle al proveedor.
+
 ## 2026-07-29 (II)
 
 ### Nuevo

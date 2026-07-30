@@ -234,6 +234,8 @@ export const PanelLeftOpen = wrap(_ChevronsRight)
 // (issue #55). Vale más el lápiz real de lucide, aunque no anime, que un icono
 // animado que dice otra acción.
 export { Pencil } from 'lucide-react'
+// Mismo caso que Pencil: la librería animada no trae tijeras (issue #59).
+export { Scissors } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
 export const RotateCcw = wrap(_CornerUpLeft)
