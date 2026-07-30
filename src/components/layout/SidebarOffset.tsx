@@ -16,7 +16,10 @@ export function SidebarOffset({ children }: { children: React.ReactNode }) {
   return (
     <div
       className={cn(
-        'flex flex-1 flex-col min-w-0 pt-14 md:pt-0',
+        // print: el sidebar va oculto al imprimir (diagramas de corte para el
+        // taller, issue #59) — sin quitar su padding, el contenido saldría
+        // desplazado hacia la derecha en el papel.
+        'flex flex-1 flex-col min-w-0 pt-14 md:pt-0 print:pt-0! print:pl-0!',
         mounted && 'transition-[padding] duration-200 ease-in-out',
         collapsed ? 'md:pl-16' : 'md:pl-64'
       )}

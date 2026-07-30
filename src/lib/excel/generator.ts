@@ -354,6 +354,63 @@ export function downloadDeliveryExcel(blob: Blob, customerName: string) {
   URL.revokeObjectURL(url)
 }
 
+// --- Pedido de material de corte (tubos y placas DYMMSA, issue #59) ---
+
+/** Fila del pedido al proveedor: la necesidad NETA por medida (momento 1). */
+export interface CutRequestRow {
+  material: string
+  measure: string
+  pieces: number
+  /** "1.28 m" (tubos) o "300 mm de tira de 200 mm" / "área 0.13 m²" (placas). */
+  request: string
+}
+
+/**
+ * Excel del pedido de materia prima al proveedor: una fila por medida con lo
+ * que se necesita pedir. Sale de la necesidad neta — no exige conocer las
+ * presentaciones del proveedor.
+ */
+export function generateCutRequestExcel(rows: CutRequestRow[]): Blob {
+  const data: (string | number)[][] = [
+    ['Material', 'Medida', 'Piezas', 'A pedir'],
+    ...rows.map((row) => [row.material, row.measure, row.pieces, row.request]),
+  ]
+
+  const worksheet = XLSX.utils.aoa_to_sheet(data)
+  worksheet['!cols'] = [
+    { wch: 14 }, // Material
+    { wch: 26 }, // Medida
+    { wch: 8 },  // Piezas
+    { wch: 30 }, // A pedir
+  ]
+
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Pedido corte')
+
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+  return new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+}
+
+/**
+ * Descarga el Excel de pedido de material de corte
+ */
+export function downloadCutRequestExcel(blob: Blob, customerName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+
+  const date = formatISODate()
+  const safeName = sanitizeFilename(customerName)
+  link.download = `pedido_corte_${safeName}_${date}.xlsx`
+
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 // --- Lista de compra local (menudeo, ADR-018) ---
 
 /** Fila de la lista de compra local: restos a menudeo + productos sin catálogo. */

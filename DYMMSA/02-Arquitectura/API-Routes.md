@@ -49,6 +49,8 @@
 | `POST` | `/api/orders/auto-learn` | ✅ | Auto-learn manual desde orden (legacy) |
 | `GET` | `/api/orders/[id]/purchase-plan` | ✅ | Plan de compra mayoreo/menudeo (ADR-018): consolida por `catalogKey`, math STD + recomendación al vuelo, casa decisiones guardadas con staleness. Catálogo/settings degradan a defaults |
 | `PUT` | `/api/orders/[id]/purchase-decisions` | ✅ | **Replace-all** del set de decisiones de la orden: normaliza code/brand, pre-flight del CHECK de cobertura, upsert `(order_id, model_code, brand)` ANTES del delete de removidas. 400 en órdenes `completed`/`cancelled` |
+| `GET` | `/api/orders/[id]/cut-plan` | ✅ | Plan de corte (issue #59): `{ order, pieces, candidates, presentations, marginMm }`. Los `numeric` se **coercen a number aquí** (supabase-js los da como string). `candidates` = ítems DYMMSA de la orden (sin separadores) con las medidas nominales `cut_*` del producto para pre-llenar |
+| `PUT` | `/api/orders/[id]/cut-plan` | ✅ | **Replace-all** de la lista de corte (el body es el estado deseado). Espejo del CHECK `cut_piece_shape` con mensajes claros (ADR-009). Sin llave natural para upsert → delete + insert con **restauración** de la lista previa si el insert falla. 400 en `completed`/`cancelled` |
 
 ---
 
@@ -66,6 +68,14 @@
 | `POST` | `/api/brands` | ✅ | Crear marca (normalizada trim+upper; duplicada → 400) |
 | `PATCH` | `/api/brands/[id]` | ✅ | Renombrar marca (normalizado) |
 | `DELETE` | `/api/brands/[id]` | ✅ | **Bloqueado si está en uso** (400 con conteo; FK sin cascade como backstop) |
+
+---
+
+## Corte de material
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `POST` | `/api/material-presentations` | ✅ | Registra la presentación que ofreció el proveedor ("barras de 6 m de Ø30"). Upsert contra el UNIQUE NULLS NOT DISTINCT + refresca `last_used_at` — el catálogo del proveedor **se arma solo con el uso** (issue #59) |
 
 ---
 

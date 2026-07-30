@@ -13,6 +13,7 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  Scissors,
   ShoppingCart,
   Wrench,
 } from '@/components/icons'
@@ -426,6 +427,18 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
                 <ShoppingCart className="size-4" />
                 Compra local — sin catálogo URREA ({visibleLocalGroups.length}
                 {brandFilter !== ALL_BRANDS && ` de ${localGroups.length}`})
+                {/* Los DYMMSA no se compran: se mandan a hacer cortando material. */}
+                {localGroups.some((g) => g.brand === 'DYMMSA') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto"
+                    onClick={() => push(`/dashboard/orders/${order.id}/cutting`)}
+                  >
+                    <Scissors className="mr-2 size-4" />
+                    Planificar corte
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>

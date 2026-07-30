@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import { SETTING_THRESHOLD_MONEY, SETTING_THRESHOLD_PCT } from '@/lib/purchase-plan'
+import { SETTING_CUT_MARGIN_MM } from '@/lib/cut-plan'
 
 /**
  * Configuración key-value (`app_settings`). Sin seeds: los callers mergean
@@ -16,6 +17,8 @@ const SETTING_VALIDATORS: Record<string, (value: unknown) => boolean> = {
   // Fracción del paquete extra — número finito en (0, 1]
   [SETTING_THRESHOLD_PCT]: (v) =>
     typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 1,
+  // Margen de corte por partición (mm) — 0 es legítimo (issue #59)
+  [SETTING_CUT_MARGIN_MM]: (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0,
 }
 
 /** GET /api/settings?keys=a,b — filas crudas (Record key→value). */
