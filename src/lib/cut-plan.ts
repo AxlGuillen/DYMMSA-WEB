@@ -37,6 +37,16 @@ export function resolveCutMargin(settings: Record<string, unknown>): number {
   return Number.isFinite(value) && value >= 0 ? value : DEFAULT_CUT_MARGIN_MM
 }
 
+/**
+ * mm legibles: bajo el metro se queda en mm ("300 mm"); desde 1 m usa metros
+ * con hasta 2 decimales sin ceros de cola ("6 m", "2.5 m", "1.02 m").
+ */
+export function formatMm(mm: number): string {
+  if (mm < 1000) return `${Math.round(mm * 10) / 10} mm`
+  const meters = Math.round((mm / 1000) * 100) / 100
+  return `${meters} m`
+}
+
 // ─── Entradas ──────────────────────────────────────────────────────────
 
 export interface TubePieceInput {

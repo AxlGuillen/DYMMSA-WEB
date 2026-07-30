@@ -87,6 +87,18 @@ describe('PATCH /settings', () => {
     expect((await patch({ settings: { purchase_threshold_pct: 0 } })).status).toBe(400)
   })
 
+  test('cut_margin_mm: 0 es legítimo, negativo se rechaza (issue #59)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'app_settings.upsert': { data: null, error: null } },
+    })
+    expect((await patch({ settings: { cut_margin_mm: 0 } })).status).toBe(200)
+    activeClient = withAuth()
+    expect((await patch({ settings: { cut_margin_mm: -1 } })).status).toBe(400)
+    activeClient = withAuth()
+    expect((await patch({ settings: { cut_margin_mm: '20' } })).status).toBe(400)
+  })
+
   test('happy path: upsert por key y eco del body', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
