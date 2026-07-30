@@ -139,8 +139,14 @@ export function CutPlanner({ data }: CutPlannerProps) {
 
   const tubeDrafts = drafts.filter((d) => d.type === 'tube')
   const plateDrafts = drafts.filter((d) => d.type === 'plate')
-  const validTubes = tubeDrafts.flatMap((d) => (parseTube(d) ? [parseTube(d)!] : []))
-  const validPlates = plateDrafts.flatMap((d) => (parsePlate(d) ? [parsePlate(d)!] : []))
+  const validTubes = tubeDrafts.flatMap((d) => {
+    const piece = parseTube(d)
+    return piece ? [piece] : []
+  })
+  const validPlates = plateDrafts.flatMap((d) => {
+    const piece = parsePlate(d)
+    return piece ? [piece] : []
+  })
   const invalidCount = drafts.length - validTubes.length - validPlates.length
 
   const tubeNeeds = tubeNetNeeds(validTubes, marginMm)
