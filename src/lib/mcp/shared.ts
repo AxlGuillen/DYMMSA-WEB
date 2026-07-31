@@ -3,8 +3,12 @@
  *
  * Los tools reciben el cliente Supabase como parámetro (inyección) para ser
  * testeables con el mock de `tests/helpers/supabase-mock.ts`, igual que los
- * route handlers. En producción siempre es el admin client (service role):
- * la autenticación del MCP es su propia capa (token compartido, ver auth.ts).
+ * route handlers. En producción es un cliente **por request**, construido con
+ * el token OAuth de quien llama (`contextFrom` → `clientForToken`), así que RLS
+ * aplica igual que en la app — sin service_role en el camino MCP (ADR-023).
+ *
+ * Excepción: `src/lib/health.ts` reutiliza estas mismas funciones con el admin
+ * client, porque el health es un endpoint público sin sesión de usuario.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'

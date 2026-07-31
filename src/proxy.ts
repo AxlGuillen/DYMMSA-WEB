@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { isSafeNext } from '@/lib/safe-next'
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -59,7 +61,10 @@ export async function proxy(request: NextRequest) {
       const next = request.nextUrl.searchParams.get('next')
       const url = request.nextUrl.clone()
       url.search = ''
-      if (next?.startsWith('/') && !next.startsWith('//')) {
+      // Solo rutas relativas del mismo origen. Se rechaza `//` y también `/\`:
+      // el navegador normaliza la barra invertida a `/`, así que `/\evil.com`
+      // se convertiría en `//evil.com` — protocol-relative, o sea otro origen.
+      if (isSafeNext(next)) {
         const [nextPath, ...rest] = next.split('?')
         url.pathname = nextPath
         if (rest.length) url.search = `?${rest.join('?')}`
