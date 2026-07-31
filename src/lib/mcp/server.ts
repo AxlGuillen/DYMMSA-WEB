@@ -6,15 +6,18 @@
  * riesgo — primera: create_task. Las que muten el núcleo transaccional
  * (inventario, cotizaciones, órdenes) se diseñan con el usuario antes.
  *
- * Cada tool delega en una función pura de tools/* que recibe el admin client
- * (service role) — la autorización ya ocurrió en el route handler (auth.ts).
+ * Fase 3 (ADR-023): OAuth 2.1 de Supabase. CERO service_role — cada llamada
+ * construye su cliente con el token del request (contextFrom → clientForToken),
+ * así que RLS aplica exactamente como en la app. Los tools no cambiaron de
+ * firma: siguen recibiendo `Db`; solo cambió quién lo fabrica.
  */
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createAdminClient } from '@/lib/supabase/admin'
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { GitHubError } from '@/lib/github'
-import { ToolError } from './shared'
+import { ToolError, type Db } from './shared'
+import { contextFrom } from './context'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats } from './tools/inventory'
@@ -25,10 +28,19 @@ import { getBusinessSummary } from './tools/summary'
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
 
-/** Ejecuta un tool y traduce errores: esperados → mensaje; el resto → genérico. */
-async function run(fn: () => Promise<unknown>): Promise<ToolResult> {
+/** El SDK entrega el AuthInfo validado por withMcpAuth en el extra de cada llamada. */
+type ToolExtra = { authInfo?: AuthInfo }
+
+/**
+ * Ejecuta un tool con el cliente del usuario del request (RLS aplica) y traduce
+ * errores: esperados → mensaje; el resto → genérico (el detalle va al log).
+ * Los tools de GitHub ignoran el `db` — igual pasan por contextFrom, que es la
+ * garantía de que solo un token verificado ejecuta tools.
+ */
+async function run(extra: ToolExtra, fn: (db: Db) => Promise<unknown>): Promise<ToolResult> {
   try {
-    const data = await fn()
+    const { db } = contextFrom(extra.authInfo)
+    const data = await fn(db)
     return { content: [{ type: 'text', text: JSON.stringify(data) }] }
   } catch (e) {
     if (e instanceof ToolError || e instanceof GitHubError) {
@@ -39,12 +51,15 @@ async function run(fn: () => Promise<unknown>): Promise<ToolResult> {
   }
 }
 
+/** Todas las tools menos create_task son de lectura pura. */
+const readOnly = { readOnlyHint: true, openWorldHint: false } as const
+
 const pagination = {
   page: z.number().int().min(1).optional().describe('Página (1-indexada, default 1)'),
   pageSize: z.number().int().min(1).max(100).optional().describe('Resultados por página (default 20, máx 100)'),
 }
 
-const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el asistente)
+export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el asistente)
 
 - **Flujo**: cotización (draft → sent_for_approval → approved/rejected → converted_to_order) → orden (ordered → received → delivered → completed | cancelled).
 - **Separadores** (item_type='separator') son encabezados de sección: nunca cuentan en totales, conteos ni aprobaciones.
@@ -59,8 +74,6 @@ const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el asiste
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
 export function registerDymmsaTools(server: McpServer): void {
-  const db = createAdminClient()
-
   // ─── Resumen ─────────────────────────────────────────────────────────
   server.registerTool(
     'get_business_summary',
@@ -69,8 +82,9 @@ export function registerDymmsaTools(server: McpServer): void {
       description:
         'Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala primero cuando pregunten "¿cómo vamos?" o necesites contexto global.',
       inputSchema: {},
+      annotations: readOnly,
     },
-    () => run(() => getBusinessSummary(db)),
+    (_input, extra) => run(extra, (db) => getBusinessSummary(db)),
   )
 
   // ─── Cotizaciones ────────────────────────────────────────────────────
@@ -85,8 +99,9 @@ export function registerDymmsaTools(server: McpServer): void {
         search: z.string().optional().describe('Busca en nombre de cotización y nombre del cliente'),
         ...pagination,
       },
+      annotations: readOnly,
     },
-    (input) => run(() => listQuotations(db, input)),
+    (input, extra) => run(extra, (db) => listQuotations(db, input)),
   )
 
   server.registerTool(
@@ -96,8 +111,9 @@ export function registerDymmsaTools(server: McpServer): void {
       description:
         'Cotización completa con sus ítems (en orden), totales calculados (total y total de aprobados) y estado de aprobación por ítem. Obtén el id con list_quotations.',
       inputSchema: { id: z.string().describe('UUID de la cotización') },
+      annotations: readOnly,
     },
-    ({ id }) => run(() => getQuotation(db, id)),
+    ({ id }, extra) => run(extra, (db) => getQuotation(db, id)),
   )
 
   server.registerTool(
@@ -106,8 +122,9 @@ export function registerDymmsaTools(server: McpServer): void {
       title: 'Métricas de cotizaciones',
       description: 'Conteo de cotizaciones por estado (draft, sent_for_approval, approved, rejected, converted_to_order).',
       inputSchema: {},
+      annotations: readOnly,
     },
-    () => run(() => getQuotationStats(db)),
+    (_input, extra) => run(extra, (db) => getQuotationStats(db)),
   )
 
   // ─── Órdenes ─────────────────────────────────────────────────────────
@@ -122,8 +139,9 @@ export function registerDymmsaTools(server: McpServer): void {
         search: z.string().optional().describe('Busca en nombre de orden y nombre del cliente'),
         ...pagination,
       },
+      annotations: readOnly,
     },
-    (input) => run(() => listOrders(db, input)),
+    (input, extra) => run(extra, (db) => listOrders(db, input)),
   )
 
   server.registerTool(
@@ -133,8 +151,9 @@ export function registerDymmsaTools(server: McpServer): void {
       description:
         'Orden completa con sus ítems: cantidades (aprobada/en stock/por pedir/recibida), urrea_status por ítem, ubicación en tienda y cuántos ítems siguen pendientes con URREA.',
       inputSchema: { id: z.string().describe('UUID de la orden') },
+      annotations: readOnly,
     },
-    ({ id }) => run(() => getOrder(db, id)),
+    ({ id }, extra) => run(extra, (db) => getOrder(db, id)),
   )
 
   server.registerTool(
@@ -143,8 +162,9 @@ export function registerDymmsaTools(server: McpServer): void {
       title: 'Orden de una cotización',
       description: 'Encuentra la orden vinculada a una cotización convertida (id, nombre y estado), o indica que no existe.',
       inputSchema: { quotation_id: z.string().describe('UUID de la cotización') },
+      annotations: readOnly,
     },
-    ({ quotation_id }) => run(() => getOrderByQuotation(db, quotation_id)),
+    ({ quotation_id }, extra) => run(extra, (db) => getOrderByQuotation(db, quotation_id)),
   )
 
   // ─── Inventario ──────────────────────────────────────────────────────
@@ -159,8 +179,9 @@ export function registerDymmsaTools(server: McpServer): void {
         stockFilter: z.string().optional().describe('all | in_stock | low_stock | sin_stock'),
         ...pagination,
       },
+      annotations: readOnly,
     },
-    (input) => run(() => searchInventory(db, input)),
+    (input, extra) => run(extra, (db) => searchInventory(db, input)),
   )
 
   server.registerTool(
@@ -169,8 +190,9 @@ export function registerDymmsaTools(server: McpServer): void {
       title: 'Métricas de inventario',
       description: 'Salud del inventario: total de SKUs, con stock (>5), stock bajo (1-5) y sin stock.',
       inputSchema: {},
+      annotations: readOnly,
     },
-    () => run(() => getInventoryStats(db)),
+    (_input, extra) => run(extra, (db) => getInventoryStats(db)),
   )
 
   // ─── Catálogo ETM ────────────────────────────────────────────────────
@@ -184,8 +206,9 @@ export function registerDymmsaTools(server: McpServer): void {
         query: z.string().describe('Texto a buscar (ETM, model_code o descripción)'),
         ...pagination,
       },
+      annotations: readOnly,
     },
-    (input) => run(() => searchProducts(db, input)),
+    (input, extra) => run(extra, (db) => searchProducts(db, input)),
   )
 
   // ─── Catálogo URREA ──────────────────────────────────────────────────
@@ -196,8 +219,9 @@ export function registerDymmsaTools(server: McpServer): void {
       description:
         'Consulta el catálogo oficial URREA por código (match exacto, normalizado) o por descripción (parcial, máx 20). Devuelve código, descripción oficial y std (unidades por paquete).',
       inputSchema: { query: z.string().describe('Código URREA o texto de la descripción') },
+      annotations: readOnly,
     },
-    ({ query }) => run(() => searchUrreaCatalog(db, query)),
+    ({ query }, extra) => run(extra, (db) => searchUrreaCatalog(db, query)),
   )
 
   // ─── Tareas ──────────────────────────────────────────────────────────
@@ -212,8 +236,9 @@ export function registerDymmsaTools(server: McpServer): void {
         priority: z.string().optional().describe('low | medium | high | highest'),
         page: z.number().int().min(1).optional().describe('Página (30 por página)'),
       },
+      annotations: readOnly,
     },
-    (input) => run(() => listTasks(input)),
+    (input, extra) => run(extra, () => listTasks(input)),
   )
 
   server.registerTool(
@@ -222,8 +247,9 @@ export function registerDymmsaTools(server: McpServer): void {
       title: 'Detalle de tarea',
       description: 'Una tarea con su descripción, quién la reportó, prioridad, estado y todos sus comentarios.',
       inputSchema: { number: z.number().int().min(1).describe('Número de la tarea (#N)') },
+      annotations: readOnly,
     },
-    ({ number }) => run(() => getTask(number)),
+    ({ number }, extra) => run(extra, () => getTask(number)),
   )
 
   server.registerTool(
@@ -237,8 +263,10 @@ export function registerDymmsaTools(server: McpServer): void {
         description: z.string().optional().describe('Descripción/detalle de la tarea'),
         priority: z.string().optional().describe('low | medium | high | highest'),
       },
+      // Única escritura (ADR-015 Fase 2): sin readOnlyHint a propósito.
+      annotations: { readOnlyHint: false, openWorldHint: false },
     },
-    (input) => run(() => createTask(input)),
+    (input, extra) => run(extra, () => createTask(input)),
   )
 
   // ─── Recurso: reglas de negocio ──────────────────────────────────────

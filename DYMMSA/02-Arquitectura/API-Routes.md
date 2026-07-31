@@ -163,15 +163,20 @@
 
 ---
 
-## MCP interno (`/api/mcp`)
+## MCP remoto (`/api/mcp`, OAuth 2.1)
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `POST` | `/api/mcp` | Bearer `MCP_API_KEY` | Servidor MCP (Streamable HTTP, `mcp-handler`). 13 tools de **solo lectura** sobre todos los módulos + resource `dymmsa://reglas-negocio`. Ruta física: `src/app/api/[transport]/route.ts` (SSE deshabilitado → GET/DELETE responden pero no se usan) |
+| `POST` | `/api/mcp` | **OAuth 2.1 de Supabase** (Bearer JWT con `client_id`) | Servidor MCP (Streamable HTTP, `mcp-handler` + `withMcpAuth`). 13 tools de lectura + `create_task` + resource `dymmsa://reglas-negocio`. Sin token → **401 con `resource_metadata`** (discovery). Ruta física: `src/app/api/[transport]/route.ts` (runtime nodejs, maxDuration 60) |
+| `GET` | `/.well-known/oauth-protected-resource[/...]` | Pública | Metadata RFC 9728 (catch-all: responde también con sufijo `/api/mcp`). Anuncia `authorization_servers` = issuer OAuth de Supabase |
+| `GET` | `/oauth/consent?authorization_id=` | Sesión (detrás del login) | Pantalla de consentimiento del OAuth Server de Supabase; server actions aprueban/deniegan (`auth.oauth.*`) y redirigen al cliente |
 
-> Los tools NO pasan por las rutas de arriba: usan el admin client (service role) con la
-> autenticación del MCP como capa propia (comparación en tiempo constante; sin `MCP_API_KEY`
-> configurada rechaza todo). Tools y arquitectura: [[04-Decisiones-Tecnicas/ADR-015-MCP-Interno]].
+> **Cero service_role en el camino MCP** (ADR-023): cada llamada construye su cliente con
+> el token del request (`clientForToken`, opción `accessToken`) → RLS aplica como en la app.
+> `verifyToken` = `getUser` contra GoTrue + `client_id` en allowlist (`MCP_OAUTH_CLIENT_IDS`);
+> un token de sesión web NO abre el conector. El proxy no intercepta `/api/mcp` ni
+> `/.well-known/*`. Tools: [[04-Decisiones-Tecnicas/ADR-015-MCP-Interno]] · Auth:
+> [[04-Decisiones-Tecnicas/ADR-023-MCP-OAuth]].
 
 ---
 
