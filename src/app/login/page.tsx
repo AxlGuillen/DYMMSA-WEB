@@ -31,7 +31,12 @@ export default function LoginPage() {
     }
 
     toast.success('Sesión iniciada')
-    push('/dashboard')
+    // Honra ?next= (el consentimiento OAuth llega con su authorization_id ahí,
+    // ADR-023). Solo rutas relativas — guard de open-redirect. Se lee de
+    // window.location y no de useSearchParams para no exigir Suspense.
+    const next = new URLSearchParams(window.location.search).get('next')
+    const target = next?.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+    push(target)
     refresh()
   }
 

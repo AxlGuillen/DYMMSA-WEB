@@ -20,6 +20,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getGitHubConfig } from '@/lib/github'
+import { appUrl } from '@/lib/mcp/env'
+import { MCP_PATH, PROTECTED_RESOURCE_PATH, mcpResourceUrl, supabaseAuthIssuer } from '@/lib/mcp/routes'
 import { listQuotations } from '@/lib/mcp/tools/quotations'
 import { listOrders } from '@/lib/mcp/tools/orders'
 import { searchInventory } from '@/lib/mcp/tools/inventory'
@@ -43,6 +45,9 @@ export interface HealthReport {
     inventory: HealthCheck
     storage: HealthCheck
     github: HealthCheck
+    oauth_server: HealthCheck
+    protected_resource: HealthCheck
+    mcp_unauthenticated: HealthCheck
   }
 }
 
@@ -118,24 +123,98 @@ export async function checkGitHub(fetchFn: Fetcher = fetch): Promise<HealthCheck
   })
 }
 
+// ─── Checks del MCP remoto (OAuth, ADR-023) ────────────────────────────
+
+/**
+ * El servidor OAuth de Supabase está encendido (es un toggle beta del
+ * dashboard: si alguien lo apaga, el conector muere sin que cambie el repo).
+ */
+export async function checkOauthServer(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
+  return timed('oauth_server', async () => {
+    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/.well-known/oauth-authorization-server/auth/v1`
+    const res = await fetchFn(url, { cache: 'no-store', signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) })
+    if (!res.ok) throw new Error(`discovery ${res.status}: el servidor OAuth de Supabase está apagado`)
+    const body = (await res.json()) as { issuer?: string }
+    const expected = supabaseAuthIssuer(process.env.NEXT_PUBLIC_SUPABASE_URL!)
+    if (body.issuer !== expected) throw new Error(`issuer inesperado: ${body.issuer}`)
+  })
+}
+
+/** El metadata RFC 9728 propio responde y anuncia la URI canónica del recurso. */
+export async function checkProtectedResource(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
+  return timed('protected_resource', async () => {
+    const res = await fetchFn(`${appUrl()}${PROTECTED_RESOURCE_PATH}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    })
+    if (!res.ok) throw new Error(`metadata ${res.status}`)
+    const body = (await res.json()) as { resource?: string }
+    const expected = mcpResourceUrl(appUrl())
+    if (body.resource !== expected) throw new Error(`resource inesperado: ${body.resource}`)
+  })
+}
+
+/**
+ * El check más valioso: POST /api/mcp SIN token debe dar 401 con
+ * `resource_metadata` en WWW-Authenticate. Atrapa dos fallos silenciosos: un
+ * fail-open (¡200 sin auth!) y un 401 mudo que los conectores no pueden usar
+ * para descubrir el authorization server.
+ */
+export async function checkMcpUnauthenticated(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
+  const start = Date.now()
+  try {
+    const res = await fetchFn(`${appUrl()}${MCP_PATH}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        // Streamable HTTP exige aceptar ambos content types.
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    })
+    if (res.status !== 401) {
+      console.error(`Health check "mcp_unauthenticated" failed: esperaba 401, dio ${res.status}`)
+      return { status: 'fail' }
+    }
+    const header = res.headers.get('www-authenticate') ?? ''
+    if (!header.includes('resource_metadata')) {
+      console.error('Health check "mcp_unauthenticated" failed: el 401 no trae resource_metadata')
+      return { status: 'fail' }
+    }
+    return { status: 'ok', latency_ms: Date.now() - start }
+  } catch (e) {
+    console.error('Health check "mcp_unauthenticated" failed:', e)
+    return { status: 'fail' }
+  }
+}
+
 // ─── Agregación ────────────────────────────────────────────────────────
 
 export async function runHealthChecks(deps: {
   db: SupabaseClient
   fetchFn?: Fetcher
 }): Promise<HealthReport> {
-  const [quotations, orders, inventory, storage, github] = await Promise.all([
-    checkQuotations(deps.db),
-    checkOrders(deps.db),
-    checkInventory(deps.db),
-    checkStorage(deps.db),
-    checkGitHub(deps.fetchFn ?? fetch),
-  ])
+  const fetchFn = deps.fetchFn ?? fetch
+  const [quotations, orders, inventory, storage, github, oauthServer, protectedResource, mcpUnauthenticated] =
+    await Promise.all([
+      checkQuotations(deps.db),
+      checkOrders(deps.db),
+      checkInventory(deps.db),
+      checkStorage(deps.db),
+      checkGitHub(fetchFn),
+      checkOauthServer(fetchFn),
+      checkProtectedResource(fetchFn),
+      checkMcpUnauthenticated(fetchFn),
+    ])
 
   // down = algún módulo de negocio no puede operar; degraded = módulos
-  // secundarios (Tareas/imágenes) afectados pero el negocio sigue. skip no penaliza.
+  // secundarios (Tareas/imágenes/conector MCP) afectados pero el negocio sigue.
+  // skip no penaliza.
   let status: HealthReport['status'] = 'ok'
-  if (storage.status === 'fail' || github.status === 'fail') status = 'degraded'
+  const secondary = [storage, github, oauthServer, protectedResource, mcpUnauthenticated]
+  if (secondary.some((c) => c.status === 'fail')) status = 'degraded'
   if (quotations.status === 'fail' || orders.status === 'fail' || inventory.status === 'fail') {
     status = 'down'
   }
@@ -145,6 +224,15 @@ export async function runHealthChecks(deps: {
     app: 'dymmsa-web',
     version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
     timestamp: new Date().toISOString(),
-    checks: { quotations, orders, inventory, storage, github },
+    checks: {
+      quotations,
+      orders,
+      inventory,
+      storage,
+      github,
+      oauth_server: oauthServer,
+      protected_resource: protectedResource,
+      mcp_unauthenticated: mcpUnauthenticated,
+    },
   }
 }

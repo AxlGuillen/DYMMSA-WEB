@@ -5,6 +5,15 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-07-31
 
+### Mejorado
+- **El asistente de IA ahora se conecta con tu propia cuenta.** Antes la conexión de
+  Claude con el sistema usaba una clave compartida del equipo; ahora cada quien la
+  autoriza **iniciando sesión con su usuario de DYMMSA** en una pantalla de
+  autorización, igual que cuando conectas una app con tu cuenta de Google. Con esto ya
+  se puede usar el asistente también **desde el celular y claude.ai**, el acceso se
+  puede **revocar** en cualquier momento, y el asistente ve exactamente lo mismo que tú
+  ves en el sistema — ni más ni menos.
+
 ### Nuevo
 - **Planificar corte: el nuevo módulo para los productos DYMMSA que se mandan a hacer.**
   En las órdenes con piezas DYMMSA (tubos y placas de cobre) aparece el botón
