@@ -19,11 +19,18 @@ export interface OverviewStep {
 /**
  * El sidebar existe DOS veces en el DOM (drawer móvil + aside de desktop) y
  * varias secciones son condicionales: se resuelve el primer match VISIBLE.
- * `checkVisibility` no existe en jsdom (tests) → ahí cuenta solo existir.
+ * Las opciones extienden el chequeo a `visibility` y `opacity` (por default
+ * solo cubre display/content-visibility — review PR #62). `checkVisibility`
+ * no existe en jsdom (tests) → ahí cuenta solo existir.
  */
 function resolveVisible(selector: string): Element | null {
   for (const el of document.querySelectorAll(selector)) {
-    if (typeof el.checkVisibility !== 'function' || el.checkVisibility()) return el
+    if (
+      typeof el.checkVisibility !== 'function' ||
+      el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+    ) {
+      return el
+    }
   }
   return null
 }
