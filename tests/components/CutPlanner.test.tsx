@@ -10,11 +10,17 @@ import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
 import { CutPlanner } from '@/components/orders/CutPlanner'
 import { CutBarDiagram } from '@/components/orders/CutBarDiagram'
+import { CUT_PLANNER_TOUR } from '@/lib/tours/cut-planner'
 import type { CutPlanResponse } from '@/hooks/useCutPlan'
 
 const saveMut = vi.hoisted(() => vi.fn())
 const presMut = vi.hoisted(() => vi.fn())
 const settingsMut = vi.hoisted(() => vi.fn())
+const driveMock = vi.hoisted(() => vi.fn())
+const driverMock = vi.hoisted(() => vi.fn(() => ({ drive: driveMock })))
+
+vi.mock('driver.js', () => ({ driver: driverMock }))
+vi.mock('driver.js/dist/driver.css', () => ({}))
 
 vi.mock('@/hooks/useCutPlan', () => ({
   useSaveCutPlan: () => ({ mutateAsync: saveMut, isPending: false }),
@@ -144,6 +150,31 @@ describe('CutPlanner', () => {
     await user.clear(screen.getByLabelText(/Margen por corte/))
     await user.type(screen.getByLabelText(/Margen por corte/), '30')
     expect(screen.queryByText('Barra 2')).not.toBeInTheDocument()
+  })
+
+  test('vista guiada: todos los selectores del tour existen en la página (anti-drift)', () => {
+    // Si un data-tour se renombra o se borra en el componente, este test
+    // truena ANTES de que el paso desaparezca del tour en silencio.
+    renderWithProviders(<CutPlanner data={data()} />)
+    for (const step of CUT_PLANNER_TOUR) {
+      expect(document.querySelector(step.selector), step.selector).not.toBeNull()
+    }
+  })
+
+  test('vista guiada: el botón arranca driver.js solo con los bloques presentes', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<CutPlanner data={data()} />)
+
+    await user.click(screen.getByRole('button', { name: /vista guiada/i }))
+
+    expect(driveMock).toHaveBeenCalledOnce()
+    const config = driverMock.mock.calls[0][0]
+    // Con el fixture completo (candidato + tubos + placa) están los 8 bloques,
+    // cada paso con su ELEMENTO ya resuelto (no el selector).
+    expect(config.steps.map((s: { element: Element }) => s.element)).toEqual(
+      CUT_PLANNER_TOUR.map((s) => document.querySelector(s.selector)),
+    )
+    expect(config.doneBtnText).toBe('Listo')
   })
 
   test('agregar candidato DYMMSA pre-llena con las medidas nominales', async () => {

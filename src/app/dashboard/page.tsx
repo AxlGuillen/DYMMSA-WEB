@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics'
+import { TourButton } from '@/components/tours/TourButton'
 import { Button } from '@/components/ui/button'
 import { CalendarDays, PlusCircle, FileText, ShoppingCart } from '@/components/icons'
 
@@ -39,6 +40,7 @@ export default async function DashboardPage() {
 
         {/* Quick actions */}
         <div className="flex flex-wrap gap-2">
+          <TourButton tour="dashboard" />
           <Button asChild size="sm" variant="outline">
             <Link href="/dashboard/quoter">
               <PlusCircle className="mr-1.5 size-3.5" />

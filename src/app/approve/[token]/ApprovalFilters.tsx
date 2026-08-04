@@ -40,7 +40,7 @@ export function ApprovalFilters({
   const active = hasActiveFilters(filters)
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2" data-tour="approval-filters">
       {brands.length > 1 && (
         <Select
           value={filters.brand}

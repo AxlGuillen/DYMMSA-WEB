@@ -33,7 +33,8 @@ export function ApprovalDock({
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center px-4">
-      <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-3 rounded-[26px] border border-border/70 bg-card/85 px-4 py-3 shadow-2xl backdrop-blur-2xl sm:rounded-full sm:px-5">
+      {/* data-tour en la píldora (no en el wrapper full-width invisible). */}
+      <div data-tour="approval-dock" className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-3 rounded-[26px] border border-border/70 bg-card/85 px-4 py-3 shadow-2xl backdrop-blur-2xl sm:rounded-full sm:px-5">
         {/* Anillo de progreso + conteo */}
         <div className="flex items-center gap-3">
           <div

@@ -42,6 +42,7 @@ import {
 } from '@/lib/cut-plan'
 import { CutBarDiagram } from '@/components/orders/CutBarDiagram'
 import { CutStripDiagram } from '@/components/orders/CutStripDiagram'
+import { TourButton } from '@/components/tours/TourButton'
 import type { CutMaterialType, CutPlanPiece } from '@/types/database'
 
 interface CutPlannerProps {
@@ -413,7 +414,8 @@ export function CutPlanner({ data }: CutPlannerProps) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <div className="flex items-center gap-2">
+          <TourButton tour="cut-planner" />
+          <div data-tour="cut-margin" className="flex items-center gap-2">
             <Label htmlFor="cut-margin" className="text-xs text-muted-foreground">
               Margen por corte (mm)
             </Label>
@@ -424,19 +426,21 @@ export function CutPlanner({ data }: CutPlannerProps) {
               onBlur={handleMarginBlur}
             />
           </div>
-          <Button variant="outline" size="sm" onClick={handleExportRequest}>
-            <Download className="mr-2 size-4" />
-            Excel pedido
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            Imprimir
-          </Button>
+          <div data-tour="cut-actions" className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={handleExportRequest}>
+              <Download className="mr-2 size-4" />
+              Excel pedido
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              Imprimir
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Candidatos DYMMSA de la orden */}
       {!isReadOnly && candidates.length > 0 && (
-        <Card className="print:hidden">
+        <Card data-tour="cut-candidates" className="print:hidden">
           <CardHeader>
             <CardTitle className="text-base">
               Piezas DYMMSA de la orden ({candidates.length})
@@ -475,7 +479,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
       )}
 
       {/* Lista de corte: tubos */}
-      <Card>
+      <Card data-tour="cut-tubes">
         <CardHeader className="print:hidden">
           <CardTitle className="text-base">Lista de corte — tubos ({tubeDrafts.length})</CardTitle>
         </CardHeader>
@@ -495,7 +499,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
       </Card>
 
       {/* Lista de corte: placas */}
-      <Card>
+      <Card data-tour="cut-plates">
         <CardHeader className="print:hidden">
           <CardTitle className="text-base">Lista de corte — placas ({plateDrafts.length})</CardTitle>
         </CardHeader>
@@ -532,7 +536,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
         const bars = manual && manual.sig === sig ? manual.bars : autoBars
 
         return (
-          <Card key={`tube-${diameterKey}`}>
+          <Card key={`tube-${diameterKey}`} data-tour="cut-group-tube">
             <CardHeader>
               <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                 Ø{group.diameterMm} mm
@@ -631,7 +635,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
           : null
 
         return (
-          <Card key={`plate-${thicknessKey}`}>
+          <Card key={`plate-${thicknessKey}`} data-tour="cut-group-plate">
             <CardHeader>
               <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                 Placa {group.thicknessMm} mm
@@ -692,7 +696,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
               <span className="text-amber-600"> · {invalidCount} incompleta{invalidCount !== 1 ? 's' : ''}</span>
             )}
           </p>
-          <Button onClick={handleSave} disabled={isReadOnly || saveCutPlan.isPending}>
+          <Button data-tour="cut-save" onClick={handleSave} disabled={isReadOnly || saveCutPlan.isPending}>
             {saveCutPlan.isPending ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
