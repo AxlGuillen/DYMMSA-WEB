@@ -130,6 +130,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 - **API Routes:** usar `createClient()` de `@supabase/ssr` + verificar `auth.getUser()` al inicio.
 - **Páginas:** Server Components por defecto; `"use client"` solo donde hay interactividad.
 - **Zustand store:** `dymmsa-quotation-draft` en localStorage. Llamar `reset()` al guardar exitosamente. Otras keys persistidas: `dymmsa-columns` (columnas ocultas por tabla, issue #18 — vía `useVisibleColumns` + `ColumnPicker`), `dymmsa-column-widths` (anchos arrastrados por tabla, issue #55 — vía `useColumnWidths` + `ResizableHead`; solo guarda lo que el usuario ajustó, el resto sale del `width` declarado en la columna), `dymmsa-sidebar-collapsed`, `dymmsa-sound`, `dymmsa-discrete-mode`.
+- **Vistas guiadas:** driver.js con propósito de **overview** (explican los bloques de la pantalla, no paso-a-paso). Config compartida en `src/lib/tours/index.ts` (`startOverview`, español, filtra pasos ausentes); pasos por módulo en `src/lib/tours/<modulo>.ts` anclados a atributos **`data-tour="..."`** (nunca clases). Cada página con tour: botón "Vista guiada" (`CircleHelp`) + **test anti-drift** que verifica que todos los selectores existen con el fixture completo. Tema en `globals.css` (`.driver-popover.dymmsa-tour`). Ver ADR-024. Primer módulo: corte (`cut-planner.ts`).
 - **Iconos:** importar desde `@/components/icons` (animados, `@animateicons/react`), **no** de `lucide-react` directo. El adaptador (`src/components/icons.tsx`) reexpone los nombres de lucide mapeados a su versión animada — o a una **relacionada** si la librería (248 iconos curados) no tiene el exacto — y traduce las clases `size-N`/`h-N` al prop `size`. Agregar un icono nuevo = añadir su export ahí.
 - **Sin comentarios obvios.** Solo comentar WHY cuando no es evidente.
 
@@ -235,7 +236,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 |--------|---------------------|
 | Nueva o modificada **ruta API** | `DYMMSA/02-Arquitectura/API-Routes.md` |
 | Nueva **tabla o columna** en Supabase | `DYMMSA/02-Arquitectura/Base-de-Datos.md` (verificar con MCP Supabase) + este CLAUDE.md |
-| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-023) |
+| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-024) |
 | Nueva lógica de negocio o **route handler** | Agregar/actualizar su test en `tests/` (ver `ADR-007-Estrategia-Testing.md`) |
 | **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
