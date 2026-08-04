@@ -92,7 +92,7 @@ export function DashboardMetrics() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="dash-metrics">
       {/* Date filter */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Segmented control */}

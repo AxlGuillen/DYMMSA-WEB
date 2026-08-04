@@ -9,7 +9,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
   Download,
   Loader2,
   Plus,
@@ -43,8 +42,7 @@ import {
 } from '@/lib/cut-plan'
 import { CutBarDiagram } from '@/components/orders/CutBarDiagram'
 import { CutStripDiagram } from '@/components/orders/CutStripDiagram'
-import { startOverview } from '@/lib/tours'
-import { CUT_PLANNER_TOUR } from '@/lib/tours/cut-planner'
+import { TourButton } from '@/components/tours/TourButton'
 import type { CutMaterialType, CutPlanPiece } from '@/types/database'
 
 interface CutPlannerProps {
@@ -416,14 +414,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <Button
-            variant="ghost" size="sm"
-            aria-label="Vista guiada"
-            onClick={() => startOverview(CUT_PLANNER_TOUR)}
-          >
-            <CircleHelp className="mr-2 size-4" />
-            Vista guiada
-          </Button>
+          <TourButton tour="cut-planner" />
           <div data-tour="cut-margin" className="flex items-center gap-2">
             <Label htmlFor="cut-margin" className="text-xs text-muted-foreground">
               Margen por corte (mm)

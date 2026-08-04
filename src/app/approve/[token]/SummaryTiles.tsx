@@ -15,7 +15,7 @@ export function SummaryTiles({ customerName, createdAt, productCount, subtotal }
     'font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground'
 
   return (
-    <div className="grid gap-4 sm:grid-cols-[1.7fr_1fr_1fr]">
+    <div className="grid gap-4 sm:grid-cols-[1.7fr_1fr_1fr]" data-tour="approval-summary">
       <div className={tile}>
         <div className={`${label} mb-2`}>Cliente</div>
         <div className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">

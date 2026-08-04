@@ -41,12 +41,15 @@ export const CUT_PLANNER_TOUR: OverviewStep[] = [
     title: 'Margen por corte',
     description:
       'Los mm que se come cada corte de sierra (se cobra por partición). Cambiarlo recalcula todos los acomodos y queda guardado como ajuste global del sistema.',
+    // En el header: abajo explícito para no tapar la barra de acciones (PR #62).
+    side: 'bottom',
   },
   {
     selector: '[data-tour="cut-actions"]',
     title: 'Excel e impresión',
     description:
       '<b>Excel pedido</b> genera el archivo para el proveedor con la necesidad neta por medida. <b>Imprimir</b> saca los diagramas de corte en limpio para el taller.',
+    side: 'bottom',
   },
   {
     selector: '[data-tour="cut-save"]',

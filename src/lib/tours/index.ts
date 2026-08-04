@@ -4,7 +4,8 @@ import 'driver.js/dist/driver.css'
 /**
  * Vistas guiadas (issue #52, ADR-024) — driver.js con propósito de OVERVIEW:
  * explican qué es cada bloque de la pantalla y cómo se conecta con el resto,
- * no un paso-a-paso de captura. Cada módulo define sus pasos apuntando a
+ * no un paso-a-paso de captura. Siempre opcionales: se lanzan con el botón
+ * "Vista guiada", nunca solas. Cada módulo define sus pasos apuntando a
  * atributos `data-tour="..."` (no a clases: el estilo cambia, el ancla no).
  */
 export interface OverviewStep {
@@ -16,12 +17,27 @@ export interface OverviewStep {
 }
 
 /**
+ * El sidebar existe DOS veces en el DOM (drawer móvil + aside de desktop) y
+ * varias secciones son condicionales: se resuelve el primer match VISIBLE.
+ * `checkVisibility` no existe en jsdom (tests) → ahí cuenta solo existir.
+ */
+function resolveVisible(selector: string): Element | null {
+  for (const el of document.querySelectorAll(selector)) {
+    if (typeof el.checkVisibility !== 'function' || el.checkVisibility()) return el
+  }
+  return null
+}
+
+/**
  * Arranca la vista guiada con los bloques que SÍ están en pantalla: las
- * secciones condicionales (candidatos ya consumidos, diagramas sin capturar)
- * simplemente se saltan en vez de mostrar un popover huérfano al centro.
+ * secciones condicionales (candidatos ya consumidos, filtros de una página
+ * read-only) simplemente se saltan en vez de mostrar un popover huérfano.
  */
 export function startOverview(steps: OverviewStep[]) {
-  const present = steps.filter((step) => document.querySelector(step.selector))
+  const present = steps.flatMap((step) => {
+    const element = resolveVisible(step.selector)
+    return element ? [{ step, element }] : []
+  })
   if (present.length === 0) return
 
   driver({
@@ -34,8 +50,8 @@ export function startOverview(steps: OverviewStep[]) {
     stagePadding: 6,
     stageRadius: 8,
     popoverClass: 'dymmsa-tour',
-    steps: present.map((step) => ({
-      element: step.selector,
+    steps: present.map(({ step, element }) => ({
+      element,
       popover: {
         title: step.title,
         description: step.description,

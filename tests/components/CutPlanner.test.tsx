@@ -169,9 +169,10 @@ describe('CutPlanner', () => {
 
     expect(driveMock).toHaveBeenCalledOnce()
     const config = driverMock.mock.calls[0][0]
-    // Con el fixture completo (candidato + tubos + placa) están los 8 bloques.
-    expect(config.steps.map((s: { element: string }) => s.element)).toEqual(
-      CUT_PLANNER_TOUR.map((s) => s.selector),
+    // Con el fixture completo (candidato + tubos + placa) están los 8 bloques,
+    // cada paso con su ELEMENTO ya resuelto (no el selector).
+    expect(config.steps.map((s: { element: Element }) => s.element)).toEqual(
+      CUT_PLANNER_TOUR.map((s) => document.querySelector(s.selector)),
     )
     expect(config.doneBtnText).toBe('Listo')
   })

@@ -26,9 +26,9 @@ La página de corte tiene MUCHO contenido condicional (candidatos que se consume
 
 ## Infraestructura
 
-- `src/lib/tours/index.ts` — `startOverview(steps)`: config compartida en español (Siguiente/Anterior/Listo, progreso "N de M", `popoverClass: 'dymmsa-tour'`) + filtro de pasos ausentes.
-- `src/lib/tours/<modulo>.ts` — pasos por módulo (`OverviewStep[]`). Primer módulo: `cut-planner.ts` (8 bloques).
-- **Anclas por `data-tour="..."`**, nunca clases CSS: el estilo cambia, el ancla no. Cada página con tour lleva un botón "Vista guiada" (icono `CircleHelp`).
+- `src/lib/tours/index.ts` — `startOverview(steps)`: config compartida en español (Siguiente/Anterior/Listo, progreso "N de M", `popoverClass: 'dymmsa-tour'`) + resolución del primer match **visible** por selector (`checkVisibility`; en jsdom basta existir). Esto importa porque el sidebar vive DOS veces en el DOM (drawer móvil + aside desktop) y hay secciones condicionales — los pasos ausentes se saltan.
+- `src/lib/tours/<modulo>.ts` — pasos por módulo (`OverviewStep[]`). Tours actuales (los 3 flujos a enseñar): **`dashboard.ts`** (sidebar sección por sección + panel de inicio — lo que ve alguien al entrar), **`cut-planner.ts`** (planificador de corte, 8 bloques) y **`approval.ts`** (página pública del cliente; tono sin jerga interna).
+- **Anclas por `data-tour="..."`**, nunca clases CSS: el estilo cambia, el ancla no. Cada página con tour coloca `<TourButton tour="…" />` (`src/components/tours/TourButton.tsx`, client) — resuelve los pasos por id, así las páginas server lo montan sin pasar funciones. **Los tours son siempre opcionales**: solo el botón los lanza, nunca arrancan solos.
 - Tema: overrides en `globals.css` sobre `.driver-popover.dymmsa-tour` usando los tokens (`--popover`, `--border`, `--secondary`) → respeta light/dark.
 - **Test anti-drift obligatorio** por módulo: renderizar la página con fixture completo y asegurar que TODOS los selectores del tour existen (si alguien renombra un `data-tour`, el test truena antes de que el paso desaparezca en silencio).
 
@@ -36,4 +36,4 @@ La página de corte tiene MUCHO contenido condicional (candidatos que se consume
 
 - Agregar un tour nuevo = un archivo de pasos + atributos `data-tour` + botón + test anti-drift. Sin tocar el árbol de providers.
 - Los textos viven en el código (español, con `<b>` permitido — driver.js renderiza HTML en la descripción). Solo contenido propio, nunca input del usuario.
-- Queda para después (si se necesita): auto-arranque en primera visita por módulo (localStorage) y tours para planificador de compra, cotizador e inventario.
+- Queda para después (si se necesita): auto-arranque en primera visita por módulo (localStorage) y tours para planificador de compra, cotizador e inventario. Por ahora la decisión explícita es que sean **opcionales, no obligatorios**.

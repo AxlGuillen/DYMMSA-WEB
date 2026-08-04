@@ -6,12 +6,16 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-08-04
 
 ### Nuevo
-- **Vista guiada en Planificar corte.** Arriba a la derecha de la página de corte hay
-  un botón **"Vista guiada"** que recorre la pantalla bloque por bloque y explica qué
-  hace cada uno: de dónde salen las piezas, qué significa la necesidad por diámetro,
-  en qué momento aparece el dibujo del acomodo y qué guarda el sistema. Ideal para
-  conocer el módulo la primera vez sin miedo a moverle. Es la primera pantalla con
-  vista guiada; se irán agregando a los demás módulos.
+- **Vistas guiadas en el sistema.** Aparece un botón **"Vista guiada"** en tres
+  pantallas clave que recorre los bloques y explica qué hace cada uno. Son totalmente
+  opcionales — solo arrancan si tocas el botón:
+  - **Inicio**: presenta el menú lateral sección por sección (el flujo principal,
+    los catálogos, inventario, recursos) y el panel de métricas — ideal para
+    alguien que entra al sistema por primera vez.
+  - **Planificar corte**: de dónde salen las piezas, qué significa la necesidad por
+    diámetro, en qué momento aparece el dibujo del acomodo y qué guarda el sistema.
+  - **Página de aprobación** (la que ve el cliente): el resumen, los filtros, cómo
+    aprobar producto por producto y la diferencia entre guardar avance y enviar.
 
 ## 2026-07-31
 
