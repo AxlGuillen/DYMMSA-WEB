@@ -398,7 +398,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
   )
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start gap-4 print:hidden">
         <Button
@@ -685,9 +685,12 @@ export function CutPlanner({ data }: CutPlannerProps) {
         )
       })}
 
-      {/* Footer sticky */}
-      <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden">
-        <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-3">
+      {/* Footer sticky. `sticky` (no `fixed`): vive DENTRO de la columna de
+          contenido, así respeta el ancho del sidebar (fixed abarcaba todo el
+          viewport y el texto quedaba oculto tras el menú expandido). Los
+          márgenes negativos lo hacen full-bleed sobre el padding del main. */}
+      <div className="sticky bottom-0 z-30 -mx-4 -mb-6 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-8 md:-mb-8 print:hidden">
+        <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-8">
           <p className="text-sm text-muted-foreground">
             {validTubes.length + validPlates.length} pieza
             {validTubes.length + validPlates.length !== 1 ? 's' : ''} lista

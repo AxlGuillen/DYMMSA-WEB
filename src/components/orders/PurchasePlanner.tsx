@@ -307,7 +307,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start gap-4">
         <Button
@@ -482,9 +482,12 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
         </>
       )}
 
-      {/* Footer sticky */}
-      <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="flex items-center justify-between gap-4 px-6 py-3 max-w-screen-2xl mx-auto">
+      {/* Footer sticky. `sticky` (no `fixed`): vive DENTRO de la columna de
+          contenido, así respeta el ancho del sidebar (fixed abarcaba todo el
+          viewport y el texto quedaba oculto tras el menú expandido). Los
+          márgenes negativos lo hacen full-bleed sobre el padding del main. */}
+      <div className="sticky bottom-0 z-30 -mx-4 -mb-6 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-8 md:-mb-8">
+        <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-8">
           <p className="text-sm text-muted-foreground">
             {mathGroups.length - pendingCount} de {mathGroups.length} grupos decididos
             {pendingCount > 0 && (
