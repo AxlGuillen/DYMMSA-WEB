@@ -83,6 +83,8 @@ import {
 } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL } from '@/hooks/useColumnWidths'
+import { ResizableHead } from '@/components/ResizableHead'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import {
   calculateDeliveredTotal,
@@ -386,22 +388,23 @@ export function OrderDetail({ order }: OrderDetailProps) {
   // con la orden abierta; ETM y Acciones son fijas.
   const isOrderActive = order.status !== 'completed' && order.status !== 'cancelled'
   const itemColumns = useMemo<TableColumn[]>(() => [
-    { id: 'etm', label: 'ETM', hideable: false },
-    { id: 'model_code', label: 'Model Code' },
-    { id: 'brand', label: 'Marca' },
-    { id: 'description', label: 'Descripción' },
-    { id: 'qty_approved', label: 'Aprobados' },
-    { id: 'qty_in_stock', label: 'En Stock' },
-    { id: 'location', label: 'Ubicación' },
-    { id: 'qty_to_order', label: 'A Pedir' },
-    { id: 'qty_received', label: 'Recibidos' },
-    { id: 'urrea_status', label: 'Estado de envío' },
-    { id: 'delivery', label: 'Tiempo Entrega' },
-    { id: 'unit_price', label: 'Precio' },
-    { id: 'total', label: 'Total' },
-    ...(isOrderActive ? [{ id: 'actions', label: 'Acciones', hideable: false }] : []),
+    { id: 'etm', label: 'ETM', hideable: false, width: 120 },
+    { id: 'model_code', label: 'Model Code', width: 130 },
+    { id: 'brand', label: 'Marca', width: 110 },
+    { id: 'description', label: 'Descripción', width: 220 },
+    { id: 'qty_approved', label: 'Aprobados', width: 100 },
+    { id: 'qty_in_stock', label: 'En Stock', width: 100 },
+    { id: 'location', label: 'Ubicación', width: 120 },
+    { id: 'qty_to_order', label: 'A Pedir', width: 100 },
+    { id: 'qty_received', label: 'Recibidos', width: 110 },
+    { id: 'urrea_status', label: 'Estado de envío', width: 160 },
+    { id: 'delivery', label: 'Tiempo Entrega', width: 150 },
+    { id: 'unit_price', label: 'Precio', width: 120 },
+    { id: 'total', label: 'Total', width: 120 },
+    ...(isOrderActive ? [{ id: 'actions', label: 'Acciones', hideable: false, width: 100 }] : []),
   ], [isOrderActive])
   const cols = useVisibleColumns('order-detail-items', itemColumns)
+  const widths = useColumnWidths('order-detail-items', itemColumns)
   const isCancelled = order.status === 'cancelled'
   const isCompleted = order.status === 'completed'
 
@@ -738,24 +741,24 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </CardHeader>
         <CardContent>
           <div className="rounded-md border overflow-auto">
-            <Table>
+            <Table className={RESIZABLE_TABLE_CLASS}>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ETM</TableHead>
-                  {cols.isVisible('model_code') && <TableHead>Model Code</TableHead>}
-                  {cols.isVisible('brand') && <TableHead>Marca</TableHead>}
-                  {cols.isVisible('description') && <TableHead className="max-w-[200px]">Descripción</TableHead>}
-                  {cols.isVisible('qty_approved') && <TableHead className="text-right">Aprobados</TableHead>}
-                  {cols.isVisible('qty_in_stock') && <TableHead className="text-right">En Stock</TableHead>}
-                  {cols.isVisible('location') && <TableHead>Ubicación</TableHead>}
-                  {cols.isVisible('qty_to_order') && <TableHead className="text-right">A Pedir</TableHead>}
-                  {cols.isVisible('qty_received') && <TableHead className="text-right">Recibidos</TableHead>}
-                  {cols.isVisible('urrea_status') && <TableHead>Estado de envío</TableHead>}
-                  {cols.isVisible('delivery') && <TableHead>Tiempo Entrega</TableHead>}
-                  {cols.isVisible('unit_price') && <TableHead className="text-right">Precio</TableHead>}
-                  {cols.isVisible('total') && <TableHead className="text-right">Total</TableHead>}
+                  <ResizableHead id="etm" label="ETM" widths={widths} />
+                  {cols.isVisible('model_code') && <ResizableHead id="model_code" label="Model Code" widths={widths} />}
+                  {cols.isVisible('brand') && <ResizableHead id="brand" label="Marca" widths={widths} />}
+                  {cols.isVisible('description') && <ResizableHead id="description" label="Descripción" widths={widths} />}
+                  {cols.isVisible('qty_approved') && <ResizableHead id="qty_approved" label="Aprobados" widths={widths} className="text-right" />}
+                  {cols.isVisible('qty_in_stock') && <ResizableHead id="qty_in_stock" label="En Stock" widths={widths} className="text-right" />}
+                  {cols.isVisible('location') && <ResizableHead id="location" label="Ubicación" widths={widths} />}
+                  {cols.isVisible('qty_to_order') && <ResizableHead id="qty_to_order" label="A Pedir" widths={widths} className="text-right" />}
+                  {cols.isVisible('qty_received') && <ResizableHead id="qty_received" label="Recibidos" widths={widths} className="text-right" />}
+                  {cols.isVisible('urrea_status') && <ResizableHead id="urrea_status" label="Estado de envío" widths={widths} />}
+                  {cols.isVisible('delivery') && <ResizableHead id="delivery" label="Tiempo Entrega" widths={widths} />}
+                  {cols.isVisible('unit_price') && <ResizableHead id="unit_price" label="Precio" widths={widths} className="text-right" />}
+                  {cols.isVisible('total') && <ResizableHead id="total" label="Total" widths={widths} className="text-right" />}
                   {!isCompleted && !isCancelled && (
-                    <TableHead className="text-center">Acciones</TableHead>
+                    <ResizableHead id="actions" label="Acciones" widths={widths} className="text-center" sticky />
                   )}
                 </TableRow>
               </TableHeader>
@@ -782,12 +785,14 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   const canEditUrreaStatus = isOrderOpen && hasUrreaOrder
 
                   return (
-                    <TableRow key={item.id}>
+                    // Fondos OPACOS: la columna fija de acciones los hereda con
+                    // `bg-inherit`, y con alfa se vería el contenido pasando debajo.
+                    <TableRow key={item.id} className="bg-background hover:bg-muted">
                       <TableCell className="font-mono text-sm">{item.etm}</TableCell>
                       {cols.isVisible('model_code') && <TableCell>{item.model_code}</TableCell>}
                       {cols.isVisible('brand') && <TableCell>{item.brand || '—'}</TableCell>}
                       {cols.isVisible('description') && (
-                        <TableCell className="max-w-[200px] text-sm break-words whitespace-normal">
+                        <TableCell className="text-sm break-words whitespace-normal">
                           {item.description}
                         </TableCell>
                       )}
@@ -961,7 +966,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                         </TableCell>
                       )}
                       {isOrderOpen && (
-                        <TableCell>
+                        <TableCell className={STICKY_ACTIONS_CELL}>
                           <div className="flex items-center justify-center gap-1">
                             <Button
                               size="icon" variant="ghost" className="size-7"
