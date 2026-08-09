@@ -3,6 +3,14 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-08-09
+
+### Nuevo
+- **Vista guiada en Planificar compra.** La pantalla más densa del sistema ya tiene su
+  botón **"Vista guiada"**: recorre los cuatro números del resumen, los umbrales que
+  mueven la recomendación, cómo leer cada grupo (mayoreo / mixto / menudeo y el dinero
+  que queda parado), la compra local y por qué los Excel salen de lo guardado.
+
 ## 2026-08-08
 
 ### Mejorado
