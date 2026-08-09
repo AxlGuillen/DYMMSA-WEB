@@ -170,3 +170,19 @@ describe('OrderDetail — recepción con excedente', () => {
     expect(confirmAsync).not.toHaveBeenCalled()
   })
 })
+
+describe('OrderDetail — columnas redimensionables (issue #55)', () => {
+  beforeEach(() => resetStores())
+
+  test('la tabla de ítems trae manija de ajuste en sus columnas', () => {
+    renderWithProviders(<OrderDetail order={order([orderItem()])} />)
+    expect(screen.getByLabelText('Ajustar ancho de Descripción')).toBeInTheDocument()
+    expect(screen.getByLabelText('Ajustar ancho de Acciones')).toBeInTheDocument()
+  })
+
+  test('Acciones queda fija a la derecha (no se va con el scroll lateral)', () => {
+    renderWithProviders(<OrderDetail order={order([orderItem()])} />)
+    const header = screen.getByRole('columnheader', { name: /Acciones/ })
+    expect(header.className).toContain('sticky')
+  })
+})
