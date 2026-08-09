@@ -3,6 +3,19 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-08-08
+
+### Mejorado
+- **Columnas ajustables también en Cotizaciones y Órdenes.** El arrastre del borde
+  del encabezado —que ya estaba en Base de datos, Inventario, Catálogo URREA y
+  Proveedores— llega a las **cuatro pantallas que faltaban**: la lista de
+  cotizaciones, el detalle de una cotización, la lista de órdenes y el detalle de
+  una orden. Funciona igual: arrastras para ensanchar, cada tabla recuerda tus
+  anchos y doble click en el borde regresa la columna a su tamaño original.
+- **Los botones de acción ya no se pierden al ensanchar.** En esas mismas cuatro
+  pantallas la última columna queda **fija a la derecha**, así que editar, eliminar
+  o insertar separador siguen a la vista aunque muevas la tabla de lado.
+
 ## 2026-08-04
 
 ### Nuevo
