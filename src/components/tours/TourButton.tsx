@@ -6,11 +6,13 @@ import { startOverview, type OverviewStep } from '@/lib/tours'
 import { CUT_PLANNER_TOUR } from '@/lib/tours/cut-planner'
 import { DASHBOARD_TOUR } from '@/lib/tours/dashboard'
 import { APPROVAL_TOUR } from '@/lib/tours/approval'
+import { PURCHASE_PLANNER_TOUR } from '@/lib/tours/purchase-planner'
 
 const TOURS = {
   dashboard: DASHBOARD_TOUR,
   'cut-planner': CUT_PLANNER_TOUR,
   approval: APPROVAL_TOUR,
+  'purchase-planner': PURCHASE_PLANNER_TOUR,
 } satisfies Record<string, OverviewStep[]>
 
 export type TourId = keyof typeof TOURS

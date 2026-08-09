@@ -42,6 +42,7 @@ import {
 import { useCurrency } from '@/hooks/useCurrency'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { ColumnPicker } from '@/components/ColumnPicker'
+import { TourButton } from '@/components/tours/TourButton'
 import { usePurchasePlan, useSavePurchaseDecisions, type PurchasePlanResponse } from '@/hooks/usePurchasePlan'
 import { useUpdateSettings } from '@/hooks/useSettings'
 import {
@@ -343,6 +344,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <TourButton tour="purchase-planner" />
           {brandOptions.length > 1 && (
             <Select value={brandFilter} onValueChange={setBrandFilter}>
               <SelectTrigger size="sm" className="w-auto min-w-[150px]">
@@ -362,6 +364,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             variant="outline"
             size="sm"
             onClick={() => setFlatView((v) => !v)}
+            data-tour="plan-view-toggle"
           >
             {flatView ? 'Vista agrupada' : 'Vista plana'}
           </Button>
@@ -387,7 +390,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       ) : (
         <>
           {/* Grupos con matemática (URREA + sin precio) */}
-          <Card>
+          <Card data-tour="plan-groups">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Package className="size-4" />
@@ -421,7 +424,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
           </Card>
 
           {/* Compra local (sin catálogo) */}
-          <Card>
+          <Card data-tour="plan-local">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShoppingCart className="size-4" />
@@ -488,7 +491,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
               <span className="text-amber-600"> · {pendingCount} por revisar</span>
             )}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tour="plan-actions">
             <Button
               variant="outline"
               onClick={handleDownloadUrrea}
@@ -518,6 +521,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             <Button
               onClick={handleSave}
               disabled={isReadOnly || saveDecisions.isPending || mathGroups.length === 0}
+              data-tour="plan-save"
             >
               {saveDecisions.isPending ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
@@ -574,7 +578,7 @@ function PlanOverview({
   const pieces = (n: number) => `${n} pz${n !== 1 ? 's' : ''}`
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-tour="plan-summary">
       <OverviewCard
         tone="parked"
         label="Dinero parado"
@@ -641,6 +645,8 @@ function GroupRow({
     <div
       className={`rounded-md border p-3 space-y-2 transition-colors ${CHOICE_ROW_CLASS[choice ?? 'undecided']}`}
       data-group-key={group.key}
+      // El ancla se repite por grupo; resolveVisible toma el primero (ADR-024).
+      data-tour="plan-group"
     >
       {/* Línea principal */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -905,7 +911,7 @@ function ThresholdsPopover({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" data-tour="plan-thresholds">
           <Wrench className="mr-2 size-4" />
           Umbrales
         </Button>
