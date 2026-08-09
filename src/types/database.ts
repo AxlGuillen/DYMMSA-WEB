@@ -13,18 +13,83 @@ export interface EtmProduct {
   price: number
   brand: string
   is_sold: boolean | null // tri-state: null = sin definir, true = lo vendemos, false = no lo vendemos
+  // Medidas nominales de corte (issue #59, solo productos DYMMSA que se mandan
+  // a hacer). SOLO pre-llenan la lista de corte; la verdad de cada plan vive en
+  // cut_plan_pieces. Unidades en mm.
+  cut_kind: CutMaterialType | null
+  cut_diameter_mm: number | null
+  cut_thickness_mm: number | null
+  cut_width_mm: number | null
+  cut_length_mm: number | null
   created_at: string
   updated_at: string
   created_by: string | null
 }
 
-// Insert types (without auto-generated fields). is_sold y dymmsa_description son
-// opcionales: las columnas admiten NULL por defecto, así que los inserts que no
-// las especifican son válidos.
+// Insert types (without auto-generated fields). is_sold, dymmsa_description y
+// las medidas de corte son opcionales: las columnas admiten NULL por defecto,
+// así que los inserts que no las especifican son válidos.
 export type EtmProductInsert =
-  Omit<EtmProduct, 'id' | 'created_at' | 'updated_at' | 'is_sold' | 'dymmsa_description'> &
-  { is_sold?: boolean | null; dymmsa_description?: string | null }
+  Omit<
+    EtmProduct,
+    | 'id' | 'created_at' | 'updated_at' | 'is_sold' | 'dymmsa_description'
+    | 'cut_kind' | 'cut_diameter_mm' | 'cut_thickness_mm' | 'cut_width_mm' | 'cut_length_mm'
+  > &
+  {
+    is_sold?: boolean | null
+    dymmsa_description?: string | null
+    cut_kind?: CutMaterialType | null
+    cut_diameter_mm?: number | null
+    cut_thickness_mm?: number | null
+    cut_width_mm?: number | null
+    cut_length_mm?: number | null
+  }
 export type EtmProductUpdate = Partial<Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>>
+
+// ─── Módulo de corte (issue #59) ─────────────────────────────────────────
+// Tubos y placas DYMMSA que se mandan a hacer. Unidades SIEMPRE en mm.
+
+export type CutMaterialType = 'tube' | 'plate'
+
+/**
+ * Pieza de la lista de corte de una orden. La forma depende del tipo (CHECK en
+ * BD): tubo → `diameter_mm`; placa → `thickness_mm` + `width_mm`. Ambos usan
+ * `length_mm` como la longitud pedida.
+ */
+export interface CutPlanPiece {
+  id: string
+  order_id: string
+  material_type: CutMaterialType
+  diameter_mm: number | null
+  thickness_mm: number | null
+  width_mm: number | null
+  length_mm: number
+  quantity: number
+  /** Lo que pidió el cliente originalmente (registro del match con la medida usada). */
+  requested_label: string | null
+  source_item_id: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export type CutPlanPieceInsert = Omit<CutPlanPiece, 'id' | 'created_at' | 'updated_at'>
+
+/**
+ * Presentación de materia prima del proveedor ("barras de 6 m de Ø30").
+ * Catálogo que se arma solo: se guarda cada presentación capturada al planificar.
+ */
+export interface MaterialPresentation {
+  id: string
+  material_type: CutMaterialType
+  diameter_mm: number | null
+  thickness_mm: number | null
+  width_mm: number | null
+  /** Largo comercial de la barra / tira. */
+  length_mm: number
+  last_used_at: string
+  created_at: string
+}
 
 // Excel row type for import
 export interface ExcelProductRow {

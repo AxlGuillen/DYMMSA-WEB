@@ -9,7 +9,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -29,18 +28,20 @@ import { useDeleteOrder } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL } from '@/hooks/useColumnWidths'
+import { ResizableHead } from '@/components/ResizableHead'
 import type { OrderWithCount } from '@/types/database'
 
 // Columnas de la lista (issue #18). Nombre y acciones son fijas.
 export const ORDERS_COLUMNS: readonly TableColumn[] = [
-  { id: 'odoo_id', label: 'Odoo ID' },
-  { id: 'name', label: 'Nombre', hideable: false },
-  { id: 'customer', label: 'Cliente' },
-  { id: 'status', label: 'Estado' },
-  { id: 'items_count', label: 'Ítems' },
-  { id: 'total', label: 'Total' },
-  { id: 'created_at', label: 'Fecha' },
-  { id: 'actions', label: 'Acciones', hideable: false },
+  { id: 'odoo_id', label: 'Odoo ID', width: 120 },
+  { id: 'name', label: 'Nombre', hideable: false, width: 240 },
+  { id: 'customer', label: 'Cliente', width: 200 },
+  { id: 'status', label: 'Estado', width: 150 },
+  { id: 'items_count', label: 'Ítems', width: 80 },
+  { id: 'total', label: 'Total', width: 120 },
+  { id: 'created_at', label: 'Fecha', width: 140 },
+  { id: 'actions', label: 'Acciones', hideable: false, width: 90 },
 ]
 
 interface OrdersTableProps {
@@ -54,19 +55,20 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
   const deleteOrder = useDeleteOrder()
   const fmt = useCurrency()
   const cols = useVisibleColumns('orders-list', ORDERS_COLUMNS)
+  const widths = useColumnWidths('orders-list', ORDERS_COLUMNS)
 
   // Header compartido entre skeleton y tabla real (guards escritos una vez).
   const tableHeaders = (
     <TableHeader>
       <TableRow>
-        {cols.isVisible('odoo_id') && <TableHead>Odoo ID</TableHead>}
-        <TableHead>Nombre</TableHead>
-        {cols.isVisible('customer') && <TableHead>Cliente</TableHead>}
-        {cols.isVisible('status') && <TableHead>Estado</TableHead>}
-        {cols.isVisible('items_count') && <TableHead className="text-center">Ítems</TableHead>}
-        {cols.isVisible('total') && <TableHead className="text-right">Total</TableHead>}
-        {cols.isVisible('created_at') && <TableHead>Fecha</TableHead>}
-        <TableHead />
+        {cols.isVisible('odoo_id') && <ResizableHead id="odoo_id" label="Odoo ID" widths={widths} />}
+        <ResizableHead id="name" label="Nombre" widths={widths} />
+        {cols.isVisible('customer') && <ResizableHead id="customer" label="Cliente" widths={widths} />}
+        {cols.isVisible('status') && <ResizableHead id="status" label="Estado" widths={widths} />}
+        {cols.isVisible('items_count') && <ResizableHead id="items_count" label="Ítems" widths={widths} className="text-center" />}
+        {cols.isVisible('total') && <ResizableHead id="total" label="Total" widths={widths} className="text-right" />}
+        {cols.isVisible('created_at') && <ResizableHead id="created_at" label="Fecha" widths={widths} />}
+        <ResizableHead id="actions" label="Acciones" widths={widths} className="text-center" sticky />
       </TableRow>
     </TableHeader>
   )
@@ -84,12 +86,12 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
 
   if (isLoading) {
     return (
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {[...Array(5)].map((_, i) => (
-              <TableRow key={i}>
+              <TableRow key={i} className="bg-background">
                 {cols.isVisible('odoo_id') && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
                 <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                 {cols.isVisible('customer') && <TableCell><Skeleton className="h-4 w-32" /></TableCell>}
@@ -97,7 +99,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
                 {cols.isVisible('items_count') && <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>}
                 {cols.isVisible('total') && <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
                 {cols.isVisible('created_at') && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
-                <TableCell />
+                <TableCell className={STICKY_ACTIONS_CELL} />
               </TableRow>
             ))}
           </TableBody>
@@ -127,14 +129,16 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
 
   return (
     <>
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {orders.map((order) => (
               <TableRow
                 key={order.id}
-                className="group cursor-pointer hover:bg-muted/50"
+                // Fondos OPACOS: la columna fija de acciones los hereda con
+                // `bg-inherit`, y con alfa se vería el contenido pasando debajo.
+                className="group cursor-pointer bg-background hover:bg-muted"
                 onClick={() => push(`/dashboard/orders/${order.id}`)}
               >
                 {cols.isVisible('odoo_id') && (
@@ -173,7 +177,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
                     {formatRelative(order.created_at)}
                   </TableCell>
                 )}
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell className={`${STICKY_ACTIONS_CELL} text-center`} onClick={(e) => e.stopPropagation()}>
                   <Button
                     type="button"
                     size="icon"

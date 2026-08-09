@@ -51,6 +51,11 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['tests/components/**/*.test.{ts,tsx}'],
           setupFiles: ['tests/components/setup.ts'],
+          // Los flujos con userEvent (ProductModal, QuotationDetail, aprobación)
+          // tardan 4-5s de por sí y rozaban el default de 5s: al crecer la suite
+          // empezaron a fallar de forma intermitente por carga, no por lógica.
+          // Con holgura el resultado deja de depender de qué más corra en paralelo.
+          testTimeout: 20_000,
         },
       },
     ],

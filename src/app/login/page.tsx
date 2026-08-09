@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Loader2 } from '@/components/icons'
+import { isSafeNext } from '@/lib/safe-next'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -31,7 +32,12 @@ export default function LoginPage() {
     }
 
     toast.success('Sesión iniciada')
-    push('/dashboard')
+    // Honra ?next= (el consentimiento OAuth llega con su authorization_id ahí,
+    // ADR-023). El guard de open-redirect vive en isSafeNext, compartido con el
+    // proxy. Se lee de window.location y no de useSearchParams para no exigir
+    // Suspense.
+    const next = new URLSearchParams(window.location.search).get('next')
+    push(isSafeNext(next) ? next : '/dashboard')
     refresh()
   }
 

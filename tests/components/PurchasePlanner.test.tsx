@@ -10,6 +10,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
 import { PurchasePlanner } from '@/components/orders/PurchasePlanner'
+import { PURCHASE_PLANNER_TOUR } from '@/lib/tours/purchase-planner'
 import {
   buildPurchasePlan,
   DEFAULT_PURCHASE_THRESHOLDS,
@@ -21,9 +22,18 @@ import type { OrderPurchaseDecision } from '@/types/database'
 
 const saveMutateAsync = vi.hoisted(() => vi.fn())
 const settingsMutateAsync = vi.hoisted(() => vi.fn())
+const refetchPlan = vi.hoisted(() => vi.fn(async () => ({ data: undefined })))
+const driveMock = vi.hoisted(() => vi.fn())
+const driverMock = vi.hoisted(() => vi.fn(() => ({ drive: driveMock })))
+
+vi.mock('driver.js', () => ({ driver: driverMock }))
+vi.mock('driver.js/dist/driver.css', () => ({}))
 
 vi.mock('@/hooks/usePurchasePlan', () => ({
   useSavePurchaseDecisions: () => ({ mutateAsync: saveMutateAsync, isPending: false }),
+  // El popover de umbrales refetchea el plan para contar cuántas
+  // recomendaciones cambiaron (issue #54).
+  usePurchasePlan: () => ({ refetch: refetchPlan }),
 }))
 vi.mock('@/hooks/useSettings', () => ({
   useUpdateSettings: () => ({ mutateAsync: settingsMutateAsync, isPending: false }),
@@ -151,6 +161,36 @@ describe('PurchasePlanner', () => {
     ])
   })
 
+  // El filtro por marca (issue #53) es SOLO visual. Este test cubre el contador
+  // y el mensaje de vacío: ambos se leían de las listas completas y mostraban
+  // "(1 de )" y una card sin filas ni texto al filtrar.
+  test('filtrar por marca acota las cards, con contador y mensaje propios', async () => {
+    const user = userEvent.setup()
+    const data = makeData(
+      [
+        item({ model_code: 'URR-1', brand: 'URREA' }),
+        item({ model_code: 'SUR-1', brand: 'SURTEK' }),
+        // Fuera del catálogo → compra local, y de otra marca que la filtrada.
+        item({ model_code: 'FUERA-1', brand: 'URREA' }),
+      ],
+      {
+        'URREA|URR-1': { std: 10, description: null },
+        'SURTEK|SUR-1': { std: 10, description: null },
+      },
+    )
+    renderWithProviders(<PurchasePlanner data={data} />)
+
+    expect(screen.getByText('Candidatos a pedido URREA (2)')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('combobox')[0])
+    await user.click(screen.getByRole('option', { name: 'SURTEK' }))
+
+    // El total no se pierde: "1 de 2", nunca "1 de ".
+    expect(screen.getByText(/Candidatos a pedido URREA \(1 de 2\)/)).toBeInTheDocument()
+    // Y la sección sin coincidencias explica por qué está vacía.
+    expect(screen.getByText(/Nada de compra local para la marca SURTEK/)).toBeInTheDocument()
+  })
+
   test('vista plana lista las líneas de origen read-only', async () => {
     const user = userEvent.setup()
     const data = makeData(
@@ -169,5 +209,39 @@ describe('PurchasePlanner', () => {
     expect(screen.getByText('Sección A')).toBeInTheDocument()
     expect(screen.getByText('Sección B')).toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  })
+
+  /**
+   * Fixture con los 8 bloques del tour presentes: un grupo con matemática
+   * (URR-1 en catálogo) y un grupo de compra local (LOC-1 fuera de él).
+   */
+  const tourData = () =>
+    makeData(
+      [item(), item({ model_code: 'LOC-1', brand: 'TRUPER', etm: 'ETM-2' })],
+      { 'URREA|URR-1': { std: 10, description: null } },
+    )
+
+  test('vista guiada: todos los selectores del tour existen en la página (anti-drift)', () => {
+    // Si un data-tour se renombra o se borra en el componente, este test
+    // truena ANTES de que el paso desaparezca del tour en silencio.
+    renderWithProviders(<PurchasePlanner data={tourData()} />)
+    for (const step of PURCHASE_PLANNER_TOUR) {
+      expect(document.querySelector(step.selector), step.selector).not.toBeNull()
+    }
+  })
+
+  test('vista guiada: el botón arranca driver.js con los bloques presentes', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<PurchasePlanner data={tourData()} />)
+
+    await user.click(screen.getByRole('button', { name: /vista guiada/i }))
+
+    expect(driveMock).toHaveBeenCalledOnce()
+    const config = driverMock.mock.calls[0][0]
+    // Cada paso con su ELEMENTO ya resuelto (no el selector).
+    expect(config.steps.map((s: { element: Element }) => s.element)).toEqual(
+      PURCHASE_PLANNER_TOUR.map((s) => document.querySelector(s.selector)),
+    )
+    expect(config.doneBtnText).toBe('Listo')
   })
 })

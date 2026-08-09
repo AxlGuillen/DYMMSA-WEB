@@ -17,6 +17,11 @@ export interface TableColumn {
   label: string
   /** false = siempre visible y fuera del picker (acciones, drag, identificador). */
   hideable?: boolean
+  /**
+   * Ancho por defecto en px para tablas redimensionables (issue #55). No se
+   * persiste: es el valor del que parte el arrastre y al que vuelve el reset.
+   */
+  width?: number
 }
 
 /**

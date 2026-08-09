@@ -111,3 +111,20 @@ describe('QuotationDetail — aprobación de items', () => {
     expect(Array.isArray(payload.items)).toBe(true)
   })
 })
+
+describe('QuotationDetail — columnas redimensionables (issue #55)', () => {
+  beforeEach(() => resetStores())
+
+  test('las columnas ordenables también traen manija (el arrastre no dispara el orden)', () => {
+    renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
+    expect(screen.getByLabelText('Ajustar ancho de Descripción')).toBeInTheDocument()
+    expect(screen.getByLabelText('Ajustar ancho de Precio unit.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Ajustar ancho de Entrega')).toBeInTheDocument()
+  })
+
+  test('Acciones queda fija a la derecha cuando la cotización es editable', () => {
+    renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
+    const header = screen.getByRole('columnheader', { name: /Acciones/ })
+    expect(header.className).toContain('sticky')
+  })
+})

@@ -13,6 +13,7 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  Scissors,
   ShoppingCart,
   Wrench,
 } from '@/components/icons'
@@ -24,6 +25,13 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -34,15 +42,18 @@ import {
 import { useCurrency } from '@/hooks/useCurrency'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { ColumnPicker } from '@/components/ColumnPicker'
-import { useSavePurchaseDecisions, type PurchasePlanResponse } from '@/hooks/usePurchasePlan'
+import { TourButton } from '@/components/tours/TourButton'
+import { usePurchasePlan, useSavePurchaseDecisions, type PurchasePlanResponse } from '@/hooks/usePurchasePlan'
 import { useUpdateSettings } from '@/hooks/useSettings'
 import {
   applyChoice,
+  summarizePlanDecisions,
   SETTING_THRESHOLD_MONEY,
   SETTING_THRESHOLD_PCT,
   type PurchaseChoice,
   type PurchaseGroupPlan,
   type PurchaseThresholds,
+  type PurchasePlanTotals,
 } from '@/lib/purchase-plan'
 import type { LocalPurchaseRow } from '@/lib/excel/generator'
 
@@ -69,6 +80,21 @@ const RECOMMENDATION_BADGE: Record<
   review: { label: 'Revisar', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' },
 }
 
+/**
+ * Fondo sutil por decisión, para leer de un vistazo cómo quedó repartida la
+ * compra. Mismos colores que los badges de recomendación (verde mayoreo, azul
+ * mixto, ámbar por decidir) y opacidad baja: tiñe sin competir con el texto.
+ */
+const CHOICE_ROW_CLASS: Record<PurchaseChoice | 'undecided', string> = {
+  wholesale: 'bg-green-500/5 border-green-500/30',
+  mixed: 'bg-blue-500/5 border-blue-500/30',
+  retail: 'bg-orange-500/5 border-orange-500/30',
+  undecided: 'bg-amber-500/10 border-amber-500/40',
+}
+
+/** Valor del selector cuando no se filtra por marca (issue #53). */
+const ALL_BRANDS = '__all__'
+
 // Columnas de la vista plana (issue #18). Código es la identidad del grupo.
 const FLAT_COLUMNS: readonly TableColumn[] = [
   { id: 'section', label: 'Sección' },
@@ -90,15 +116,38 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
   const [overrides, setOverrides] = useState<Record<string, PurchaseChoice>>({})
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [flatView, setFlatView] = useState(false)
+  const [brandFilter, setBrandFilter] = useState<string>(ALL_BRANDS)
+  const [isDownloadingUrrea, setIsDownloadingUrrea] = useState(false)
+  const [isDownloadingLocal, setIsDownloadingLocal] = useState(false)
 
   const mathGroups = plan.groups.filter((g) => g.bucket !== 'local')
   const localGroups = plan.groups.filter((g) => g.bucket === 'local')
   const isReadOnly = ['completed', 'cancelled'].includes(order.status)
 
+  /**
+   * Filtro por marca (issue #53). Es SOLO VISUAL: guardar, los totales y ambos
+   * Excel siguen corriendo sobre `mathGroups`/`localGroups` completos. Filtrar
+   * lo que se descarga produciría un pedido incompleto sin avisar.
+   */
+  // `filter(Boolean)` es defensivo: hoy `normalizeCatalogBrand` nunca devuelve
+  // vacío (cae a URREA), pero un `SelectItem` con value="" hace que Radix lance
+  // y tumbe la página — no vale la pena depender de esa invariante remota.
+  const brandOptions = [...new Set(plan.groups.map((g) => g.brand))].filter(Boolean).sort()
+  const visibleMathGroups =
+    brandFilter === ALL_BRANDS ? mathGroups : mathGroups.filter((g) => g.brand === brandFilter)
+  const visibleLocalGroups =
+    brandFilter === ALL_BRANDS ? localGroups : localGroups.filter((g) => g.brand === brandFilter)
+  const visibleGroups =
+    brandFilter === ALL_BRANDS ? plan.groups : plan.groups.filter((g) => g.brand === brandFilter)
+
   const effectiveChoice = (group: PurchaseGroupPlan): PurchaseChoice | null =>
     overrides[group.key] ?? savedChoice(group) ?? group.recommendation?.suggested ?? null
 
   const pendingCount = mathGroups.filter((g) => !effectiveChoice(g)).length
+
+  // Resumen económico de lo decidido AHORA (incluye overrides sin guardar), para
+  // que el efecto de mover una decisión se vea al instante.
+  const totals = summarizePlanDecisions(plan.groups, effectiveChoice)
 
   const toggleExpanded = (key: string) => {
     setExpanded((prev) => {
@@ -109,14 +158,9 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
     })
   }
 
-  const handleSave = async () => {
-    if (pendingCount > 0) {
-      toast.error(
-        `Falta decidir ${pendingCount} grupo${pendingCount !== 1 ? 's' : ''} marcado${pendingCount !== 1 ? 's' : ''} como "Revisar".`,
-      )
-      return
-    }
-    const decisions = mathGroups.map((group) => {
+  /** Payload de decisiones a partir de las elecciones efectivas en pantalla. */
+  const buildDecisions = () =>
+    mathGroups.map((group) => {
       const split = applyChoice(group.math!, effectiveChoice(group)!)
       return {
         model_code: group.modelCode,
@@ -127,11 +171,92 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
         qty_retail: split.qtyRetail,
       }
     })
+
+  /**
+   * Hay algo por guardar si la elección en pantalla no coincide con lo
+   * persistido — incluye grupos sin decisión previa y decisiones marcadas
+   * stale (cambió la cantidad o el STD del catálogo desde que se decidió).
+   */
+  const isDirty = mathGroups.some((group) => {
+    const choice = effectiveChoice(group)
+    if (!choice) return true
+    const split = applyChoice(group.math!, choice)
+    const saved = group.decision
+    return (
+      !saved ||
+      saved.isStale ||
+      saved.packages_wholesale !== split.packagesWholesale ||
+      saved.qty_retail !== split.qtyRetail
+    )
+  })
+
+  const missingDecisionsMessage = () =>
+    `Falta decidir ${pendingCount} grupo${pendingCount !== 1 ? 's' : ''} marcado${pendingCount !== 1 ? 's' : ''} como "Revisar".`
+
+  const handleSave = async () => {
+    if (pendingCount > 0) {
+      toast.error(missingDecisionsMessage())
+      return
+    }
     try {
-      await saveDecisions.mutateAsync(decisions)
+      await saveDecisions.mutateAsync(buildDecisions())
       toast.success('Decisiones de compra guardadas')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al guardar las decisiones')
+    }
+  }
+
+  /**
+   * Excel de pedido URREA (mayoreo). El archivo debe reflejar lo GUARDADO
+   * (ADR-018), así que si hay cambios en pantalla se persisten primero y
+   * luego se genera — en un solo paso, sin mandar al usuario a guardar aparte.
+   */
+  const handleDownloadUrrea = async () => {
+    if (pendingCount > 0) {
+      toast.error(missingDecisionsMessage())
+      return
+    }
+    // En una orden cerrada no se puede guardar, así que el archivo sale
+    // EXCLUSIVAMENTE de lo persistido: `effectiveChoice` caería en la
+    // recomendación de un grupo que quizá nunca se decidió, y eso no
+    // corresponde a la orden.
+    const rows = isReadOnly
+      ? mathGroups.flatMap((group) => {
+          const saved = group.decision
+          return saved && saved.packages_wholesale > 0
+            ? [{
+                code: saved.model_code,
+                pieces: saved.packages_wholesale * saved.std_snapshot,
+              }]
+            : []
+        })
+      : mathGroups.flatMap((group) => {
+          const { packagesWholesale } = applyChoice(group.math!, effectiveChoice(group)!)
+          return packagesWholesale > 0
+            ? [{ code: group.modelCode, pieces: packagesWholesale * group.math!.std }]
+            : []
+        })
+    if (rows.length === 0) {
+      toast.info('Ninguna decisión manda piezas a URREA (todo quedó en menudeo)')
+      return
+    }
+
+    setIsDownloadingUrrea(true)
+    try {
+      if (isDirty && !isReadOnly) {
+        await saveDecisions.mutateAsync(buildDecisions())
+      }
+      // Carga diferida: xlsx/jszip solo bajan al generar el pedido.
+      const { generateUrreaOrderExcel, downloadUrreaOrder } = await import('@/lib/excel/generator')
+      const blob = await generateUrreaOrderExcel(rows)
+      downloadUrreaOrder(blob, order.customer_name)
+      toast.success(
+        `Pedido URREA descargado (${rows.length} productos)${isDirty ? ' · decisiones guardadas' : ''}`,
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al generar el pedido URREA')
+    } finally {
+      setIsDownloadingUrrea(false)
     }
   }
 
@@ -168,6 +293,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       toast.info('No hay nada para compra local')
       return
     }
+    setIsDownloadingLocal(true)
     try {
       // Carga diferida: xlsx solo baja al exportar la lista de compra local.
       const { generateLocalPurchaseExcel, downloadLocalPurchaseExcel } = await import('@/lib/excel/generator')
@@ -175,11 +301,13 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       toast.success(`Lista de compra local descargada (${rows.length} filas)`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo exportar la lista de compra local')
+    } finally {
+      setIsDownloadingLocal(false)
     }
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start gap-4">
         <Button
@@ -216,17 +344,34 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ThresholdsPopover thresholds={plan.thresholds} />
+          <TourButton tour="purchase-planner" />
+          {brandOptions.length > 1 && (
+            <Select value={brandFilter} onValueChange={setBrandFilter}>
+              <SelectTrigger size="sm" className="w-auto min-w-[150px]">
+                <SelectValue placeholder="Todas las marcas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_BRANDS}>Todas las marcas</SelectItem>
+                {brandOptions.map((b) => (
+                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <ThresholdsPopover thresholds={plan.thresholds} orderId={order.id} groups={plan.groups} />
           {flatView && <ColumnPicker tableId="purchase-planner-flat" columns={FLAT_COLUMNS} />}
           <Button
             variant="outline"
             size="sm"
             onClick={() => setFlatView((v) => !v)}
+            data-tour="plan-view-toggle"
           >
             {flatView ? 'Vista agrupada' : 'Vista plana'}
           </Button>
         </div>
       </div>
+
+      <PlanOverview totals={totals} fmt={fmt} />
 
       {plan.orphanDecisions.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
@@ -241,24 +386,27 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       )}
 
       {flatView ? (
-        <FlatLinesTable groups={plan.groups} fmt={fmt} />
+        <FlatLinesTable groups={visibleGroups} fmt={fmt} />
       ) : (
         <>
           {/* Grupos con matemática (URREA + sin precio) */}
-          <Card>
+          <Card data-tour="plan-groups">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Package className="size-4" />
-                Candidatos a pedido URREA ({mathGroups.length})
+                Candidatos a pedido URREA ({visibleMathGroups.length}
+                {brandFilter !== ALL_BRANDS && ` de ${mathGroups.length}`})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mathGroups.length === 0 && (
+              {visibleMathGroups.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Ningún producto a pedir cruza con el catálogo URREA.
+                  {mathGroups.length === 0
+                    ? 'Ningún producto a pedir cruza con el catálogo URREA.'
+                    : `Ningún candidato de la marca ${brandFilter}.`}
                 </p>
               )}
-              {mathGroups.map((group) => (
+              {visibleMathGroups.map((group) => (
                 <GroupRow
                   key={group.key}
                   group={group}
@@ -276,17 +424,32 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
           </Card>
 
           {/* Compra local (sin catálogo) */}
-          <Card>
+          <Card data-tour="plan-local">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShoppingCart className="size-4" />
-                Compra local — sin catálogo URREA ({localGroups.length})
+                Compra local — sin catálogo URREA ({visibleLocalGroups.length}
+                {brandFilter !== ALL_BRANDS && ` de ${localGroups.length}`})
+                {/* Los DYMMSA no se compran: se mandan a hacer cortando material. */}
+                {localGroups.some((g) => g.brand === 'DYMMSA') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto"
+                    onClick={() => push(`/dashboard/orders/${order.id}/cutting`)}
+                  >
+                    <Scissors className="mr-2 size-4" />
+                    Planificar corte
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {localGroups.length === 0 ? (
+              {visibleLocalGroups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Todos los productos a pedir están en el catálogo URREA.
+                  {localGroups.length === 0
+                    ? 'Todos los productos a pedir están en el catálogo URREA.'
+                    : `Nada de compra local para la marca ${brandFilter}.`}
                 </p>
               ) : (
                 <Table>
@@ -299,7 +462,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {localGroups.map((group) => (
+                    {visibleLocalGroups.map((group) => (
                       <TableRow key={group.key}>
                         <TableCell className="font-mono text-sm">
                           {group.modelCode || group.lines[0]?.modelCodeRaw || '—'}
@@ -319,23 +482,49 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
         </>
       )}
 
-      {/* Footer sticky */}
-      <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="flex items-center justify-between gap-4 px-6 py-3 max-w-screen-2xl mx-auto">
+      {/* Footer sticky. `sticky` (no `fixed`): vive DENTRO de la columna de
+          contenido, así respeta el ancho del sidebar (fixed abarcaba todo el
+          viewport y el texto quedaba oculto tras el menú expandido). Los
+          márgenes negativos lo hacen full-bleed sobre el padding del main. */}
+      <div className="sticky bottom-0 z-30 -mx-4 -mb-6 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-8 md:-mb-8">
+        <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-8">
           <p className="text-sm text-muted-foreground">
             {mathGroups.length - pendingCount} de {mathGroups.length} grupos decididos
             {pendingCount > 0 && (
               <span className="text-amber-600"> · {pendingCount} por revisar</span>
             )}
           </p>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportLocal}>
-              <Download className="mr-2 size-4" />
-              Exportar compra local
+          <div className="flex items-center gap-2" data-tour="plan-actions">
+            <Button
+              variant="outline"
+              onClick={handleDownloadUrrea}
+              disabled={isDownloadingUrrea || saveDecisions.isPending || mathGroups.length === 0}
+              title="Formato .xlsm de pedido a URREA (piezas en múltiplos de STD)"
+            >
+              {isDownloadingUrrea ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 size-4" />
+              )}
+              Pedido URREA (mayoreo)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportLocal}
+              disabled={isDownloadingLocal}
+              title="Excel con los restos a menudeo y lo que no está en el catálogo"
+            >
+              {isDownloadingLocal ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 size-4" />
+              )}
+              Compra local (menudeo)
             </Button>
             <Button
               onClick={handleSave}
               disabled={isReadOnly || saveDecisions.isPending || mathGroups.length === 0}
+              data-tour="plan-save"
             >
               {saveDecisions.isPending ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
@@ -347,6 +536,80 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Mini-overview económico ────────────────────────────────────────────
+
+function OverviewCard({
+  label, value, hint, tone,
+}: {
+  label: string
+  value: string
+  hint?: string
+  tone: 'neutral' | 'parked' | 'saved'
+}) {
+  const toneClass =
+    tone === 'parked'
+      ? 'text-amber-700 dark:text-amber-400'
+      : tone === 'saved'
+        ? 'text-green-700 dark:text-green-400'
+        : 'text-foreground'
+
+  return (
+    <div className="rounded-lg border bg-card px-4 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`mt-0.5 text-xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+/**
+ * Lectura rápida del plan: qué se está parando, qué se evitó parar y cómo
+ * queda repartida la compra. Refleja las decisiones EN PANTALLA (incluidas las
+ * no guardadas) para que mover una opción se sienta de inmediato.
+ */
+function PlanOverview({
+  totals,
+  fmt,
+}: {
+  totals: PurchasePlanTotals
+  fmt: (value: number | null | undefined) => string
+}) {
+  const pieces = (n: number) => `${n} pz${n !== 1 ? 's' : ''}`
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-tour="plan-summary">
+      <OverviewCard
+        tone="parked"
+        label="Dinero parado"
+        value={fmt(totals.parkedMoney)}
+        hint={`${pieces(totals.parkedPieces)} en ${totals.parkedGroups} producto${totals.parkedGroups !== 1 ? 's' : ''}`}
+      />
+      <OverviewCard
+        tone="saved"
+        label="Ahorrado en mixto/menudeo"
+        value={fmt(totals.savedMoney)}
+        hint={`${pieces(totals.savedPieces)} que no se compraron de más`}
+      />
+      <OverviewCard
+        tone="neutral"
+        label="A pedir a URREA"
+        value={`${totals.wholesalePackages} paq`}
+        hint={pieces(totals.wholesalePieces)}
+      />
+      <OverviewCard
+        tone="neutral"
+        label="A comprar local"
+        value={pieces(totals.retailPieces)}
+        hint={
+          totals.undecidedGroups > 0
+            ? `${totals.undecidedGroups} grupo${totals.undecidedGroups !== 1 ? 's' : ''} sin decidir`
+            : 'todo decidido'
+        }
+      />
     </div>
   )
 }
@@ -382,7 +645,12 @@ function GroupRow({
   const showMixed = math.remainder > 0 && math.packagesFull > 0
 
   return (
-    <div className="rounded-md border p-3 space-y-2" data-group-key={group.key}>
+    <div
+      className={`rounded-md border p-3 space-y-2 transition-colors ${CHOICE_ROW_CLASS[choice ?? 'undecided']}`}
+      data-group-key={group.key}
+      // El ancla se repite por grupo; resolveVisible toma el primero (ADR-024).
+      data-tour="plan-group"
+    >
       {/* Línea principal */}
       <div className="flex items-center gap-3 flex-wrap">
         <button
@@ -419,10 +687,31 @@ function GroupRow({
           {math.packagesFull} paq completo{math.packagesFull !== 1 ? 's' : ''}
           {math.remainder > 0 && ` + ${math.remainder} resto`}
         </span>
+        {math.unitPrice != null && (
+          <>
+            <span>
+              Unitario: <strong className="text-foreground">{fmt(math.unitPrice)}</strong>
+            </span>
+            <span>
+              Paquete ({math.std} pzs):{' '}
+              <strong className="text-foreground">{fmt(math.unitPrice * math.std)}</strong>
+            </span>
+          </>
+        )}
         {math.remainder > 0 && (
           <span>
-            Parado si redondea:{' '}
-            <strong className="text-foreground">
+            {/* Se nombra distinto según la decisión: el mismo número es dinero
+                parado si se redondea, o dinero ahorrado si el resto va a menudeo. */}
+            {choice === 'wholesale' ? 'Queda parado:' : choice ? 'Ahorras:' : 'Parado si redondea:'}{' '}
+            <strong
+              className={
+                choice === 'wholesale'
+                  ? 'text-amber-700 dark:text-amber-400'
+                  : choice
+                    ? 'text-green-700 dark:text-green-400'
+                    : 'text-foreground'
+              }
+            >
               {math.excess} pzs{math.parkedMoney != null && ` ≈ ${fmt(math.parkedMoney)}`}
             </strong>
           </span>
@@ -557,11 +846,24 @@ function FlatLinesTable({
 
 // ─── Popover de umbrales ────────────────────────────────────────────────
 
-function ThresholdsPopover({ thresholds }: { thresholds: PurchaseThresholds }) {
+function ThresholdsPopover({
+  thresholds,
+  orderId,
+  groups,
+}: {
+  thresholds: PurchaseThresholds
+  orderId: string
+  /** Grupos vigentes: se usan para medir el efecto del cambio de umbrales. */
+  groups: readonly PurchaseGroupPlan[]
+}) {
   const updateSettings = useUpdateSettings()
+  const { refetch } = usePurchasePlan(orderId)
   const [open, setOpen] = useState(false)
   const [money, setMoney] = useState('')
   const [pct, setPct] = useState('')
+  // Cubre mutación + refetch: el plan se recalcula en el server, así que el
+  // botón sigue ocupado hasta tener los datos nuevos con los que comparar.
+  const [isApplying, setIsApplying] = useState(false)
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
@@ -582,22 +884,37 @@ function ThresholdsPopover({ thresholds }: { thresholds: PurchaseThresholds }) {
       toast.error('El % parado debe estar entre 1 y 100')
       return
     }
+    // La recomendación se recalcula en el server con los umbrales nuevos, así
+    // que se compara contra una foto previa para decir cuántos se movieron.
+    const before = new Map(groups.map((g) => [g.key, g.recommendation?.suggested ?? null]))
+    setIsApplying(true)
     try {
       await updateSettings.mutateAsync({
         [SETTING_THRESHOLD_MONEY]: moneyValue,
         [SETTING_THRESHOLD_PCT]: pctValue / 100,
       })
-      toast.success('Umbrales actualizados')
+      const { data: fresh } = await refetch()
+      const changed = (fresh?.plan.groups ?? []).filter(
+        (g) => g.math && before.get(g.key) !== (g.recommendation?.suggested ?? null),
+      ).length
+
+      toast.success(
+        changed === 0
+          ? 'Umbrales actualizados · ninguna recomendación cambió'
+          : `Umbrales actualizados · ${changed} producto${changed !== 1 ? 's' : ''} cambió de recomendación`,
+      )
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al guardar umbrales')
+    } finally {
+      setIsApplying(false)
     }
   }
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" data-tour="plan-thresholds">
           <Wrench className="mr-2 size-4" />
           Umbrales
         </Button>
@@ -629,16 +946,9 @@ function ThresholdsPopover({ thresholds }: { thresholds: PurchaseThresholds }) {
             onChange={(e) => setPct(e.target.value)}
           />
         </div>
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={handleSave}
-          disabled={updateSettings.isPending}
-        >
-          {updateSettings.isPending ? (
-            <Loader2 className="mr-2 size-4 animate-spin" />
-          ) : null}
-          Guardar umbrales
+        <Button size="sm" className="w-full" onClick={handleSave} disabled={isApplying}>
+          {isApplying ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+          {isApplying ? 'Recalculando…' : 'Guardar umbrales'}
         </Button>
       </PopoverContent>
     </Popover>

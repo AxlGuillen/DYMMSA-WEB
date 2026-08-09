@@ -11,6 +11,7 @@ import { useDiscreteModeStore } from '@/stores/discreteModeStore'
 import { useSidebarStore } from '@/stores/sidebarStore'
 import { useSoundStore } from '@/stores/soundStore'
 import { useColumnStore } from '@/stores/columnStore'
+import { useColumnWidthStore } from '@/stores/columnWidthStore'
 import type { QuotationItemRow } from '@/types/database'
 
 export function resetStores() {
@@ -19,6 +20,7 @@ export function resetStores() {
   useSidebarStore.setState({ collapsed: false })
   useSoundStore.setState({ soundEnabled: true })
   useColumnStore.setState({ hidden: {} })
+  useColumnWidthStore.setState({ widths: {} })
   localStorage.clear()
 }
 

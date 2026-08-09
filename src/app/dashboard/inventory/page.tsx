@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useInventory, useInventoryStats } from '@/hooks/useInventory'
+import { useInventory, useInventoryStats, ALL_BRANDS, NO_BRAND } from '@/hooks/useInventory'
 import type { StockFilter, QuantitySort } from '@/hooks/useInventory'
 import { InventoryTable, INVENTORY_COLUMNS } from '@/components/inventory/InventoryTable'
 import { ColumnPicker } from '@/components/ColumnPicker'
@@ -9,6 +9,13 @@ import { InventoryForm } from '@/components/inventory/InventoryForm'
 import { InventoryImporter } from '@/components/inventory/InventoryImporter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Plus, Upload, Search, X, ChevronLeft, ChevronRight, ListFilter } from '@/components/icons'
 import type { StoreInventory } from '@/types/database'
 
@@ -20,30 +27,38 @@ const STAT_CARDS: {
   bg: string
   ring: string
 }[] = [
+  { key: 'with_stock', label: 'Con stock',  dot: 'bg-emerald-500', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50', ring: 'ring-emerald-400' },
   { key: 'all',       label: 'Total',      dot: 'bg-slate-500',  color: 'text-slate-700 dark:text-slate-300',   bg: 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/30 dark:hover:bg-slate-800/50',     ring: 'ring-slate-400'  },
   { key: 'in_stock',  label: 'En stock',   dot: 'bg-green-500',  color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50',     ring: 'ring-green-400'  },
   { key: 'low_stock', label: 'Stock bajo', dot: 'bg-yellow-500', color: 'text-yellow-700 dark:text-yellow-300', bg: 'bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50', ring: 'ring-yellow-400' },
   { key: 'sin_stock', label: 'Sin stock',  dot: 'bg-red-500',    color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50',             ring: 'ring-red-400'    },
 ]
 
-const STATS_KEY_MAP: Record<StockFilter, 'total' | 'in_stock' | 'low_stock' | 'sin_stock'> = {
-  all:       'total',
-  in_stock:  'in_stock',
-  low_stock: 'low_stock',
-  sin_stock: 'sin_stock',
+const STATS_KEY_MAP: Record<StockFilter, 'total' | 'with_stock' | 'in_stock' | 'low_stock' | 'sin_stock'> = {
+  all:        'total',
+  with_stock: 'with_stock',
+  in_stock:   'in_stock',
+  low_stock:  'low_stock',
+  sin_stock:  'sin_stock',
 }
 
 // oxlint-disable-next-line react-doctor/prefer-useReducer -- intentional pattern; structural refactor tracked separately
 export default function InventoryPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [stockFilter, setStockFilter] = useState<StockFilter>('all')
+  // Arranca en "con stock": de ~271 productos solo ~83 tienen existencias, y el
+  // resto son históricos que estorban en el día a día. "Total" está a un click.
+  const [stockFilter, setStockFilter] = useState<StockFilter>('with_stock')
+  const [brand, setBrand] = useState<string>(ALL_BRANDS)
   const [quantitySort, setQuantitySort] = useState<QuantitySort>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<StoreInventory | null>(null)
 
-  const { data, isLoading } = useInventory({ page, pageSize: 20, search, stockFilter, quantitySort })
+  const brandFilter = brand === ALL_BRANDS ? '' : brand
+  const { data, isLoading } = useInventory({
+    page, pageSize: 20, search, stockFilter, quantitySort, brand: brandFilter,
+  })
   const { data: stats } = useInventoryStats()
 
   const handleEdit = (item: StoreInventory) => {
@@ -79,7 +94,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {STAT_CARDS.map((card) => {
           const isActive = stockFilter === card.key
           return (
@@ -132,6 +147,20 @@ export default function InventoryPage() {
           </button>
         )}
       </div>
+      <Select value={brand} onValueChange={(v) => { setBrand(v); setPage(1) }}>
+        <SelectTrigger className="w-auto min-w-[200px]">
+          <SelectValue placeholder="Todas las marcas" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_BRANDS}>Todas las marcas</SelectItem>
+          {(stats?.brands ?? []).map((b) => (
+            <SelectItem key={b.brand ?? NO_BRAND} value={b.brand ?? NO_BRAND}>
+              {/* El conteo evita ir a ciegas: casi todas las marcas están en 0. */}
+              {b.brand ?? 'Sin marca'} ({b.with_stock}/{b.total})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <ColumnPicker tableId="inventory" columns={INVENTORY_COLUMNS} />
       </div>
 

@@ -373,3 +373,120 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES ('task-images', 'task-images', true, 5242880,
         ARRAY['image/png','image/jpeg','image/gif','image/webp'])
 ON CONFLICT (id) DO NOTHING;
+
+-- ─── Inventario con marca resuelta (issue #53) ──────────────────────────────
+-- `store_inventory` no guarda la marca: se cruza POR VALOR con `etm_products`
+-- (misma filosofía que `urrea_catalog`). La vista la resuelve para poder
+-- FILTRAR y PAGINAR server-side. Prefiere la fila de etm_products que SÍ trae
+-- marca: muchos ETM la tienen vacía y hay `model_code` duplicados, así que
+-- quedarse con "el más reciente" devolvería vacío aunque un hermano sí la
+-- tenga. Sin ninguna coincidencia con marca → NULL ("sin marca").
+
+CREATE INDEX IF NOT EXISTS idx_etm_products_model_code_norm
+  ON public.etm_products (upper(trim(model_code)));
+
+CREATE OR REPLACE VIEW public.store_inventory_with_brand
+WITH (security_invoker = on) AS
+SELECT
+  i.id,
+  i.model_code,
+  i.quantity,
+  i.location,
+  i.updated_at,
+  (SELECT upper(trim(e.brand))
+     FROM public.etm_products e
+    WHERE upper(trim(e.model_code)) = upper(trim(i.model_code))
+      AND nullif(trim(e.brand), '') IS NOT NULL
+    ORDER BY e.updated_at DESC NULLS LAST
+    LIMIT 1) AS brand
+FROM public.store_inventory i;
+
+-- Conteos para el selector de marca (PostgREST no hace GROUP BY).
+CREATE OR REPLACE FUNCTION public.inventory_brand_counts()
+ RETURNS TABLE(brand text, total bigint, with_stock bigint)
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path = public
+AS $function$
+  SELECT v.brand,
+         count(*) AS total,
+         count(*) FILTER (WHERE v.quantity > 0) AS with_stock
+  FROM public.store_inventory_with_brand v
+  GROUP BY v.brand
+  ORDER BY count(*) DESC, v.brand ASC;
+$function$;
+
+GRANT SELECT ON public.store_inventory_with_brand TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.inventory_brand_counts() TO anon, authenticated, service_role;
+
+-- ─── Módulo de corte de material (issue #59, Fase 1) ────────────────────────
+-- Tubos y placas de cobre (marca DYMMSA) que se mandan a hacer. Unidades en mm
+-- (numeric: hay imperiales tipo 1/2" = 12.7 mm). Las longitudes pedidas varían
+-- por pedido → tabla propia por orden, NO columnas fijas del producto.
+
+CREATE TABLE public.cut_plan_pieces (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  material_type text NOT NULL CHECK (material_type IN ('tube', 'plate')),
+  diameter_mm numeric CHECK (diameter_mm > 0),
+  thickness_mm numeric CHECK (thickness_mm > 0),
+  width_mm numeric CHECK (width_mm > 0),
+  length_mm numeric NOT NULL CHECK (length_mm > 0),
+  quantity integer NOT NULL CHECK (quantity > 0),
+  -- Lo que pidió el cliente vs la medida usada (el "match" que hoy se pierde).
+  requested_label text,
+  source_item_id uuid REFERENCES public.order_items(id) ON DELETE SET NULL,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT cut_piece_shape CHECK (
+    (material_type = 'tube'  AND diameter_mm IS NOT NULL AND width_mm IS NULL AND thickness_mm IS NULL) OR
+    (material_type = 'plate' AND width_mm IS NOT NULL AND thickness_mm IS NOT NULL AND diameter_mm IS NULL)
+  )
+);
+
+CREATE INDEX idx_cut_plan_pieces_order ON public.cut_plan_pieces(order_id);
+
+CREATE TRIGGER update_cut_plan_pieces_updated_at
+  BEFORE UPDATE ON public.cut_plan_pieces
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Presentaciones del proveedor: catálogo que SE ARMA SOLO con el uso (no se
+-- conoce su catálogo completo; cada "tengo barras de 6 m" capturado se guarda).
+CREATE TABLE public.material_presentations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_type text NOT NULL CHECK (material_type IN ('tube', 'plate')),
+  diameter_mm numeric CHECK (diameter_mm > 0),
+  thickness_mm numeric CHECK (thickness_mm > 0),
+  width_mm numeric CHECK (width_mm > 0),
+  length_mm numeric NOT NULL CHECK (length_mm > 0),
+  last_used_at timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT material_presentation_shape CHECK (
+    (material_type = 'tube'  AND diameter_mm IS NOT NULL AND width_mm IS NULL AND thickness_mm IS NULL) OR
+    (material_type = 'plate' AND width_mm IS NOT NULL AND thickness_mm IS NOT NULL AND diameter_mm IS NULL)
+  ),
+  -- Sin NULLS NOT DISTINCT, los NULL del tipo contrario colarían duplicados.
+  CONSTRAINT material_presentation_unique UNIQUE NULLS NOT DISTINCT
+    (material_type, diameter_mm, thickness_mm, width_mm, length_mm)
+);
+
+-- Medidas nominales del producto DYMMSA: SOLO pre-llenan la lista de corte
+-- (hoy viven como texto libre en la descripción, p. ej. 'Copper Punch 30/300mm').
+ALTER TABLE public.etm_products
+  ADD COLUMN cut_kind text CHECK (cut_kind IN ('tube', 'plate')),
+  ADD COLUMN cut_diameter_mm numeric CHECK (cut_diameter_mm > 0),
+  ADD COLUMN cut_thickness_mm numeric CHECK (cut_thickness_mm > 0),
+  ADD COLUMN cut_width_mm numeric CHECK (cut_width_mm > 0),
+  ADD COLUMN cut_length_mm numeric CHECK (cut_length_mm > 0);
+
+ALTER TABLE public.cut_plan_pieces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.material_presentations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can manage cut pieces"
+  ON public.cut_plan_pieces FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can manage presentations"
+  ON public.material_presentations FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+GRANT ALL ON public.cut_plan_pieces TO anon, authenticated, service_role;
+GRANT ALL ON public.material_presentations TO anon, authenticated, service_role;

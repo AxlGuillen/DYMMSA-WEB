@@ -93,6 +93,8 @@ import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, us
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL, type ColumnWidths } from '@/hooks/useColumnWidths'
+import { ResizableHead } from '@/components/ResizableHead'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import { calculateQuotationTotal, isProductItem as isProductRow, isNotSold } from '@/lib/business-rules'
 import { notSoldRowClass } from '@/lib/sold-status'
@@ -124,6 +126,9 @@ const DELIVERY_ORDER: Record<DeliveryTime, number> = {
 
 function SortableHead({
   col,
+  columnId,
+  label,
+  widths,
   currentSort,
   currentDir,
   onSort,
@@ -131,6 +136,10 @@ function SortableHead({
   className,
 }: {
   col: SortField
+  /** Id de columna del picker; llave del ancho. Por defecto el campo de orden. */
+  columnId?: string
+  label: string
+  widths: ColumnWidths
   currentSort: SortField | null
   currentDir: SortDir
   onSort: (col: SortField) => void
@@ -140,23 +149,23 @@ function SortableHead({
   const isActive = currentSort === col
   const isRight  = className?.includes('text-right')
   return (
-    <TableHead className={className}>
+    <ResizableHead id={columnId ?? col} label={label} widths={widths} className={className}>
       <button type="button"
         onClick={() => onSort(col)}
-        className={`flex items-center gap-1 w-full select-none transition-colors hover:text-foreground ${
+        className={`flex items-center gap-1 max-w-full select-none transition-colors hover:text-foreground ${
           isRight ? 'justify-end' : ''
         } ${isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
       >
-        {children}
+        <span className="truncate">{children}</span>
         {isActive ? (
           currentDir === 'asc'
-            ? <ArrowUp className="size-3.5" />
-            : <ArrowDown className="size-3.5" />
+            ? <ArrowUp className="size-3.5 shrink-0" />
+            : <ArrowDown className="size-3.5 shrink-0" />
         ) : (
-          <ArrowUpDown className="size-3.5 opacity-30" />
+          <ArrowUpDown className="size-3.5 shrink-0 opacity-30" />
         )}
       </button>
-    </TableHead>
+    </ResizableHead>
   )
 }
 
@@ -189,10 +198,10 @@ function SortableSeparatorDetailRow({
     <TableRow
       ref={setNodeRef}
       style={style}
-      className={`border-b border-dashed border-border/60 bg-muted/30 ${isDragging ? 'shadow-lg' : ''}`}
+      className={`border-b border-dashed border-border/60 bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))] ${isDragging ? 'shadow-lg' : ''}`}
     >
       {canEdit && (
-        <TableCell className="w-8 px-2">
+        <TableCell className="px-2">
           {isDndEnabled ? (
             <button type="button"
               {...attributes}
@@ -226,7 +235,7 @@ function SortableSeparatorDetailRow({
         )}
       </TableCell>
       {canEdit && (
-        <TableCell>
+        <TableCell className={STICKY_ACTIONS_CELL}>
           <div className="flex items-center justify-center">
             <Button
               size="icon" variant="ghost"
@@ -285,7 +294,7 @@ function SortableDetailRow({
       }`}
     >
       {canEdit && (
-        <TableCell className="w-8 px-2">
+        <TableCell className="px-2">
           {isDndEnabled ? (
             <button type="button"
               {...attributes}
@@ -302,14 +311,14 @@ function SortableDetailRow({
       )}
       <TableCell className="font-mono text-xs font-medium">{item.etm || '—'}</TableCell>
       {isVisible('description') && (
-        <TableCell className="max-w-52">
+        <TableCell>
           {item.description
             ? <span className="truncate block" title={item.description}>{item.description}</span>
             : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
         </TableCell>
       )}
       {isVisible('dymmsa_description') && (
-        <TableCell className="max-w-52">
+        <TableCell>
           {item.dymmsa_description
             ? <span className="truncate block" title={item.dymmsa_description}>{item.dymmsa_description}</span>
             : <span className="text-muted-foreground italic text-xs">Sin descripción</span>}
@@ -393,7 +402,7 @@ function SortableDetailRow({
         </TableCell>
       )}
       {canEdit && (
-        <TableCell>
+        <TableCell className={STICKY_ACTIONS_CELL}>
           <div className="flex items-center justify-center gap-1">
             <Button
               size="icon" variant="ghost"
@@ -446,11 +455,14 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
 const isMissingData     = (item: QuotationItemRow) => isProductRow(item) && !item.description && !item.model_code
 const isMissingQuantity = (item: QuotationItemRow) => isProductRow(item) && !isMissingData(item) && item.quantity == null
 
+// Siempre devuelve UN fondo opaco (ver `notSoldRowClass`): la columna fija de
+// acciones lo hereda con `bg-inherit` y con alfa se vería el contenido de las
+// columnas pasando por debajo al hacer scroll lateral.
 const getRowClass = (item: QuotationItemRow) => {
   if (isNotSold(item))         return notSoldRowClass(item.is_sold)
-  if (isMissingData(item))     return 'bg-orange-50 dark:bg-orange-950/20'
-  if (isMissingQuantity(item)) return 'bg-yellow-50 dark:bg-yellow-950/20'
-  return ''
+  if (isMissingData(item))     return 'bg-orange-50 dark:bg-[color-mix(in_oklab,var(--color-orange-950)_20%,var(--background))]'
+  if (isMissingQuantity(item)) return 'bg-yellow-50 dark:bg-[color-mix(in_oklab,var(--color-yellow-950)_20%,var(--background))]'
+  return 'bg-background'
 }
 
 // ------------------------------------------------------------------ //
@@ -887,21 +899,23 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   // solo cuando aplican — el picker únicamente ofrece lo presente y el conteo
   // visible reemplaza al viejo totalCols calculado a mano.
   const itemColumns = useMemo<TableColumn[]>(() => [
-    ...(canEdit ? [{ id: 'drag', label: 'Reordenar', hideable: false }] : []),
-    { id: 'etm', label: 'ETM', hideable: false },
-    { id: 'description', label: 'Descripción' },
-    { id: 'dymmsa_description', label: 'Desc. DYMMSA' },
-    { id: 'model_code', label: 'Código' },
-    { id: 'brand', label: 'Marca' },
-    { id: 'unit_price', label: 'Precio unit.' },
-    { id: 'quantity', label: 'Cant.' },
-    { id: 'subtotal', label: 'Subtotal' },
-    { id: 'delivery', label: 'Entrega' },
-    { id: 'sold', label: 'Venta' },
-    ...(hasApprovalData ? [{ id: 'approval', label: 'Aprobación' }] : []),
-    ...(canEdit ? [{ id: 'actions', label: 'Acciones', hideable: false }] : []),
+    // La manija de arrastre es un ancho fijo de icono: no se redimensiona.
+    ...(canEdit ? [{ id: 'drag', label: 'Reordenar', hideable: false, width: 40 }] : []),
+    { id: 'etm', label: 'ETM', hideable: false, width: 120 },
+    { id: 'description', label: 'Descripción', width: 240 },
+    { id: 'dymmsa_description', label: 'Desc. DYMMSA', width: 240 },
+    { id: 'model_code', label: 'Código', width: 130 },
+    { id: 'brand', label: 'Marca', width: 110 },
+    { id: 'unit_price', label: 'Precio unit.', width: 120 },
+    { id: 'quantity', label: 'Cant.', width: 90 },
+    { id: 'subtotal', label: 'Subtotal', width: 120 },
+    { id: 'delivery', label: 'Entrega', width: 140 },
+    { id: 'sold', label: 'Venta', width: 100 },
+    ...(hasApprovalData ? [{ id: 'approval', label: 'Aprobación', width: 120 }] : []),
+    ...(canEdit ? [{ id: 'actions', label: 'Acciones', hideable: false, width: 120 }] : []),
   ], [canEdit, hasApprovalData])
   const cols = useVisibleColumns('quotation-detail-items', itemColumns)
+  const widths = useColumnWidths('quotation-detail-items', itemColumns)
 
   return (
     <div className="space-y-6">
@@ -1405,41 +1419,41 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
-            <Table>
+            <Table className={RESIZABLE_TABLE_CLASS}>
               <TableHeader>
                 <TableRow>
-                  {canEdit && <TableHead className="w-8" />}
-                  <TableHead>ETM</TableHead>
+                  {canEdit && <TableHead style={{ width: 40 }} />}
+                  <ResizableHead id="etm" label="ETM" widths={widths} />
                   {cols.isVisible('description') && (
-                    <SortableHead col="description" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
+                    <SortableHead col="description" label="Descripción" widths={widths} currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
                       Descripción
                     </SortableHead>
                   )}
-                  {cols.isVisible('dymmsa_description') && <TableHead>Desc. DYMMSA</TableHead>}
-                  {cols.isVisible('model_code') && <TableHead>Código</TableHead>}
-                  {cols.isVisible('brand') && <TableHead>Marca</TableHead>}
+                  {cols.isVisible('dymmsa_description') && <ResizableHead id="dymmsa_description" label="Desc. DYMMSA" widths={widths} />}
+                  {cols.isVisible('model_code') && <ResizableHead id="model_code" label="Código" widths={widths} />}
+                  {cols.isVisible('brand') && <ResizableHead id="brand" label="Marca" widths={widths} />}
                   {cols.isVisible('unit_price') && (
-                    <SortableHead col="unit_price" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
+                    <SortableHead col="unit_price" label="Precio unit." widths={widths} currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
                       Precio unit.
                     </SortableHead>
                   )}
                   {cols.isVisible('quantity') && (
-                    <SortableHead col="quantity" currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
+                    <SortableHead col="quantity" label="Cant." widths={widths} currentSort={sortField} currentDir={sortDir} onSort={handleSort} className="text-right">
                       Cant.
                     </SortableHead>
                   )}
-                  {cols.isVisible('subtotal') && <TableHead className="text-right">Subtotal</TableHead>}
+                  {cols.isVisible('subtotal') && <ResizableHead id="subtotal" label="Subtotal" widths={widths} className="text-right" />}
                   {cols.isVisible('delivery') && (
-                    <SortableHead col="delivery_time" currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
+                    <SortableHead col="delivery_time" columnId="delivery" label="Entrega" widths={widths} currentSort={sortField} currentDir={sortDir} onSort={handleSort}>
                       Entrega
                     </SortableHead>
                   )}
-                  {cols.isVisible('sold') && <TableHead className="text-center">Venta</TableHead>}
+                  {cols.isVisible('sold') && <ResizableHead id="sold" label="Venta" widths={widths} className="text-center" />}
                   {hasApprovalData && cols.isVisible('approval') && (
-                    <TableHead className="text-center">Aprobación</TableHead>
+                    <ResizableHead id="approval" label="Aprobación" widths={widths} className="text-center" />
                   )}
                   {canEdit && (
-                    <TableHead className="text-center">Acciones</TableHead>
+                    <ResizableHead id="actions" label="Acciones" widths={widths} className="text-center" sticky />
                   )}
                 </TableRow>
               </TableHeader>

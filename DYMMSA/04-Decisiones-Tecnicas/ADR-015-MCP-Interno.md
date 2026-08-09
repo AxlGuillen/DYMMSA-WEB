@@ -1,7 +1,11 @@
 # ADR-015 — MCP interno (lectura + primera escritura)
 
 **Fecha:** 2026-07-10 · **Actualizado:** 2026-07-12 (Fase 2)
-**Estado:** Aceptado · Fase 1 (lectura) ✅ · Fase 2 (`create_task`) ✅
+**Estado:** Aceptado · Fase 1 (lectura) ✅ · Fase 2 (`create_task`) ✅ ·
+**Capa de auth SUPERSEDED por [[ADR-023-MCP-OAuth]]** (2026-07-31): el token
+compartido `MCP_API_KEY` y el admin client (service role) fueron reemplazados
+por OAuth 2.1 nativo de Supabase + cliente por-request con RLS. Las decisiones
+de tools/escrituras de este ADR siguen vigentes.
 **Relacionado:** [[ADR-007-Estrategia-Testing]] · [[ADR-009-Errores-Descriptivos]] · [[ADR-013-Descripcion-DYMMSA]] · [[ADR-014-Modulo-Tareas-GitHub]]
 
 ## Contexto

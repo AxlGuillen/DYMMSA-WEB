@@ -6,8 +6,18 @@ import type { StoreInventory, StoreInventoryInsert, StoreInventoryUpdate } from 
 
 const INVENTORY_KEY = ['inventory']
 
-export type StockFilter = 'all' | 'in_stock' | 'low_stock' | 'sin_stock'
+export type StockFilter = 'all' | 'with_stock' | 'in_stock' | 'low_stock' | 'sin_stock'
 export type QuantitySort = 'asc' | 'desc' | null
+
+/** Valor del filtro para los productos cuyo ETM no trae marca (issue #53). */
+export const NO_BRAND = '__none__'
+/** Valor del selector cuando no se filtra por marca. */
+export const ALL_BRANDS = '__all__'
+
+/** Fila de inventario con la marca resuelta contra `etm_products` (vista). */
+export interface StoreInventoryWithBrand extends StoreInventory {
+  brand: string | null
+}
 
 interface InventoryParams {
   page?: number
@@ -15,10 +25,12 @@ interface InventoryParams {
   search?: string
   stockFilter?: StockFilter
   quantitySort?: QuantitySort
+  /** Marca exacta, `NO_BRAND` para las que no tienen, o vacío para todas. */
+  brand?: string
 }
 
 interface InventoryResponse {
-  data: StoreInventory[]
+  data: StoreInventoryWithBrand[]
   count: number
   page: number
   pageSize: number
@@ -26,10 +38,13 @@ interface InventoryResponse {
 }
 
 export function useInventory(params: InventoryParams = {}) {
-  const { page = 1, pageSize = 20, search = '', stockFilter = 'all', quantitySort = null } = params
+  const {
+    page = 1, pageSize = 20, search = '', stockFilter = 'all',
+    quantitySort = null, brand = '',
+  } = params
 
   return useQuery({
-    queryKey: [...INVENTORY_KEY, { page, pageSize, search, stockFilter, quantitySort }],
+    queryKey: [...INVENTORY_KEY, { page, pageSize, search, stockFilter, quantitySort, brand }],
     queryFn: async (): Promise<InventoryResponse> => {
       const qs = new URLSearchParams({
         page: String(page),
@@ -38,6 +53,7 @@ export function useInventory(params: InventoryParams = {}) {
       })
       if (search) qs.set('search', search)
       if (quantitySort) qs.set('quantitySort', quantitySort)
+      if (brand) qs.set('brand', brand)
       return fetchJson<InventoryResponse>(`/api/inventory?${qs.toString()}`)
     },
   })
@@ -87,11 +103,21 @@ export function useDeleteInventoryItem() {
   })
 }
 
+export interface BrandCount {
+  /** null = productos cuyo ETM no trae marca. */
+  brand: string | null
+  total: number
+  with_stock: number
+}
+
 interface InventoryStats {
   total: number
+  with_stock: number
   in_stock: number
   low_stock: number
   sin_stock: number
+  /** Marcas presentes en el inventario, de mayor a menor (para el selector). */
+  brands: BrandCount[]
 }
 
 export function useInventoryStats() {

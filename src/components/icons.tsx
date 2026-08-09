@@ -227,7 +227,15 @@ export const PackageCheck = wrap(_CircleCheck)
 export const PackageSearch = wrap(_PackageOpen)
 export const PanelLeftClose = wrap(_ChevronsLeft)
 export const PanelLeftOpen = wrap(_ChevronsRight)
-export const Pencil = wrap(_Settings)
+// Excepción deliberada al adaptador animado: el paquete (248 iconos curados)
+// no trae un lápiz genérico — sus únicas variantes con pluma son UserPen /
+// WifiPen, que comunican otra cosa. Esto apuntaba a `_Settings`, así que el
+// botón "Editar" se dibujaba como ENGRANE y la gente lo leía como "ajustes"
+// (issue #55). Vale más el lápiz real de lucide, aunque no anime, que un icono
+// animado que dice otra acción.
+export { Pencil } from 'lucide-react'
+// Mismo caso que Pencil: la librería animada no trae tijeras (issue #59).
+export { Scissors } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
 export const RotateCcw = wrap(_CornerUpLeft)

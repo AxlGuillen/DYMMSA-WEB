@@ -9,7 +9,14 @@ import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
 import { quotationWithItems, quotationItem, separatorRow } from './helpers/fixtures'
 import { ApprovalClient } from '@/app/approve/[token]/ApprovalClient'
+import { APPROVAL_TOUR } from '@/lib/tours/approval'
 import type { QuotationItem } from '@/types/database'
+
+const driveMock = vi.hoisted(() => vi.fn())
+const driverMock = vi.hoisted(() => vi.fn(() => ({ drive: driveMock })))
+
+vi.mock('driver.js', () => ({ driver: driverMock }))
+vi.mock('driver.js/dist/driver.css', () => ({}))
 
 vi.mock('next/image', () => ({
   default: (props: Record<string, unknown>) => {
@@ -94,5 +101,19 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
 
     // El dock (global) muestra 1 de 3 aprobados, no 1 de 1
     expect(dockText()).toMatch(/1.*\/ 3 aprobados/)
+  })
+
+  test('vista guiada: los selectores del tour existen y el botón arranca driver.js', async () => {
+    // Anti-drift: en revisión (editable) están los 4 bloques del tour —
+    // resumen, filtros, tabla y dock.
+    const user = userEvent.setup()
+    renderWithProviders(<ApprovalClient quotation={sentQuotation()} token="tok-1" />)
+    for (const step of APPROVAL_TOUR) {
+      expect(document.querySelector(step.selector), step.selector).not.toBeNull()
+    }
+
+    await user.click(screen.getByRole('button', { name: /vista guiada/i }))
+    expect(driveMock).toHaveBeenCalledOnce()
+    expect(driverMock.mock.calls[0][0].steps).toHaveLength(APPROVAL_TOUR.length)
   })
 })

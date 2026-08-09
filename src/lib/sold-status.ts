@@ -24,9 +24,14 @@ export function soldLabel(v: SoldValue): string {
  * Clase de fondo para filas "no lo vendemos". Tiene prioridad sobre el color
  * de completitud de datos: si no lo vendemos, no importa que falten datos.
  * Devuelve '' cuando no aplica.
+ *
+ * Los tonos van OPACOS vía `color-mix` (mismo color resultante que el `/70` o
+ * `/50` sobre el fondo, pero sin canal alfa): la columna fija de acciones
+ * hereda este color con `bg-inherit`, y con transparencia se alcanzaría a ver
+ * el contenido de las columnas que pasan por debajo al hacer scroll lateral.
  */
 export function notSoldRowClass(v: SoldValue): string {
   return v === false
-    ? 'bg-zinc-200/70 dark:bg-zinc-800/50 hover:bg-zinc-200 dark:hover:bg-zinc-800/70 text-muted-foreground'
+    ? 'bg-[color-mix(in_oklab,var(--color-zinc-200)_70%,var(--background))] hover:bg-zinc-200 dark:bg-[color-mix(in_oklab,var(--color-zinc-800)_50%,var(--background))] dark:hover:bg-[color-mix(in_oklab,var(--color-zinc-800)_70%,var(--background))] text-muted-foreground'
     : ''
 }

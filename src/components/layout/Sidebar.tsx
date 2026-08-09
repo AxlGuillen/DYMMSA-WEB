@@ -130,14 +130,17 @@ function NavSection({
   links,
   collapsed,
   onNavigate,
+  tour,
 }: {
   title?: string
   links: LinkItem[]
   collapsed?: boolean
   onNavigate?: () => void
+  /** Ancla de la vista guiada del dashboard (ADR-024). */
+  tour?: string
 }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" data-tour={tour}>
       {title &&
         (collapsed ? (
           <div className="mx-2 mb-1 border-t" />
@@ -220,16 +223,16 @@ function SidebarContent({
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-6">
-          <NavSection links={mainLinks} collapsed={collapsed} onNavigate={onNavigate} />
-          <NavSection title="ETM — Catálogo" links={etmUrreaLinks} collapsed={collapsed} onNavigate={onNavigate} />
-          <NavSection title="DYMMSA" links={dymmsaLinks} collapsed={collapsed} onNavigate={onNavigate} />
-          <NavSection title="URREA" links={urreaLinks} collapsed={collapsed} onNavigate={onNavigate} />
-          <NavSection title="Recursos" links={recursosLinks} collapsed={collapsed} onNavigate={onNavigate} />
+          <NavSection links={mainLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-main" />
+          <NavSection title="ETM — Catálogo" links={etmUrreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-etm" />
+          <NavSection title="DYMMSA" links={dymmsaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-dymmsa" />
+          <NavSection title="URREA" links={urreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-urrea" />
+          <NavSection title="Recursos" links={recursosLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-recursos" />
         </div>
       </nav>
 
       {/* Footer */}
-      <div className="shrink-0 border-t px-3 py-4 space-y-2">
+      <div className="shrink-0 border-t px-3 py-4 space-y-2" data-tour="nav-prefs">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
             <SoundToggle />
@@ -307,7 +310,7 @@ export function Sidebar() {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="md:hidden fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4">
+      <div className="md:hidden fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 print:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -337,7 +340,7 @@ export function Sidebar() {
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'hidden md:flex fixed inset-y-0 left-0 z-40 flex-col border-r bg-card',
+          'hidden md:flex fixed inset-y-0 left-0 z-40 flex-col border-r bg-card print:hidden',
           mounted && 'transition-[width] duration-200 ease-in-out',
           collapsed ? 'w-16' : 'w-64'
         )}

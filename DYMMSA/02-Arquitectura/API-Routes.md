@@ -49,6 +49,8 @@
 | `POST` | `/api/orders/auto-learn` | ✅ | Auto-learn manual desde orden (legacy) |
 | `GET` | `/api/orders/[id]/purchase-plan` | ✅ | Plan de compra mayoreo/menudeo (ADR-018): consolida por `catalogKey`, math STD + recomendación al vuelo, casa decisiones guardadas con staleness. Catálogo/settings degradan a defaults |
 | `PUT` | `/api/orders/[id]/purchase-decisions` | ✅ | **Replace-all** del set de decisiones de la orden: normaliza code/brand, pre-flight del CHECK de cobertura, upsert `(order_id, model_code, brand)` ANTES del delete de removidas. 400 en órdenes `completed`/`cancelled` |
+| `GET` | `/api/orders/[id]/cut-plan` | ✅ | Plan de corte (issue #59): `{ order, pieces, candidates, presentations, marginMm }`. Los `numeric` se **coercen a number aquí** (supabase-js los da como string). `candidates` = ítems DYMMSA de la orden (sin separadores) con las medidas nominales `cut_*` del producto para pre-llenar |
+| `PUT` | `/api/orders/[id]/cut-plan` | ✅ | **Replace-all** de la lista de corte (el body es el estado deseado). Espejo del CHECK `cut_piece_shape` con mensajes claros (ADR-009). Sin llave natural para upsert → delete + insert con **restauración** de la lista previa si el insert falla. 400 en `completed`/`cancelled` |
 
 ---
 
@@ -69,6 +71,14 @@
 
 ---
 
+## Corte de material
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `POST` | `/api/material-presentations` | ✅ | Registra la presentación que ofreció el proveedor ("barras de 6 m de Ø30"). Upsert contra el UNIQUE NULLS NOT DISTINCT + refresca `last_used_at` — el catálogo del proveedor **se arma solo con el uso** (issue #59) |
+
+---
+
 ## Configuración
 
 | Método | Ruta | Auth | Descripción |
@@ -85,8 +95,14 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `POST` | `/api/quotes/lookup` | ✅ | Lookup masivo de ETMs en `etm_products`. Body: `{ etmCodes: string[], modelCodes?: string[] }`. Devuelve `{ found, notFound, catalogDescriptions }` — `catalogDescriptions` mapea `code` normalizado → descripción oficial de `urrea_catalog` (union de codes de productos encontrados + `modelCodes` del Excel) para resolver la Descripción DYMMSA ([[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]]) |
+| `GET` | `/api/products` | ✅ | Lista paginada de `etm_products`. Query: `page`, `pageSize` (máx 100), `search`, `sortBy` (whitelist: `etm`/`description_es`/`model_code`/`price`), `sortDir`. El término de búsqueda se sanea de `%,()` porque se interpola en el filtro `.or()` |
+| `POST` | `/api/products` | ✅ | Crea un producto del catálogo ETM. ETM obligatorio; duplicado (`23505`) → 400 descriptivo |
+| `PATCH` | `/api/products/[id]` | ✅ | Actualiza un producto. `is_sold` es **tri-estado**: ausente = no se toca, `null` explícito **sí se persiste** (sin cambios aplicables → 400) |
+| `DELETE` | `/api/products/[id]` | ✅ | Elimina un producto del catálogo ETM |
 | `POST` | `/api/products/import` | ✅ | Importación masiva de catálogo desde Excel. Upsert por ETM |
 | `GET` | `/api/products/next-dymmsa-code` | ✅ | Retorna el siguiente código `DYMMSA-{n}` disponible |
+
+> **Migración (2026-07-28, issue #55):** `useProducts` dejó de llamar a Supabase directo desde el cliente y pasa por estas rutas. Habilita el toggle rápido de `is_sold` desde la tabla (`useSetProductSold`, con update optimista + rollback).
 
 ---
 
@@ -96,8 +112,8 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/inventory` | ✅ | Lista paginada. Query: `page, pageSize, search (ilike model_code), stockFilter (all/in_stock/low_stock/sin_stock), quantitySort (asc/desc)`. Devuelve `{ data, count, page, pageSize, totalPages }` |
-| `GET` | `/api/inventory/stats` | ✅ | Conteos por rango de stock: `{ total, in_stock, low_stock, sin_stock }` |
+| `GET` | `/api/inventory` | ✅ | Lista paginada. **Lee de la vista `store_inventory_with_brand`** (issue #53) para poder filtrar por marca ANTES de paginar. Query: `page, pageSize, search (ilike model_code), brand (marca exacta, `__none__` = sin marca, vacío = todas), stockFilter (all/**with_stock**/in_stock/low_stock/sin_stock), quantitySort (asc/desc)`. Cada fila incluye `brand` (puede ser `null`) |
+| `GET` | `/api/inventory/stats` | ✅ | Conteos por rango de stock + marcas: `{ total, with_stock, in_stock, low_stock, sin_stock, brands: [{ brand, total, with_stock }] }`. Las marcas salen de la RPC `inventory_brand_counts()`; si falla se devuelve `[]` sin tumbar las métricas |
 | `POST` | `/api/inventory` | ✅ | Crear producto. Body: `{ model_code, quantity, location? }`. Normaliza `quantity` a ≥ 0; `location` vacío → null |
 | `PATCH` | `/api/inventory/[id]` | ✅ | Editar `model_code`/`quantity`/`location` (solo se toca lo que viene en el body) |
 | `DELETE` | `/api/inventory/[id]` | ✅ | Eliminar producto |
@@ -147,15 +163,20 @@
 
 ---
 
-## MCP interno (`/api/mcp`)
+## MCP remoto (`/api/mcp`, OAuth 2.1)
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `POST` | `/api/mcp` | Bearer `MCP_API_KEY` | Servidor MCP (Streamable HTTP, `mcp-handler`). 13 tools de **solo lectura** sobre todos los módulos + resource `dymmsa://reglas-negocio`. Ruta física: `src/app/api/[transport]/route.ts` (SSE deshabilitado → GET/DELETE responden pero no se usan) |
+| `POST` | `/api/mcp` | **OAuth 2.1 de Supabase** (Bearer JWT con `client_id`) | Servidor MCP (Streamable HTTP, `mcp-handler` + `withMcpAuth`). 13 tools de lectura + `create_task` + resource `dymmsa://reglas-negocio`. Sin token → **401 con `resource_metadata`** (discovery). Ruta física: `src/app/api/[transport]/route.ts` (runtime nodejs, maxDuration 60) |
+| `GET` | `/.well-known/oauth-protected-resource[/...]` | Pública | Metadata RFC 9728 (catch-all: responde también con sufijo `/api/mcp`). Anuncia `authorization_servers` = issuer OAuth de Supabase |
+| `GET` | `/oauth/consent?authorization_id=` | Sesión (detrás del login) | Pantalla de consentimiento del OAuth Server de Supabase; server actions aprueban/deniegan (`auth.oauth.*`) y redirigen al cliente |
 
-> Los tools NO pasan por las rutas de arriba: usan el admin client (service role) con la
-> autenticación del MCP como capa propia (comparación en tiempo constante; sin `MCP_API_KEY`
-> configurada rechaza todo). Tools y arquitectura: [[04-Decisiones-Tecnicas/ADR-015-MCP-Interno]].
+> **Cero service_role en el camino MCP** (ADR-023): cada llamada construye su cliente con
+> el token del request (`clientForToken`, opción `accessToken`) → RLS aplica como en la app.
+> `verifyToken` = `getUser` contra GoTrue + `client_id` en allowlist (`MCP_OAUTH_CLIENT_IDS`);
+> un token de sesión web NO abre el conector. El proxy no intercepta `/api/mcp` ni
+> `/.well-known/*`. Tools: [[04-Decisiones-Tecnicas/ADR-015-MCP-Interno]] · Auth:
+> [[04-Decisiones-Tecnicas/ADR-023-MCP-OAuth]].
 
 ---
 

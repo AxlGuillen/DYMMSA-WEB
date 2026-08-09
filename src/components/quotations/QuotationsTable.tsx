@@ -9,7 +9,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -28,18 +27,20 @@ import { QuotationStatusBadge } from './QuotationStatusBadge'
 import { useDeleteQuotation } from '@/hooks/useQuotations'
 import { useCurrency } from '@/hooks/useCurrency'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL } from '@/hooks/useColumnWidths'
+import { ResizableHead } from '@/components/ResizableHead'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { QuotationWithCount } from '@/types/database'
 
 // Columnas de la lista (issue #18). Nombre y acciones son fijas.
 export const QUOTATIONS_COLUMNS: readonly TableColumn[] = [
-  { id: 'name', label: 'Nombre', hideable: false },
-  { id: 'customer', label: 'Cliente' },
-  { id: 'status', label: 'Estado' },
-  { id: 'items_count', label: 'Ítems' },
-  { id: 'total', label: 'Total' },
-  { id: 'created_at', label: 'Fecha' },
-  { id: 'actions', label: 'Acciones', hideable: false },
+  { id: 'name', label: 'Nombre', hideable: false, width: 260 },
+  { id: 'customer', label: 'Cliente', width: 200 },
+  { id: 'status', label: 'Estado', width: 150 },
+  { id: 'items_count', label: 'Ítems', width: 80 },
+  { id: 'total', label: 'Total', width: 120 },
+  { id: 'created_at', label: 'Fecha', width: 140 },
+  { id: 'actions', label: 'Acciones', hideable: false, width: 90 },
 ]
 
 interface QuotationsTableProps {
@@ -53,18 +54,19 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
   const deleteQuotation = useDeleteQuotation()
   const fmt = useCurrency()
   const cols = useVisibleColumns('quotations-list', QUOTATIONS_COLUMNS)
+  const widths = useColumnWidths('quotations-list', QUOTATIONS_COLUMNS)
 
   // Header compartido entre skeleton y tabla real (guards escritos una vez).
   const tableHeaders = (
     <TableHeader>
       <TableRow>
-        <TableHead>Nombre</TableHead>
-        {cols.isVisible('customer') && <TableHead>Cliente</TableHead>}
-        {cols.isVisible('status') && <TableHead>Estado</TableHead>}
-        {cols.isVisible('items_count') && <TableHead className="text-center">Ítems</TableHead>}
-        {cols.isVisible('total') && <TableHead className="text-right">Total</TableHead>}
-        {cols.isVisible('created_at') && <TableHead>Fecha</TableHead>}
-        <TableHead />
+        <ResizableHead id="name" label="Nombre" widths={widths} />
+        {cols.isVisible('customer') && <ResizableHead id="customer" label="Cliente" widths={widths} />}
+        {cols.isVisible('status') && <ResizableHead id="status" label="Estado" widths={widths} />}
+        {cols.isVisible('items_count') && <ResizableHead id="items_count" label="Ítems" widths={widths} className="text-center" />}
+        {cols.isVisible('total') && <ResizableHead id="total" label="Total" widths={widths} className="text-right" />}
+        {cols.isVisible('created_at') && <ResizableHead id="created_at" label="Fecha" widths={widths} />}
+        <ResizableHead id="actions" label="Acciones" widths={widths} className="text-center" sticky />
       </TableRow>
     </TableHeader>
   )
@@ -82,19 +84,19 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
 
   if (isLoading) {
     return (
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {[...Array(5)].map((_, i) => (
-              <TableRow key={i}>
+              <TableRow key={i} className="bg-background">
                 <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                 {cols.isVisible('customer') && <TableCell><Skeleton className="h-4 w-36" /></TableCell>}
                 {cols.isVisible('status') && <TableCell><Skeleton className="h-6 w-28" /></TableCell>}
                 {cols.isVisible('items_count') && <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>}
                 {cols.isVisible('total') && <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
                 {cols.isVisible('created_at') && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
-                <TableCell />
+                <TableCell className={STICKY_ACTIONS_CELL} />
               </TableRow>
             ))}
           </TableBody>
@@ -124,14 +126,16 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
 
   return (
     <>
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {quotations.map((q) => (
               <TableRow
                 key={q.id}
-                className="group cursor-pointer hover:bg-muted/50"
+                // Fondos OPACOS: la columna fija de acciones los hereda con
+                // `bg-inherit`, y con alfa se vería el contenido pasando debajo.
+                className="group cursor-pointer bg-background hover:bg-muted"
                 onClick={() => push(`/dashboard/quotations/${q.id}`)}
               >
                 <TableCell>
@@ -174,7 +178,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
                     {formatRelative(q.created_at)}
                   </TableCell>
                 )}
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell className={`${STICKY_ACTIONS_CELL} text-center`} onClick={(e) => e.stopPropagation()}>
                   <Button
                     type="button"
                     size="icon"

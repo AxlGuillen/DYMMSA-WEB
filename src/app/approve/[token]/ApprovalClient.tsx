@@ -48,6 +48,7 @@ import { formatMoney } from './format'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { SoundToggle } from '@/components/sound-toggle'
 import { SoundInit } from '@/components/sound-init'
+import { TourButton } from '@/components/tours/TourButton'
 
 const DELIVERY_TIME_LABELS: Record<DeliveryTime, string> = {
   immediate: 'Inmediato',
@@ -223,6 +224,7 @@ export function ApprovalClient({ quotation, token }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            <TourButton tour="approval" />
             <ThemeToggle />
             <SoundToggle />
             <div className="hidden items-center gap-2 rounded-full border border-border/70 bg-card/60 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur sm:flex">
@@ -262,7 +264,7 @@ export function ApprovalClient({ quotation, token }: Props) {
         )}
 
         {/* Tabla de productos */}
-        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 backdrop-blur-xl">
+        <div data-tour="approval-table" className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-border/60 px-5 py-4">
             <div className="flex items-center gap-2.5">
               <Package className="size-5 text-muted-foreground" />

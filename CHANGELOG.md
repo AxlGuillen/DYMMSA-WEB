@@ -3,6 +3,136 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-08-09
+
+### Nuevo
+- **Vista guiada en Planificar compra.** La pantalla más densa del sistema ya tiene su
+  botón **"Vista guiada"**: recorre los cuatro números del resumen, los umbrales que
+  mueven la recomendación, cómo leer cada grupo (mayoreo / mixto / menudeo y el dinero
+  que queda parado), la compra local y por qué los Excel salen de lo guardado.
+
+## 2026-08-08
+
+### Mejorado
+- **Columnas ajustables también en Cotizaciones y Órdenes.** El arrastre del borde
+  del encabezado —que ya estaba en Base de datos, Inventario, Catálogo URREA y
+  Proveedores— llega a las **cuatro pantallas que faltaban**: la lista de
+  cotizaciones, el detalle de una cotización, la lista de órdenes y el detalle de
+  una orden. Funciona igual: arrastras para ensanchar, cada tabla recuerda tus
+  anchos y doble click en el borde regresa la columna a su tamaño original.
+- **Los botones de acción ya no se pierden al ensanchar.** En esas mismas cuatro
+  pantallas la última columna queda **fija a la derecha**, así que editar, eliminar
+  o insertar separador siguen a la vista aunque muevas la tabla de lado.
+
+## 2026-08-04
+
+### Nuevo
+- **Vistas guiadas en el sistema.** Aparece un botón **"Vista guiada"** en tres
+  pantallas clave que recorre los bloques y explica qué hace cada uno. Son totalmente
+  opcionales — solo arrancan si tocas el botón:
+  - **Inicio**: presenta el menú lateral sección por sección (el flujo principal,
+    los catálogos, inventario, recursos) y el panel de métricas — ideal para
+    alguien que entra al sistema por primera vez.
+  - **Planificar corte**: de dónde salen las piezas, qué significa la necesidad por
+    diámetro, en qué momento aparece el dibujo del acomodo y qué guarda el sistema.
+  - **Página de aprobación** (la que ve el cliente): el resumen, los filtros, cómo
+    aprobar producto por producto y la diferencia entre guardar avance y enviar.
+
+## 2026-07-31
+
+### Mejorado
+- **El asistente de IA ahora se conecta con tu propia cuenta.** Antes la conexión de
+  Claude con el sistema usaba una clave compartida del equipo; ahora cada quien la
+  autoriza **iniciando sesión con su usuario de DYMMSA** en una pantalla de
+  autorización, igual que cuando conectas una app con tu cuenta de Google. Con esto ya
+  se puede usar el asistente también **desde el celular y claude.ai**, el acceso se
+  puede **revocar** en cualquier momento, y el asistente ve exactamente lo mismo que tú
+  ves en el sistema — ni más ni menos.
+
+### Nuevo
+- **Planificar corte: el nuevo módulo para los productos DYMMSA que se mandan a hacer.**
+  En las órdenes con piezas DYMMSA (tubos y placas de cobre) aparece el botón
+  **"Planificar corte"**. Lo que antes se calculaba a mano ahora lo hace el sistema:
+  - **Antes de hablar con el proveedor** te dice cuánto material necesitas por medida
+    ("pide 1.28 m de tubo de Ø30"), ya con el **margen de corte** incluido (configurable,
+    el clásico 1–2 cm por partición).
+  - **Cuando el proveedor te dice qué tiene** ("barras de 6 m"), capturas esa medida y el
+    sistema te **dibuja cómo partir cada barra**: las piezas, los cortes y cuánto sobra.
+    Puedes mover piezas de una barra a otra si en el taller conviene distinto — si algo
+    ya no cabe, te lo marca en rojo con los milímetros exactos.
+  - **Con las placas** capturas el ancho de la tira que ofrece el proveedor y te dice
+    cuánto largo pedir, con el acomodo dibujado y el **% de aprovechamiento**.
+  - Las medidas que captures del proveedor **se recuerdan** y se sugieren la próxima vez.
+  - La lista se pre-llena con las piezas DYMMSA de la orden, guarda **lo que pidió el
+    cliente originalmente** junto a la medida usada, y todo se puede **imprimir** para
+    llevarlo al taller o exportar a **Excel** para pedirle al proveedor.
+
+## 2026-07-29 (II)
+
+### Nuevo
+- **Filtrar por marca en Inventario.** Junto al buscador hay un selector de **marca** que te
+  dice, en cada opción, **cuántos tienen stock de cuántos** (ej. "URREA (57/171)") para que no
+  entres a ciegas. También hay una opción **"Sin marca"** para los productos cuyo ETM no la
+  tiene registrada — son ~40 y varios tienen existencias, así que no se esconden. La tabla
+  ahora incluye una columna **Marca** (se puede ocultar desde "Columnas").
+- **Filtrar por marca en Planificar compra.** Un selector arriba a la derecha te deja revisar
+  la compra marca por marca. Es solo para ver: **los Excel y los totales siguen cubriendo la
+  orden completa**, para que nunca descargues un pedido a medias.
+
+### Mejorado
+- **Inventario abre mostrando solo lo que tienes.** La página arranca en la nueva tarjeta
+  **"Con stock"** (de ~271 productos, unos 83 tienen existencias) en vez de listar todo el
+  histórico. Para ver los que están en cero, un click en **"Total"** o **"Sin stock"**.
+
+## 2026-07-29
+
+### Nuevo
+- **Resumen de dinero en Planificar compra.** Arriba de la página ahora ves cuatro
+  números para entender la compra de un vistazo: **cuánto dinero se queda parado**
+  (y en cuántos productos), **cuánto te ahorras** al mandar los restos a menudeo,
+  **cuántos paquetes** van a URREA y **cuántas piezas** a compra local. Se actualiza
+  al instante conforme cambias las decisiones, sin necesidad de guardar.
+- **Los dos Excel se descargan desde Planificar compra.** El **Pedido URREA (mayoreo)**
+  y la **Compra local (menudeo)** ahora están juntos en la página donde tomas las
+  decisiones. Si tenías cambios sin guardar, el botón los **guarda y descarga en un
+  solo paso**, para que el archivo siempre coincida con la orden.
+
+### Mejorado
+- **Más detalle de precios por producto.** En cada producto ahora se ve el **precio
+  unitario** y el **precio del paquete completo**, además del dinero del excedente —
+  que se llama **"Queda parado"** (ámbar) si decides redondear, o **"Ahorras"** (verde)
+  si mandas el resto a menudeo.
+- **Se distingue de un vistazo qué es mayoreo y qué menudeo:** cada producto se tiñe
+  con un color suave según la decisión (verde mayoreo, azul mixto, naranja menudeo,
+  ámbar los que faltan por decidir).
+- **Al cambiar los umbrales te dice qué pasó.** El botón muestra "Recalculando…"
+  mientras se rehace el plan y al terminar te avisa **cuántos productos cambiaron de
+  recomendación**, en vez de dejarte comparar a mano.
+- **La página de Planificar compra ya no arranca en blanco:** mientras carga muestra
+  la silueta del contenido en vez de una rueda girando.
+- El botón de **Pedido URREA salió del detalle de la orden** (ahí se queda el Formato
+  de Entrega, que es el documento del cliente).
+
+## 2026-07-28
+
+### Nuevo
+- **Columnas ajustables como en Excel.** En las tablas de Base de datos, Inventario,
+  Catálogo URREA y Proveedores puedes **arrastrar el borde de cada encabezado** para
+  hacer la columna más ancha o más angosta — útil cuando una descripción no se
+  alcanza a leer completa. Cada tabla recuerda tus anchos en tu navegador. Doble
+  click en el borde regresa la columna a su ancho original.
+- **Marcar "se vende / no se vende" de un solo click.** En Base de datos, la columna
+  **Venta** ahora trae los botones ✓ y ✗ directamente en cada fila, igual que cuando
+  el cliente aprueba productos. Ya no hay que abrir el producto para cambiarlo, y
+  volver a hacer click en el botón activo lo regresa a "sin definir".
+
+### Mejorado
+- **Editar y eliminar a un solo click.** En las cuatro tablas los botones salieron del
+  menú de tres puntitos: ahora están siempre visibles en la fila. Además el botón de
+  editar **por fin se ve como un lápiz** — antes mostraba un engrane y parecía
+  "ajustes". La columna de acciones queda **fija a la derecha**, así que sigue a la
+  vista aunque muevas la tabla de lado.
+
 ## 2026-07-22
 
 ### Mejorado

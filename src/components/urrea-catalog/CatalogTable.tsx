@@ -5,16 +5,9 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,9 +21,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, Pencil, Trash2, Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
+import { Library, Plus, ArrowUpDown, ArrowUp, ArrowDown } from '@/components/icons'
 import { useDeleteCatalogItem } from '@/hooks/useUrreaCatalog'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
+import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL, type ColumnWidths } from '@/hooks/useColumnWidths'
+import { ResizableHead } from '@/components/ResizableHead'
+import { RowActions } from '@/components/RowActions'
 import type { CatalogSortField, SortDir } from '@/hooks/useUrreaCatalog'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
@@ -48,12 +44,12 @@ interface CatalogTableProps {
 
 // Columnas del catálogo URREA (issue #18). Código y acciones son fijas.
 export const CATALOG_COLUMNS: readonly TableColumn[] = [
-  { id: 'code', label: 'Código', hideable: false },
-  { id: 'brand', label: 'Marca' },
-  { id: 'description', label: 'Descripción' },
-  { id: 'std', label: 'STD' },
-  { id: 'updated_at', label: 'Última actualización' },
-  { id: 'actions', label: 'Acciones', hideable: false },
+  { id: 'code', label: 'Código', hideable: false, width: 150 },
+  { id: 'brand', label: 'Marca', width: 110 },
+  { id: 'description', label: 'Descripción', width: 340 },
+  { id: 'std', label: 'STD', width: 90 },
+  { id: 'updated_at', label: 'Última actualización', width: 170 },
+  { id: 'actions', label: 'Acciones', hideable: false, width: 100 },
 ]
 
 function SortHeader({
@@ -62,6 +58,7 @@ function SortHeader({
   active,
   dir,
   onSort,
+  widths,
   className,
 }: {
   label: string
@@ -69,20 +66,22 @@ function SortHeader({
   active: boolean
   dir: SortDir
   onSort: (f: CatalogSortField) => void
+  widths: ColumnWidths
   className?: string
 }) {
   const Icon = active ? (dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+  // `field` coincide con el id de columna del picker: sirve de llave del ancho.
   return (
-    <TableHead className={className}>
+    <ResizableHead id={field} label={label} widths={widths} className={className}>
       <button
         type="button"
         onClick={() => onSort(field)}
-        className="flex items-center gap-1.5 hover:text-foreground transition-colors font-medium"
+        className="flex max-w-full items-center gap-1.5 hover:text-foreground transition-colors font-medium"
       >
-        {label}
-        <Icon className={`h-3.5 w-3.5 ${active ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+        <span className="truncate">{label}</span>
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-foreground' : 'text-muted-foreground/50'}`} />
       </button>
-    </TableHead>
+    </ResizableHead>
   )
 }
 
@@ -90,6 +89,7 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const deleteItem = useDeleteCatalogItem()
   const cols = useVisibleColumns('urrea-catalog', CATALOG_COLUMNS)
+  const widths = useColumnWidths('urrea-catalog', CATALOG_COLUMNS)
 
   const handleDelete = async () => {
     if (!deleteId) return
@@ -106,18 +106,18 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
   const tableHeaders = (
     <TableHeader>
       <TableRow>
-        <SortHeader label="Código" field="code" active={sortField === 'code'} dir={sortDir} onSort={onSort} className="w-[150px]" />
+        <SortHeader label="Código" field="code" active={sortField === 'code'} dir={sortDir} onSort={onSort} widths={widths} />
         {cols.isVisible('brand') && (
-          <SortHeader label="Marca" field="brand" active={sortField === 'brand'} dir={sortDir} onSort={onSort} className="w-[110px]" />
+          <SortHeader label="Marca" field="brand" active={sortField === 'brand'} dir={sortDir} onSort={onSort} widths={widths} />
         )}
         {cols.isVisible('description') && (
-          <SortHeader label="Descripción" field="description" active={sortField === 'description'} dir={sortDir} onSort={onSort} />
+          <SortHeader label="Descripción" field="description" active={sortField === 'description'} dir={sortDir} onSort={onSort} widths={widths} />
         )}
         {cols.isVisible('std') && (
-          <SortHeader label="STD" field="std" active={sortField === 'std'} dir={sortDir} onSort={onSort} className="w-[90px]" />
+          <SortHeader label="STD" field="std" active={sortField === 'std'} dir={sortDir} onSort={onSort} widths={widths} />
         )}
-        {cols.isVisible('updated_at') && <TableHead className="w-[150px]">Última actualización</TableHead>}
-        <TableHead className="w-[80px]">Acciones</TableHead>
+        {cols.isVisible('updated_at') && <ResizableHead id="updated_at" label="Última actualización" widths={widths} />}
+        <ResizableHead id="actions" label="Acciones" widths={widths} sticky />
       </TableRow>
     </TableHeader>
   )
@@ -125,7 +125,7 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
   if (isLoading) {
     return (
       <div className="rounded-md border">
-        <Table>
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {Array.from({ length: 8 }).map((_, i) => (
@@ -165,11 +165,11 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
   return (
     <>
       <div className="rounded-md border">
-        <Table>
+        <Table className={RESIZABLE_TABLE_CLASS}>
           {tableHeaders}
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id}>
+              <TableRow key={item.id} className="bg-background hover:bg-muted">
                 <TableCell className="font-mono text-sm">{item.code}</TableCell>
                 {cols.isVisible('brand') && (
                   <TableCell>
@@ -187,24 +187,12 @@ export function CatalogTable({ items, isLoading, onEdit, onAdd, sortField, sortD
                     {formatRelative(item.updated_at)}
                   </TableCell>
                 )}
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(item)}>
-                        <Pencil className="mr-2 size-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(item.id)}>
-                        <Trash2 className="mr-2 size-4" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                <TableCell className={STICKY_ACTIONS_CELL}>
+                  <RowActions
+                    what={item.code}
+                    onEdit={() => onEdit(item)}
+                    onDelete={() => setDeleteId(item.id)}
+                  />
                 </TableCell>
               </TableRow>
             ))}
