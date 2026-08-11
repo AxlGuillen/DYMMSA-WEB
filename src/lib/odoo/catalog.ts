@@ -45,6 +45,35 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
     // date_order es DATETIME ("YYYY-MM-DD HH:MM:SS"), no date.
     fields: ['name', 'partner_id', 'date_order', 'amount_untaxed', 'amount_total', 'state', 'invoice_status', 'user_id'],
   },
+
+  // ── Fase 3 — Inventario (almacén de Odoo, NO la tienda DYMMSA-WEB) ───
+  // `qty_available` queda FUERA a propósito: es computado no-almacenado y
+  // Odoo revienta al filtrar/ordenar por él (verificado 2026-08-11). La
+  // verdad almacenada del stock es stock.quant.
+  'product.product': {
+    label: 'Productos (catálogo de Odoo)',
+    fields: ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'uom_id'],
+  },
+  'stock.quant': {
+    label: 'Existencias por ubicación (almacén de Odoo)',
+    fields: ['product_id', 'location_id', 'quantity', 'available_quantity'],
+  },
+
+  // ── Fase 4 — Empleados + Flotilla ────────────────────────────────────
+  // hr.employee: SOLO directorio laboral. Nómina/salarios/datos personales
+  // (banco, CURP, fecha de nacimiento) jamás entran a esta whitelist.
+  'hr.employee': {
+    label: 'Empleados (directorio laboral)',
+    fields: ['name', 'job_title', 'department_id', 'work_email', 'work_phone'],
+  },
+  'fleet.vehicle': {
+    label: 'Flotilla (vehículos)',
+    fields: ['name', 'license_plate', 'driver_id', 'odometer', 'odometer_unit', 'model_id', 'state_id'],
+  },
+  'fleet.vehicle.log.services': {
+    label: 'Bitácora de servicios de flotilla',
+    fields: ['vehicle_id', 'service_type_id', 'date', 'amount', 'state', 'description'],
+  },
 }
 
 export function catalogEntry(model: string): CatalogEntry {

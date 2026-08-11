@@ -12,8 +12,10 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   cartera vencida con días de atraso, totales por periodo y desglose por cliente.
   También conoce las ventas y los clientes: "resumen de ventas de julio",
   "el expediente completo de Andritz" (contacto, RFC, cuánto ha comprado, qué
-  debe y desde cuándo). Es solo lectura — el asistente no puede modificar nada
-  en Odoo. Faltan por sumarse inventario, empleados y flotilla.
+  debe y desde cuándo). También el almacén de Odoo ("¿cuántas puntas de cobre
+  hay?"), el directorio del equipo y la flotilla (vehículos, conductor asignado
+  y su bitácora de servicios). Es solo lectura — el asistente no puede
+  modificar nada en Odoo — y los datos de nómina quedan fuera por diseño.
 
 ## 2026-08-09
 

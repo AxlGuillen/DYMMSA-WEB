@@ -1,7 +1,7 @@
 # ADR-025 — Bloque Odoo en el MCP (lectura de facturación)
 
 **Fecha:** 2026-08-11
-**Estado:** Aceptado (Fase 1 implementada)
+**Estado:** Aceptado (Fases 1–4 implementadas — bloque completo)
 **Issue:** #65 · **Relacionado:** [[ADR-023-MCP-OAuth]] (el MCP anfitrión), [[ADR-014-Tareas-GitHub]] (precedente de tercero aislado)
 
 ## Contexto
@@ -26,8 +26,8 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 |---|---|---|
 | 1 | Contabilidad (`account.move`, `account.payment`) + toda la infraestructura | ✅ 2026-08-11 |
 | 2 | Contactos + Ventas (`res.partner`, `sale.order`) | ✅ 2026-08-11 |
-| 3 | Inventario (`product.product`, `stock.quant`) — desambiguar de `search_inventory` (tienda) | Pendiente |
-| 4 | Empleados (`hr.employee`, whitelist mínima SIN nómina) + Flotilla (`fleet.vehicle`) | Pendiente |
+| 3 | Inventario (`product.product`, `stock.quant`) — desambiguado de `search_inventory` (tienda) | ✅ 2026-08-11 |
+| 4 | Empleados (`hr.employee`, whitelist mínima SIN nómina) + Flotilla (`fleet.vehicle` + bitácora) | ✅ 2026-08-11 |
 
 ## Tools Fase 1
 
@@ -40,6 +40,14 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 
 - `odoo_sales_summary` — ventas por periodo agrupadas por estado | cliente | vendedor | mes; default solo confirmadas (las draft/sent de Odoo son cotizaciones)
 - `odoo_customer_profile` — expediente de un cliente en 4 llamadas: contacto (con RFC), ventas por estado (total solo confirmadas), facturación con pendiente y sus vencidas con días de atraso; con ≥2 coincidencias devuelve la lista para precisar
+
+## Tools Fases 3 y 4
+
+- `odoo_stock_check` — existencias del ALMACÉN DE ODOO por nombre/código (1 llamada: read_group de stock.quant suma ubicaciones); lista solo lo con existencia (máx 20) + conteo `en_cero`. Descripción con ⚠️ explícito: NO es `search_inventory` (tienda DYMMSA-WEB).
+- `odoo_employee_directory` — directorio LABORAL (nombre, puesto, depto, contacto). Nómina/personales fuera por whitelist; test lo fija (`wage`/`contract_id`/`birthday` rechazados).
+- `odoo_fleet_status` — vehículos (placas, conductor, odómetro, estado) + últimos servicios; bitácora vacía se reporta explícita.
+
+Hallazgo F3: `product.product.qty_available` es computado NO almacenado — Odoo revienta al filtrar/ordenar por él → queda fuera del catálogo; la verdad del stock es `stock.quant` (cuyo display de product_id ya trae el código embebido).
 
 Hallazgos de la exploración F2 (2026-08-11): `res.partner` en Odoo 19 ya NO tiene `mobile` (consolidado en `phone`); `sale.order.date_order` es DATETIME → los rangos se expanden a extremos del día; al agrupar por un campo selection Odoo devuelve TODAS las opciones aunque el dominio las excluya → `normalizeGroups` descarta grupos con count 0.
 

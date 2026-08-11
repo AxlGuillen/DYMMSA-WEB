@@ -21,6 +21,7 @@ import { ToolError, type Db } from './shared'
 import { contextFrom } from './context'
 import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } from './tools/odoo/accounting'
 import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
+import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/odoo/operations'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats } from './tools/inventory'
@@ -376,6 +377,44 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, () => odooCustomerProfile(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_stock_check',
+    {
+      title: 'Existencias en Odoo',
+      description:
+        'Existencias en el ALMACÉN DE ODOO (externo), buscando por nombre o código de producto y sumando todas las ubicaciones. ⚠️ NO es el inventario de la tienda de DYMMSA-WEB — para ese usa search_inventory. Son dos inventarios distintos.',
+      inputSchema: {
+        producto: z.string().min(1).describe('Nombre o código del producto, p. ej. "punta de cobre" o "510023782"'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooStockCheck(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_employee_directory',
+    {
+      title: 'Directorio de empleados (Odoo)',
+      description:
+        'Directorio LABORAL del equipo registrado en Odoo (externo): nombre, puesto, departamento y contacto de trabajo. No incluye — por diseño — nómina, salarios ni datos personales.',
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    (_input, extra) => run(extra, () => odooEmployeeDirectory(callOdoo)),
+  )
+
+  server.registerTool(
+    'odoo_fleet_status',
+    {
+      title: 'Estado de la flotilla (Odoo)',
+      description:
+        'La flotilla registrada en Odoo (externo): vehículos con placas, conductor asignado, odómetro y estado, más los últimos servicios/mantenimientos de la bitácora.',
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    (_input, extra) => run(extra, () => odooFleetStatus(callOdoo)),
   )
 
   // ─── Recurso: reglas de negocio ──────────────────────────────────────

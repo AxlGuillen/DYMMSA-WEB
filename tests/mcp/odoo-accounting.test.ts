@@ -47,7 +47,8 @@ const INVOICE_RAW = {
 describe('odoo_query', () => {
   test('modelo fuera del catálogo → error claro con los disponibles', async () => {
     const { odoo } = fakeOdoo({})
-    await expect(odooQuery(odoo, { model: 'hr.employee' })).rejects.toThrow(/no está en el catálogo.*account\.move/)
+    // hr.payslip (nómina) es el ejemplo canónico de lo que JAMÁS entra (ADR-025).
+    await expect(odooQuery(odoo, { model: 'hr.payslip' })).rejects.toThrow(/no está en el catálogo.*account\.move/)
   })
 
   test('campo fuera de la whitelist → error (también en el dominio)', async () => {
