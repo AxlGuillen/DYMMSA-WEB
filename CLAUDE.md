@@ -27,6 +27,10 @@ GITHUB_TOKEN=   # fine-grained PAT: Issues Read/Write + Metadata Read, solo el r
 GITHUB_REPO=    # owner/repo, ej. AxlGuillen/DYMMSA-WEB
 # MCP remoto (OAuth 2.1 de Supabase, ADR-023) — allowlist de Client IDs (CSV; vacío = cualquiera del proyecto)
 MCP_OAUTH_CLIENT_IDS=
+# Bloque Odoo del MCP (ADR-025) — lectura de la facturación (opcional: sin esto las tools odoo_* avisan)
+ODOO_URL=       # solo el origen, ej. https://<empresa>.odoo.com
+ODOO_API_KEY=   # API key con expiración (rotar 6-12 meses); la de exploración se revoca al desplegar
+ODOO_DB=        # opcional (Odoo Online: una sola base)
 # APP_URL=          # opcional: SOLO el origen; si falta se deriva de VERCEL_PROJECT_PRODUCTION_URL
 ```
 
@@ -118,6 +122,7 @@ Estas reglas generan bugs si se ignoran al escribir código:
 | **Rollback** | Si falla inserción de ítems en `save` o `create-order` → eliminar el registro padre (quotation/order). |
 | **Módulo Tareas = GitHub Issues** | `src/lib/github.ts` + `/api/tasks/*`. **No hay tabla**: los issues del repo (`GITHUB_REPO`) SON las tasks. Prioridad = label `priority:*`, estado = open/closed, reporter = línea `Reportado por:` en el body. La API de issues incluye PRs → excluir con `isPullRequest`. Errores vía `GitHubError`/`handleGitHubError` (401 token vencido, 403, 404). Imágenes → bucket `task-images`. Novedades liga `#N` → `/dashboard/tasks/N`. Ver ADR-014. |
 | **MCP remoto = OAuth 2.1 de Supabase (ADR-023)** | `src/lib/mcp/` + `POST /api/mcp` (ruta `src/app/api/[transport]/route.ts`, mcp-handler + `withMcpAuth`, SSE deshabilitado). Auth: **OAuth nativo de Supabase** — `verifyToken` = `getUser` contra GoTrue + claim `client_id` en allowlist (`MCP_OAUTH_CLIENT_IDS`); un token de sesión web NO abre el conector. **CERO service_role**: cada llamada construye su cliente con el token del request (`clientForToken`/`contextFrom`) → RLS aplica como en la app. El proxy NO intercepta `/api/mcp` ni `/.well-known/*`; consentimiento en `/oauth/consent` (detrás del login, conserva `?next=`). Conector: Claude web/móvil/Code vía OAuth. **Escrituras aprobadas como dirección (decisión 2026-07-12, ADR-015):** primera = `create_task` (GitHub Issue; reporter fijo `"Asistente (MCP)"`). Las siguientes se agregan por nivel de riesgo, cada una acotada, con tests y documentada en ADR-015 — las que toquen el núcleo transaccional (inventario, cotizaciones, órdenes) se diseñan con el usuario antes de implementar. Reutilizan `business-rules.ts`/`github.ts`; respuestas ya resueltas (descripción DYMMSA, totales, ubicación oculta sin stock). |
+| **Bloque Odoo del MCP (ADR-025)** | La facturación OFICIAL vive en Odoo Online (tercero, plan Custom) — el MCP la LEE, jamás escribe ni la cruza con DYMMSA-WEB. `src/lib/odoo/` aislado (patrón github.ts): cliente **JSON-2** (`/json/2/…` — `/jsonrpc` muere en Online 21.1), **cola serializada** (1 req en vuelo, espaciado 1.1 s, backoff 429: el rate limit de Odoo Online no admite paralelas) y **`catalog.ts` como frontera**: modelos/campos allowlisted también en filtros; nómina/salarios NUNCA entran. Tools con prefijo `odoo_*` en `src/lib/mcp/tools/odoo/`, respuestas digeridas (read_group server-side, many2one→nombre, false→null). Env opcional (`ODOO_URL`/`ODOO_API_KEY`/`ODOO_DB`): sin ella el MCP opera y el health reporta `skip`. Fases del dictamen en issue #65 (1=Contabilidad ✅, 2=Contactos+Ventas, 3=Inventario, 4=Empleados+Flotilla). |
 | **Errores descriptivos** | Los route handlers mapean `PostgrestError` con `explainPgError()` → identifican el ETM ofensor y devuelven 400 (no 500) cuando es violación de regla del usuario. `auto-learn` aislado en su propio try/catch → si falla, la cotización ya está salvada (warning, no error). Ver `DYMMSA/04-Decisiones-Tecnicas/ADR-009-Errores-Descriptivos.md`. |
 
 ---
@@ -222,7 +227,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 | 5 — Flujo completo | ✅ | `src/app/api/quotations/` + `src/app/api/orders/` |
 | 5.5 — Flexibilidad post-aprobación | ✅ | `src/app/api/orders/[id]/items/` |
 | 6 — Mejoras UX | 🔄 | — |
-| 7 — MCP interno | 🔄 lectura ✅ · `create_task` ✅ · OAuth 2.1 Supabase (conectores) ✅ · más escrituras aprobadas (por nivel de riesgo) | `src/lib/mcp/` + `/api/mcp` |
+| 7 — MCP interno | 🔄 lectura ✅ · `create_task` ✅ · OAuth 2.1 Supabase (conectores) ✅ · bloque Odoo F1 (contabilidad) ✅ · más escrituras aprobadas (por nivel de riesgo) | `src/lib/mcp/` + `/api/mcp` + `src/lib/odoo/` |
 
 ---
 
@@ -236,7 +241,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 |--------|---------------------|
 | Nueva o modificada **ruta API** | `DYMMSA/02-Arquitectura/API-Routes.md` |
 | Nueva **tabla o columna** en Supabase | `DYMMSA/02-Arquitectura/Base-de-Datos.md` (verificar con MCP Supabase) + este CLAUDE.md |
-| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-024) |
+| **Decisión técnica no obvia** | Crear `DYMMSA/04-Decisiones-Tecnicas/ADR-XXX-nombre.md` (último: ADR-025) |
 | Nueva lógica de negocio o **route handler** | Agregar/actualizar su test en `tests/` (ver `ADR-007-Estrategia-Testing.md`) |
 | **Fase completada** | Marcar ✅ en este CLAUDE.md + actualizar `DYMMSA/05-Fases/Fase-N.md` |
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |

@@ -24,6 +24,16 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   pantallas la última columna queda **fija a la derecha**, así que editar, eliminar
   o insertar separador siguen a la vista aunque muevas la tabla de lado.
 
+## 2026-08-11
+
+### Nuevo
+- **El asistente ahora también consulta la facturación (Odoo).** Puedes preguntarle
+  a Claude cosas como "¿quién nos debe y desde cuándo?", "¿cómo cerró julio?" o
+  "resumen de facturación por cliente" y responde con los datos reales de Odoo:
+  cartera vencida con días de atraso, totales por periodo y desglose por cliente.
+  Es solo lectura — el asistente no puede modificar nada en Odoo. Primera entrega
+  del bloque; después se sumarán ventas, contactos, inventario y flotilla.
+
 ## 2026-08-04
 
 ### Nuevo
