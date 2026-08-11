@@ -31,8 +31,10 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   a Claude cosas como "¿quién nos debe y desde cuándo?", "¿cómo cerró julio?" o
   "resumen de facturación por cliente" y responde con los datos reales de Odoo:
   cartera vencida con días de atraso, totales por periodo y desglose por cliente.
-  Es solo lectura — el asistente no puede modificar nada en Odoo. Primera entrega
-  del bloque; después se sumarán ventas, contactos, inventario y flotilla.
+  También conoce las ventas y los clientes: "resumen de ventas de julio",
+  "el expediente completo de Andritz" (contacto, RFC, cuánto ha comprado, qué
+  debe y desde cuándo). Es solo lectura — el asistente no puede modificar nada
+  en Odoo. Faltan por sumarse inventario, empleados y flotilla.
 
 ## 2026-08-04
 

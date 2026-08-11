@@ -20,6 +20,7 @@ import { OdooError, callOdoo } from '@/lib/odoo/client'
 import { ToolError, type Db } from './shared'
 import { contextFrom } from './context'
 import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } from './tools/odoo/accounting'
+import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats } from './tools/inventory'
@@ -344,6 +345,37 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, () => odooInvoicesSummary(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_sales_summary',
+    {
+      title: 'Resumen de ventas (Odoo)',
+      description:
+        'Ventas registradas en Odoo (externo) por periodo: total y órdenes, agrupado por estado (default), cliente, vendedor o mes. Por default solo ventas CONFIRMADAS (sale/done); incluir="todas" suma las cotizaciones draft/sent de Odoo. No confundir con las cotizaciones de DYMMSA-WEB.',
+      inputSchema: {
+        date_from: z.string().optional().describe('Desde (YYYY-MM-DD, sobre date_order)'),
+        date_to: z.string().optional().describe('Hasta (YYYY-MM-DD)'),
+        group_by: z.enum(['estado', 'cliente', 'vendedor', 'mes']).optional(),
+        incluir: z.enum(['confirmadas', 'todas']).optional(),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooSalesSummary(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_customer_profile',
+    {
+      title: 'Perfil de cliente (Odoo)',
+      description:
+        'El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), ventas por estado, facturación con pendiente de pago y sus facturas vencidas con días de atraso. Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.',
+      inputSchema: {
+        cliente: z.string().min(1).describe('Nombre (o parte) del cliente, p. ej. "GE" o "Andritz"'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooCustomerProfile(callOdoo, input)),
   )
 
   // ─── Recurso: reglas de negocio ──────────────────────────────────────

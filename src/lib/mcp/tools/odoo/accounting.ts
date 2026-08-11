@@ -86,7 +86,7 @@ export async function odooAggregate(odoo: OdooCaller, input: OdooAggregateInput)
 // ── Tools curadas de contabilidad ──────────────────────────────────────
 
 /** Facturas de cliente contabilizadas con saldo pendiente y fecha vencida. */
-const overdueDomain = (today: string): DomainTriple[] => [
+export const overdueDomain = (today: string): DomainTriple[] => [
   ['move_type', '=', 'out_invoice'],
   ['state', '=', 'posted'],
   ['payment_state', 'in', ['not_paid', 'partial']],

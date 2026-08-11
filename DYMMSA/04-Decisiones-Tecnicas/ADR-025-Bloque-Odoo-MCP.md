@@ -25,7 +25,7 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 | Fase | Módulos | Estado |
 |---|---|---|
 | 1 | Contabilidad (`account.move`, `account.payment`) + toda la infraestructura | ✅ 2026-08-11 |
-| 2 | Contactos + Ventas (`res.partner`, `sale.order`) | Pendiente |
+| 2 | Contactos + Ventas (`res.partner`, `sale.order`) | ✅ 2026-08-11 |
 | 3 | Inventario (`product.product`, `stock.quant`) — desambiguar de `search_inventory` (tienda) | Pendiente |
 | 4 | Empleados (`hr.employee`, whitelist mínima SIN nómina) + Flotilla (`fleet.vehicle`) | Pendiente |
 
@@ -35,6 +35,13 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 - `odoo_aggregate` — read_group genérico (métricas `campo:sum|avg|min|max|count`)
 - `odoo_overdue_invoices` — cartera vencida: total, por cliente (desc), más vencidas con días de atraso (2 llamadas exactas)
 - `odoo_invoices_summary` — facturación por periodo agrupada por estado_pago | cliente | mes
+
+## Tools Fase 2
+
+- `odoo_sales_summary` — ventas por periodo agrupadas por estado | cliente | vendedor | mes; default solo confirmadas (las draft/sent de Odoo son cotizaciones)
+- `odoo_customer_profile` — expediente de un cliente en 4 llamadas: contacto (con RFC), ventas por estado (total solo confirmadas), facturación con pendiente y sus vencidas con días de atraso; con ≥2 coincidencias devuelve la lista para precisar
+
+Hallazgos de la exploración F2 (2026-08-11): `res.partner` en Odoo 19 ya NO tiene `mobile` (consolidado en `phone`); `sale.order.date_order` es DATETIME → los rangos se expanden a extremos del día; al agrupar por un campo selection Odoo devuelve TODAS las opciones aunque el dominio las excluya → `normalizeGroups` descarta grupos con count 0.
 
 ## Operación
 

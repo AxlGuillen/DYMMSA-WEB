@@ -33,23 +33,28 @@ export function normalizeRecords(records: unknown): OdooRecord[] {
 }
 
 /**
- * Limpia los grupos de read_group: quita `__domain`/`__range` y renombra
- * `<campo>_count` a `count`.
+ * Limpia los grupos de read_group: quita `__domain`/`__range`, renombra
+ * `<campo>_count` a `count` y descarta grupos vacíos — al agrupar por un campo
+ * selection, Odoo devuelve TODAS las opciones aunque el dominio las excluya
+ * (count 0 y métricas null: puro ruido para el modelo).
  */
 export function normalizeGroups(groups: unknown): OdooRecord[] {
   if (!Array.isArray(groups)) return []
-  return groups.map((raw) => {
-    const out: OdooRecord = {}
+  const out: OdooRecord[] = []
+  for (const raw of groups) {
+    const group: OdooRecord = {}
     for (const [key, value] of Object.entries(raw as OdooRecord)) {
       if (key.startsWith('__')) continue
       if (key.endsWith('_count')) {
-        out.count = value
+        group.count = value
         continue
       }
-      out[key] = normalizeValue(value)
+      group[key] = normalizeValue(value)
     }
-    return out
-  })
+    if (group.count === 0) continue
+    out.push(group)
+  }
+  return out
 }
 
 /** Días transcurridos desde `dateIso` (YYYY-MM-DD) hasta hoy; 0 si es futura. */

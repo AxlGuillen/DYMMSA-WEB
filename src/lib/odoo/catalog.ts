@@ -32,6 +32,19 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
     label: 'Pagos',
     fields: ['name', 'partner_id', 'date', 'amount', 'payment_type', 'state', 'memo'],
   },
+
+  // ── Fase 2 — Contactos + Ventas ──────────────────────────────────────
+  // Ojo Odoo 19: res.partner ya NO tiene `mobile` (consolidado en phone) —
+  // verificado contra la instancia real (2026-08-11).
+  'res.partner': {
+    label: 'Contactos (clientes y proveedores)',
+    fields: ['name', 'email', 'phone', 'vat', 'city', 'country_id', 'customer_rank', 'supplier_rank'],
+  },
+  'sale.order': {
+    label: 'Órdenes de venta',
+    // date_order es DATETIME ("YYYY-MM-DD HH:MM:SS"), no date.
+    fields: ['name', 'partner_id', 'date_order', 'amount_untaxed', 'amount_total', 'state', 'invoice_status', 'user_id'],
+  },
 }
 
 export function catalogEntry(model: string): CatalogEntry {
