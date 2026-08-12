@@ -103,8 +103,17 @@ export type DomainTriple = [string, string, unknown]
 export function assertDomainAllowed(model: string, domain: DomainTriple[]): void {
   const entry = catalogEntry(model)
   for (const [field] of domain) {
-    // `invoice_date:month` o `partner_id.name` → valida el campo base; `id` siempre pasa.
-    const base = field.split(/[.:]/)[0]
+    // Traversal por relación ("partner_id.vat") vedado: filtrar por un campo
+    // relacionado fuera del catálogo habilita inferencia por búsqueda aunque
+    // el valor nunca se proyecte (review PR #66). Los many2one aceptan ilike
+    // sobre su display, así que el campo base cubre el caso legítimo.
+    if (field.includes('.')) {
+      throw new OdooError(
+        `No se puede filtrar ${model} por "${field}": el traversal por relación no está permitido — filtra por el campo base (p. ej. partner_id con ilike).`,
+      )
+    }
+    // `invoice_date:month` (granularidad de agrupación) valida el campo base.
+    const base = field.split(':')[0]
     if (base !== 'id' && !entry.fields.includes(base)) {
       throw new OdooError(`No se puede filtrar ${model} por "${field}": el campo no está en el catálogo.`)
     }

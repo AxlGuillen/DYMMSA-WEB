@@ -61,6 +61,25 @@ describe('odoo_query', () => {
     ).rejects.toThrow(/No se puede filtrar/)
   })
 
+  test('traversal por relación en el dominio → rechazado aunque el base esté permitido (PR #66)', async () => {
+    // partner_id está en la whitelist, pero partner_id.vat filtraría por un
+    // campo oculto (oracle de inferencia) — verificado que Odoo SÍ lo filtra.
+    const { odoo } = fakeOdoo({})
+    await expect(
+      odooQuery(odoo, { model: 'account.move', domain: [['partner_id.vat', 'ilike', 'AHY']] }),
+    ).rejects.toThrow(/traversal por relación/)
+  })
+
+  test('order multi-columna: valida TODAS las columnas, no solo la primera (PR #66)', async () => {
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [[INVOICE_RAW]] })
+    await expect(
+      odooQuery(odoo, { model: 'account.move', order: 'invoice_date asc, partner_id.vat desc' }),
+    ).rejects.toThrow(/traversal por relación/)
+    await expect(
+      odooQuery(odoo, { model: 'account.move', order: 'invoice_date asc, name desc' }),
+    ).resolves.toMatchObject({ count: 1 })
+  })
+
   test('normaliza: many2one → nombre, false → null; sin campos usa la whitelist', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.move.search_read': [[INVOICE_RAW]] })
     const result = await odooQuery(odoo, { model: 'account.move', limit: 5 })

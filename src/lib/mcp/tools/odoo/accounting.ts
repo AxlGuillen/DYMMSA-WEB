@@ -25,11 +25,24 @@ export interface OdooQueryInput {
   offset?: number
 }
 
+/**
+ * Valida CADA columna de un `order` ("invoice_date asc, name desc") contra el
+ * catálogo — validar solo la primera dejaba pasar campos ocultos en el resto
+ * (review PR #66; mismo canal de inferencia que el traversal en dominios).
+ */
+function assertOrderAllowed(model: string, order: string): void {
+  const columns = order
+    .split(',')
+    .map((col) => col.trim().split(/\s+/)[0])
+    .filter(Boolean)
+  assertDomainAllowed(model, columns.map((field): DomainTriple => [field, '=', null]))
+}
+
 export async function odooQuery(odoo: OdooCaller, input: OdooQueryInput) {
   const fields = allowedFields(input.model, input.fields)
   const domain = input.domain ?? []
   assertDomainAllowed(input.model, domain)
-  if (input.order) assertDomainAllowed(input.model, [[input.order.split(' ')[0], '=', null]])
+  if (input.order) assertOrderAllowed(input.model, input.order)
 
   const limit = Math.min(MAX_LIMIT, Math.max(1, input.limit ?? 20))
   const records = await odoo(input.model, 'search_read', {

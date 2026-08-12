@@ -14,7 +14,7 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 
 1. **Tercero aislado** en `src/lib/odoo/` (patrón `github.ts`): `client.ts` (transporte + `OdooError`), `env.ts`, `catalog.ts`, `normalize.ts`. Las tools MCP viven en `src/lib/mcp/tools/odoo/` y llevan **prefijo `odoo_`** + descripciones que dicen explícitamente que consultan el sistema EXTERNO de facturación.
 2. **Cola serializada obligatoria**: el singleton `callOdoo` garantiza UNA request en vuelo con espaciado mínimo (1.1 s) — si el LLM dispara varias tools a la vez, se forman. Backoff ante 429 (Retry-After o 2 s, UN reintento). Producción jamás crea callers propios: la cola solo protege si es compartida.
-3. **El catálogo es la frontera de seguridad** (`catalog.ts`): las primitivas genéricas solo aceptan modelos allowlisted y campos whitelisted — también en filtros y agrupaciones (filtrar por un campo oculto filtraría información vedada). **Nómina/salarios nunca entran al catálogo** aunque la API key (de admin) pueda leerlos.
+3. **El catálogo es la frontera de seguridad** (`catalog.ts`): las primitivas genéricas solo aceptan modelos allowlisted y campos whitelisted — también en filtros, agrupaciones y **cada columna del `order`**. El **traversal por relación en dominios está vedado** (`partner_id.vat` filtraría por un campo oculto: oracle de inferencia, verificado en vivo — review PR #66); el caso legítimo lo cubre el ilike sobre el display del many2one. **Nómina/salarios nunca entran al catálogo** aunque la API key (de admin) pueda leerlos.
 4. **Estrategia híbrida**: 2 primitivas (`odoo_query`, `odoo_aggregate`) para la cola larga de preguntas + tools curadas por módulo para las frecuentes. Agregar un módulo de Odoo = entradas al catálogo + (opcional) tools curadas.
 5. **El server digiere, el modelo interpreta**: respuestas JSON compactas — agregados calculados POR Odoo (`read_group`), many2one → nombre, `false` → null, `__domain` fuera. Nunca registros crudos masivos al contexto.
 6. **Identidad**: las tools Odoo corren con la API key del server (env), no con el token OAuth del usuario — cualquier usuario del conector ve lo mismo. Correcto para una empresa de un solo equipo (misma lógica del ADR-023); documentado como límite consciente.
@@ -32,7 +32,7 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 ## Tools Fase 1
 
 - `odoo_query` — search_read genérico sobre el catálogo (máx 50, normalizado, avisa truncado)
-- `odoo_aggregate` — read_group genérico (métricas `campo:sum|avg|min|max|count`)
+- `odoo_aggregate` — read_group genérico (métricas `campo:sum|avg|min|max|count`; el `:count` está verificado contra la instancia real)
 - `odoo_overdue_invoices` — cartera vencida: total, por cliente (desc), más vencidas con días de atraso (2 llamadas exactas)
 - `odoo_invoices_summary` — facturación por periodo agrupada por estado_pago | cliente | mes
 
