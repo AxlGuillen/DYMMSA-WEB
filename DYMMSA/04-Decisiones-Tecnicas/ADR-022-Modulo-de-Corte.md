@@ -62,3 +62,15 @@ placa se venden por largo, sin presentación fija).
   `business-rules.ts`, igual que `purchase-plan.ts`.
 - Excel "pedido de material" con la necesidad neta por medida; la página es
   imprimible (`print:hidden` en controles).
+
+
+---
+
+## Enmienda 2026-08-13 (issue #64): la placa se compra como HOJA, no como tira
+
+La suposición original ("la placa se compra por largo de tira, con el ancho fijo del proveedor") resultó falsa: el proveedor vende **hojas de medida fija** (ancho × largo). El modelo cambió:
+
+- `packStrip` → **`packSheets`**: mismas filas (shelf FFD por largo), pero paginadas en hojas de largo fijo (first-fit decreciente). Respuesta = cuántas hojas pedir y el acomodo de cada una.
+- `CutStripDiagram` → **`CutSheetDiagram`**: una hoja por diagrama, con el sobrante punteado (como las barras) y aprovechamiento por hoja.
+- La UI captura **ancho × largo de la hoja**; imposibles ahora incluyen piezas más LARGAS que la hoja, no solo más anchas.
+- Las **hojas de placa SÍ se guardan como presentaciones** (`material_presentations` con thickness+width+length) — la exclusión "solo tubos" aplicaba al modelo de tira, que no tenía medida fija.

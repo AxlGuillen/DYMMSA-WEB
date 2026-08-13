@@ -14,7 +14,7 @@ import {
   tubeNetNeeds,
   plateNetNeeds,
   packBars,
-  packStrip,
+  packSheets,
   type TubePieceInput,
   type PlatePieceInput,
 } from '@/lib/cut-plan'
@@ -191,61 +191,90 @@ describe('packBars', () => {
   })
 })
 
-// ─── Acomodo en tira (placas) ────────────────────────────────────────────
+// ─── Acomodo en hojas de medida fija (placas, issue #64) ─────────────────
 
-describe('packStrip', () => {
+describe('packSheets', () => {
   test('dos piezas comparten fila a lo ancho, con offset separado por margen', () => {
-    const { shelves, totalLengthMm } = packStrip(
+    const { sheets } = packSheets(
       [{ id: 'a', widthMm: 80, lengthMm: 500, quantity: 2 }],
       200,
+      1000,
       10,
     )
-    // 80 + 10 + 80 = 170 ≤ 200 → una fila de 500 mm.
-    expect(shelves).toHaveLength(1)
-    expect(shelves[0].items.map((i) => i.offsetMm)).toEqual([0, 90])
-    expect(totalLengthMm).toBe(500)
+    // 80 + 10 + 80 = 170 ≤ 200 → una fila de 500 mm en una sola hoja.
+    expect(sheets).toHaveLength(1)
+    expect(sheets[0].shelves).toHaveLength(1)
+    expect(sheets[0].shelves[0].items.map((i) => i.offsetMm)).toEqual([0, 90])
+    expect(sheets[0].usedLengthMm).toBe(500)
   })
 
-  test('cuando el ancho se agota abre fila nueva y el total suma margen ENTRE filas', () => {
-    const { shelves, totalLengthMm } = packStrip(
+  test('cuando el ancho se agota abre fila nueva; el largo usado suma margen ENTRE filas', () => {
+    const { sheets } = packSheets(
       [
         { id: 'larga', widthMm: 150, lengthMm: 500, quantity: 1 },
         { id: 'corta', widthMm: 150, lengthMm: 300, quantity: 1 },
       ],
       200,
+      1000,
       10,
     )
-    // 150 + 10 + 150 > 200 → dos filas: 500 y 300, + 10 de corte entre ellas.
-    expect(shelves.map((s) => s.lengthMm)).toEqual([500, 300])
-    expect(totalLengthMm).toBe(810)
+    // 150 + 10 + 150 > 200 → dos filas (500 y 300) que SÍ caben en una hoja
+    // de 1000: 500 + 10 + 300 = 810.
+    expect(sheets).toHaveLength(1)
+    expect(sheets[0].shelves.map((s) => s.lengthMm)).toEqual([500, 300])
+    expect(sheets[0].usedLengthMm).toBe(810)
+  })
+
+  test('cuando el largo de la hoja se agota, las filas se paginan en una hoja nueva', () => {
+    const { sheets } = packSheets(
+      [
+        { id: 'larga', widthMm: 150, lengthMm: 500, quantity: 1 },
+        { id: 'corta', widthMm: 150, lengthMm: 300, quantity: 1 },
+      ],
+      200,
+      600,
+      10,
+    )
+    // Dos filas de 500 y 300: 500 + 10 + 300 > 600 → la segunda abre hoja 2.
+    expect(sheets).toHaveLength(2)
+    expect(sheets[0].shelves[0].lengthMm).toBe(500)
+    expect(sheets[1].shelves[0].lengthMm).toBe(300)
   })
 
   test('la pieza más larga define la fila; una corta se le une si cabe a lo ancho', () => {
-    const { shelves, totalLengthMm } = packStrip(
+    const { sheets } = packSheets(
       [
         { id: 'larga', widthMm: 100, lengthMm: 500, quantity: 1 },
         { id: 'corta', widthMm: 100, lengthMm: 300, quantity: 1 },
       ],
       250,
+      1000,
       10,
     )
     // 100 + 10 + 100 = 210 ≤ 250 → misma fila; la de 500 la define.
-    expect(shelves).toHaveLength(1)
-    expect(shelves[0].lengthMm).toBe(500)
-    expect(totalLengthMm).toBe(500)
+    expect(sheets).toHaveLength(1)
+    expect(sheets[0].shelves).toHaveLength(1)
+    expect(sheets[0].shelves[0].lengthMm).toBe(500)
   })
 
-  test('pieza más ancha que la tira → imposible (v1 no rota)', () => {
-    const { shelves, impossible } = packStrip(
-      [{ id: 'ancha', widthMm: 300, lengthMm: 100, quantity: 1 }],
+  test('pieza más ancha O más larga que la hoja → imposible (v1 no rota)', () => {
+    const { sheets, impossible } = packSheets(
+      [
+        { id: 'ancha', widthMm: 300, lengthMm: 100, quantity: 1 },
+        { id: 'muy-larga', widthMm: 100, lengthMm: 900, quantity: 1 },
+      ],
       200,
+      600,
       10,
     )
-    expect(shelves).toHaveLength(0)
-    expect(impossible).toEqual([{ pieceId: 'ancha', lengthMm: 100, quantity: 1 }])
+    expect(sheets).toHaveLength(0)
+    expect(impossible).toEqual([
+      { pieceId: 'ancha', lengthMm: 100, quantity: 1 },
+      { pieceId: 'muy-larga', lengthMm: 900, quantity: 1 },
+    ])
   })
 
-  test('sin piezas → tira de 0', () => {
-    expect(packStrip([], 200, 10)).toEqual({ shelves: [], totalLengthMm: 0, impossible: [] })
+  test('sin piezas → sin hojas', () => {
+    expect(packSheets([], 200, 600, 10)).toEqual({ sheets: [], impossible: [] })
   })
 })
