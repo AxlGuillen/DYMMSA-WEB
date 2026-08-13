@@ -92,6 +92,20 @@ describe('odoo_stock_check', () => {
     expect(result.coincidencias).toBe(0)
     expect(result.mensaje).toContain('inexistente')
   })
+
+  test('más de 20 con stock → lista 20 y AVISA el truncado (PR #67: sin caps silenciosos)', async () => {
+    const groups = Array.from({ length: 25 }, (_, i) => ({
+      product_id: [i + 1, `[C${i}] Producto ${i}`],
+      product_id_count: 1,
+      quantity: 25 - i,
+      available_quantity: 25 - i,
+      __domain: [],
+    }))
+    const { odoo } = fakeOdoo({ 'stock.quant.read_group': [[...groups]] })
+    const result = await odooStockCheck(odoo, { producto: 'producto' })
+    expect(result.existencias).toHaveLength(20)
+    expect(result.nota).toMatch(/20.*de 25/)
+  })
 })
 
 describe('odoo_employee_directory', () => {

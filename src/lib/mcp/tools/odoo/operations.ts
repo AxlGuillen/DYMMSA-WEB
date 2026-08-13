@@ -11,6 +11,13 @@ import type { OdooCaller } from '@/lib/odoo/client'
 import { normalizeGroups, normalizeRecords } from '@/lib/odoo/normalize'
 import { ToolError } from '../../shared'
 
+const STOCK_LIST_LIMIT = 20
+const DIRECTORY_LIMIT = 50
+
+/** Sin truncados silenciosos (regla del bloque): al llenar el límite se avisa. */
+const truncationNote = (shown: number, limit: number, what: string) =>
+  shown === limit ? `Se devolvió el máximo (${limit}) de ${what} — puede haber más.` : undefined
+
 // ── odoo_stock_check (Fase 3) ──────────────────────────────────────────
 
 export async function odooStockCheck(odoo: OdooCaller, input: { producto: string }) {
@@ -46,7 +53,10 @@ export async function odooStockCheck(odoo: OdooCaller, input: { producto: string
     mensaje: todas.length === 0
       ? `Ningún producto con existencias registradas en Odoo coincide con "${query}"`
       : undefined,
-    existencias: conExistencia.slice(0, 20),
+    nota: conExistencia.length > STOCK_LIST_LIMIT
+      ? `Se listan las ${STOCK_LIST_LIMIT} con más existencia de ${conExistencia.length} con stock — afina la búsqueda para ver el resto.`
+      : undefined,
+    existencias: conExistencia.slice(0, STOCK_LIST_LIMIT),
   }
 }
 
@@ -57,11 +67,12 @@ export async function odooEmployeeDirectory(odoo: OdooCaller) {
     await odoo('hr.employee', 'search_read', {
       domain: [],
       fields: ['name', 'job_title', 'department_id', 'work_email', 'work_phone'],
-      limit: 50,
+      limit: DIRECTORY_LIMIT,
       order: 'name asc',
     }),
   )
   return {
+    nota: truncationNote(employees.length, DIRECTORY_LIMIT, 'empleados'),
     empleados: employees.map((e) => ({
       nombre: e.name,
       puesto: e.job_title,
@@ -79,7 +90,7 @@ export async function odooFleetStatus(odoo: OdooCaller) {
     await odoo('fleet.vehicle', 'search_read', {
       domain: [],
       fields: ['name', 'license_plate', 'driver_id', 'odometer', 'odometer_unit', 'model_id', 'state_id'],
-      limit: 50,
+      limit: DIRECTORY_LIMIT,
       order: 'name asc',
     }),
   )
@@ -93,6 +104,7 @@ export async function odooFleetStatus(odoo: OdooCaller) {
   )
 
   return {
+    nota_vehiculos: truncationNote(vehicles.length, DIRECTORY_LIMIT, 'vehículos'),
     vehiculos: vehicles.map((v) => ({
       vehiculo: v.model_id ?? v.name,
       placas: v.license_plate,

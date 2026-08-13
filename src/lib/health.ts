@@ -132,8 +132,10 @@ export async function checkGitHub(fetchFn: Fetcher = fetch): Promise<HealthCheck
  */
 export async function checkOdoo(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
   if (!isOdooConfigured()) return { status: 'skip', detail: 'no configurado' }
-  const { url, apiKey, db } = odooEnv()
   return timed('odoo', async () => {
+    // odooEnv DENTRO de timed: si algún día su validación diverge del guard de
+    // arriba, un throw aquí se reporta como fail — no tumba el endpoint entero.
+    const { url, apiKey, db } = odooEnv()
     const res = await fetchFn(`${url}/json/2/account.move/search_count`, {
       method: 'POST',
       headers: {
