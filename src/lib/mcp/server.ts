@@ -16,8 +16,12 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { GitHubError } from '@/lib/github'
+import { OdooError, callOdoo } from '@/lib/odoo/client'
 import { ToolError, type Db } from './shared'
 import { contextFrom } from './context'
+import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } from './tools/odoo/accounting'
+import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
+import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/odoo/operations'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats } from './tools/inventory'
@@ -43,7 +47,7 @@ async function run(extra: ToolExtra, fn: (db: Db) => Promise<unknown>): Promise<
     const data = await fn(db)
     return { content: [{ type: 'text', text: JSON.stringify(data) }] }
   } catch (e) {
-    if (e instanceof ToolError || e instanceof GitHubError) {
+    if (e instanceof ToolError || e instanceof GitHubError || e instanceof OdooError) {
       return { content: [{ type: 'text', text: e.message }], isError: true }
     }
     console.error('MCP tool error:', e)
@@ -71,6 +75,7 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Inventario**: low_stock = 1..5 piezas; la ubicación (gaveta) solo se muestra si hay stock.
 - **Cambiar el estado de una cotización regenera su approval_token** → el link de aprobación compartido antes muere.
 - **Tareas** = GitHub Issues del repo; prioridad por label priority:*, "Descartada" = cerrada como not_planned.
+- **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB (solo lectura). Las cotizaciones/órdenes de aquí y las facturas de Odoo son mundos separados — no asumas cruces entre ambos.
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
 export function registerDymmsaTools(server: McpServer): void {
@@ -267,6 +272,149 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: { readOnlyHint: false, openWorldHint: false },
     },
     (input, extra) => run(extra, () => createTask(input)),
+  )
+
+  // ─── Bloque Odoo — Fase 1: Contabilidad (issue #65, ADR-025) ─────────
+  // Consultan el Odoo de la EMPRESA (tercero donde vive la facturación
+  // oficial), no la base de DYMMSA-WEB. Solo lectura, con API key del server.
+  const domainSchema = z
+    .array(z.tuple([z.string(), z.string(), z.unknown()]))
+    .optional()
+    .describe('Filtros Odoo como tripletas [campo, operador, valor] con AND implícito, p. ej. [["payment_state","=","not_paid"]]')
+
+  server.registerTool(
+    'odoo_query',
+    {
+      title: 'Consulta genérica en Odoo',
+      description:
+        'Consulta Odoo (el sistema de FACTURACIÓN de la empresa, externo a DYMMSA-WEB) sobre los modelos del catálogo permitido — hoy: account.move (facturas), account.payment (pagos). Úsala para preguntas que las tools curadas no cubran. Devuelve registros normalizados (máx 50). Prefiere odoo_aggregate para totales.',
+      inputSchema: {
+        model: z.string().describe('Modelo Odoo del catálogo, p. ej. "account.move"'),
+        domain: domainSchema,
+        fields: z.array(z.string()).optional().describe('Campos a devolver (subset del catálogo; omite para todos los permitidos)'),
+        limit: z.number().int().min(1).max(50).optional().describe('Máx registros (default 20)'),
+        order: z.string().optional().describe('Orden, p. ej. "invoice_date desc"'),
+        offset: z.number().int().min(0).optional(),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooQuery(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_aggregate',
+    {
+      title: 'Agregados en Odoo',
+      description:
+        'Totales y conteos agrupados calculados POR Odoo (facturación de la empresa, externo) — la forma correcta de responder "¿cuánto…?" sin traer registros: agrupa por un campo y suma/promedia métricas. Ej.: facturas por payment_state con amount_total:sum.',
+      inputSchema: {
+        model: z.string().describe('Modelo Odoo del catálogo'),
+        domain: domainSchema,
+        group_by: z.string().describe('Campo de agrupación, p. ej. "payment_state", "partner_id" o "invoice_date:month"'),
+        metrics: z.array(z.string()).optional().describe('Métricas "campo:agregador" (sum|avg|min|max|count), p. ej. ["amount_total:sum"]'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooAggregate(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_overdue_invoices',
+    {
+      title: 'Cartera vencida (Odoo)',
+      description:
+        'Responde "¿quién nos debe y desde cuándo?" desde la facturación oficial (Odoo): total vencido, desglose por cliente ordenado por monto, y las facturas más vencidas con sus días de atraso. Solo facturas de cliente contabilizadas con saldo pendiente y fecha de vencimiento superada.',
+      inputSchema: {
+        limit: z.number().int().min(1).max(50).optional().describe('Cuántas facturas "más vencidas" listar (default 10)'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooOverdueInvoices(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_invoices_summary',
+    {
+      title: 'Resumen de facturación (Odoo)',
+      description:
+        'Resumen de las facturas de cliente contabilizadas en Odoo por periodo: total facturado y pendiente, agrupado por estado_pago (default), cliente o mes. Úsala para "¿cómo cerró julio?" o "facturación por cliente del año".',
+      inputSchema: {
+        date_from: z.string().optional().describe('Desde (YYYY-MM-DD, sobre invoice_date)'),
+        date_to: z.string().optional().describe('Hasta (YYYY-MM-DD)'),
+        group_by: z.enum(['estado_pago', 'cliente', 'mes']).optional(),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooInvoicesSummary(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_sales_summary',
+    {
+      title: 'Resumen de ventas (Odoo)',
+      description:
+        'Ventas registradas en Odoo (externo) por periodo: total y órdenes, agrupado por estado (default), cliente, vendedor o mes. Por default solo ventas CONFIRMADAS (sale/done); incluir="todas" suma las cotizaciones draft/sent de Odoo. No confundir con las cotizaciones de DYMMSA-WEB.',
+      inputSchema: {
+        date_from: z.string().optional().describe('Desde (YYYY-MM-DD, sobre date_order)'),
+        date_to: z.string().optional().describe('Hasta (YYYY-MM-DD)'),
+        group_by: z.enum(['estado', 'cliente', 'vendedor', 'mes']).optional(),
+        incluir: z.enum(['confirmadas', 'todas']).optional(),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooSalesSummary(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_customer_profile',
+    {
+      title: 'Perfil de cliente (Odoo)',
+      description:
+        'El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), ventas por estado, facturación con pendiente de pago y sus facturas vencidas con días de atraso. Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.',
+      inputSchema: {
+        cliente: z.string().min(1).describe('Nombre (o parte) del cliente, p. ej. "GE" o "Andritz"'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooCustomerProfile(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_stock_check',
+    {
+      title: 'Existencias en Odoo',
+      description:
+        'Existencias en el ALMACÉN DE ODOO (externo), buscando por nombre o código de producto y sumando todas las ubicaciones. ⚠️ NO es el inventario de la tienda de DYMMSA-WEB — para ese usa search_inventory. Son dos inventarios distintos.',
+      inputSchema: {
+        producto: z.string().min(1).describe('Nombre o código del producto, p. ej. "punta de cobre" o "510023782"'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooStockCheck(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_employee_directory',
+    {
+      title: 'Directorio de empleados (Odoo)',
+      description:
+        'Directorio LABORAL del equipo registrado en Odoo (externo): nombre, puesto, departamento y contacto de trabajo. No incluye — por diseño — nómina, salarios ni datos personales.',
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    (_input, extra) => run(extra, () => odooEmployeeDirectory(callOdoo)),
+  )
+
+  server.registerTool(
+    'odoo_fleet_status',
+    {
+      title: 'Estado de la flotilla (Odoo)',
+      description:
+        'La flotilla registrada en Odoo (externo): vehículos con placas, conductor asignado, odómetro y estado, más los últimos servicios/mantenimientos de la bitácora.',
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    (_input, extra) => run(extra, () => odooFleetStatus(callOdoo)),
   )
 
   // ─── Recurso: reglas de negocio ──────────────────────────────────────

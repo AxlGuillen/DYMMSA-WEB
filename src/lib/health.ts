@@ -20,6 +20,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getGitHubConfig } from '@/lib/github'
+import { isOdooConfigured, odooEnv } from '@/lib/odoo/env'
 import { appUrl } from '@/lib/mcp/env'
 import { MCP_PATH, PROTECTED_RESOURCE_PATH, mcpResourceUrl, supabaseAuthIssuer } from '@/lib/mcp/routes'
 import { listQuotations } from '@/lib/mcp/tools/quotations'
@@ -45,6 +46,7 @@ export interface HealthReport {
     inventory: HealthCheck
     storage: HealthCheck
     github: HealthCheck
+    odoo: HealthCheck
     oauth_server: HealthCheck
     protected_resource: HealthCheck
     mcp_unauthenticated: HealthCheck
@@ -123,6 +125,32 @@ export async function checkGitHub(fetchFn: Fetcher = fetch): Promise<HealthCheck
   })
 }
 
+/**
+ * La API JSON-2 de Odoo responde con la key del server (bloque Odoo del MCP,
+ * ADR-025). Un search_count vacío es la llamada autenticada más barata. Sin
+ * configuración → skip (el bloque es opcional).
+ */
+export async function checkOdoo(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
+  if (!isOdooConfigured()) return { status: 'skip', detail: 'no configurado' }
+  return timed('odoo', async () => {
+    // odooEnv DENTRO de timed: si algún día su validación diverge del guard de
+    // arriba, un throw aquí se reporta como fail — no tumba el endpoint entero.
+    const { url, apiKey, db } = odooEnv()
+    const res = await fetchFn(`${url}/json/2/account.move/search_count`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `bearer ${apiKey}`,
+        ...(db ? { 'X-Odoo-Database': db } : {}),
+      },
+      body: JSON.stringify({ domain: [['id', '=', 0]] }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    })
+    if (!res.ok) throw new Error(`Odoo JSON-2 → ${res.status} (¿API key vencida o revocada?)`)
+  })
+}
+
 // ─── Checks del MCP remoto (OAuth, ADR-023) ────────────────────────────
 
 /**
@@ -197,13 +225,14 @@ export async function runHealthChecks(deps: {
   fetchFn?: Fetcher
 }): Promise<HealthReport> {
   const fetchFn = deps.fetchFn ?? fetch
-  const [quotations, orders, inventory, storage, github, oauthServer, protectedResource, mcpUnauthenticated] =
+  const [quotations, orders, inventory, storage, github, odoo, oauthServer, protectedResource, mcpUnauthenticated] =
     await Promise.all([
       checkQuotations(deps.db),
       checkOrders(deps.db),
       checkInventory(deps.db),
       checkStorage(deps.db),
       checkGitHub(fetchFn),
+      checkOdoo(fetchFn),
       checkOauthServer(fetchFn),
       checkProtectedResource(fetchFn),
       checkMcpUnauthenticated(fetchFn),
@@ -213,7 +242,7 @@ export async function runHealthChecks(deps: {
   // secundarios (Tareas/imágenes/conector MCP) afectados pero el negocio sigue.
   // skip no penaliza.
   let status: HealthReport['status'] = 'ok'
-  const secondary = [storage, github, oauthServer, protectedResource, mcpUnauthenticated]
+  const secondary = [storage, github, odoo, oauthServer, protectedResource, mcpUnauthenticated]
   if (secondary.some((c) => c.status === 'fail')) status = 'degraded'
   if (quotations.status === 'fail' || orders.status === 'fail' || inventory.status === 'fail') {
     status = 'down'
@@ -230,6 +259,7 @@ export async function runHealthChecks(deps: {
       inventory,
       storage,
       github,
+      odoo,
       oauth_server: oauthServer,
       protected_resource: protectedResource,
       mcp_unauthenticated: mcpUnauthenticated,
