@@ -11,6 +11,7 @@ import {
   checkQuotations,
   checkStorage,
   checkGitHub,
+  checkOdoo,
   checkOauthServer,
   checkProtectedResource,
   checkMcpUnauthenticated,
@@ -77,6 +78,9 @@ const githubDown: Fetcher = healthyFetch({ 'api.github.com': { ok: false, status
 beforeEach(() => {
   delete process.env.GITHUB_TOKEN
   delete process.env.GITHUB_REPO
+  delete process.env.ODOO_URL
+  delete process.env.ODOO_API_KEY
+  delete process.env.ODOO_DB
   process.env.NEXT_PUBLIC_SUPABASE_URL = SUPA
 })
 
@@ -136,6 +140,19 @@ describe('checkGitHub', () => {
   })
 })
 
+describe('checkOdoo (bloque Odoo del MCP, ADR-025)', () => {
+  test('skip sin configuración (el bloque es opcional)', async () => {
+    expect((await checkOdoo()).status).toBe('skip')
+  })
+
+  test('ok con la API JSON-2 respondiendo; fail con key vencida (401)', async () => {
+    process.env.ODOO_URL = 'https://odoo.test'
+    process.env.ODOO_API_KEY = 'k'
+    expect((await checkOdoo(fetchRouter({ '/json/2/': { ok: true, status: 200 } }))).status).toBe('ok')
+    expect((await checkOdoo(fetchRouter({ '/json/2/': { ok: false, status: 401 } }))).status).toBe('fail')
+  })
+})
+
 describe('checks del MCP remoto (OAuth, ADR-023)', () => {
   test('oauth_server: ok con issuer correcto; fail si el discovery no responde o el issuer no cuadra', async () => {
     expect((await checkOauthServer(healthyFetch())).status).toBe('ok')
@@ -180,9 +197,20 @@ describe('runHealthChecks (agregación)', () => {
     expect(report.checks.github.status).toBe('skip')
     expect(report.app).toBe('dymmsa-web')
     expect(Object.keys(report.checks)).toEqual([
-      'quotations', 'orders', 'inventory', 'storage', 'github',
+      'quotations', 'orders', 'inventory', 'storage', 'github', 'odoo',
       'oauth_server', 'protected_resource', 'mcp_unauthenticated',
     ])
+  })
+
+  test('odoo caído → degraded (bloque secundario, el negocio sigue)', async () => {
+    process.env.ODOO_URL = 'https://odoo.test'
+    process.env.ODOO_API_KEY = 'k'
+    const report = await runHealthChecks({
+      db: db(ALL_OK),
+      fetchFn: healthyFetch({ '/json/2/': { ok: false, status: 401 } }),
+    })
+    expect(report.status).toBe('degraded')
+    expect(report.checks.odoo.status).toBe('fail')
   })
 
   test('conector MCP roto (p. ej. OAuth server apagado) → degraded, no down', async () => {
