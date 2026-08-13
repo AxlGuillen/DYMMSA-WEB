@@ -3,6 +3,15 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-08-13
+
+### Nuevo
+- **El asistente ahora abre facturas y ventas de Odoo por dentro.** Pídele "el detalle
+  de la factura F00167" y te da el desglose completo: productos con cantidades y
+  precios, saldo pendiente, y el **timbrado** (folio fiscal y si está vigente ante el
+  SAT). Con las ventas ("detalle de la S00247") además te dice por producto cuánto se
+  pidió, cuánto se ha entregado y cuánto se ha facturado.
+
 ## 2026-08-11
 
 ### Nuevo
