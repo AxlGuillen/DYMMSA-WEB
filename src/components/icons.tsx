@@ -236,6 +236,8 @@ export const PanelLeftOpen = wrap(_ChevronsRight)
 export { Pencil } from 'lucide-react'
 // Mismo caso que Pencil: la librería animada no trae tijeras (issue #59).
 export { Scissors } from 'lucide-react'
+// Ídem: sin impresora en los 248 animados (issue #64).
+export { Printer } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
 export const RotateCcw = wrap(_CornerUpLeft)

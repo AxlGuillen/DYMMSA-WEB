@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import {
   ArrowLeft,
   Download,
+  Printer,
   Loader2,
   AlertTriangle,
   CheckCircle2,
@@ -420,7 +421,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="mt-0.5 shrink-0"
+          className="mt-0.5 shrink-0 print:hidden"
           onClick={() => push('/dashboard/orders')}
         >
           <ArrowLeft className="size-5" />
@@ -442,7 +443,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
           </p>
 
           {/* Odoo ID inline edit */}
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 print:hidden">
             <span className="text-xs font-medium text-muted-foreground shrink-0">Odoo ID:</span>
             {editingOdooId ? (
               <div className="flex items-center gap-2">
@@ -490,7 +491,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </div>
 
         {/* Actions — ml-auto: alineadas a la derecha también cuando bajan de línea */}
-        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0 ml-auto">
+        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0 ml-auto print:hidden">
           {!isCancelled && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Estado:</span>
@@ -542,6 +543,11 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <Download className="mr-2 size-4" />
             )}
             Formato de Entrega
+          </Button>
+
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="mr-2 size-4" />
+            Imprimir
           </Button>
 
           {!isCancelled && !isCompleted && (
@@ -646,7 +652,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
       {/* Info notes — only when order is active */}
       {!isCancelled && !isCompleted && (
-        <div className="flex flex-col gap-1.5 text-xs text-muted-foreground px-1">
+        <div className="flex flex-col gap-1.5 text-xs text-muted-foreground px-1 print:hidden">
           <div className="flex items-start gap-1.5">
             <Info className="size-3.5 mt-0.5 shrink-0" />
             <span>

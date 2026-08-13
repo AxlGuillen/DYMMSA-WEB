@@ -5,6 +5,21 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-08-13
 
+### Mejorado
+- **Las placas ahora se planifican como hojas de verdad.** En Planificar corte, la
+  placa ya no se pide "por largo de tira": capturas la **hoja que vende el proveedor
+  (ancho × largo)** y el sistema acomoda las piezas y te dice **cuántas hojas pedir**,
+  con el dibujo de cada hoja, su sobrante y el aprovechamiento. Las hojas capturadas
+  se recuerdan para la próxima vez.
+- **Copiar el pedido URREA directo a su Excel.** En Planificar compra hay un botón
+  **"Copiar para Excel"**: copia código y cantidad de forma que al pegar en el Excel
+  de URREA caen en dos columnas, listos para su sistema (que no abre bien el archivo
+  moderno).
+- **Imprimir desde la orden.** El detalle de la orden tiene botón **Imprimir** que
+  saca la tabla de productos en limpio.
+- **La página de aprobación quedó más ligera.** Se quitó el botón de sonidos (era
+  ruido para el cliente) y la animación de entrada es más ágil.
+
 ### Nuevo
 - **El asistente ahora abre facturas y ventas de Odoo por dentro.** Pídele "el detalle
   de la factura F00167" y te da el desglose completo: productos con cantidades y
