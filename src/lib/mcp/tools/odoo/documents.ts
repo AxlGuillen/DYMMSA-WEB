@@ -9,7 +9,7 @@
  */
 
 import type { OdooCaller } from '@/lib/odoo/client'
-import { normalizeRecord, normalizeRecords } from '@/lib/odoo/normalize'
+import { normalizeRecords } from '@/lib/odoo/normalize'
 import { ToolError } from '../../shared'
 
 const LINES_LIMIT = 80
@@ -153,7 +153,7 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
 
   return {
     encontrado: true as const,
-    venta: normalizeRecord({
+    venta: {
       folio: header.name,
       cliente: header.partner_id,
       fecha: header.date_order,
@@ -162,7 +162,7 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
       estado: header.state,
       estado_facturacion: header.invoice_status,
       vendedor: header.user_id,
-    }),
+    },
     productos: lines.map((l) => ({
       producto: l.name,
       pedido: l.product_uom_qty,
