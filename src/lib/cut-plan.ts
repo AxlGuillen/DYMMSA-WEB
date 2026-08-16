@@ -221,32 +221,40 @@ export interface PackedShelf {
   usedWidthMm: number
 }
 
-export interface StripPackResult {
+export interface PackedSheet {
   shelves: PackedShelf[]
-  /** Largo total de tira a pedir: filas + un margen entre cada par de filas. */
-  totalLengthMm: number
-  /** Piezas más anchas que la tira (v1 no rota — podría haber veta que respetar). */
+  /** Largo de hoja consumido: filas + un margen entre cada par de filas. */
+  usedLengthMm: number
+}
+
+export interface SheetPackResult {
+  sheets: PackedSheet[]
+  /** Piezas más anchas O más largas que la hoja (v1 no rota — puede haber veta). */
   impossible: ImpossiblePiece[]
 }
 
 /**
- * Acomodo por filas (shelf, first-fit decreasing por LARGO): la primera pieza
- * de cada fila —la más larga— define cuánto largo de tira consume la fila, y
- * las siguientes se acomodan a lo ancho mientras quepan (margen entre piezas).
- * Como las unidades van de mayor a menor, ninguna pieza excede el largo de la
- * fila donde entra.
+ * Acomodo en HOJAS de medida fija (issue #64 — el proveedor vende la placa
+ * como hoja de ancho × largo, no como tira por largo). Dos pasos:
+ *   1. Filas (shelf, first-fit decreasing por LARGO): la pieza más larga de
+ *      cada fila define el largo que consume; las demás entran a lo ancho
+ *      mientras quepan, con margen entre piezas.
+ *   2. Las filas se paginan en hojas (first-fit, ya decreciente por herencia
+ *      del sort): cada fila consume su largo + margen entre filas, sin exceder
+ *      el largo de la hoja.
  */
-export function packStrip(
+export function packSheets(
   pieces: readonly { id: string; widthMm: number; lengthMm: number; quantity: number }[],
-  stripWidthMm: number,
+  sheetWidthMm: number,
+  sheetLengthMm: number,
   marginMm: number,
-): StripPackResult {
+): SheetPackResult {
   const impossible: ImpossiblePiece[] = pieces
-    .filter((piece) => piece.widthMm > stripWidthMm)
+    .filter((piece) => piece.widthMm > sheetWidthMm || piece.lengthMm > sheetLengthMm)
     .map((piece) => ({ pieceId: piece.id, lengthMm: piece.lengthMm, quantity: piece.quantity }))
 
   const units = pieces
-    .filter((piece) => piece.widthMm <= stripWidthMm)
+    .filter((piece) => piece.widthMm <= sheetWidthMm && piece.lengthMm <= sheetLengthMm)
     .flatMap((piece) =>
       Array.from({ length: piece.quantity }, () => ({
         pieceId: piece.id,
@@ -257,10 +265,9 @@ export function packStrip(
     .sort((a, b) => b.lengthMm - a.lengthMm)
 
   const shelves: PackedShelf[] = []
-
   for (const unit of units) {
     const target = shelves.find(
-      (shelf) => shelf.usedWidthMm + marginMm + unit.widthMm <= stripWidthMm,
+      (shelf) => shelf.usedWidthMm + marginMm + unit.widthMm <= sheetWidthMm,
     )
     if (target) {
       target.items.push({ ...unit, offsetMm: target.usedWidthMm + marginMm })
@@ -274,9 +281,18 @@ export function packStrip(
     }
   }
 
-  const totalLengthMm =
-    shelves.reduce((sum, shelf) => sum + shelf.lengthMm, 0) +
-    marginMm * Math.max(0, shelves.length - 1)
+  const sheets: PackedSheet[] = []
+  for (const shelf of shelves) {
+    const target = sheets.find(
+      (sheet) => sheet.usedLengthMm + marginMm + shelf.lengthMm <= sheetLengthMm,
+    )
+    if (target) {
+      target.shelves.push(shelf)
+      target.usedLengthMm += marginMm + shelf.lengthMm
+    } else {
+      sheets.push({ shelves: [shelf], usedLengthMm: shelf.lengthMm })
+    }
+  }
 
-  return { shelves, totalLengthMm, impossible }
+  return { sheets, impossible }
 }

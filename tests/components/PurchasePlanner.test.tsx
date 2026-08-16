@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
 import { PurchasePlanner } from '@/components/orders/PurchasePlanner'
@@ -133,6 +133,27 @@ describe('PurchasePlanner', () => {
         packages_wholesale: 3, qty_retail: 0,
       },
     ])
+  })
+
+  test('Copiar para Excel: código ⇥ cantidad al portapapeles, guardando si hay cambios (#64)', async () => {
+    saveMutateAsync.mockResolvedValue({ decisions: [] })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    // DESPUÉS de setup(): userEvent instala su propio stub de clipboard y
+    // pisaría el nuestro. getter-only en jsdom → defineProperty.
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+
+    // N=25, STD=10 → mixto: 2 paquetes (20 pzs) a URREA.
+    const data = makeData([item()], { 'URREA|URR-1': { std: 10, description: null } })
+    renderWithProviders(<PurchasePlanner data={data} />)
+
+    await user.click(screen.getByRole('button', { name: /copiar para excel/i }))
+
+    // Tab-separado: al pegar en el Excel viejo de URREA cae en 2 columnas.
+    // (waitFor: el copiado ocurre tras el await del guardado.)
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('URR-1\t20'))
+    // Mismo contrato que la descarga: lo copiado refleja lo GUARDADO.
+    expect(saveMutateAsync).toHaveBeenCalled()
   })
 
   test('grupo en "review" bloquea el guardado hasta decidir', async () => {

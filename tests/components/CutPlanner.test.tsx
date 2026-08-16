@@ -1,6 +1,6 @@
 /**
  * CutPlanner (issue #59, Fases 3-4): necesidad neta de tubos y placas desde el
- * fixture, acomodo al capturar la presentación (barra / ancho de tira), payload
+ * fixture, acomodo al capturar la presentación (barra / hoja de placa), payload
  * del guardado con AMBOS tipos, y los diagramas SVG en sus estados clave.
  */
 
@@ -89,24 +89,40 @@ describe('CutPlanner', () => {
     expect(screen.getByRole('img', { name: /Barra de 6 m con 4 piezas/ })).toBeInTheDocument()
   })
 
-  test('capturar el ancho de tira acomoda las placas por filas', async () => {
+  test('capturar la hoja del proveedor (ancho × largo) acomoda las placas en hojas', async () => {
     const user = userEvent.setup()
     renderWithProviders(<CutPlanner data={data()} />)
 
-    // 2 piezas de 200 de ancho en tira de 450: 200+20+200 = 420 ≤ 450 → una
-    // fila de 300 mm de largo; aprovechamiento 120000/(300×450) ≈ 89 %.
-    await user.type(screen.getByLabelText(/Ancho de la tira del proveedor/), '450')
-    expect(screen.getByText(/Pide 300 mm de tira de 450 mm/)).toBeInTheDocument()
-    expect(screen.getByText(/aprovechamiento 89%/)).toBeInTheDocument()
+    // 2 piezas de 200 de ancho en hoja de 450 × 400: 200+20+200 = 420 ≤ 450 →
+    // una fila de 300 mm en UNA hoja; sobrante 100 mm de largo.
+    await user.type(screen.getByLabelText(/Ancho de la hoja del proveedor/), '450')
+    await user.type(screen.getByLabelText(/Largo de la hoja del proveedor/), '400')
+    expect(screen.getByText('Hoja 1')).toBeInTheDocument()
+    expect(screen.getByText(/1 hoja de 450 mm × 400 mm/)).toBeInTheDocument()
+    expect(screen.getByText(/Sobrante: 100 mm de largo/)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Hoja de 400 mm × 450 mm con 2 piezas/ })).toBeInTheDocument()
   })
 
-  test('tira más angosta que la pieza → aviso con el ancho mínimo, sin diagrama', async () => {
+  test('la hoja pagina: si el largo no alcanza para dos filas, abre Hoja 2', async () => {
     const user = userEvent.setup()
     renderWithProviders(<CutPlanner data={data()} />)
 
-    await user.type(screen.getByLabelText(/Ancho de la tira del proveedor/), '150')
-    expect(screen.getByText(/se necesita al menos 200 mm de ancho/)).toBeInTheDocument()
-    expect(screen.queryByText(/Pide .* de tira/)).not.toBeInTheDocument()
+    // Hoja angosta (220): las 2 piezas de 200 no comparten fila → 2 filas de
+    // 300; largo 350 no aguanta 300+20+300 → cada fila en su hoja.
+    await user.type(screen.getByLabelText(/Ancho de la hoja del proveedor/), '220')
+    await user.type(screen.getByLabelText(/Largo de la hoja del proveedor/), '350')
+    expect(screen.getByText('Hoja 1')).toBeInTheDocument()
+    expect(screen.getByText('Hoja 2')).toBeInTheDocument()
+  })
+
+  test('hoja más angosta que la pieza → aviso, sin diagrama', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<CutPlanner data={data()} />)
+
+    await user.type(screen.getByLabelText(/Ancho de la hoja del proveedor/), '150')
+    await user.type(screen.getByLabelText(/Largo de la hoja del proveedor/), '400')
+    expect(screen.getByText(/no cabe/)).toBeInTheDocument()
+    expect(screen.queryByText('Hoja 1')).not.toBeInTheDocument()
   })
 
   test('guardar: payload con tubos y placas normalizados + presentación capturada', async () => {
@@ -116,6 +132,8 @@ describe('CutPlanner', () => {
     renderWithProviders(<CutPlanner data={data()} />)
 
     await user.click(screen.getByRole('button', { name: '6 m' }))
+    await user.type(screen.getByLabelText(/Ancho de la hoja del proveedor/), '450')
+    await user.type(screen.getByLabelText(/Largo de la hoja del proveedor/), '400')
     await user.click(screen.getByRole('button', { name: /guardar lista de corte/i }))
 
     expect(saveMut).toHaveBeenCalledWith([
@@ -128,9 +146,9 @@ describe('CutPlanner', () => {
         quantity: 2, requested_label: 'Placa X', source_item_id: null,
       },
     ])
-    // La barra capturada queda registrada como presentación del proveedor
-    // (solo tubos: las tiras de placa se venden por largo, sin presentación fija).
+    // Barra Y hoja capturadas quedan como presentaciones del proveedor (#64).
     expect(presMut).toHaveBeenCalledWith({ material_type: 'tube', diameter_mm: 30, length_mm: 6000 })
+    expect(presMut).toHaveBeenCalledWith({ material_type: 'plate', thickness_mm: 5, width_mm: 450, length_mm: 400 })
   })
 
   test('ajuste manual: mover una pieza abre barra nueva; cambiar el margen lo descarta', async () => {

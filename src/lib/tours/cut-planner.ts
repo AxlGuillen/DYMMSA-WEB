@@ -22,7 +22,7 @@ export const CUT_PLANNER_TOUR: OverviewStep[] = [
     selector: '[data-tour="cut-plates"]',
     title: 'Lista de corte — placas',
     description:
-      'Igual que los tubos, pero con espesor y ancho. Las placas se agrupan por espesor y se compran como tira: el ancho lo da el proveedor y el largo lo calcula el sistema.',
+      'Igual que los tubos, pero con espesor, ancho y largo. Las placas se agrupan por espesor y se compran como HOJAS de medida fija del proveedor.',
   },
   {
     selector: '[data-tour="cut-group-tube"]',
@@ -34,7 +34,7 @@ export const CUT_PLANNER_TOUR: OverviewStep[] = [
     selector: '[data-tour="cut-group-plate"]',
     title: 'Necesidad por espesor de placa',
     description:
-      'Para placas capturas el <b>ancho de la tira</b> que ofrezca el proveedor; el sistema acomoda las piezas por filas (vista aérea) y te dice cuántos mm de tira pedir y el aprovechamiento.',
+      'Para placas capturas la <b>hoja del proveedor</b> (ancho × largo); el sistema acomoda las piezas en cada hoja (vista aérea) y te dice cuántas hojas pedir, el sobrante y el aprovechamiento. Las hojas capturadas se recuerdan como chips.',
   },
   {
     selector: '[data-tour="cut-margin"]',

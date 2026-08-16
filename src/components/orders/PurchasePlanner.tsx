@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Copy,
   Download,
   Loader2,
   Package,
@@ -211,16 +212,12 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
    * (ADR-018), así que si hay cambios en pantalla se persisten primero y
    * luego se genera — en un solo paso, sin mandar al usuario a guardar aparte.
    */
-  const handleDownloadUrrea = async () => {
-    if (pendingCount > 0) {
-      toast.error(missingDecisionsMessage())
-      return
-    }
-    // En una orden cerrada no se puede guardar, así que el archivo sale
-    // EXCLUSIVAMENTE de lo persistido: `effectiveChoice` caería en la
-    // recomendación de un grupo que quizá nunca se decidió, y eso no
-    // corresponde a la orden.
-    const rows = isReadOnly
+  // En una orden cerrada no se puede guardar, así que el pedido sale
+  // EXCLUSIVAMENTE de lo persistido: `effectiveChoice` caería en la
+  // recomendación de un grupo que quizá nunca se decidió, y eso no
+  // corresponde a la orden.
+  const buildUrreaRows = () =>
+    isReadOnly
       ? mathGroups.flatMap((group) => {
           const saved = group.decision
           return saved && saved.packages_wholesale > 0
@@ -236,6 +233,13 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             ? [{ code: group.modelCode, pieces: packagesWholesale * group.math!.std }]
             : []
         })
+
+  const handleDownloadUrrea = async () => {
+    if (pendingCount > 0) {
+      toast.error(missingDecisionsMessage())
+      return
+    }
+    const rows = buildUrreaRows()
     if (rows.length === 0) {
       toast.info('Ninguna decisión manda piezas a URREA (todo quedó en menudeo)')
       return
@@ -257,6 +261,33 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       toast.error(error instanceof Error ? error.message : 'Error al generar el pedido URREA')
     } finally {
       setIsDownloadingUrrea(false)
+    }
+  }
+
+  /**
+   * Copia el pedido URREA como texto tabulado (código ⇥ piezas por renglón):
+   * al pegarlo en el Excel VIEJO de URREA cae en dos columnas contiguas —
+   * su sistema no abre bien el formato moderno del .xlsm (issue #64).
+   */
+  const handleCopyUrrea = async () => {
+    if (pendingCount > 0) {
+      toast.error(missingDecisionsMessage())
+      return
+    }
+    const rows = buildUrreaRows()
+    if (rows.length === 0) {
+      toast.info('Ninguna decisión manda piezas a URREA (todo quedó en menudeo)')
+      return
+    }
+    try {
+      // Mismo contrato que la descarga (ADR-018): lo copiado refleja lo guardado.
+      if (isDirty && !isReadOnly) {
+        await saveDecisions.mutateAsync(buildDecisions())
+      }
+      await navigator.clipboard.writeText(rows.map((row) => `${row.code}\t${row.pieces}`).join('\n'))
+      toast.success(`Copiado para Excel: ${rows.length} códigos con su cantidad`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo copiar al portapapeles')
     }
   }
 
@@ -507,6 +538,15 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
                 <Download className="mr-2 size-4" />
               )}
               Pedido URREA (mayoreo)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleCopyUrrea}
+              disabled={saveDecisions.isPending || mathGroups.length === 0}
+              title="Copia código y cantidad separados por tabulador — pégalo en el Excel de URREA y cae en dos columnas"
+            >
+              <Copy className="mr-2 size-4" />
+              Copiar para Excel
             </Button>
             <Button
               variant="outline"

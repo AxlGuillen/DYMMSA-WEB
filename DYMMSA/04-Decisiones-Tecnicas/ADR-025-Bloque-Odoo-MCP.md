@@ -1,7 +1,7 @@
 # ADR-025 — Bloque Odoo en el MCP (lectura de facturación)
 
 **Fecha:** 2026-08-11
-**Estado:** Aceptado (Fases 1–4 implementadas — bloque completo)
+**Estado:** Aceptado (Fases 1–5 implementadas)
 **Issue:** #65 · **Relacionado:** [[ADR-023-MCP-OAuth]] (el MCP anfitrión), [[ADR-014-Tareas-GitHub]] (precedente de tercero aislado)
 
 ## Contexto
@@ -28,6 +28,7 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 | 2 | Contactos + Ventas (`res.partner`, `sale.order`) | ✅ 2026-08-11 |
 | 3 | Inventario (`product.product`, `stock.quant`) — desambiguado de `search_inventory` (tienda) | ✅ 2026-08-11 |
 | 4 | Empleados (`hr.employee`, whitelist mínima SIN nómina) + Flotilla (`fleet.vehicle` + bitácora) | ✅ 2026-08-11 |
+| 5 | Líneas de documento (`account.move.line`, `sale.order.line`) + timbrado CFDI | ✅ 2026-08-13 |
 
 ## Tools Fase 1
 
@@ -46,6 +47,12 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 - `odoo_stock_check` — existencias del ALMACÉN DE ODOO por nombre/código (1 llamada: read_group de stock.quant suma ubicaciones); lista solo lo con existencia (máx 20) + conteo `en_cero`. Descripción con ⚠️ explícito: NO es `search_inventory` (tienda DYMMSA-WEB).
 - `odoo_employee_directory` — directorio LABORAL (nombre, puesto, depto, contacto). Nómina/personales fuera por whitelist; test lo fija (`wage`/`contract_id`/`birthday` rechazados).
 - `odoo_fleet_status` — vehículos (placas, conductor, odómetro, estado) + últimos servicios; bitácora vacía se reporta explícita.
+
+## Tools Fase 5
+
+- `odoo_invoice_detail` — factura por folio: encabezado, **timbrado CFDI digerido** (UUID, "timbrada", "vigente ante el SAT") y líneas de producto. Nació de la exploración de límites: el usuario preguntó "¿está timbrada?" y la instancia SÍ usa la localización MX (campos `l10n_mx_edi_*`, ahora en la whitelist de `account.move`).
+- `odoo_sale_detail` — venta por folio: encabezado con vendedor y sus líneas con **pedido/entregado/facturado** ("¿ya se entregó todo?").
+- Ambas resuelven folio → id y filtran líneas por FK numérica (el traversal sigue vedado); folio parcial con ≥2 matches devuelve la lista para precisar; líneas cap 80 con nota.
 
 Hallazgo F3: `product.product.qty_available` es computado NO almacenado — Odoo revienta al filtrar/ordenar por él → queda fuera del catálogo; la verdad del stock es `stock.quant` (cuyo display de product_id ya trae el código embebido).
 

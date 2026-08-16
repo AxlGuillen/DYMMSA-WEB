@@ -33,7 +33,7 @@ import {
   formatMm,
   formatMm2,
   packBars,
-  packStrip,
+  packSheets,
   plateNetNeeds,
   tubeNetNeeds,
   SETTING_CUT_MARGIN_MM,
@@ -41,7 +41,7 @@ import {
   type TubePieceInput,
 } from '@/lib/cut-plan'
 import { CutBarDiagram } from '@/components/orders/CutBarDiagram'
-import { CutStripDiagram } from '@/components/orders/CutStripDiagram'
+import { CutSheetDiagram } from '@/components/orders/CutSheetDiagram'
 import { TourButton } from '@/components/tours/TourButton'
 import type { CutMaterialType, CutPlanPiece } from '@/types/database'
 
@@ -130,7 +130,9 @@ export function CutPlanner({ data }: CutPlannerProps) {
   const [drafts, setDrafts] = useState<PieceDraft[]>(() => data.pieces.map(toDraft))
   const [margin, setMargin] = useState(String(data.marginMm))
   const [barLen, setBarLen] = useState<Record<string, string>>({})
-  const [stripWidth, setStripWidth] = useState<Record<string, string>>({})
+  // Hoja del proveedor por espesor (issue #64): la placa se vende como HOJA
+  // de ancho × largo fijos, no como tira por largo.
+  const [sheetDims, setSheetDims] = useState<Record<string, { w: string; l: string }>>({})
   const [manualLayouts, setManualLayouts] = useState<
     Record<string, { sig: string; bars: UnitRef[][] }>
   >({})
@@ -233,14 +235,27 @@ export function CutPlanner({ data }: CutPlannerProps) {
     }
     try {
       await saveCutPlan.mutateAsync(buildPayload())
-      // Presentaciones capturadas → catálogo que se arma solo (v1: tubos; las
-      // tiras de placa se venden por largo y no tienen presentación fija).
-      const captures = tubeNeeds
-        .map((group) => ({ diameter: group.diameterMm, length: Number(barLen[String(group.diameterMm)]) }))
-        .filter(({ length }) => length > 0)
-        .map(({ diameter, length }) =>
-          savePresentation.mutateAsync({ material_type: 'tube', diameter_mm: diameter, length_mm: length }),
-        )
+      // Presentaciones capturadas → catálogo que se arma solo: barras de tubo
+      // y, desde issue #64, también las HOJAS de placa (medida fija del
+      // proveedor: ancho × largo).
+      const captures = [
+        ...tubeNeeds
+          .map((group) => ({ diameter: group.diameterMm, length: Number(barLen[String(group.diameterMm)]) }))
+          .filter(({ length }) => length > 0)
+          .map(({ diameter, length }) =>
+            savePresentation.mutateAsync({ material_type: 'tube', diameter_mm: diameter, length_mm: length }),
+          ),
+        ...plateNeeds
+          .map((group) => ({
+            thickness: group.thicknessMm,
+            width: Number(sheetDims[String(group.thicknessMm)]?.w),
+            length: Number(sheetDims[String(group.thicknessMm)]?.l),
+          }))
+          .filter(({ width, length }) => width > 0 && length > 0)
+          .map(({ thickness, width, length }) =>
+            savePresentation.mutateAsync({ material_type: 'plate', thickness_mm: thickness, width_mm: width, length_mm: length }),
+          ),
+      ]
       const results = await Promise.allSettled(captures)
       if (results.some((r) => r.status === 'rejected')) {
         toast.warning('La lista se guardó, pero una presentación no se pudo registrar')
@@ -271,16 +286,18 @@ export function CutPlanner({ data }: CutPlannerProps) {
         request: formatMm(group.netLengthMm),
       })),
       ...plateNeeds.map((group) => {
-        const width = Number(stripWidth[String(group.thicknessMm)])
-        const pack = width > 0
-          ? packStrip(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), width, marginMm)
+        const dims = sheetDims[String(group.thicknessMm)]
+        const sheetW = Number(dims?.w)
+        const sheetL = Number(dims?.l)
+        const pack = sheetW > 0 && sheetL > 0
+          ? packSheets(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), sheetW, sheetL, marginMm)
           : null
         return {
           material: 'Placa cobre',
-          measure: `${group.thicknessMm} mm · ancho ≥ ${group.minWidthMm} mm`,
+          measure: `${group.thicknessMm} mm · piezas de hasta ${group.minWidthMm} mm de ancho`,
           pieces: group.totalUnits,
           request: pack && pack.impossible.length === 0
-            ? `${formatMm(pack.totalLengthMm)} de tira de ${formatMm(width)}`
+            ? `${pack.sheets.length} hoja${pack.sheets.length !== 1 ? 's' : ''} de ${formatMm(sheetW)} × ${formatMm(sheetL)}`
             : `área ${formatMm2(group.areaMm2)}`,
         }
       }),
@@ -626,13 +643,18 @@ export function CutPlanner({ data }: CutPlannerProps) {
         )
       })}
 
-      {/* Placas: necesidad + acomodo en tira por espesor */}
+      {/* Placas: necesidad + acomodo en hojas de medida fija por espesor */}
       {plateNeeds.map((group) => {
         const thicknessKey = String(group.thicknessMm)
-        const width = Number(stripWidth[thicknessKey])
-        const pack = width > 0
-          ? packStrip(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), width, marginMm)
+        const dims = sheetDims[thicknessKey]
+        const sheetW = Number(dims?.w)
+        const sheetL = Number(dims?.l)
+        const pack = sheetW > 0 && sheetL > 0
+          ? packSheets(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), sheetW, sheetL, marginMm)
           : null
+        const suggestions = data.presentations
+          .filter((pres) => pres.material_type === 'plate' && pres.thickness_mm === group.thicknessMm && pres.width_mm && pres.length_mm)
+          .slice(0, 4)
 
         return (
           <Card key={`plate-${thicknessKey}`} data-tour="cut-group-plate">
@@ -643,43 +665,69 @@ export function CutPlanner({ data }: CutPlannerProps) {
                   {group.totalUnits} pzs · área {formatMm2(group.areaMm2)}
                 </Badge>
                 <Badge variant="outline">ancho mínimo {formatMm(group.minWidthMm)}</Badge>
+                {pack && pack.sheets.length > 0 && (
+                  <Badge variant="outline">
+                    {pack.sheets.length} hoja{pack.sheets.length !== 1 ? 's' : ''} de {formatMm(sheetW)} × {formatMm(sheetL)}
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap items-center gap-2 print:hidden">
-                <Label htmlFor={`strip-${thicknessKey}`} className="text-xs text-muted-foreground">
-                  Ancho de la tira del proveedor (mm)
+                <Label htmlFor={`sheet-w-${thicknessKey}`} className="text-xs text-muted-foreground">
+                  Hoja del proveedor (mm)
                 </Label>
                 <Input
-                  id={`strip-${thicknessKey}`} type="number" min="0" className="h-8 w-28"
-                  placeholder={`≥ ${group.minWidthMm}`}
-                  value={stripWidth[thicknessKey] ?? ''}
-                  onChange={(e) => setStripWidth((prev) => ({ ...prev, [thicknessKey]: e.target.value }))}
+                  id={`sheet-w-${thicknessKey}`} type="number" min="0" className="h-8 w-24"
+                  placeholder={`ancho ≥ ${group.minWidthMm}`}
+                  aria-label="Ancho de la hoja del proveedor (mm)"
+                  value={dims?.w ?? ''}
+                  onChange={(e) => setSheetDims((prev) => ({ ...prev, [thicknessKey]: { w: e.target.value, l: prev[thicknessKey]?.l ?? '' } }))}
                 />
-                <span className="text-xs text-muted-foreground">
-                  La tira se compra por largo: captura el ancho que ofrezca el proveedor.
-                </span>
+                <span className="text-xs text-muted-foreground">×</span>
+                <Input
+                  id={`sheet-l-${thicknessKey}`} type="number" min="0" className="h-8 w-24"
+                  placeholder="largo"
+                  aria-label="Largo de la hoja del proveedor (mm)"
+                  value={dims?.l ?? ''}
+                  onChange={(e) => setSheetDims((prev) => ({ ...prev, [thicknessKey]: { w: prev[thicknessKey]?.w ?? '', l: e.target.value } }))}
+                />
+                {suggestions.map((pres) => (
+                  <Button
+                    key={pres.id} size="sm" variant="outline" className="h-7 text-xs"
+                    onClick={() => setSheetDims((prev) => ({ ...prev, [thicknessKey]: { w: String(pres.width_mm), l: String(pres.length_mm) } }))}
+                  >
+                    {formatMm(pres.width_mm ?? 0)} × {formatMm(pres.length_mm ?? 0)}
+                  </Button>
+                ))}
+                {suggestions.length === 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    La placa se vende por hoja: captura el ancho × largo que ofrezca el proveedor.
+                  </span>
+                )}
               </div>
 
               {pack && pack.impossible.length > 0 && (
                 <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" />
                   <span>
-                    Hay pieza{pack.impossible.length !== 1 ? 's' : ''} más ancha
-                    {pack.impossible.length !== 1 ? 's' : ''} que la tira de {formatMm(width)} — se
-                    necesita al menos {formatMm(group.minWidthMm)} de ancho.
+                    Hay pieza{pack.impossible.length !== 1 ? 's' : ''} que no cabe
+                    {pack.impossible.length !== 1 ? 'n' : ''} en una hoja de {formatMm(sheetW)} × {formatMm(sheetL)} — revisa que el ancho cubra {formatMm(group.minWidthMm)} y el largo a la pieza más larga.
                   </span>
                 </div>
               )}
 
-              {pack && pack.shelves.length > 0 && (
-                <CutStripDiagram
-                  stripWidthMm={width}
-                  marginMm={marginMm}
-                  shelves={pack.shelves}
-                  totalLengthMm={pack.totalLengthMm}
-                />
-              )}
+              {pack && pack.sheets.map((sheet, sheetIndex) => (
+                <div key={sheetIndex} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Hoja {sheetIndex + 1}</p>
+                  <CutSheetDiagram
+                    sheetWidthMm={sheetW}
+                    sheetLengthMm={sheetL}
+                    marginMm={marginMm}
+                    sheet={sheet}
+                  />
+                </div>
+              ))}
             </CardContent>
           </Card>
         )
