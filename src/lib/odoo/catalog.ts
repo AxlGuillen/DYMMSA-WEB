@@ -87,7 +87,7 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
   },
   'sale.order.line': {
     label: 'Líneas de orden de venta',
-    fields: ['order_id', 'name', 'product_id', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal'],
+    fields: ['order_id', 'name', 'product_id', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal', 'display_type'],
   },
 }
 

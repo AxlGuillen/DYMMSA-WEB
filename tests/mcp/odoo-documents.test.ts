@@ -134,7 +134,9 @@ describe('odoo_sale_detail', () => {
 
     const result = await odooSaleDetail(odoo, { folio: 'S00247' })
 
-    expect(calls[1].payload.domain).toEqual([['order_id', '=', 247]])
+    // display_type=false (no 'product': ese valor solo existe en account.move.line)
+    // saca secciones y notas de la orden.
+    expect(calls[1].payload.domain).toEqual([['order_id', '=', 247], ['display_type', '=', false]])
     expect(result.encontrado).toBe(true)
     if (result.encontrado) {
       expect(result.venta).toMatchObject({ folio: 'S00247', vendedor: 'Diego Baltazar Esquivel', estado: 'sale' })

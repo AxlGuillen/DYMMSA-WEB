@@ -145,7 +145,9 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
 
   const lines = normalizeRecords(
     await odoo('sale.order.line', 'search_read', {
-      domain: [['order_id', '=', header.id]],
+      // Fuera secciones/notas. OJO: aquí display_type es false para líneas
+      // normales — el valor 'product' solo existe en account.move.line.
+      domain: [['order_id', '=', header.id], ['display_type', '=', false]],
       fields: ['name', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal'],
       limit: LINES_LIMIT,
     }),
