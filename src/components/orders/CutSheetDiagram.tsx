@@ -1,23 +1,23 @@
 'use client'
 
 import { formatMm } from '@/lib/cut-plan'
-import type { PackedShelf } from '@/lib/cut-plan'
+import type { PackedSheet } from '@/lib/cut-plan'
 
-interface CutStripDiagramProps {
-  stripWidthMm: number
+interface CutSheetDiagramProps {
+  sheetWidthMm: number
+  sheetLengthMm: number
   marginMm: number
-  shelves: PackedShelf[]
-  totalLengthMm: number
+  sheet: PackedSheet
 }
 
 const VIEW_W = 1000
 const VIEW_H = 140
 
 /** Posiciones X acumuladas de cada fila (fuera del render por el compilador de React). */
-function layoutShelves(shelves: PackedShelf[], marginMm: number, scaleX: number) {
-  const out: (PackedShelf & { x: number })[] = []
+function layoutShelves(sheet: PackedSheet, marginMm: number, scaleX: number) {
+  const out: (PackedSheet['shelves'][number] & { x: number })[] = []
   let cursorMm = 0
-  for (const shelf of shelves) {
+  for (const shelf of sheet.shelves) {
     out.push({ ...shelf, x: cursorMm * scaleX })
     cursorMm += shelf.lengthMm + marginMm
   }
@@ -25,22 +25,25 @@ function layoutShelves(shelves: PackedShelf[], marginMm: number, scaleX: number)
 }
 
 /**
- * Diagrama SVG de una tira de placa vista desde arriba (issue #59): el largo
- * corre en X, el ancho de la tira en Y. Cada fila (shelf) consume el largo de
- * su pieza más larga; los cortes entre filas van en oscuro. Igual que el de
- * barras: SVG imprimible para llevar al taller, sin 3D que no aporta.
+ * Una HOJA de placa de medida fija vista desde arriba (issue #64): el largo de
+ * la hoja corre en X, el ancho en Y — el lienzo es la hoja completa que vende
+ * el proveedor, y el sobrante queda punteado como en el diagrama de barras.
+ * Cada fila (shelf) consume el largo de su pieza más larga; los cortes entre
+ * filas van en oscuro. SVG imprimible para el taller.
  */
-export function CutStripDiagram({ stripWidthMm, marginMm, shelves, totalLengthMm }: CutStripDiagramProps) {
-  if (totalLengthMm <= 0) return null
-  const scaleX = VIEW_W / totalLengthMm
-  const scaleY = VIEW_H / stripWidthMm
-  const positioned = layoutShelves(shelves, marginMm, scaleX)
+export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }: CutSheetDiagramProps) {
+  if (sheetLengthMm <= 0 || sheetWidthMm <= 0) return null
+  const scaleX = VIEW_W / sheetLengthMm
+  const scaleY = VIEW_H / sheetWidthMm
+  const positioned = layoutShelves(sheet, marginMm, scaleX)
+  const usedX = Math.min(VIEW_W, sheet.usedLengthMm * scaleX)
 
-  const usedArea = shelves.reduce(
+  const pieces = sheet.shelves.reduce((n, s) => n + s.items.length, 0)
+  const usedArea = sheet.shelves.reduce(
     (sum, shelf) => sum + shelf.items.reduce((s, i) => s + i.widthMm * i.lengthMm, 0),
     0,
   )
-  const utilization = Math.round((usedArea / (totalLengthMm * stripWidthMm)) * 100)
+  const utilization = Math.round((usedArea / (sheetLengthMm * sheetWidthMm)) * 100)
 
   return (
     <div className="space-y-1">
@@ -48,7 +51,7 @@ export function CutStripDiagram({ stripWidthMm, marginMm, shelves, totalLengthMm
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         className="w-full rounded border border-border"
         role="img"
-        aria-label={`Tira de ${formatMm(totalLengthMm)} × ${formatMm(stripWidthMm)} con ${shelves.reduce((n, s) => n + s.items.length, 0)} piezas`}
+        aria-label={`Hoja de ${formatMm(sheetLengthMm)} × ${formatMm(sheetWidthMm)} con ${pieces} piezas`}
       >
         <rect x="0" y="0" width={VIEW_W} height={VIEW_H} className="fill-muted" />
         {positioned.map((shelf, shelfIndex) => (
@@ -93,10 +96,22 @@ export function CutStripDiagram({ stripWidthMm, marginMm, shelves, totalLengthMm
             )}
           </g>
         ))}
+        {/* Sobrante de la hoja (punteado, como en las barras) */}
+        {usedX < VIEW_W - 2 && (
+          <rect
+            x={usedX + 2}
+            y={2}
+            width={VIEW_W - usedX - 4}
+            height={VIEW_H - 4}
+            rx={3}
+            className="fill-transparent stroke-muted-foreground/50 [stroke-dasharray:6_5]"
+          />
+        )}
       </svg>
       <p className="text-xs text-muted-foreground">
-        Pide {formatMm(totalLengthMm)} de tira de {formatMm(stripWidthMm)} · aprovechamiento{' '}
-        {utilization}%{marginMm > 0 && ` · corte ${formatMm(marginMm)}`}
+        Sobrante: {formatMm(Math.max(0, sheetLengthMm - sheet.usedLengthMm))} de largo · {pieces} pieza
+        {pieces !== 1 ? 's' : ''} · aprovechamiento {utilization}%
+        {marginMm > 0 && ` · corte ${formatMm(marginMm)}`}
       </p>
     </div>
   )

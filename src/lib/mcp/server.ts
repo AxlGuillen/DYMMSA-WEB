@@ -22,6 +22,7 @@ import { contextFrom } from './context'
 import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } from './tools/odoo/accounting'
 import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
 import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/odoo/operations'
+import { odooInvoiceDetail, odooSaleDetail } from './tools/odoo/documents'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats } from './tools/inventory'
@@ -377,6 +378,34 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, () => odooCustomerProfile(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_invoice_detail',
+    {
+      title: 'Detalle de factura (Odoo)',
+      description:
+        'Una factura de Odoo (externo) completa por folio (p. ej. "F00167"): encabezado con montos y saldo, TIMBRADO CFDI (folio fiscal/UUID, estado ante el SAT) y sus líneas de producto con cantidades y precios. Acepta folio parcial; con varias coincidencias devuelve la lista.',
+      inputSchema: {
+        folio: z.string().min(1).describe('Folio de la factura, p. ej. "F00167"'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooInvoiceDetail(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_sale_detail',
+    {
+      title: 'Detalle de venta (Odoo)',
+      description:
+        'Una orden de venta de Odoo (externo) completa por folio (p. ej. "S00247"): encabezado con estado y vendedor, y sus líneas con cantidades PEDIDO/ENTREGADO/FACTURADO por producto — útil para "¿ya se entregó todo lo de la venta X?". Acepta folio parcial.',
+      inputSchema: {
+        folio: z.string().min(1).describe('Folio de la orden de venta, p. ej. "S00247"'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooSaleDetail(callOdoo, input)),
   )
 
   server.registerTool(

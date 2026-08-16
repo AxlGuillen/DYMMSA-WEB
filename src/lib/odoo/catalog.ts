@@ -26,6 +26,9 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
       'name', 'partner_id', 'move_type', 'invoice_date', 'invoice_date_due',
       'amount_untaxed', 'amount_total', 'amount_residual', 'payment_state',
       'state', 'currency_id', 'invoice_origin', 'ref',
+      // Timbrado CFDI (Fase 5) — verificado que la instancia usa la
+      // localización mexicana y estos campos traen datos reales.
+      'l10n_mx_edi_cfdi_uuid', 'l10n_mx_edi_cfdi_state', 'l10n_mx_edi_cfdi_sat_state',
     ],
   },
   'account.payment': {
@@ -73,6 +76,18 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
   'fleet.vehicle.log.services': {
     label: 'Bitácora de servicios de flotilla',
     fields: ['vehicle_id', 'service_type_id', 'date', 'amount', 'state', 'description'],
+  },
+
+  // ── Fase 5 — Líneas de documento ─────────────────────────────────────
+  // Habilitan "¿qué productos trae la factura/venta X?". Las tools curadas
+  // resuelven el folio → id y filtran por la FK numérica (sin traversal).
+  'account.move.line': {
+    label: 'Líneas de factura',
+    fields: ['move_id', 'name', 'product_id', 'quantity', 'price_unit', 'price_subtotal', 'price_total', 'display_type'],
+  },
+  'sale.order.line': {
+    label: 'Líneas de orden de venta',
+    fields: ['order_id', 'name', 'product_id', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal', 'display_type'],
   },
 }
 

@@ -54,7 +54,7 @@ export function SplashIntro() {
             offset: 1,
           },
         ],
-        { duration: 1900, easing: 'cubic-bezier(.66,0,.24,1)', fill: 'forwards' },
+        { duration: 1400, easing: 'cubic-bezier(.66,0,.24,1)', fill: 'forwards' },
       )
       // El backdrop se mantiene opaco casi hasta el final: si se desvanece antes
       // (offset 0.55), destapa el logo del header mientras el logo volador aún
@@ -63,9 +63,9 @@ export function SplashIntro() {
       // del header (misma posición y tamaño), así que revelar ahí es continuo.
       backdropRef.current?.animate(
         [{ opacity: 1 }, { opacity: 1, offset: 0.86 }, { opacity: 0 }],
-        { duration: 1900, easing: 'ease-in-out', fill: 'forwards' },
+        { duration: 1400, easing: 'ease-in-out', fill: 'forwards' },
       )
-      timer = window.setTimeout(() => setActive(false), 1850)
+      timer = window.setTimeout(() => setActive(false), 1360)
     } else {
       timer = window.setTimeout(() => setActive(false), 400)
     }
