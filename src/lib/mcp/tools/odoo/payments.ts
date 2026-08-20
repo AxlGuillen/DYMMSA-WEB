@@ -178,12 +178,13 @@ export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) 
   )
 
   const allInvoiceIds = [...new Set(payments.flatMap(invoiceIdsOf))]
+  const REP_DOCS_LIMIT = 200
   const reps = allInvoiceIds.length
     ? normalizeRecords(
         await odoo('l10n_mx_edi.document', 'search_read', {
           domain: [['invoice_ids', 'in', allInvoiceIds], ['state', 'like', 'payment%']],
           fields: ['invoice_ids', 'state', 'sat_state', 'attachment_uuid', 'datetime'],
-          limit: 200,
+          limit: REP_DOCS_LIMIT,
         }),
       )
     : []
@@ -256,8 +257,14 @@ export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) 
     sin_rep: sinRepFinal,
     rep_con_problema: repConProblema,
     sin_facturas_conciliadas: sinFacturas.length ? sinFacturas : undefined,
-    nota: payments.length === AUDIT_LIMIT
-      ? `Se revisó el máximo (${AUDIT_LIMIT} pagos); acota el rango de fechas para cubrir el resto.`
-      : undefined,
+    nota: [
+      payments.length === AUDIT_LIMIT
+        ? `Se revisó el máximo (${AUDIT_LIMIT} pagos); acota el rango de fechas para cubrir el resto.`
+        : null,
+      // Sin esto un "sin REP" podría ser truncamiento silencioso (review PR #75).
+      reps.length === REP_DOCS_LIMIT
+        ? `Se alcanzó el máximo de documentos REP (${REP_DOCS_LIMIT}); algún "sin REP" podría deberse al corte — acota el rango de fechas.`
+        : null,
+    ].filter(Boolean).join(' ') || undefined,
   }
 }

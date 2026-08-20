@@ -298,6 +298,20 @@ describe('odoo_rep_audit', () => {
     expect(result.en_regla).toBe(1)
   })
 
+  test('al llenar el límite de docs REP avisa (sin caps silenciosos, review PR #75)', async () => {
+    // 200 docs que no cubren al pago: sin la nota, ese "sin REP" podría ser
+    // puro truncamiento.
+    const docs = Array.from({ length: 200 }, (_, i) => ({ ...REP_DOC, id: 1000 + i, invoice_ids: [i] }))
+    const { odoo } = fakeOdoo({
+      'account.payment.search_read': [[pago({ reconciled_invoice_ids: [436] })]],
+      'l10n_mx_edi.document.search_read': [docs],
+      'account.move.search_read': [[{ id: 436, l10n_mx_edi_payment_policy: 'PPD' }]],
+    })
+    const result = await odooRepAudit(odoo, {})
+    expect(result.sin_rep).toHaveLength(1)
+    expect(result.nota).toMatch(/máximo de documentos REP \(200\)/)
+  })
+
   test('sin pagos en el rango: no busca documentos (1 llamada) y regresa vacío', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.payment.search_read': [[]] })
     const result = await odooRepAudit(odoo, {})
