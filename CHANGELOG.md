@@ -3,6 +3,16 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-08-20
+
+### Nuevo
+- **El asistente ya revisa los complementos de pago (REP).** Al preguntarle por un
+  pago (p. ej. "PAY00068") ahora responde si su complemento de pago está **timbrado
+  y validado ante el SAT**, y desglosa qué facturas paga, cada una con su saldo y su
+  propio CFDI. También puede hacer el **barrido del mes**: qué pagos quedaron en
+  regla, cuáles no tienen REP y cuáles lo tienen fallido — el pendiente más fácil de
+  olvidar, porque el REP se timbra después del cobro.
+
 ## 2026-08-13
 
 ### Mejorado
