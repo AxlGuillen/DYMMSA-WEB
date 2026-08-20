@@ -95,3 +95,77 @@ export async function createTask(input: CreateTaskInput) {
 
   return mapIssueToTask(issue)
 }
+
+export interface UpdateTaskInput {
+  task_number: number
+  comment?: string
+  priority?: string
+  state?: string
+  state_reason?: string
+}
+
+/**
+ * Actualiza una tarea existente (issue #72, ADR-015): comentar, cambiar
+ * prioridad y cerrar/reabrir. Espeja PATCH /api/tasks/[number] y el POST de
+ * comentarios, con atribución fija MCP_REPORTER. Deliberadamente NO edita
+ * título ni descripción: reescribir texto redactado por humanos es el riesgo
+ * que esta tool acotada evita.
+ */
+export async function updateTask(input: UpdateTaskInput) {
+  const n = input.task_number
+  if (!Number.isInteger(n) || n < 1) throw new ToolError('Número de tarea inválido')
+
+  const comment = input.comment?.trim()
+  const wantsPriority = input.priority !== undefined
+  const wantsState = input.state !== undefined
+
+  if (!comment && !wantsPriority && !wantsState) {
+    throw new ToolError('Indica al menos un cambio: comment, priority o state')
+  }
+  if (wantsState && input.state !== 'open' && input.state !== 'closed') {
+    throw new ToolError('state inválido — usa "open" o "closed"')
+  }
+  // Prioridad estricta (a diferencia de crear, aquí un typo "quitaría" la
+  // prioridad en silencio): válida o "none" para removerla.
+  if (wantsPriority && input.priority !== 'none' && !isTaskPriority(input.priority)) {
+    throw new ToolError('priority inválida — usa low | medium | high | highest, o "none" para quitarla')
+  }
+
+  let createdComment = null
+  if (comment) {
+    const raw = await fetchGitHub<GitHubComment>(`/issues/${n}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body: buildIssueBody(comment, MCP_REPORTER) }),
+    })
+    createdComment = mapComment(raw)
+  }
+
+  if (wantsPriority || wantsState) {
+    const patch: Record<string, unknown> = {}
+    if (wantsState) {
+      patch.state = input.state
+      // Al cerrar: "completada" vs "descartada"; al reabrir GitHub fija
+      // state_reason='reopened' solo (mismo contrato que la ruta HTTP).
+      if (input.state === 'closed') {
+        patch.state_reason = input.state_reason === 'not_planned' ? 'not_planned' : 'completed'
+      }
+    }
+    if (wantsPriority) {
+      // Leer los labels actuales para no pisar los ajenos a la prioridad.
+      const current = await fetchGitHub<GitHubIssue>(`/issues/${n}`)
+      const others = (current.labels ?? []).map((l) => l.name).filter((name) => !name.startsWith('priority:'))
+      patch.labels = input.priority !== 'none' && isTaskPriority(input.priority)
+        ? [...others, priorityToLabel(input.priority)]
+        : others
+    }
+    const updated = await fetchGitHub<GitHubIssue>(`/issues/${n}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    })
+    return { task: mapIssueToTask(updated), comentario: createdComment ?? undefined }
+  }
+
+  // Solo comentario: releer la tarea confirma el destino y da contexto fresco.
+  const issue = await fetchGitHub<GitHubIssue>(`/issues/${n}`)
+  return { task: mapIssueToTask(issue), comentario: createdComment ?? undefined }
+}

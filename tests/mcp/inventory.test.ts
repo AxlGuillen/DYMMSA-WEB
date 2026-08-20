@@ -1,8 +1,9 @@
 /** Tools MCP de inventario. */
 
 import { describe, test, expect } from 'vitest'
-import { createMockSupabase, hasFilter } from '../helpers/supabase-mock'
-import { searchInventory, getInventoryStats } from '@/lib/mcp/tools/inventory'
+import { createMockSupabase, hasFilter, filterValue } from '../helpers/supabase-mock'
+import { ToolError } from '@/lib/mcp/shared'
+import { searchInventory, getInventoryStats, setInventoryLocation } from '@/lib/mcp/tools/inventory'
 import { type Db } from '@/lib/mcp/shared'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
@@ -47,5 +48,57 @@ describe('getInventoryStats', () => {
     })
     const stats = await getInventoryStats(asDb(client))
     expect(stats).toEqual({ total: 4, sin_stock: 1, low_stock: 2, in_stock: 1 })
+  })
+})
+
+describe('setInventoryLocation (issue #72)', () => {
+  test('normaliza el código a mayúsculas y solo actualiza location', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'store_inventory.update': {
+          data: [{ model_code: '6954', quantity: 12, location: 'Gaveta B3' }],
+          error: null,
+        },
+      },
+    })
+
+    const result = await setInventoryLocation(asDb(client), { model_code: ' 6954 ', location: '  Gaveta B3  ' })
+
+    // El payload del update SOLO trae location — cantidades intocables.
+    expect(client.updatePayload('store_inventory')).toEqual({ location: 'Gaveta B3' })
+    const call = client.callsTo('store_inventory', 'update')[0]
+    expect(filterValue(call, 'model_code')).toBe('6954')
+    expect(result).toMatchObject({ model_code: '6954', quantity: 12, ubicacion: 'Gaveta B3' })
+  })
+
+  test('location vacío o ausente borra la ubicación (null) con nota', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'store_inventory.update': {
+          data: [{ model_code: 'X1', quantity: 3, location: null }],
+          error: null,
+        },
+      },
+    })
+
+    const result = await setInventoryLocation(asDb(client), { model_code: 'x1', location: '   ' })
+
+    expect(client.updatePayload('store_inventory')).toEqual({ location: null })
+    expect(result.nota).toMatch(/borrada/i)
+  })
+
+  test('sin fila de inventario → ToolError accionable (no se crea la fila)', async () => {
+    const client = createMockSupabase({
+      responses: { 'store_inventory.update': { data: [], error: null } },
+    })
+    await expect(
+      setInventoryLocation(asDb(client), { model_code: 'NOEXISTE', location: 'G-9' }),
+    ).rejects.toThrow(/no está en el inventario/)
+  })
+
+  test('sin model_code → ToolError sin tocar la BD', async () => {
+    const client = createMockSupabase({ responses: {} })
+    await expect(setInventoryLocation(asDb(client), { location: 'G-1' })).rejects.toThrow(ToolError)
+    expect(client.callsTo('store_inventory', 'update')).toHaveLength(0)
   })
 })

@@ -1,7 +1,7 @@
 /** Tools MCP de tareas — GitHub se mockea con vi.spyOn(fetch), como en tests/api/tasks.test.ts. */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
-import { listTasks, getTask, createTask } from '@/lib/mcp/tools/tasks'
+import { listTasks, getTask, createTask, updateTask } from '@/lib/mcp/tools/tasks'
 import { ToolError } from '@/lib/mcp/shared'
 
 function gh(status: number, body: unknown): Response {
@@ -89,5 +89,79 @@ describe('createTask', () => {
 
     const payload = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))
     expect(payload.labels).toEqual([])
+  })
+})
+
+describe('updateTask (issue #72)', () => {
+  test('sin cambios → ToolError sin llamar a GitHub', async () => {
+    await expect(updateTask({ task_number: 5 })).rejects.toThrow(/al menos un cambio/)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  test('validaciones estrictas: state y priority inválidos truenan (no fallan en silencio)', async () => {
+    await expect(updateTask({ task_number: 5, state: 'done' })).rejects.toThrow(/open.*closed/)
+    // A diferencia de crear, un typo aquí QUITARÍA la prioridad — se rechaza.
+    await expect(updateTask({ task_number: 5, priority: 'urgent' })).rejects.toThrow(/priority inválida/)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  test('comentar publica con atribución MCP y devuelve la tarea', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(gh(201, { id: 9, body: 'Reportado por: Asistente (MCP)\n\nListo el pedido', created_at: '2026-08-20T10:00:00Z', user: { login: 'axl' } }))
+      .mockResolvedValueOnce(gh(200, issue()))
+
+    const result = await updateTask({ task_number: 5, comment: 'Listo el pedido' })
+
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(String(url)).toContain('/issues/5/comments')
+    expect(JSON.parse((init as RequestInit).body as string).body).toContain('Reportado por: Asistente (MCP)')
+    expect(result.task.number).toBe(5)
+    expect(result.comentario).toMatchObject({ reporter: 'Asistente (MCP)' })
+  })
+
+  test('cerrar como descartada manda state_reason not_planned', async () => {
+    fetchSpy.mockResolvedValueOnce(gh(200, issue({ state: 'closed' })))
+
+    await updateTask({ task_number: 5, state: 'closed', state_reason: 'not_planned' })
+
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(String(url)).toContain('/issues/5')
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body).toEqual({ state: 'closed', state_reason: 'not_planned' })
+  })
+
+  test('cambiar prioridad conserva los labels ajenos a priority:*', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(gh(200, issue({ labels: [{ name: 'priority:low' }, { name: 'bug' }] })))
+      .mockResolvedValueOnce(gh(200, issue({ labels: [{ name: 'priority:high' }, { name: 'bug' }] })))
+
+    await updateTask({ task_number: 5, priority: 'high' })
+
+    const patchBody = JSON.parse((fetchSpy.mock.calls[1][1] as RequestInit).body as string)
+    expect(patchBody.labels).toEqual(['bug', 'priority:high'])
+  })
+
+  test('priority "none" quita el label de prioridad', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(gh(200, issue({ labels: [{ name: 'priority:high' }, { name: 'bug' }] })))
+      .mockResolvedValueOnce(gh(200, issue({ labels: [{ name: 'bug' }] })))
+
+    await updateTask({ task_number: 5, priority: 'none' })
+
+    const patchBody = JSON.parse((fetchSpy.mock.calls[1][1] as RequestInit).body as string)
+    expect(patchBody.labels).toEqual(['bug'])
+  })
+
+  test('comentar Y cerrar en una llamada: comment primero, luego el PATCH', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(gh(201, { id: 9, body: 'Reportado por: Asistente (MCP)\n\nSe resolvió', created_at: '2026-08-20T10:00:00Z', user: { login: 'axl' } }))
+      .mockResolvedValueOnce(gh(200, issue({ state: 'closed' })))
+
+    const result = await updateTask({ task_number: 5, comment: 'Se resolvió', state: 'closed' })
+
+    expect(String(fetchSpy.mock.calls[0][0])).toContain('/comments')
+    expect((fetchSpy.mock.calls[1][1] as RequestInit).method).toBe('PATCH')
+    expect(result.comentario).toBeDefined()
+    expect(result.task.state).toBe('closed')
   })
 })

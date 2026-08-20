@@ -12,7 +12,7 @@
  */
 
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
-import { registerDymmsaTools, BUSINESS_RULES_MD } from '@/lib/mcp/server'
+import { registerDymmsaTools, SERVER_INSTRUCTIONS } from '@/lib/mcp/server'
 import { verifyToken } from '@/lib/mcp/oauth'
 import { appUrl } from '@/lib/mcp/env'
 import { PROTECTED_RESOURCE_PATH } from '@/lib/mcp/routes'
@@ -28,10 +28,10 @@ const handler = createMcpHandler(
   registerDymmsaTools,
   {
     serverInfo: { name: 'dymmsa', version: '2.0.0' },
-    // Las reglas de negocio viajan también como instrucciones del server (además
-    // del resource dymmsa://reglas-negocio): clientes que no leen resources las
-    // reciben igual.
-    instructions: BUSINESS_RULES_MD,
+    // Mapa de los dos bloques (app vs Odoo, issue #72) + reglas de negocio.
+    // Viajan como instrucciones del server (además del resource
+    // dymmsa://reglas-negocio): clientes que no leen resources las reciben igual.
+    instructions: SERVER_INSTRUCTIONS,
   },
   {
     basePath: '/api',
