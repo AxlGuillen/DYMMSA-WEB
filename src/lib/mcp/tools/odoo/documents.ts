@@ -18,15 +18,18 @@ const CFDI_STATE: Record<string, string> = {
   sent: 'timbrada',
   cancel: 'cancelada',
 }
-const SAT_STATE: Record<string, string> = {
+// `skip` y `error` solo aparecen en l10n_mx_edi.document (Fase 6).
+export const SAT_STATE: Record<string, string> = {
   valid: 'vigente ante el SAT',
   cancelled: 'cancelada ante el SAT',
   not_found: 'no encontrada por el SAT',
   not_defined: 'sin verificar con el SAT',
+  skip: 'sin verificación SAT (no aplica)',
+  error: 'error al verificar con el SAT',
 }
 
 /** Bloque de timbrado digerido; null-safe para facturas sin CFDI. */
-function timbrado(header: Record<string, unknown>) {
+export function timbrado(header: Record<string, unknown>) {
   const uuid = header.l10n_mx_edi_cfdi_uuid
   if (typeof uuid !== 'string' || !uuid) {
     return { timbrada: false as const, detalle: 'Sin CFDI: la factura no está timbrada.' }
@@ -45,7 +48,7 @@ function timbrado(header: Record<string, unknown>) {
  * Busca el documento por folio: match exacto (normalizado a mayúsculas) o
  * parcial único; con varias coincidencias devuelve la lista para precisar.
  */
-async function findByFolio(
+export async function findByFolio(
   odoo: OdooCaller,
   model: string,
   folio: string,

@@ -23,6 +23,7 @@ import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } fr
 import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
 import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/odoo/operations'
 import { odooInvoiceDetail, odooSaleDetail } from './tools/odoo/documents'
+import { odooPaymentDetail, odooRepAudit } from './tools/odoo/payments'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats } from './tools/inventory'
@@ -288,7 +289,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Consulta genérica en Odoo',
       description:
-        'Consulta Odoo (el sistema de FACTURACIÓN de la empresa, externo a DYMMSA-WEB) sobre los modelos del catálogo permitido — hoy: account.move (facturas), account.payment (pagos). Úsala para preguntas que las tools curadas no cubran. Devuelve registros normalizados (máx 50). Prefiere odoo_aggregate para totales.',
+        'Consulta Odoo (el sistema de FACTURACIÓN de la empresa, externo a DYMMSA-WEB) sobre los modelos del catálogo permitido: facturas y sus líneas, pagos, documentos CFDI/REP, contactos, ventas y sus líneas, productos, existencias, empleados (directorio) y flotilla. Úsala para preguntas que las tools curadas no cubran. Devuelve registros normalizados (máx 50). Prefiere odoo_aggregate para totales.',
       inputSchema: {
         model: z.string().describe('Modelo Odoo del catálogo, p. ej. "account.move"'),
         domain: domainSchema,
@@ -406,6 +407,35 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, () => odooSaleDetail(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_payment_detail',
+    {
+      title: 'Detalle de pago con su REP (Odoo)',
+      description:
+        'Un pago de cliente de Odoo (externo) completo por folio (p. ej. "PAY00068"): encabezado, estado del COMPLEMENTO DE PAGO (REP) — timbrado y estado ante el SAT — y el desglose de facturas que paga, cada una con su saldo y su propio CFDI. Acepta folio parcial; con varias coincidencias devuelve la lista.',
+      inputSchema: {
+        folio: z.string().min(1).describe('Folio del pago, p. ej. "PAY00068"'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooPaymentDetail(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_rep_audit',
+    {
+      title: 'Auditoría de complementos de pago (Odoo)',
+      description:
+        'Barrido de pagos de cliente de Odoo (externo) en un rango de fechas, clasificados por su complemento de pago (REP): en regla, SIN REP, o con REP fallido/no válido ante el SAT. El cruce pago→REP es por las facturas conciliadas. Default: últimos 30 días. Úsala para el barrido mensual de "¿qué pagos se quedaron sin timbrar?".',
+      inputSchema: {
+        date_from: z.string().optional().describe('Desde (YYYY-MM-DD); default hace 30 días'),
+        date_to: z.string().optional().describe('Hasta (YYYY-MM-DD); default hoy'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooRepAudit(callOdoo, input)),
   )
 
   server.registerTool(

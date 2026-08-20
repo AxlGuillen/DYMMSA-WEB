@@ -29,6 +29,7 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 | 3 | Inventario (`product.product`, `stock.quant`) — desambiguado de `search_inventory` (tienda) | ✅ 2026-08-11 |
 | 4 | Empleados (`hr.employee`, whitelist mínima SIN nómina) + Flotilla (`fleet.vehicle` + bitácora) | ✅ 2026-08-11 |
 | 5 | Líneas de documento (`account.move.line`, `sale.order.line`) + timbrado CFDI | ✅ 2026-08-13 |
+| 6 | Complementos de pago REP (`l10n_mx_edi.document`) + desglose pago→facturas | ✅ 2026-08-20 |
 
 ## Tools Fase 1
 
@@ -57,6 +58,18 @@ Verificado antes de construir (comentarios de la issue #65): plan Custom con API
 Hallazgo F3: `product.product.qty_available` es computado NO almacenado — Odoo revienta al filtrar/ordenar por él → queda fuera del catálogo; la verdad del stock es `stock.quant` (cuyo display de product_id ya trae el código embebido).
 
 Hallazgos de la exploración F2 (2026-08-11): `res.partner` en Odoo 19 ya NO tiene `mobile` (consolidado en `phone`); `sale.order.date_order` es DATETIME → los rangos se expanden a extremos del día; al agrupar por un campo selection Odoo devuelve TODAS las opciones aunque el dominio las excluya → `normalizeGroups` descarta grupos con count 0.
+
+## Tools Fase 6 (issue #70)
+
+- `odoo_payment_detail` — pago por folio: encabezado, estado del **complemento de pago (REP)** digerido y el desglose de facturas que paga (cada una con saldo y su propio CFDI). 3 llamadas: pago → documentos REP → facturas.
+- `odoo_rep_audit` — barrido por rango (default 30 días): pagos de cliente clasificados en **en regla / sin REP / REP con problema** (más `sin_facturas_conciliadas`). 2 llamadas; los docs se buscan por la unión de facturas SIN filtro de fecha (el REP puede timbrarse días después del pago).
+
+Hallazgos F6 (2026-08-20, exploración en vivo con PAY00068):
+
+- **Los `l10n_mx_edi_*` de `account.payment` MIENTEN**: son computados no-almacenados y devuelven `false` incluso en pagos con REP timbrado y validado. NO entran al catálogo — allowlistarlos daría respuestas falsas.
+- **La verdad del REP es `l10n_mx_edi.document`**: `state` (`payment_sent`/`payment_sent_pue`/`payment_sent_failed`/`payment_cancel*`), `sat_state`, `attachment_uuid` (folio fiscal), `invoice_ids` y `datetime` — todo ALMACENADO (filtrable/agregable sin trampas). También contiene los docs de facturas (`invoice_sent*`), por eso el label del catálogo dice "facturas y complementos".
+- **El puente pago↔REP no es FK directa** (el pago tiene `move_id=false` en esta instancia): es por facturas conciliadas — `l10n_mx_edi.document` con `invoice_ids in [facturas del pago]` + `state like 'payment%'`. Heurística de cobertura: el doc cubre al pago si abarca TODAS sus facturas (con pagos parciales de una misma factura podría dar falso "en regla" — límite consciente, no afecta el patrón de cobro actual). Con varios docs (re-timbrado) manda el más reciente.
+- **`reconciled_invoice_ids` es computado pero filtrarlo NO truena: devuelve 0 resultados EN SILENCIO** (peor que el ValueError de `qty_available`). Nació el concepto **`readOnlyFields`** en el catálogo: campos legibles bajo demanda pero vedados en dominios/order, y fuera de la proyección por defecto.
 
 ## Operación
 

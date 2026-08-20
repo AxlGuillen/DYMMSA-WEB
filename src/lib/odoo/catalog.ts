@@ -16,6 +16,13 @@ export interface CatalogEntry {
   /** Para mensajes de error y descripciones de tools. */
   label: string
   fields: readonly string[]
+  /**
+   * Legibles pero VEDADOS en dominios y order: computados no-almacenados
+   * donde Odoo no truena al filtrar — devuelve 0 resultados EN SILENCIO
+   * (peor que el ValueError de qty_available; verificado 2026-08-20 con
+   * reconciled_invoice_ids). No entran en la proyección por defecto.
+   */
+  readOnlyFields?: readonly string[]
 }
 
 export const ODOO_CATALOG: Record<string, CatalogEntry> = {
@@ -34,6 +41,10 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
   'account.payment': {
     label: 'Pagos',
     fields: ['name', 'partner_id', 'date', 'amount', 'payment_type', 'state', 'memo'],
+    // Fase 6: el desglose pago→facturas. Los l10n_mx_edi_* del pago NO entran:
+    // computan `false` incluso en pagos con REP timbrado (verificado 2026-08-20
+    // con PAY00068) — la verdad del REP es l10n_mx_edi.document.
+    readOnlyFields: ['reconciled_invoice_ids'],
   },
 
   // ── Fase 2 — Contactos + Ventas ──────────────────────────────────────
@@ -89,6 +100,15 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
     label: 'Líneas de orden de venta',
     fields: ['order_id', 'name', 'product_id', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal', 'display_type'],
   },
+
+  // ── Fase 6 — Complementos de pago (REP) ──────────────────────────────
+  // La verdad del timbrado de PAGOS: estados payment_sent/payment_sent_failed,
+  // sat_state y el vínculo invoice_ids → facturas que cubre. Todo ALMACENADO
+  // (filtrable sin trampas), a diferencia de los l10n_mx_edi_* del pago.
+  'l10n_mx_edi.document': {
+    label: 'Documentos CFDI (timbrado de facturas y complementos de pago REP)',
+    fields: ['move_id', 'invoice_ids', 'state', 'sat_state', 'attachment_uuid', 'datetime', 'message', 'cancellation_reason'],
+  },
 }
 
 export function catalogEntry(model: string): CatalogEntry {
@@ -100,13 +120,17 @@ export function catalogEntry(model: string): CatalogEntry {
   return entry
 }
 
-/** Sin `requested` devuelve la whitelist completa; con él, valida cada campo. */
+/**
+ * Sin `requested` devuelve la whitelist base (los readOnly no entran a la
+ * proyección por defecto); con él, valida cada campo — readOnly incluidos.
+ */
 export function allowedFields(model: string, requested?: string[]): string[] {
   const entry = catalogEntry(model)
   if (!requested || requested.length === 0) return [...entry.fields]
+  const readable = [...entry.fields, ...(entry.readOnlyFields ?? [])]
   for (const field of requested) {
-    if (!entry.fields.includes(field)) {
-      throw new OdooError(`El campo "${field}" de ${model} no está en el catálogo. Permitidos: ${entry.fields.join(', ')}`)
+    if (!readable.includes(field)) {
+      throw new OdooError(`El campo "${field}" de ${model} no está en el catálogo. Permitidos: ${readable.join(', ')}`)
     }
   }
   return requested
@@ -129,6 +153,11 @@ export function assertDomainAllowed(model: string, domain: DomainTriple[]): void
     }
     // `invoice_date:month` (granularidad de agrupación) valida el campo base.
     const base = field.split(':')[0]
+    if (entry.readOnlyFields?.includes(base)) {
+      throw new OdooError(
+        `No se puede filtrar ni ordenar ${model} por "${base}": es un campo computado solo de lectura — Odoo devolvería 0 resultados en silencio.`,
+      )
+    }
     if (base !== 'id' && !entry.fields.includes(base)) {
       throw new OdooError(`No se puede filtrar ${model} por "${field}": el campo no está en el catálogo.`)
     }
