@@ -49,6 +49,8 @@ src/
 │   │   ├── db/page.tsx           # Catálogo ETM products
 │   │   ├── docs/page.tsx         # Documentación interna
 │   │   ├── inventory/page.tsx    # Gestión de inventario
+│   │   ├── cutting/page.tsx      # Corte rápido standalone — efímero, borrador localStorage (issue #71)
+│   │   ├── materials/page.tsx    # Control de medidas de material del proveedor (issue #71)
 │   │   ├── proveedores/page.tsx  # Proveedores de menudeo + marcas (issue #21)
 │   │   ├── orders/
 │   │   │   ├── page.tsx          # Lista de órdenes
@@ -117,6 +119,7 @@ src/
 │   └── utils.ts                  # cn() — class merging
 │
 ├── stores/
+│   ├── cutDraftStore.ts          # Zustand store: borrador del corte rápido (persist 'dymmsa-cut-draft', issue #71)
 │   ├── columnStore.ts            # Zustand store: columnas ocultas por tabla (persist 'dymmsa-columns', issue #18)
 │   ├── discreteModeStore.ts      # Zustand store: modo discreto ON/OFF (persist en localStorage)
 │   └── quotationStore.ts         # Zustand store: draft de cotización (persist en localStorage)

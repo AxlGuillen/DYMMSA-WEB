@@ -38,6 +38,7 @@ import {
   ExternalLink,
   AlertCircle,
   RotateCcw,
+  Scissors,
   SeparatorHorizontal,
 } from '@/components/icons'
 import { toast } from 'sonner'
@@ -90,6 +91,9 @@ import { ProductModal } from '@/components/quoter/ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { QUOTATION_STATUS_LABELS, MANUAL_QUOTATION_STATUSES } from '@/lib/quotation-status'
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation, useChangeQuotationStatus, ApiError } from '@/hooks/useQuotations'
+import { fetchJson } from '@/lib/fetch-json'
+import { useCutDraftStore } from '@/stores/cutDraftStore'
+import type { CutPlanCandidate } from '@/hooks/useCutPlan'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
@@ -527,6 +531,32 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const hasApprovalData = isApproved || isSentForApproval
 
   const { data: relatedOrder } = useOrderByQuotationId(quotation.id, isConvertedToOrder)
+
+  // Desde la cotización se empieza a pensar el corte, antes de que exista la
+  // orden (issue #71): el botón siembra el modo rápido con las piezas DYMMSA.
+  // Misma detección que OrderDetail; "no lo vendemos" fuera (no se manda a hacer).
+  const hasDymmsaItems = quotation.quotation_items.some(
+    (item) =>
+      (!item.item_type || item.item_type === 'product') &&
+      !isNotSold(item) &&
+      (item.brand ?? '').trim().toUpperCase() === 'DYMMSA',
+  )
+  const seedCutDraft = useCutDraftStore((s) => s.seed)
+  const [isSeedingCut, setIsSeedingCut] = useState(false)
+  const handlePlanCut = async () => {
+    setIsSeedingCut(true)
+    try {
+      const { candidates } = await fetchJson<{ candidates: CutPlanCandidate[] }>(
+        `/api/quotations/${quotation.id}/cut-candidates`,
+      )
+      seedCutDraft(candidates, quotation.name || quotation.customer_name || 'la cotización')
+      push('/dashboard/cutting')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo abrir el planificador de corte')
+    } finally {
+      setIsSeedingCut(false)
+    }
+  }
 
   // Re-sync local state when quotation IDs change OR when item IDs change.
   // After save, the route DELETE+INSERT regenerates item IDs, so we react to
@@ -1074,6 +1104,22 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          )}
+
+          {hasDymmsaItems && (
+            <Button
+              variant="outline"
+              onClick={handlePlanCut}
+              disabled={isSeedingCut}
+              title="Abre el corte rápido con las piezas DYMMSA de esta cotización"
+            >
+              {isSeedingCut ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Scissors className="mr-2 size-4" />
+              )}
+              Planificar corte
+            </Button>
           )}
 
           {/* Delete — always available */}

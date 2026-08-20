@@ -6,6 +6,50 @@ import type { CutMaterialType } from '@/types/database'
 const isPositive = (v: unknown): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v > 0
 
+/** numeric de supabase-js llega como string → se coerce en la frontera. */
+function num(value: unknown): number | null {
+  if (value == null) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * GET /api/material-presentations — el catálogo completo de medidas
+ * registradas, ordenado por último uso. Lo consumen el corte rápido (issue
+ * #71, que no tiene el cut-plan de una orden que hoy las trae embebidas) y la
+ * página de control de medidas.
+ */
+export async function GET() {
+  try {
+    const supabase = await createClient()
+    const auth = await requireAuth(supabase)
+    if ('error' in auth) return auth.error
+
+    const { data, error } = await supabase
+      .from('material_presentations')
+      .select('*')
+      .order('last_used_at', { ascending: false })
+
+    if (error) {
+      console.error('material-presentations GET error:', error)
+      return serverError('Error al cargar las medidas registradas')
+    }
+
+    return NextResponse.json({
+      presentations: (data ?? []).map((p) => ({
+        ...p,
+        diameter_mm: num(p.diameter_mm),
+        thickness_mm: num(p.thickness_mm),
+        width_mm: num(p.width_mm),
+        length_mm: num(p.length_mm),
+      })),
+    })
+  } catch (error) {
+    console.error('material-presentations GET error:', error)
+    return serverError()
+  }
+}
+
 interface PresentationInput {
   material_type: CutMaterialType
   diameter_mm?: number | null

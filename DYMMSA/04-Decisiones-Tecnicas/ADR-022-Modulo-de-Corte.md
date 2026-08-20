@@ -74,3 +74,30 @@ La suposición original ("la placa se compra por largo de tira, con el ancho fij
 - `CutStripDiagram` → **`CutSheetDiagram`**: una hoja por diagrama, con el sobrante punteado (como las barras) y aprovechamiento por hoja.
 - La UI captura **ancho × largo de la hoja**; imposibles ahora incluyen piezas más LARGAS que la hoja, no solo más anchas.
 - Las **hojas de placa SÍ se guardan como presentaciones** (`material_presentations` con thickness+width+length) — la exclusión "solo tubos" aplicaba al modelo de tira, que no tenía medida fija.
+
+---
+
+## Enmienda 2026-08-20 (issue #71): corte rápido, siembra desde cotización y control de medidas
+
+El planificador solo se alcanzaba desde una orden. Tres accesos nuevos:
+
+### Modo rápido efímero (`/dashboard/cutting`, sidebar DYMMSA)
+
+- **Decisión: EFÍMERO, sin migración.** `cut_plan_pieces` tiene FK `order_id NOT NULL` y el caso de uso ("un corte al vuelo") no amerita persistir planes sin orden. Las piezas viven en el store Zustand **`dymmsa-cut-draft`** (localStorage — un refresh no pierde la captura; botón "Limpiar" con confirmación). Las **presentaciones del proveedor SÍ persisten** (son globales, el catálogo se sigue armando solo desde este modo).
+- `CutPlanner` ganó el prop `standalone` (initialDrafts + onDraftsChange + onClear + seededFrom): mismo componente, con el guardado de lista APAGADO — el footer cambia a "Registrar medidas del proveedor" (solo `POST /material-presentations`). El modo orden queda intacto.
+- `GET /api/material-presentations` nuevo (el modo rápido no tiene el cut-plan de orden que las traía embebidas) + `useCutMargin()` (settings global).
+
+### Siembra desde la cotización
+
+- `GET /api/quotations/[id]/cut-candidates`: misma forma que los candidatos del cut-plan de orden (cruce con los `cut_*` nominales de `etm_products`, marca trim+upper), sobre `quotation_items`. Separadores fuera e **`is_sold=false` fuera** (lo que no se vende no se manda a hacer).
+- Botón "Planificar corte" en `QuotationDetail` (solo con piezas DYMMSA): siembra los candidatos en el borrador rápido y navega. Efímero a propósito: cuando la orden exista, el plan real nace de la orden como siempre — no hay dos verdades.
+
+### Control de medidas (`/dashboard/materials`, sidebar DYMMSA)
+
+- El catálogo `material_presentations` se arma solo → no había forma de corregir una captura errónea. Página nueva: tubos y placas con último uso, alta manual y **eliminar** (`DELETE /api/material-presentations/[id]`). Borrar es seguro: `cut_plan_pieces` no referencia presentaciones — solo desaparece la sugerencia.
+
+### Diagramas más entendibles (punto 3 de la issue)
+
+- El paso de la sierra ahora es un **achurado diagonal** (patrón SVG con id por instancia via `useId`) en vez de un bloque sólido confundible con una pieza delgada; tooltip con el margen.
+- El sobrante punteado muestra su medida dentro del área cuando cabe el texto.
+- **`CutLegend`** compartida (pieza / corte de sierra / sobrante), una por grupo — no por diagrama.

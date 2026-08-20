@@ -12,6 +12,7 @@ import { useSidebarStore } from '@/stores/sidebarStore'
 import { useSoundStore } from '@/stores/soundStore'
 import { useColumnStore } from '@/stores/columnStore'
 import { useColumnWidthStore } from '@/stores/columnWidthStore'
+import { useCutDraftStore } from '@/stores/cutDraftStore'
 import type { QuotationItemRow } from '@/types/database'
 
 export function resetStores() {
@@ -21,6 +22,7 @@ export function resetStores() {
   useSoundStore.setState({ soundEnabled: true })
   useColumnStore.setState({ hidden: {} })
   useColumnWidthStore.setState({ widths: {} })
+  useCutDraftStore.setState({ drafts: [], candidates: [], seededFrom: null })
   localStorage.clear()
 }
 

@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
 import { ORDERS_KEY } from '@/hooks/useOrders'
+import { resolveCutMargin, SETTING_CUT_MARGIN_MM } from '@/lib/cut-plan'
 import type { CutMaterialType, CutPlanPiece, MaterialPresentation } from '@/types/database'
 
 /** Ítem DYMMSA de la orden, con las medidas nominales del producto (pre-llenado). */
@@ -76,9 +77,12 @@ export interface SavePresentationInput {
   length_mm: number
 }
 
+export const PRESENTATIONS_KEY = ['material-presentations'] as const
+
 /**
  * Registra la presentación que el proveedor ofreció ("barras de 6 m de Ø30").
  * El catálogo se arma solo: queda guardada y se sugiere en planes futuros.
+ * `orderId` solo dirige la invalidación; el corte rápido pasa 'standalone'.
  */
 export function useSavePresentation(orderId: string) {
   const queryClient = useQueryClient()
@@ -92,6 +96,42 @@ export function useSavePresentation(orderId: string) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [...ORDERS_KEY, orderId, 'cut-plan'] })
+      queryClient.invalidateQueries({ queryKey: PRESENTATIONS_KEY })
+    },
+  })
+}
+
+/** Catálogo completo de medidas registradas (corte rápido + página de control). */
+export function useMaterialPresentations() {
+  return useQuery({
+    queryKey: PRESENTATIONS_KEY,
+    queryFn: async () =>
+      fetchJson<{ presentations: MaterialPresentation[] }>('/api/material-presentations'),
+  })
+}
+
+/** Elimina una medida registrada (captura errónea — issue #71). */
+export function useDeletePresentation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJson<{ deleted: string }>(`/api/material-presentations/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PRESENTATIONS_KEY })
+    },
+  })
+}
+
+/** Margen de corte global (settings) para el modo standalone, ya resuelto. */
+export function useCutMargin() {
+  return useQuery({
+    queryKey: ['settings', 'cut-margin'],
+    queryFn: async () => {
+      const { settings } = await fetchJson<{ settings: Record<string, unknown> }>(
+        `/api/settings?keys=${SETTING_CUT_MARGIN_MM}`,
+      )
+      return resolveCutMargin(settings)
     },
   })
 }

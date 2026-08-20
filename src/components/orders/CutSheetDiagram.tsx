@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { formatMm } from '@/lib/cut-plan'
 import type { PackedSheet } from '@/lib/cut-plan'
 
@@ -32,6 +33,7 @@ function layoutShelves(sheet: PackedSheet, marginMm: number, scaleX: number) {
  * filas van en oscuro. SVG imprimible para el taller.
  */
 export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }: CutSheetDiagramProps) {
+  const kerfPatternId = useId()
   if (sheetLengthMm <= 0 || sheetWidthMm <= 0) return null
   const scaleX = VIEW_W / sheetLengthMm
   const scaleY = VIEW_H / sheetWidthMm
@@ -53,6 +55,13 @@ export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }
         role="img"
         aria-label={`Hoja de ${formatMm(sheetLengthMm)} × ${formatMm(sheetWidthMm)} con ${pieces} piezas`}
       >
+        <defs>
+          {/* Achurado del paso de la sierra (issue #71), como en las barras. */}
+          <pattern id={kerfPatternId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="6" height="6" className="fill-foreground/40" />
+            <line x1="0" y1="0" x2="0" y2="6" className="stroke-background" strokeWidth="2.5" />
+          </pattern>
+        </defs>
         <rect x="0" y="0" width={VIEW_W} height={VIEW_H} className="fill-muted" />
         {positioned.map((shelf, shelfIndex) => (
           <g key={shelfIndex}>
@@ -84,28 +93,42 @@ export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }
                 </g>
               )
             })}
-            {/* Corte entre filas */}
+            {/* Corte entre filas: achurado = aquí pasa la sierra */}
             {marginMm > 0 && shelfIndex < positioned.length - 1 && (
               <rect
                 x={shelf.x + shelf.lengthMm * scaleX}
                 y={0}
-                width={Math.max(1.5, marginMm * scaleX)}
+                width={Math.max(2.5, marginMm * scaleX)}
                 height={VIEW_H}
-                className="fill-foreground/50"
-              />
+                fill={`url(#${kerfPatternId})`}
+              >
+                <title>{`Corte de sierra: ${formatMm(marginMm)}`}</title>
+              </rect>
             )}
           </g>
         ))}
-        {/* Sobrante de la hoja (punteado, como en las barras) */}
+        {/* Sobrante de la hoja (punteado), con su medida cuando cabe el texto */}
         {usedX < VIEW_W - 2 && (
-          <rect
-            x={usedX + 2}
-            y={2}
-            width={VIEW_W - usedX - 4}
-            height={VIEW_H - 4}
-            rx={3}
-            className="fill-transparent stroke-muted-foreground/50 [stroke-dasharray:6_5]"
-          />
+          <g>
+            <rect
+              x={usedX + 2}
+              y={2}
+              width={VIEW_W - usedX - 4}
+              height={VIEW_H - 4}
+              rx={3}
+              className="fill-transparent stroke-muted-foreground/50 [stroke-dasharray:6_5]"
+            />
+            {VIEW_W - usedX > 120 && (
+              <text
+                x={usedX + (VIEW_W - usedX) / 2}
+                y={VIEW_H / 2 + 4}
+                textAnchor="middle"
+                className="fill-muted-foreground text-[12px]"
+              >
+                sobra {formatMm(Math.max(0, sheetLengthMm - sheet.usedLengthMm))}
+              </text>
+            )}
+          </g>
         )}
       </svg>
       <p className="text-xs text-muted-foreground">
