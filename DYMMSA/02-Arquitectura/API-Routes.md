@@ -20,6 +20,7 @@
 | `POST` | `/api/quotations/[id]/send-for-approval` | ✅ | Genera `approval_token` UUID + cambia status a `sent_for_approval` |
 | `POST` | `/api/quotations/[id]/create-order` | ✅ | Crear orden desde cotización `approved`. Stock check + deducción inventario. Status → `converted_to_order` |
 | `PATCH` | `/api/quotations/[id]/status` | ✅ | Cambio manual de estado entre `draft`/`sent_for_approval`/`approved`/`rejected`. Body: `{ status }`. Preserva `is_approved` y `approved_at`. Sella `approved_at` al marcar `approved` solo si aún no existe (conserva la fecha original del cliente); **nunca lo borra** → la fecha de aprobación se ve en cualquier fase posterior. `converted_to_order` no es destino manual (400). Revertir desde `converted_to_order` exige que la orden vinculada esté **eliminada** (si existe cualquier orden vinculada → 400) |
+| `GET` | `/api/quotations/[id]/cut-candidates` | ✅ | Piezas DYMMSA de la cotización para **sembrar el corte rápido** (issue #71): misma forma que los `candidates` del cut-plan de orden (nominales `cut_*`, marca trim+upper), separadores e `is_sold=false` fuera |
 
 ---
 
@@ -76,6 +77,8 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `POST` | `/api/material-presentations` | ✅ | Registra la presentación que ofreció el proveedor ("barras de 6 m de Ø30"). Upsert contra el UNIQUE NULLS NOT DISTINCT + refresca `last_used_at` — el catálogo del proveedor **se arma solo con el uso** (issue #59) |
+| `GET` | `/api/material-presentations` | ✅ | Catálogo completo de medidas registradas, ordenado por último uso (issue #71: lo consumen el corte rápido y la página de control). `numeric` coercido a number |
+| `DELETE` | `/api/material-presentations/[id]` | ✅ | Elimina una medida registrada (captura errónea — issue #71). Seguro: `cut_plan_pieces` no referencia presentaciones. 404 si no existe |
 
 ---
 

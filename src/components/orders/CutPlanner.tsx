@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -14,6 +14,17 @@ import {
   Plus,
   Trash2,
 } from '@/components/icons'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,16 +52,31 @@ import {
   type TubePieceInput,
 } from '@/lib/cut-plan'
 import { CutBarDiagram } from '@/components/orders/CutBarDiagram'
+import { CutLegend } from '@/components/orders/CutLegend'
 import { CutSheetDiagram } from '@/components/orders/CutSheetDiagram'
 import { TourButton } from '@/components/tours/TourButton'
 import type { CutMaterialType, CutPlanPiece } from '@/types/database'
 
+/**
+ * Modo rápido (issue #71): planificador SIN orden — efímero por diseño (las
+ * piezas viven en el borrador localStorage del caller, nunca en BD; las
+ * presentaciones del proveedor SÍ persisten, son globales).
+ */
+interface StandaloneMode {
+  initialDrafts: PieceDraft[]
+  onDraftsChange: (drafts: PieceDraft[]) => void
+  onClear: () => void
+  /** Cotización que sembró los candidatos (contexto en header y card). */
+  seededFrom: string | null
+}
+
 interface CutPlannerProps {
   data: CutPlanResponse
+  standalone?: StandaloneMode
 }
 
 /** Fila editable (inputs como string; se parsea al calcular/guardar). */
-interface PieceDraft {
+export interface PieceDraft {
   key: string
   type: CutMaterialType
   diameter: string
@@ -118,16 +144,30 @@ function toUnitBars(bars: { segments: { lengthMm: number }[] }[]): UnitRef[][] {
   )
 }
 
-export function CutPlanner({ data }: CutPlannerProps) {
+export function CutPlanner({ data, standalone }: CutPlannerProps) {
   const { order } = data
   const { push } = useRouter()
+  const isStandalone = !!standalone
+  // En standalone el id es sintético: saveCutPlan jamás se invoca ahí y la
+  // invalidación de useSavePresentation cae en PRESENTATIONS_KEY.
   const saveCutPlan = useSaveCutPlan(order.id)
   const savePresentation = useSavePresentation(order.id)
   const updateSettings = useUpdateSettings()
 
-  const isReadOnly = ['completed', 'cancelled'].includes(order.status)
+  const isReadOnly = !isStandalone && ['completed', 'cancelled'].includes(order.status)
 
-  const [drafts, setDrafts] = useState<PieceDraft[]>(() => data.pieces.map(toDraft))
+  const [drafts, setDrafts] = useState<PieceDraft[]>(
+    () => standalone?.initialDrafts ?? data.pieces.map(toDraft),
+  )
+
+  // Persistencia del borrador rápido: cada cambio va al store del caller
+  // (localStorage) — un refresh no pierde la captura. Ref para no re-disparar
+  // por identidad del objeto `standalone`.
+  const onDraftsChangeRef = useRef(standalone?.onDraftsChange)
+  onDraftsChangeRef.current = standalone?.onDraftsChange
+  useEffect(() => {
+    onDraftsChangeRef.current?.(drafts)
+  }, [drafts])
   const [margin, setMargin] = useState(String(data.marginMm))
   const [barLen, setBarLen] = useState<Record<string, string>>({})
   // Hoja del proveedor por espesor (issue #64): la placa se vende como HOJA
@@ -226,6 +266,28 @@ export function CutPlanner({ data }: CutPlannerProps) {
     }),
   ]
 
+  /** Promesas de las presentaciones capturadas en pantalla (barras y hojas). */
+  const buildPresentationCaptures = () => [
+    // Catálogo que se arma solo: barras de tubo y, desde issue #64, también
+    // las HOJAS de placa (medida fija del proveedor: ancho × largo).
+    ...tubeNeeds
+      .map((group) => ({ diameter: group.diameterMm, length: Number(barLen[String(group.diameterMm)]) }))
+      .filter(({ length }) => length > 0)
+      .map(({ diameter, length }) =>
+        savePresentation.mutateAsync({ material_type: 'tube', diameter_mm: diameter, length_mm: length }),
+      ),
+    ...plateNeeds
+      .map((group) => ({
+        thickness: group.thicknessMm,
+        width: Number(sheetDims[String(group.thicknessMm)]?.w),
+        length: Number(sheetDims[String(group.thicknessMm)]?.l),
+      }))
+      .filter(({ width, length }) => width > 0 && length > 0)
+      .map(({ thickness, width, length }) =>
+        savePresentation.mutateAsync({ material_type: 'plate', thickness_mm: thickness, width_mm: width, length_mm: length }),
+      ),
+  ]
+
   const handleSave = async () => {
     if (invalidCount > 0) {
       toast.error(
@@ -233,30 +295,25 @@ export function CutPlanner({ data }: CutPlannerProps) {
       )
       return
     }
+    // Modo rápido: las piezas NO van a BD (efímero por diseño, issue #71) —
+    // el botón solo registra las medidas del proveedor capturadas.
+    if (isStandalone) {
+      const captures = buildPresentationCaptures()
+      if (captures.length === 0) {
+        toast.info('Captura la barra u hoja del proveedor en algún grupo para registrarla')
+        return
+      }
+      const results = await Promise.allSettled(captures)
+      if (results.some((r) => r.status === 'rejected')) {
+        toast.error('Alguna medida no se pudo registrar')
+      } else {
+        toast.success(`Medida${captures.length !== 1 ? 's' : ''} del proveedor registrada${captures.length !== 1 ? 's' : ''}`)
+      }
+      return
+    }
     try {
       await saveCutPlan.mutateAsync(buildPayload())
-      // Presentaciones capturadas → catálogo que se arma solo: barras de tubo
-      // y, desde issue #64, también las HOJAS de placa (medida fija del
-      // proveedor: ancho × largo).
-      const captures = [
-        ...tubeNeeds
-          .map((group) => ({ diameter: group.diameterMm, length: Number(barLen[String(group.diameterMm)]) }))
-          .filter(({ length }) => length > 0)
-          .map(({ diameter, length }) =>
-            savePresentation.mutateAsync({ material_type: 'tube', diameter_mm: diameter, length_mm: length }),
-          ),
-        ...plateNeeds
-          .map((group) => ({
-            thickness: group.thicknessMm,
-            width: Number(sheetDims[String(group.thicknessMm)]?.w),
-            length: Number(sheetDims[String(group.thicknessMm)]?.l),
-          }))
-          .filter(({ width, length }) => width > 0 && length > 0)
-          .map(({ thickness, width, length }) =>
-            savePresentation.mutateAsync({ material_type: 'plate', thickness_mm: thickness, width_mm: width, length_mm: length }),
-          ),
-      ]
-      const results = await Promise.allSettled(captures)
+      const results = await Promise.allSettled(buildPresentationCaptures())
       if (results.some((r) => r.status === 'rejected')) {
         toast.warning('La lista se guardó, pero una presentación no se pudo registrar')
       }
@@ -391,7 +448,7 @@ export function CutPlanner({ data }: CutPlannerProps) {
               <TableCell>
                 {draft.etm || draft.sourceItemId ? (
                   <Badge variant="secondary" className="font-mono text-xs">
-                    {draft.etm ?? 'de la orden'}
+                    {draft.etm ?? (isStandalone ? 'de la cotización' : 'de la orden')}
                   </Badge>
                 ) : (
                   <span className="text-xs text-muted-foreground">manual</span>
@@ -420,17 +477,49 @@ export function CutPlanner({ data }: CutPlannerProps) {
       <div className="flex items-start gap-4 print:hidden">
         <Button
           variant="ghost" size="icon" className="mt-0.5 shrink-0"
-          onClick={() => push(`/dashboard/orders/${order.id}`)}
+          onClick={() => push(isStandalone ? '/dashboard' : `/dashboard/orders/${order.id}`)}
         >
           <ArrowLeft className="size-5" />
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-tight">Planificar corte</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {order.name || order.customer_name} · tubos y placas de cobre (DYMMSA)
+            {isStandalone
+              ? `Modo rápido${standalone?.seededFrom ? ` · piezas de ${standalone.seededFrom}` : ''} · el borrador vive en este navegador, no se guarda en el sistema`
+              : `${order.name || order.customer_name} · tubos y placas de cobre (DYMMSA)`}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
+          {isStandalone && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={drafts.length === 0 && data.candidates.length === 0}>
+                  <Trash2 className="mr-2 size-4" />
+                  Limpiar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Limpiar el borrador de corte?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se quitan todas las piezas capturadas y las sugerencias sembradas. Las
+                    medidas del proveedor ya registradas no se tocan.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      setDrafts([])
+                      standalone?.onClear()
+                    }}
+                  >
+                    Limpiar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           <TourButton tour="cut-planner" />
           <div data-tour="cut-margin" className="flex items-center gap-2">
             <Label htmlFor="cut-margin" className="text-xs text-muted-foreground">
@@ -460,7 +549,9 @@ export function CutPlanner({ data }: CutPlannerProps) {
         <Card data-tour="cut-candidates" className="print:hidden">
           <CardHeader>
             <CardTitle className="text-base">
-              Piezas DYMMSA de la orden ({candidates.length})
+              {isStandalone
+                ? `Piezas DYMMSA de ${standalone?.seededFrom ?? 'la cotización'} (${candidates.length})`
+                : `Piezas DYMMSA de la orden (${candidates.length})`}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -603,6 +694,8 @@ export function CutPlanner({ data }: CutPlannerProps) {
                 </div>
               )}
 
+              {pack && bars.length > 0 && <CutLegend showKerf={marginMm > 0} />}
+
               {bars.map((bar, barIndex) => (
                 <div key={barIndex} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Barra {barIndex + 1}</p>
@@ -717,6 +810,8 @@ export function CutPlanner({ data }: CutPlannerProps) {
                 </div>
               )}
 
+              {pack && pack.sheets.length > 0 && <CutLegend showKerf={marginMm > 0} />}
+
               {pack && pack.sheets.map((sheet, sheetIndex) => (
                 <div key={sheetIndex} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Hoja {sheetIndex + 1}</p>
@@ -747,13 +842,17 @@ export function CutPlanner({ data }: CutPlannerProps) {
               <span className="text-amber-600"> · {invalidCount} incompleta{invalidCount !== 1 ? 's' : ''}</span>
             )}
           </p>
-          <Button data-tour="cut-save" onClick={handleSave} disabled={isReadOnly || saveCutPlan.isPending}>
-            {saveCutPlan.isPending ? (
+          <Button
+            data-tour="cut-save"
+            onClick={handleSave}
+            disabled={isReadOnly || saveCutPlan.isPending || savePresentation.isPending}
+          >
+            {saveCutPlan.isPending || savePresentation.isPending ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
               <Check className="mr-2 size-4" />
             )}
-            Guardar lista de corte
+            {isStandalone ? 'Registrar medidas del proveedor' : 'Guardar lista de corte'}
           </Button>
         </div>
       </div>

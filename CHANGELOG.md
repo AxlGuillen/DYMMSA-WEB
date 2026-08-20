@@ -6,6 +6,21 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-08-20
 
 ### Nuevo
+- **Planificar corte sin orden.** Nueva entrada **"Planificar corte"** en el menú:
+  un modo rápido para calcular un corte al vuelo — capturas las piezas a mano,
+  ves el acomodo y el Excel de pedido, sin necesidad de una orden. El borrador
+  se queda guardado en tu navegador hasta que lo limpies.
+- **Planificar corte desde la cotización.** Si la cotización tiene piezas DYMMSA,
+  el botón **"Planificar corte"** abre el modo rápido con esas piezas sugeridas —
+  para pensar el material desde antes de que exista la orden.
+- **Control de medidas de material.** Nueva página **"Medidas de material"**: las
+  barras y hojas que ofrece el proveedor (que se registran solas al usarlas) ahora
+  se pueden revisar, dar de alta a mano y borrar si se capturaron mal.
+
+### Mejorado
+- **Diagramas de corte más claros.** El paso de la sierra se dibuja con rayado
+  (ya no se confunde con una pieza delgada), el sobrante muestra su medida y
+  cada grupo trae una leyenda de qué es pieza, corte y sobrante.
 - **El asistente ya revisa los complementos de pago (REP).** Al preguntarle por un
   pago (p. ej. "PAY00068") ahora responde si su complemento de pago está **timbrado
   y validado ante el SAT**, y desglosa qué facturas paga, cada una con su saldo y su

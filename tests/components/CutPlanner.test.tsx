@@ -210,6 +210,85 @@ describe('CutPlanner', () => {
   })
 })
 
+describe('CutPlanner — modo rápido (issue #71)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const standaloneData = (): CutPlanResponse => ({
+    ...data(),
+    order: { id: 'standalone', name: 'Corte rápido', customer_name: 'Corte rápido', status: 'ordered' },
+    pieces: [],
+  })
+
+  const tubeDraft = () => ({
+    key: 'd1', type: 'tube' as const, diameter: '30', thickness: '', width: '',
+    length: '300', quantity: '4', requestedLabel: 'Botador 30', sourceItemId: null, etm: null,
+  })
+
+  const standaloneProps = (overrides: Record<string, unknown> = {}) => ({
+    initialDrafts: [tubeDraft()],
+    onDraftsChange: vi.fn(),
+    onClear: vi.fn(),
+    seededFrom: null as string | null,
+    ...overrides,
+  })
+
+  test('header en modo rápido: efímero explícito, sin nombre de orden', () => {
+    renderWithProviders(<CutPlanner data={standaloneData()} standalone={standaloneProps()} />)
+    expect(screen.getByText(/Modo rápido/)).toBeInTheDocument()
+    expect(screen.getByText(/no se guarda en el sistema/)).toBeInTheDocument()
+    // El footer cambia de contrato: registra medidas, no guarda lista.
+    expect(screen.getByRole('button', { name: /registrar medidas del proveedor/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /guardar lista de corte/i })).not.toBeInTheDocument()
+  })
+
+  test('registrar medidas: guarda la presentación capturada y JAMÁS toca la orden', async () => {
+    presMut.mockResolvedValue({})
+    const user = userEvent.setup()
+    renderWithProviders(<CutPlanner data={standaloneData()} standalone={standaloneProps()} />)
+
+    await user.click(screen.getByRole('button', { name: '6 m' }))
+    await user.click(screen.getByRole('button', { name: /registrar medidas del proveedor/i }))
+
+    expect(presMut).toHaveBeenCalledWith({ material_type: 'tube', diameter_mm: 30, length_mm: 6000 })
+    // Efímero por diseño: el PUT de lista de corte no existe en este modo.
+    expect(saveMut).not.toHaveBeenCalled()
+  })
+
+  test('los cambios del borrador se reportan al store (persistencia localStorage)', async () => {
+    const onDraftsChange = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(
+      <CutPlanner data={standaloneData()} standalone={standaloneProps({ onDraftsChange })} />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /agregar tubo manual/i }))
+    const last = onDraftsChange.mock.lastCall?.[0]
+    expect(last).toHaveLength(2)
+  })
+
+  test('Limpiar (con confirmación) vacía las piezas y notifica al store', async () => {
+    const onClear = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(
+      <CutPlanner data={standaloneData()} standalone={standaloneProps({ onClear })} />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /^limpiar$/i }))
+    // Con el dialog abierto hay dos "Limpiar": el trigger y la acción — la acción al final.
+    const limpiarButtons = screen.getAllByRole('button', { name: /^limpiar$/i })
+    await user.click(limpiarButtons[limpiarButtons.length - 1])
+    expect(onClear).toHaveBeenCalled()
+    expect(screen.getByText('Sin piezas de tubo.')).toBeInTheDocument()
+  })
+
+  test('candidatos sembrados desde la cotización usan su nombre en la card', () => {
+    renderWithProviders(
+      <CutPlanner data={standaloneData()} standalone={standaloneProps({ seededFrom: 'COT-001' })} />,
+    )
+    expect(screen.getByText(/Piezas DYMMSA de COT-001/)).toBeInTheDocument()
+  })
+})
+
 describe('CutBarDiagram', () => {
   test('cuando el acomodo manual excede la barra lo dice en rojo, no truena', () => {
     renderWithProviders(

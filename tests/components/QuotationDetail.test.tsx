@@ -5,14 +5,22 @@ import { renderWithProviders } from './helpers/render'
 import { resetStores } from './helpers/stores'
 import { quotationWithItems, quotationItem } from './helpers/fixtures'
 import { QuotationDetail } from '@/components/quotations/QuotationDetail'
+import { useCutDraftStore } from '@/stores/cutDraftStore'
 
 // Spies de los mutation hooks (hoisted para usarlos dentro de vi.mock).
-const { updateAsync, sendAsync, createAsync, deleteAsync, changeStatusAsync } = vi.hoisted(() => ({
+const { updateAsync, sendAsync, createAsync, deleteAsync, changeStatusAsync, pushMock, fetchJsonMock } = vi.hoisted(() => ({
   updateAsync: vi.fn().mockResolvedValue(undefined),
   sendAsync: vi.fn().mockResolvedValue(undefined),
   createAsync: vi.fn().mockResolvedValue({ id: 'o1' }),
   deleteAsync: vi.fn().mockResolvedValue(undefined),
   changeStatusAsync: vi.fn().mockResolvedValue(undefined),
+  pushMock: vi.fn(),
+  fetchJsonMock: vi.fn(),
+}))
+
+vi.mock('@/lib/fetch-json', () => ({
+  fetchJson: fetchJsonMock,
+  ApiError: class ApiError extends Error {},
 }))
 
 vi.mock('@/hooks/useQuotations', () => ({
@@ -29,7 +37,7 @@ vi.mock('@/hooks/useOrders', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: pushMock }),
 }))
 
 /** Valor mostrado en la card-filtro de contador (Aprobados/Rechazados/Pendientes). */
@@ -126,5 +134,49 @@ describe('QuotationDetail — columnas redimensionables (issue #55)', () => {
     renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
     const header = screen.getByRole('columnheader', { name: /Acciones/ })
     expect(header.className).toContain('sticky')
+  })
+})
+
+describe('QuotationDetail — planificar corte (issue #71)', () => {
+  beforeEach(() => {
+    resetStores()
+    vi.clearAllMocks()
+  })
+
+  test('sin ítems DYMMSA no aparece el botón', () => {
+    renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
+    expect(screen.queryByRole('button', { name: /planificar corte/i })).not.toBeInTheDocument()
+  })
+
+  test('is_sold=false no cuenta como pieza DYMMSA (no se manda a hacer)', () => {
+    const q = quotationWithItems({
+      quotation_items: [quotationItem({ id: 'p1', brand: 'DYMMSA', is_sold: false })],
+    })
+    renderWithProviders(<QuotationDetail quotation={q} />)
+    expect(screen.queryByRole('button', { name: /planificar corte/i })).not.toBeInTheDocument()
+  })
+
+  test('con pieza DYMMSA siembra el borrador del corte rápido y navega', async () => {
+    const user = userEvent.setup()
+    const candidates = [
+      {
+        itemId: 'p1', etm: 'DY-1', description: 'Botador', quantity: 4,
+        cutKind: 'tube', diameterMm: 30, thicknessMm: null, widthMm: null, lengthMm: 300,
+      },
+    ]
+    fetchJsonMock.mockResolvedValue({ candidates })
+    // ' dymmsa ' con basura: misma normalización trim+upper que el resto del flujo.
+    const q = quotationWithItems({
+      quotation_items: [quotationItem({ id: 'p1', brand: ' dymmsa ' })],
+    })
+    renderWithProviders(<QuotationDetail quotation={q} />)
+
+    await user.click(screen.getByRole('button', { name: /planificar corte/i }))
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/dashboard/cutting'))
+    expect(fetchJsonMock).toHaveBeenCalledWith(`/api/quotations/${q.id}/cut-candidates`)
+    const store = useCutDraftStore.getState()
+    expect(store.candidates).toEqual(candidates)
+    expect(store.seededFrom).toBe('Cotización de prueba')
   })
 })

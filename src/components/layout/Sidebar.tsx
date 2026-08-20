@@ -49,6 +49,8 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Ruler,
+  Scissors,
   Truck,
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
@@ -74,6 +76,9 @@ const etmUrreaLinks: LinkItem[] = [
 const dymmsaLinks: LinkItem[] = [
   { href: '/dashboard/inventory',   label: 'Inventario',  icon: Warehouse },
   { href: '/dashboard/proveedores', label: 'Proveedores', icon: Truck },
+  // Corte rápido standalone + control de medidas registradas (issue #71).
+  { href: '/dashboard/cutting',     label: 'Planificar corte',    icon: Scissors },
+  { href: '/dashboard/materials',   label: 'Medidas de material', icon: Ruler },
 ]
 
 const urreaLinks: LinkItem[] = [
