@@ -538,7 +538,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const hasDymmsaItems = quotation.quotation_items.some(
     (item) =>
       (!item.item_type || item.item_type === 'product') &&
-      item.is_sold !== false &&
+      !isNotSold(item) &&
       (item.brand ?? '').trim().toUpperCase() === 'DYMMSA',
   )
   const seedCutDraft = useCutDraftStore((s) => s.seed)

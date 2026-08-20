@@ -32,11 +32,17 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const { data: quotation } = await supabase
+    const { data: quotation, error: quotationError } = await supabase
       .from('quotations')
       .select('id, quotation_number, customer_name')
       .eq('id', id)
       .single()
+    // PGRST116 = cero filas (el 404 legítimo); cualquier otro error es de
+    // infraestructura y no debe disfrazarse de "no existe" (review PR #76).
+    if (quotationError && quotationError.code !== 'PGRST116') {
+      console.error('cut-candidates quotation error:', quotationError)
+      return serverError('Error al cargar la cotización')
+    }
     if (!quotation) return notFound('Cotización no encontrada')
 
     const { data: items, error } = await supabase

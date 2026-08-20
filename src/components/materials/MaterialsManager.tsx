@@ -64,10 +64,11 @@ export function MaterialsManager() {
   const tubes = data.presentations.filter((p) => p.material_type === 'tube')
   const plates = data.presentations.filter((p) => p.material_type === 'plate')
 
+  // Todo pasa por formatMm: un numeric con decimales no se muestra crudo (review PR #76).
   const describe = (p: MaterialPresentation) =>
     p.material_type === 'tube'
-      ? `barra Ø${p.diameter_mm} mm × ${formatMm(p.length_mm)}`
-      : `hoja de ${p.thickness_mm} mm · ${formatMm(p.width_mm ?? 0)} × ${formatMm(p.length_mm)}`
+      ? `barra Ø${formatMm(p.diameter_mm ?? 0)} × ${formatMm(p.length_mm)}`
+      : `hoja de ${formatMm(p.thickness_mm ?? 0)} · ${formatMm(p.width_mm ?? 0)} × ${formatMm(p.length_mm)}`
 
   const handleAdd = async (type: CutMaterialType) => {
     const payload =
@@ -150,7 +151,7 @@ export function MaterialsManager() {
               <TableBody>
                 {tubes.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="tabular-nums">Ø{p.diameter_mm} mm</TableCell>
+                    <TableCell className="tabular-nums">Ø{formatMm(p.diameter_mm ?? 0)}</TableCell>
                     <TableCell className="tabular-nums">{formatMm(p.length_mm)}</TableCell>
                     <TableCell className="text-muted-foreground">{fmtDate(p.last_used_at)}</TableCell>
                     <TableCell>{deleteButton(p)}</TableCell>
@@ -207,7 +208,7 @@ export function MaterialsManager() {
               <TableBody>
                 {plates.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="tabular-nums">{p.thickness_mm} mm</TableCell>
+                    <TableCell className="tabular-nums">{formatMm(p.thickness_mm ?? 0)}</TableCell>
                     <TableCell className="tabular-nums">
                       {formatMm(p.width_mm ?? 0)} × {formatMm(p.length_mm)}
                     </TableCell>
