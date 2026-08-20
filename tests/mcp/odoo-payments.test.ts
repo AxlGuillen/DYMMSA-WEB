@@ -125,7 +125,7 @@ describe('odoo_payment_detail', () => {
 
     expect(result.encontrado).toBe(true)
     if (result.encontrado) {
-      expect(result.pago).toMatchObject({ folio: 'PAY00068', cliente: 'Andritz', monto: 59868.07, tipo: 'cobro' })
+      expect(result.pago).toMatchObject({ folio: 'PAY00068', cliente: 'Andritz', monto: 59868.07, tipo: 'cobro', estado: 'pagado' })
       expect(result.complemento_pago).toEqual([
         {
           estado: 'timbrado',
@@ -190,7 +190,7 @@ describe('odoo_payment_detail', () => {
 describe('odoo_rep_audit', () => {
   const pago = (over: Record<string, unknown>) => ({ ...PAY00068, ...over })
 
-  test('clasifica: en regla / sin REP / REP con problema — en 2 llamadas', async () => {
+  test('clasifica: en regla / sin REP / REP con problema', async () => {
     const { odoo, calls } = fakeOdoo({
       'account.payment.search_read': [[
         pago({ id: 1, name: 'PAY00061', reconciled_invoice_ids: [436, 433] }),
@@ -202,11 +202,14 @@ describe('odoo_rep_audit', () => {
         REP_DOC,
         { ...REP_DOC, id: 550, invoice_ids: [600], state: 'payment_sent_failed', sat_state: 'not_defined', datetime: '2026-08-14 10:00:00' },
       ]],
+      // 3ª llamada (solo hay porque quedó un pago sin REP): política PUE/PPD.
+      'account.move.search_read': [[{ id: 500, l10n_mx_edi_payment_policy: 'PPD' }]],
     })
 
     const result = await odooRepAudit(odoo, { date_from: '2026-08-01', date_to: '2026-08-31' })
 
-    expect(calls).toHaveLength(2)
+    expect(calls).toHaveLength(3)
+    expect(calls[2].payload.domain).toEqual([['id', 'in', [500]]])
     expect(calls[0].payload.domain).toEqual([
       ['payment_type', '=', 'inbound'],
       ['state', 'in', ['in_process', 'paid']],
@@ -241,10 +244,36 @@ describe('odoo_rep_audit', () => {
       'account.payment.search_read': [[pago({ reconciled_invoice_ids: [436, 700] })]],
       // El doc solo cubre la 436 — la 700 quedó fuera: el pago NO está en regla.
       'l10n_mx_edi.document.search_read': [[REP_DOC]],
+      'account.move.search_read': [[
+        { id: 436, l10n_mx_edi_payment_policy: 'PPD' },
+        { id: 700, l10n_mx_edi_payment_policy: 'PPD' },
+      ]],
     })
     const result = await odooRepAudit(odoo, { date_from: '2026-08-01' })
     expect(result.en_regla).toBe(0)
     expect(result.sin_rep).toHaveLength(1)
+  })
+
+  test('pago 100% PUE sin doc REP → no_requiere_rep, no falso positivo (review PR #75)', async () => {
+    const { odoo, calls } = fakeOdoo({
+      'account.payment.search_read': [[
+        pago({ id: 1, name: 'PAY00070', reconciled_invoice_ids: [800] }),
+        pago({ id: 2, name: 'PAY00071', reconciled_invoice_ids: [801, 802] }),
+      ]],
+      'l10n_mx_edi.document.search_read': [[]],
+      'account.move.search_read': [[
+        { id: 800, l10n_mx_edi_payment_policy: 'PUE' },
+        { id: 801, l10n_mx_edi_payment_policy: 'PUE' },
+        // Mixto PUE+PPD: la PPD sí exige REP → el pago sigue pendiente.
+        { id: 802, l10n_mx_edi_payment_policy: 'PPD' },
+      ]],
+    })
+    const result = await odooRepAudit(odoo, {})
+    expect(calls).toHaveLength(3)
+    expect(result.no_requiere_rep).toBe(1)
+    expect(result.sin_rep).toEqual([
+      { folio: 'PAY00071', cliente: 'Andritz', fecha: '2026-08-12', monto: 59868.07 },
+    ])
   })
 
   test('con REP re-timbrado manda el más reciente (el fallido viejo no cuenta)', async () => {

@@ -36,6 +36,8 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
       // Timbrado CFDI (Fase 5) — verificado que la instancia usa la
       // localización mexicana y estos campos traen datos reales.
       'l10n_mx_edi_cfdi_uuid', 'l10n_mx_edi_cfdi_state', 'l10n_mx_edi_cfdi_sat_state',
+      // Política de pago PUE/PPD (Fase 6, almacenado): PUE no exige REP.
+      'l10n_mx_edi_payment_policy',
     ],
   },
   'account.payment': {

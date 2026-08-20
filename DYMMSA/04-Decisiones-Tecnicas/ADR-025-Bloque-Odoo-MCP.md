@@ -62,7 +62,7 @@ Hallazgos de la exploración F2 (2026-08-11): `res.partner` en Odoo 19 ya NO tie
 ## Tools Fase 6 (issue #70)
 
 - `odoo_payment_detail` — pago por folio: encabezado, estado del **complemento de pago (REP)** digerido y el desglose de facturas que paga (cada una con saldo y su propio CFDI). 3 llamadas: pago → documentos REP → facturas.
-- `odoo_rep_audit` — barrido por rango (default 30 días): pagos de cliente clasificados en **en regla / sin REP / REP con problema** (más `sin_facturas_conciliadas`). 2 llamadas; los docs se buscan por la unión de facturas SIN filtro de fecha (el REP puede timbrarse días después del pago).
+- `odoo_rep_audit` — barrido por rango (default 30 días): pagos de cliente clasificados en **en regla / no requiere REP (PUE) / sin REP / REP con problema** (más `sin_facturas_conciliadas`). 2 llamadas — más una 3ª SOLO si quedaron pagos sin REP: la política `l10n_mx_edi_payment_policy` (PUE/PPD) de sus facturas, porque un pago 100% PUE no exige complemento y sería falso positivo (review PR #75; hoy la instancia es 100% PPD pero PUE existe en el selection). Los docs se buscan por la unión de facturas SIN filtro de fecha (el REP puede timbrarse días después del pago).
 
 Hallazgos F6 (2026-08-20, exploración en vivo con PAY00068):
 

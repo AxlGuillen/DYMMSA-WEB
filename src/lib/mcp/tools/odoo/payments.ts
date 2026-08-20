@@ -26,6 +26,14 @@ const REP_STATE: Record<string, string> = {
 /** Estados de REP que dejan al pago en regla ante el SAT. */
 const REP_OK_STATES = new Set(['payment_sent', 'payment_sent_pue'])
 
+const PAYMENT_STATE: Record<string, string> = {
+  draft: 'borrador',
+  in_process: 'en proceso',
+  paid: 'pagado',
+  canceled: 'cancelado',
+  rejected: 'rechazado',
+}
+
 const satLabel = (sat: unknown) =>
   (typeof sat === 'string' && SAT_STATE[sat]) || sat || null
 
@@ -96,7 +104,7 @@ export async function odooPaymentDetail(odoo: OdooCaller, input: { folio: string
       fecha: payment.date,
       monto: payment.amount,
       tipo: payment.payment_type === 'inbound' ? 'cobro' : 'pago a proveedor',
-      estado: payment.state,
+      estado: (typeof payment.state === 'string' && PAYMENT_STATE[payment.state]) || payment.state,
       referencia: payment.memo,
     },
     complemento_pago: reps.length
@@ -140,8 +148,11 @@ const AUDIT_LIMIT = 50
 
 /**
  * Barrido mensual: pagos de cliente del rango clasificados por su REP.
- * 2 llamadas exactas — pagos del rango + documentos REP de SUS facturas
- * (sin filtro de fecha en los docs: el REP puede timbrarse días después).
+ * 2 llamadas — pagos del rango + documentos REP de SUS facturas (sin filtro
+ * de fecha en los docs: el REP puede timbrarse días después) — más una 3ª
+ * SOLO si quedaron pagos sin REP: la política PUE/PPD de sus facturas, porque
+ * un pago 100% PUE no requiere complemento y sería falso positivo (review
+ * PR #75; en la instancia hoy todo es PPD, pero PUE existe en el selection).
  */
 export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) {
   for (const date of [input.date_from, input.date_to]) {
@@ -179,6 +190,7 @@ export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) 
 
   const sinFacturas: unknown[] = []
   const sinRep: unknown[] = []
+  const sinRepIds: number[][] = []
   const repConProblema: unknown[] = []
   let enRegla = 0
 
@@ -197,6 +209,7 @@ export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) 
     const docs = reps.filter((doc) => covers(doc.invoice_ids, ids))
     if (!docs.length) {
       sinRep.push(resumen)
+      sinRepIds.push(ids)
       continue
     }
     // El más reciente manda: un REP re-timbrado sustituye al fallido.
@@ -214,11 +227,33 @@ export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) 
     }
   }
 
+  // Reclasificación PUE: un pago cuyas facturas son TODAS PUE no requiere
+  // REP — sin esto se reportaría como pendiente (falso positivo).
+  let noRequiere = 0
+  let sinRepFinal = sinRep
+  if (sinRep.length) {
+    const candidateIds = [...new Set(sinRepIds.flat())]
+    const policies = normalizeRecords(
+      await odoo('account.move', 'search_read', {
+        domain: [['id', 'in', candidateIds]],
+        fields: ['l10n_mx_edi_payment_policy'],
+        limit: candidateIds.length,
+      }),
+    )
+    const policy = new Map(policies.map((inv) => [inv.id as number, inv.l10n_mx_edi_payment_policy]))
+    sinRepFinal = sinRep.filter((resumen, i) => {
+      const allPue = sinRepIds[i].every((id) => policy.get(id) === 'PUE')
+      if (allPue) noRequiere += 1
+      return !allPue
+    })
+  }
+
   return {
     periodo: { desde: from, hasta: to },
     pagos_revisados: payments.length,
     en_regla: enRegla,
-    sin_rep: sinRep,
+    no_requiere_rep: noRequiere || undefined,
+    sin_rep: sinRepFinal,
     rep_con_problema: repConProblema,
     sin_facturas_conciliadas: sinFacturas.length ? sinFacturas : undefined,
     nota: payments.length === AUDIT_LIMIT
