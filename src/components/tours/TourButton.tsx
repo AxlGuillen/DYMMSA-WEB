@@ -15,6 +15,8 @@ import { ORDER_DETAIL_TOUR } from '@/lib/tours/order-detail'
 import { INVENTORY_TOUR } from '@/lib/tours/inventory'
 import { ETM_DB_TOUR } from '@/lib/tours/etm-db'
 import { URREA_CATALOG_TOUR } from '@/lib/tours/urrea-catalog'
+import { SUPPLIERS_TOUR } from '@/lib/tours/suppliers'
+import { TASKS_TOUR } from '@/lib/tours/tasks'
 
 const TOURS = {
   dashboard: DASHBOARD_TOUR,
@@ -29,6 +31,8 @@ const TOURS = {
   inventory: INVENTORY_TOUR,
   'etm-db': ETM_DB_TOUR,
   'urrea-catalog': URREA_CATALOG_TOUR,
+  suppliers: SUPPLIERS_TOUR,
+  tasks: TASKS_TOUR,
 } satisfies Record<string, OverviewStep[]>
 
 export type TourId = keyof typeof TOURS

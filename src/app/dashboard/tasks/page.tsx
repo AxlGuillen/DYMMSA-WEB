@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table'
 import { useTasks, type TaskStateFilter, type TaskPriorityFilter } from '@/hooks/useTasks'
 import { TaskForm } from '@/components/tasks/TaskForm'
+import { TourButton } from '@/components/tours/TourButton'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import { TaskPriorityBadge, TaskStateBadge, PRIORITY_META, PRIORITY_ORDER } from '@/components/tasks/TaskPriorityBadge'
@@ -62,13 +63,16 @@ export default function TasksPage() {
             Planeadas y en curso, sincronizadas con GitHub. Las cerradas son el histórico.
           </p>
         </div>
-        <Button onClick={() => setFormOpen(true)}>
-          <Plus className="mr-2 size-4" /> Nueva tarea
-        </Button>
+        <div className="flex items-center gap-2">
+          <TourButton tour="tasks" />
+          <Button data-tour="tk-new" onClick={() => setFormOpen(true)}>
+            <Plus className="mr-2 size-4" /> Nueva tarea
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div data-tour="tk-filters" className="flex flex-wrap items-center gap-4">
         <div className="inline-flex rounded-lg border p-0.5">
           {STATE_TABS.map((tab) => (
             <button
@@ -107,6 +111,7 @@ export default function TasksPage() {
       </div>
 
       {/* Contenido */}
+      <div data-tour="tk-table">
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 size-5 animate-spin" /> Cargando tareas…
@@ -169,6 +174,8 @@ export default function TasksPage() {
           </Table>
         </div>
       )}
+
+      </div>
 
       <TaskForm open={formOpen} onOpenChange={setFormOpen} />
     </div>
