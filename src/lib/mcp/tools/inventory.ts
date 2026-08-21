@@ -77,15 +77,19 @@ export interface SetInventoryLocationInput {
  * texto trim, vacío → null (borrar la ubicación).
  */
 export async function setInventoryLocation(db: Db, input: SetInventoryLocationInput) {
-  const modelCode = (input.model_code ?? '').trim().toUpperCase()
+  const modelCode = (input.model_code ?? '').trim()
   if (!modelCode) throw new ToolError('Indica el model_code del producto en inventario')
 
   const location = typeof input.location === 'string' ? (input.location.trim() || null) : null
 
+  // ilike con comodines escapados: match exacto pero case-insensitive — las
+  // filas de inventario se guardan con trim sin mayusculizar.
+  const exactPattern = modelCode.replace(/[\\%_]/g, (c) => `\\${c}`)
+
   const { data, error } = await db
     .from('store_inventory')
     .update({ location })
-    .eq('model_code', modelCode)
+    .ilike('model_code', exactPattern)
     .select('model_code, quantity, location')
 
   if (error) throw new ToolError(`Error al actualizar la ubicación: ${error.message}`)

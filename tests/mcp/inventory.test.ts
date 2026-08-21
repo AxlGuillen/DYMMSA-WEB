@@ -52,7 +52,7 @@ describe('getInventoryStats', () => {
 })
 
 describe('setInventoryLocation (issue #72)', () => {
-  test('normaliza el código a mayúsculas y solo actualiza location', async () => {
+  test('recorta el código, matchea case-insensitive y solo actualiza location', async () => {
     const client = createMockSupabase({
       responses: {
         'store_inventory.update': {
@@ -67,8 +67,40 @@ describe('setInventoryLocation (issue #72)', () => {
     // El payload del update SOLO trae location — cantidades intocables.
     expect(client.updatePayload('store_inventory')).toEqual({ location: 'Gaveta B3' })
     const call = client.callsTo('store_inventory', 'update')[0]
-    expect(filterValue(call, 'model_code')).toBe('6954')
+    expect(filterValue(call, 'model_code', 'ilike')).toBe('6954')
     expect(result).toMatchObject({ model_code: '6954', quantity: 12, ubicacion: 'Gaveta B3' })
+  })
+
+  test('encuentra códigos almacenados en minúsculas', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'store_inventory.update': {
+          data: [{ model_code: 'abc-123x', quantity: 3, location: 'Gaveta A1' }],
+          error: null,
+        },
+      },
+    })
+
+    const result = await setInventoryLocation(asDb(client), { model_code: 'ABC-123X', location: 'Gaveta A1' })
+
+    const call = client.callsTo('store_inventory', 'update')[0]
+    expect(filterValue(call, 'model_code', 'ilike')).toBe('ABC-123X')
+    expect(result).toMatchObject({ model_code: 'abc-123x', ubicacion: 'Gaveta A1' })
+  })
+
+  test('escapa los comodines de ilike — el match sigue siendo exacto', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'store_inventory.update': { data: [], error: null },
+      },
+    })
+
+    await expect(
+      setInventoryLocation(asDb(client), { model_code: '50%_A', location: 'X' }),
+    ).rejects.toThrow(/no está en el inventario/)
+
+    const call = client.callsTo('store_inventory', 'update')[0]
+    expect(filterValue(call, 'model_code', 'ilike')).toBe('50\\%\\_A')
   })
 
   test('location vacío o ausente borra la ubicación (null) con nota', async () => {
