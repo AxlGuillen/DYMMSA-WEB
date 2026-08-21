@@ -14,6 +14,15 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   se ve igual en el cotizador, el detalle, la **página de aprobación del
   cliente** y la orden — viaja con la sección todo el flujo.
 
+## 2026-08-21
+
+### Nuevo
+- **Vista guiada en TODAS las pantallas.** El botón "Vista guiada" ahora está en
+  cada módulo del sistema: cotizador, cotizaciones (lista y detalle), órdenes
+  (lista y detalle), inventario, base de datos, catálogo URREA, proveedores y
+  tareas. Cada recorrido explica qué es cada bloque de la pantalla y cómo se
+  conecta con el resto — siempre opcional, nunca se abre solo.
+
 ## 2026-08-20
 
 ### Nuevo
