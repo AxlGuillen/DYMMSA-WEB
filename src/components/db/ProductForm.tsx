@@ -102,10 +102,8 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
     }
   }, [open, product, form])
 
-  // Match de catálogo por (model_code, brand): si existe, la oficial gana jerarquía
-  // y la curada no se edita aquí.
-  // watch() de react-hook-form es incompatible conocido del React Compiler:
-  // este componente simplemente se queda sin auto-memoizar.
+  // Match por (model_code, brand): con oficial, la curada no se edita (ADR-013).
+  // watch() es incompatible con el React Compiler (solo pierde auto-memo).
   // eslint-disable-next-line react-hooks/incompatible-library
   const modelCodeValue = form.watch('model_code')
   const brandValue = form.watch('brand')

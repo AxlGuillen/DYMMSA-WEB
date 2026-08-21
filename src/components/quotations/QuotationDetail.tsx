@@ -953,10 +953,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const displayItemIds = useMemo(() => displayItems.map((i) => i._id), [displayItems])
 
-  // Columnas de la tabla (issue #18). Las condicionales por status (drag/
-  // acciones con canEdit, aprobación con hasApprovalData) entran a las defs
-  // solo cuando aplican — el picker únicamente ofrece lo presente y el conteo
-  // visible reemplaza al viejo totalCols calculado a mano.
+  // Columnas (#18): las condicionales por status entran solo cuando aplican — el picker ofrece lo presente.
   const itemColumns = useMemo<TableColumn[]>(() => [
     // La manija de arrastre es un ancho fijo de icono: no se redimensiona.
     ...(canEdit ? [{ id: 'drag', label: 'Reordenar', hideable: false, width: 40 }] : []),

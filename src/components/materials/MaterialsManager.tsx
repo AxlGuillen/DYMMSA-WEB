@@ -37,10 +37,8 @@ const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 
 /**
- * Control de medidas de material (issue #71): el catálogo de presentaciones
- * del proveedor se ARMA SOLO al capturar en los planificadores de corte —
- * esta página es donde se corrige: ver todo lo registrado, dar de alta a
- * mano y borrar capturas erróneas.
+ * Control de medidas (#71): el catálogo se arma solo al capturar — aquí se
+ * corrige (alta manual + borrar capturas erróneas).
  */
 export function MaterialsManager() {
   const { data, isLoading, error } = useMaterialPresentations()

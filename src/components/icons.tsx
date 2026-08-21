@@ -1,22 +1,9 @@
 'use client'
 
 /**
- * Adaptador central de iconos: reexpone los iconos animados de
- * `@animateicons/react/lucide` bajo los mismos nombres que usábamos de
- * `lucide-react`, para que cada archivo solo cambie el import.
- *
- * - Los iconos animados renderizan un `<div>` (inline-flex) con un `<svg>`
- *   `stroke="currentColor"` → el color se hereda de las clases `text-*`.
- * - El tamaño va por prop `size` (px), no por `className`. Este wrapper
- *   traduce las clases `size-N` / `h-N` de Tailwind a `size` para no tener
- *   que tocar el JSX en cada sitio.
- * - Donde la librería no tiene el icono exacto, se usa uno RELACIONADO
- *   (ver el mapa abajo). Cobertura: 248 iconos curados.
- * - HOVER: la librería solo auto-anima al pasar el mouse SOBRE el icono. Para
- *   que un icono dentro de un botón/enlace anime al hacer hover en TODO el
- *   control, el wrapper pasa un `ref` (esto desactiva el auto-hover interno) y
- *   dispara `start/stopAnimation` desde el ancestro interactivo más cercano
- *   (`button`/`a`/`[role=button]`), o desde el propio icono si no hay ancestro.
+ * Adaptador de iconos: reexpone los animados de @animateicons con los nombres
+ * de lucide (o uno RELACIONADO si falta), traduce clases size-N/h-N al prop
+ * `size`, y dispara la animación desde el ancestro interactivo en hover.
  */
 
 import { useEffect, useRef, type HTMLAttributes, type ForwardRefExoticComponent, type RefAttributes } from 'react'
@@ -143,10 +130,7 @@ function wrap(Cmp: AnimatedIcon) {
       }
     }, [])
 
-    // className y el resto de props van al COMPONENTE animado (raíz `<div>`
-    // inline-flex), NO al <span>: así `animate-spin` (transform) y el color por
-    // `currentColor` aplican bien. El <span> (display:contents) es solo un ancla
-    // en el DOM para localizar el control/icono en el efecto de hover.
+    // Props al componente animado, no al <span>: éste es solo ancla DOM para el hover.
     return (
       <span ref={spanRef} style={{ display: 'contents' }}>
         <Cmp
@@ -227,12 +211,7 @@ export const PackageCheck = wrap(_CircleCheck)
 export const PackageSearch = wrap(_PackageOpen)
 export const PanelLeftClose = wrap(_ChevronsLeft)
 export const PanelLeftOpen = wrap(_ChevronsRight)
-// Excepción deliberada al adaptador animado: el paquete (248 iconos curados)
-// no trae un lápiz genérico — sus únicas variantes con pluma son UserPen /
-// WifiPen, que comunican otra cosa. Esto apuntaba a `_Settings`, así que el
-// botón "Editar" se dibujaba como ENGRANE y la gente lo leía como "ajustes"
-// (issue #55). Vale más el lápiz real de lucide, aunque no anime, que un icono
-// animado que dice otra acción.
+// Lucide directo: los animados no traen lápiz genérico y el engrane se leía como "ajustes" (#55).
 export { Pencil } from 'lucide-react'
 // Mismo caso que Pencil: la librería animada no trae tijeras (issue #59).
 export { Scissors } from 'lucide-react'

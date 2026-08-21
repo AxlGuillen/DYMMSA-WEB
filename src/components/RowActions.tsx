@@ -11,14 +11,8 @@ interface RowActionsProps {
 }
 
 /**
- * Acciones de fila accesibles al PRIMER click (issue #55).
- *
- * Antes vivían dentro de un menú "···" que además solo aparecía al hacer hover:
- * eran dos clicks y un objetivo invisible hasta acercarse. Se dejan siempre
- * visibles porque `hover` no existe en táctil ni con teclado.
- *
- * El borrado sigue confirmándose con AlertDialog en cada tabla — sacar el botón
- * del menú lo hace más alcanzable, y esa es justo la razón para conservar la red.
+ * Acciones de fila siempre visibles (#55): hover no existe en táctil ni teclado.
+ * El borrado conserva su AlertDialog — más alcanzable exige conservar la red.
  */
 export function RowActions({ onEdit, onDelete, what }: RowActionsProps) {
   const suffix = what ? ` ${what}` : ''

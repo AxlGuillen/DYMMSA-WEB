@@ -247,10 +247,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }))
   }
 
-  // ── Recepción con confirmación (anti-dedazo, ADR-019) ──────────────
-  // El botón abre un resumen de lo capturado; la mutación solo corre al
-  // confirmar en el diálogo. Sin tope en el input, un typo (100 vs 10)
-  // mandaría excedente fantasma al inventario en silencio.
+  // ── Recepción con confirmación (ADR-019): la mutación solo corre tras el
+  // resumen — sin tope, un typo mandaría excedente fantasma al inventario. ──
   const [receptionDialogOpen, setReceptionDialogOpen] = useState(false)
 
   /** Filas del resumen: edición + datos del ítem para mostrar el efecto. */
