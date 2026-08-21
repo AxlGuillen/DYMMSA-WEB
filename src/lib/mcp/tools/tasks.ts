@@ -131,6 +131,8 @@ export async function updateTask(input: UpdateTaskInput) {
     throw new ToolError('priority inválida — usa low | medium | high | highest, o "none" para quitarla')
   }
 
+  // Sin rollback deliberado: si el PATCH posterior falla, el comentario ya
+  // publicado se queda (borrarlo sería peor) y el error delata el parcial.
   let createdComment = null
   if (comment) {
     const raw = await fetchGitHub<GitHubComment>(`/issues/${n}/comments`, {
