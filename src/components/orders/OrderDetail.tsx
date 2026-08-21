@@ -93,6 +93,7 @@ import {
   receivedForCustomer,
   receptionExcess,
 } from '@/lib/business-rules'
+import { separatorRowClass } from '@/lib/separator-palette'
 import type {
   OrderWithItems,
   OrderStatus,
@@ -406,6 +407,16 @@ export function OrderDetail({ order }: OrderDetailProps) {
   ], [isOrderActive])
   const cols = useVisibleColumns('order-detail-items', itemColumns)
   const widths = useColumnWidths('order-detail-items', itemColumns)
+
+  // Índice de sección por separador (color automático que rota, issue #73).
+  const sectionIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    let n = 0
+    for (const item of order.order_items) {
+      if (item.item_type === 'separator') map.set(item.id, n++)
+    }
+    return map
+  }, [order.order_items])
   const isCancelled = order.status === 'cancelled'
   const isCompleted = order.status === 'completed'
 
@@ -772,8 +783,12 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 {order.order_items.map((item) => {
                   // Render separator as a visual divider
                   if (item.item_type === 'separator') {
+                    const rowClass = separatorRowClass(
+                      item.separator_color,
+                      sectionIndexById.get(item.id) ?? 0,
+                    )
                     return (
-                      <TableRow key={item.id} className="border-b border-dashed border-border/60 bg-muted/30 hover:bg-muted/30">
+                      <TableRow key={item.id} className={`border-b border-dashed border-border/60 ${rowClass}`}>
                         <TableCell colSpan={cols.visibleCount} className="px-4 py-2">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <SeparatorHorizontal className="size-3.5 shrink-0" />

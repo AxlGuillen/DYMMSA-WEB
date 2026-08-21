@@ -65,6 +65,7 @@ CREATE TABLE public.quotation_items (
   sort_order integer DEFAULT 0 NOT NULL,
   item_type text DEFAULT 'product'::text NOT NULL,
   section_label text,
+  separator_color text,      -- override manual del color de seccion; NULL = automatico (issue #73)
   is_sold boolean,
   dymmsa_description text     -- snapshot del valor RESUELTO al guardar (ADR-013)
 );
@@ -103,6 +104,7 @@ CREATE TABLE public.order_items (
   delivery_time text DEFAULT 'immediate'::text,
   item_type text DEFAULT 'product'::text NOT NULL,
   section_label text,
+  separator_color text,      -- override manual del color de seccion; NULL = automatico (issue #73)
   sort_order integer DEFAULT 0 NOT NULL,
   location text               -- snapshot de store_inventory.location al crear la orden
 );
@@ -193,6 +195,7 @@ ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_pkey PRIMARY KEY (id)
 ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE;
 ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_price_check CHECK (((unit_price IS NULL) OR (unit_price >= (0)::numeric)));
 ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_quantity_check CHECK (((quantity IS NULL) OR (quantity > 0)));
+ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_separator_color_check CHECK (((separator_color IS NULL) OR (item_type = 'separator'::text)));
 
 ALTER TABLE orders ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
 ALTER TABLE orders ADD CONSTRAINT orders_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
@@ -207,6 +210,7 @@ ALTER TABLE order_items ADD CONSTRAINT check_quantity_sum CHECK (((quantity_in_s
 -- (check_received_not_exceed_ordered eliminado el 2026-07-15, ADR-019:
 --  lo recibido puede superar lo pedido; solo el excedente entra a inventario)
 ALTER TABLE order_items ADD CONSTRAINT order_items_quantity_approved_check CHECK (((quantity_approved > 0) OR (item_type = 'separator'::text)));
+ALTER TABLE order_items ADD CONSTRAINT order_items_separator_color_check CHECK (((separator_color IS NULL) OR (item_type = 'separator'::text)));
 ALTER TABLE order_items ADD CONSTRAINT order_items_quantity_in_stock_check CHECK ((quantity_in_stock >= 0));
 ALTER TABLE order_items ADD CONSTRAINT order_items_quantity_received_check CHECK ((quantity_received >= 0));
 ALTER TABLE order_items ADD CONSTRAINT order_items_quantity_to_order_check CHECK ((quantity_to_order >= 0));

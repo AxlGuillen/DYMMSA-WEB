@@ -28,6 +28,8 @@ import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import { calculateQuotationTotal, isProductItem, isNotSold, resolveDymmsaDescription, type DymmsaDescriptionSource } from '@/lib/business-rules'
 import { notSoldRowClass } from '@/lib/sold-status'
+import { separatorRowClass } from '@/lib/separator-palette'
+import { SeparatorColorPicker } from '@/components/SeparatorColorPicker'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import type { QuotationItemRow } from '@/types/database'
 
@@ -272,13 +274,16 @@ function ReorderCell({ onMoveUp, onMoveDown, isFirst, isLast }: ReorderCellProps
 interface SortableSeparatorRowProps {
   item: QuotationItemRow
   onLabelChange: (id: string, label: string) => void
+  onColorChange: (id: string, color: string | null) => void
   onRemove: (id: string) => void
   /** Columnas que abarca el label = visibles − 2 (drag y Acciones son fijas). */
   labelSpan: number
+  /** Posición del separador entre los separadores (color automático, issue #73). */
+  sectionIndex: number
 }
 
 const SortableSeparatorRow = memo(function SortableSeparatorRow({
-  item, onLabelChange, onRemove, labelSpan,
+  item, onLabelChange, onColorChange, onRemove, labelSpan, sectionIndex,
 }: SortableSeparatorRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -293,7 +298,7 @@ const SortableSeparatorRow = memo(function SortableSeparatorRow({
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-dashed border-border/60 bg-muted/30 ${isDragging ? 'shadow-lg' : ''}`}
+      className={`border-b border-dashed border-border/60 ${separatorRowClass(item.separator_color, sectionIndex)} ${isDragging ? 'shadow-lg' : ''}`}
     >
       <td className="p-2 w-8">
         <button type="button"
@@ -309,22 +314,24 @@ const SortableSeparatorRow = memo(function SortableSeparatorRow({
         item={item}
         labelSpan={labelSpan}
         onLabelChange={onLabelChange}
+        onColorChange={onColorChange}
         onRemove={onRemove}
       />
     </tr>
   )
 })
 
-// Celdas compartidas del separador (label editable + eliminar).
+// Celdas compartidas del separador (label editable + color + eliminar).
 interface SeparatorLabelCellsProps {
   item: QuotationItemRow
   labelSpan: number
   onLabelChange: (id: string, label: string) => void
+  onColorChange: (id: string, color: string | null) => void
   onRemove: (id: string) => void
 }
 
 const SeparatorLabelCells = memo(function SeparatorLabelCells({
-  item, labelSpan, onLabelChange, onRemove,
+  item, labelSpan, onLabelChange, onColorChange, onRemove,
 }: SeparatorLabelCellsProps) {
   // Estado local del input: cada keystroke ya no llama updateItem (que
   // re-renderiza todas las filas y escribe a localStorage). Commit en blur.
@@ -355,6 +362,10 @@ const SeparatorLabelCells = memo(function SeparatorLabelCells({
     <>
       <td colSpan={labelSpan} className="px-4 py-2">
         <div className="flex items-center gap-2">
+          <SeparatorColorPicker
+            value={item.separator_color}
+            onChange={(color) => onColorChange(item._id, color)}
+          />
           <SeparatorHorizontal className="size-3.5 text-muted-foreground shrink-0" />
           <Input
             value={localLabel}
@@ -441,7 +452,10 @@ interface VirtualRowProps extends RowCellsProps {
   isLast: boolean
   onMove: (id: string, direction: 'up' | 'down') => void
   onLabelChange: (id: string, label: string) => void
+  onColorChange: (id: string, color: string | null) => void
   labelSpan: number
+  /** Índice de sección del separador (0 en filas de producto). */
+  sectionIndex: number
 }
 
 // forwardRef: react-virtual mide cada fila por su nodo (`measureElement`) para
@@ -455,7 +469,7 @@ const VirtualRow = memo(forwardRef<HTMLTableRowElement, VirtualRowProps & { data
         <tr
           ref={ref}
           data-index={dataIndex}
-          className="border-b border-dashed border-border/60 bg-muted/30"
+          className={`border-b border-dashed border-border/60 ${separatorRowClass(item.separator_color, props.sectionIndex)}`}
         >
           <ReorderCell
             onMoveUp={() => onMove(item._id, 'up')}
@@ -467,6 +481,7 @@ const VirtualRow = memo(forwardRef<HTMLTableRowElement, VirtualRowProps & { data
             item={item}
             labelSpan={props.labelSpan}
             onLabelChange={props.onLabelChange}
+            onColorChange={props.onColorChange}
             onRemove={props.onRemove}
           />
         </tr>
@@ -623,6 +638,20 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
     updateItem(id, { section_label: label })
   }, [updateItem])
 
+  const handleColorChange = useCallback((id: string, color: string | null) => {
+    updateItem(id, { separator_color: color })
+  }, [updateItem])
+
+  // Índice de sección por separador (color automático que rota, issue #73).
+  const sectionIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    let n = 0
+    for (const item of items) {
+      if (item.item_type === 'separator') map.set(item._id, n++)
+    }
+    return map
+  }, [items])
+
   // IDs estables para SortableContext: items.map(...) creaba un array nuevo cada
   // render → @dnd-kit reinicializaba los sortables. Con useMemo solo cambia
   // cuando items cambia.
@@ -765,6 +794,8 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
               onAddSeparatorAfter={addSeparatorAfter}
               onMove={moveItem}
               onLabelChange={handleLabelChange}
+              onColorChange={handleColorChange}
+              sectionIndexById={sectionIndexById}
             />
           ) : (
             <div className="overflow-x-auto rounded-lg border">
@@ -779,7 +810,9 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
                             key={item._id}
                             item={item}
                             labelSpan={labelSpan}
+                            sectionIndex={sectionIndexById.get(item._id) ?? 0}
                             onLabelChange={handleLabelChange}
+                            onColorChange={handleColorChange}
                             onRemove={removeItem}
                           />
                         ) : (
@@ -830,11 +863,13 @@ interface VirtualizedTableProps {
   onAddSeparatorAfter: (id: string) => void
   onMove: (id: string, direction: 'up' | 'down') => void
   onLabelChange: (id: string, label: string) => void
+  onColorChange: (id: string, color: string | null) => void
+  sectionIndexById: Map<string, number>
 }
 
 function VirtualizedTable({
   items, cols, labelSpan, dymmsaByRow, errorItemIds,
-  onEdit, onRemove, onAddSeparatorAfter, onMove, onLabelChange,
+  onEdit, onRemove, onAddSeparatorAfter, onMove, onLabelChange, onColorChange, sectionIndexById,
 }: VirtualizedTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const totalCols = cols.visibleCount // control + body cols
@@ -878,11 +913,13 @@ function VirtualizedTable({
                 dymmsaDesc={dymmsaByRow.get(item._id)}
                 isVisible={cols.isVisible}
                 labelSpan={labelSpan}
+                sectionIndex={sectionIndexById.get(item._id) ?? 0}
                 onEdit={onEdit}
                 onRemove={onRemove}
                 onAddSeparatorAfter={onAddSeparatorAfter}
                 onMove={onMove}
                 onLabelChange={onLabelChange}
+                onColorChange={onColorChange}
               />
             )
           })}

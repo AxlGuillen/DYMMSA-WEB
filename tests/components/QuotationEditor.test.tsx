@@ -89,6 +89,28 @@ describe('QuotationEditor', () => {
     expect(screen.getByPlaceholderText(/Nombre de la sección/)).toBeInTheDocument()
   })
 
+  test('el picker de color del separador guarda el override en el store (issue #73)', async () => {
+    const user = userEvent.setup()
+    seedQuotationItems([
+      quotationItemRow({ etm: 'A', model_code: 'MC1', quantity: 1, unit_price: 10, description: 'x' }),
+    ])
+    render(<QuotationEditor />)
+    await user.click(screen.getByRole('button', { name: 'Insertar separador' }))
+
+    await user.click(screen.getByRole('button', { name: 'Color de la sección' }))
+    await user.click(screen.getByRole('button', { name: 'Color Rosa' }))
+
+    const sep = useQuotationStore.getState().items.find((i) => i.item_type === 'separator')
+    expect(sep?.separator_color).toBe('rose')
+
+    // "Automático" regresa al color por índice (override = null).
+    await user.click(screen.getByRole('button', { name: 'Color de la sección' }))
+    await user.click(screen.getByRole('button', { name: 'Color automático' }))
+    expect(
+      useQuotationStore.getState().items.find((i) => i.item_type === 'separator')?.separator_color,
+    ).toBeNull()
+  })
+
   test('"Agregar producto" abre el modal y guardar agrega al store', async () => {
     const user = userEvent.setup()
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({

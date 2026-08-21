@@ -61,6 +61,7 @@ is_sold: null (sin definir) | true (lo vendemos) | false (no lo vendemos)  -- sn
 dymmsa_description: TEXT  -- snapshot del valor RESUELTO al guardar (catálogo URREA ?? curada ?? null; ADR-013)
 delivery_time: 'immediate' | '2_3_days' | '3_5_days' | '1_week' | '2_weeks' | 'indefinite'
 sort_order: INTEGER  -- preserva orden del array al guardar
+separator_color: TEXT  -- override del color de sección (issue #73); NULL = automático por índice; CHECK solo en separadores; viaja a order_items
 ```
 
 **`orders`** — status CHECK (migración `20260409055423`):

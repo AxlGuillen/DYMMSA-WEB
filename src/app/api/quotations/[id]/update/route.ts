@@ -128,6 +128,7 @@ export async function PATCH(
         quotation_id:   id,
         item_type:      item.item_type      ?? 'product',
         section_label:  isSep ? (item.section_label ?? null) : null,
+        separator_color: isSep ? (item.separator_color ?? null) : null,
         etm:            isSep ? null : (item.etm || null),
         description:    isSep ? null : (item.description || null),
         description_es: isSep ? null : (item.description_es || null),

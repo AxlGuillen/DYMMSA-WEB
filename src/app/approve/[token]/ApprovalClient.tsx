@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { filterProductItems, calculateApprovedSubtotal } from '@/lib/business-rules'
+import { separatorRowClass } from '@/lib/separator-palette'
 import {
   NO_FILTERS,
   listBrands,
@@ -115,6 +116,17 @@ export function ApprovalClient({ quotation, token }: Props) {
     }
     return set
   }, [items, visibleIds, sectionsMap])
+
+  // Índice de sección por separador sobre la lista completa: el color
+  // automático no cambia al filtrar (issue #73).
+  const sectionIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    let n = 0
+    for (const item of items) {
+      if (item.item_type === 'separator') map.set(item.id, n++)
+    }
+    return map
+  }, [items])
 
   const approvedCount = decisions.filter((d) => d.is_approved).length
   const notApprovedCount = decisions.length - approvedCount
@@ -304,8 +316,12 @@ export function ApprovalClient({ quotation, token }: Props) {
                   if (item.item_type === 'separator') {
                     const label = item.section_label?.trim() || 'General'
                     if (!visibleSections.has(label)) return null
+                    const rowClass = separatorRowClass(
+                      item.separator_color,
+                      sectionIndexById.get(item.id) ?? 0,
+                    )
                     return (
-                      <TableRow key={item.id} className="border-dashed border-border/60 bg-muted/30 hover:bg-muted/30">
+                      <TableRow key={item.id} className={`border-dashed border-border/60 ${rowClass}`}>
                         <TableCell colSpan={10} className="px-4 py-2">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <SeparatorHorizontal className="size-3.5 shrink-0" />

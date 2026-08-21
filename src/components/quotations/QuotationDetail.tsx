@@ -102,6 +102,8 @@ import { ResizableHead } from '@/components/ResizableHead'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import { calculateQuotationTotal, isProductItem as isProductRow, isNotSold } from '@/lib/business-rules'
 import { notSoldRowClass } from '@/lib/sold-status'
+import { separatorRowClass } from '@/lib/separator-palette'
+import { SeparatorColorPicker } from '@/components/SeparatorColorPicker'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import { getBlockingIssues } from '@/lib/quotation-validation'
 import { scrollToRow } from '@/lib/dom-helpers'
@@ -182,12 +184,15 @@ interface SortableSeparatorDetailRowProps {
   canEdit: boolean
   isDndEnabled: boolean
   totalCols: number
+  /** Posición del separador entre los separadores (color automático, issue #73). */
+  sectionIndex: number
   onLabelChange: (id: string, label: string) => void
+  onColorChange: (id: string, color: string | null) => void
   onRemove: (id: string) => void
 }
 
 function SortableSeparatorDetailRow({
-  item, canEdit, isDndEnabled, totalCols, onLabelChange, onRemove,
+  item, canEdit, isDndEnabled, totalCols, sectionIndex, onLabelChange, onColorChange, onRemove,
 }: SortableSeparatorDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -202,7 +207,7 @@ function SortableSeparatorDetailRow({
     <TableRow
       ref={setNodeRef}
       style={style}
-      className={`border-b border-dashed border-border/60 bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))] ${isDragging ? 'shadow-lg' : ''}`}
+      className={`border-b border-dashed border-border/60 ${separatorRowClass(item.separator_color, sectionIndex)} ${isDragging ? 'shadow-lg' : ''}`}
     >
       {canEdit && (
         <TableCell className="px-2">
@@ -223,6 +228,10 @@ function SortableSeparatorDetailRow({
       <TableCell colSpan={totalCols - (canEdit ? 2 : 0)} className="px-4 py-2">
         {canEdit ? (
           <div className="flex items-center gap-2">
+            <SeparatorColorPicker
+              value={item.separator_color}
+              onChange={(color) => onColorChange(item._id, color)}
+            />
             <SeparatorHorizontal className="size-3.5 text-muted-foreground shrink-0" />
             <Input
               value={item.section_label ?? ''}
@@ -442,6 +451,7 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   _dbId:          item.id,
   item_type:      item.item_type      ?? 'product',
   section_label:  item.section_label  ?? '',
+  separator_color: item.separator_color ?? null,
   etm:            item.etm            ?? '',
   description:    item.description    ?? '',
   description_es: item.description_es ?? '',
@@ -646,6 +656,24 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     )
     setIsDirty(true)
   }
+
+  const handleSeparatorColorChange = (id: string, color: string | null) => {
+    setLocalItems((prev) =>
+      prev.map((item) => item._id === id ? { ...item, separator_color: color } : item)
+    )
+    setIsDirty(true)
+  }
+
+  // Índice de sección por separador sobre la lista COMPLETA (no la filtrada):
+  // el color automático no debe cambiar al filtrar por aprobación (issue #73).
+  const sectionIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    let n = 0
+    for (const item of localItems) {
+      if (item.item_type === 'separator') map.set(item._id, n++)
+    }
+    return map
+  }, [localItems])
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -1526,7 +1554,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                             canEdit={canEdit}
                             isDndEnabled={isDndEnabled}
                             totalCols={cols.visibleCount}
+                            sectionIndex={sectionIndexById.get(item._id) ?? 0}
                             onLabelChange={handleSeparatorLabelChange}
+                            onColorChange={handleSeparatorColorChange}
                             onRemove={handleRemove}
                           />
                         ) : (

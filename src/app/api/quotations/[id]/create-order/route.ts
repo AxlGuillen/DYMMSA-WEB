@@ -85,6 +85,7 @@ export async function POST(
           sort_order:        sortIndex++,
           item_type:         'separator',
           section_label:     item.section_label ?? null,
+          separator_color:   item.separator_color ?? null,
           etm:               '',
           model_code:        '',
           description:       '',

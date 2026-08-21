@@ -73,6 +73,7 @@ export const useQuotationStore = create<QuotationStore>()(
             _id:            crypto.randomUUID(),
             item_type:      'separator',
             section_label:  '',
+            separator_color: null,
             etm:            '',
             dymmsa_description: '',
             description:    '',
