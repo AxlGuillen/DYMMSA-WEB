@@ -28,6 +28,8 @@ vi.mock('@/hooks/useQuotes', () => ({
 }))
 vi.mock('@/hooks/useQuotations', () => ({
   useSaveQuotation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  // QuotationsTable lo llama a nivel de componente aunque no haya filas.
+  useDeleteQuotation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useQuotations: () => ({
     data: { data: [], count: 0, page: 1, pageSize: 20, totalPages: 1 },
     isLoading: false,
