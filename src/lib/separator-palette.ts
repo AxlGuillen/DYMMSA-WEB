@@ -10,6 +10,11 @@
  * acciones hereda el color con `bg-inherit`, y con transparencia se vería el
  * contenido pasando por debajo al hacer scroll lateral (ver notSoldRowClass).
  * Clases estáticas a propósito — Tailwind no compila valores en runtime.
+ *
+ * `separator_color` es TEXT libre en BD (no enum): la validación vive SOLO
+ * aquí. Una escritura fuera de save/update (p. ej. un futuro `set_*` del MCP)
+ * podría guardar un valor fuera de la paleta — `resolveSeparatorColor` lo
+ * absorbe cayendo a automático, en silencio.
  */
 
 export interface SeparatorTone {
