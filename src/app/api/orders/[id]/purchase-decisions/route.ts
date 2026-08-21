@@ -19,13 +19,8 @@ function isNonNegativeInt(value: unknown): value is number {
 }
 
 /**
- * PUT /api/orders/[id]/purchase-decisions — reemplaza el set COMPLETO de
- * decisiones de compra de la orden (ADR-018). El body ES el estado deseado:
- * upsert por (order_id, model_code, brand) + limpieza de las que ya no vienen
- * (así se purgan también las decisiones huérfanas).
- *
- * Orden upsert → delete a propósito: si la limpieza falla quedan filas de más
- * (inofensivas, salen como huérfanas en el plan) en vez de decisiones perdidas.
+ * Replace-all de decisiones (ADR-018): upsert ANTES del delete a propósito —
+ * si la limpieza falla sobran huérfanas inofensivas, no se pierden decisiones.
  */
 export async function PUT(
   request: NextRequest,

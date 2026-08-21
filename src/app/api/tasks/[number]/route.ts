@@ -44,11 +44,7 @@ export async function GET(
   }
 }
 
-// ------------------------------------------------------------------ //
-// PATCH /api/tasks/[number]  { title?, description?, priority?, state? }
-// Edita título/descripción/prioridad y cierra/reabre. Preserva el reporter
-// original y los labels que no son de prioridad.
-// ------------------------------------------------------------------ //
+// PATCH: edita/cierra/reabre preservando reporter y labels ajenos a priority:*.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ number: string }> }

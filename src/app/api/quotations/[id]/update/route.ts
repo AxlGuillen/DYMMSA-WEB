@@ -100,10 +100,8 @@ export async function PATCH(
       let is_approved: boolean | null = null
       let is_sold: boolean | null = null
       if (!isSep) {
-        // Preservar la decisión del cliente (null=pendiente, true=aprobado, false=rechazado)
-        // en cualquier estado: al reabrir una cotización y agregar ítems nuevos, los que ya
-        // fueron aprobados se conservan y el cliente solo decide los nuevos. Se usa el valor
-        // que manda la UI; fallback al valor en BD para clientes que no lo envían.
+        // is_approved se preserva en CUALQUIER estado: al reabrir, lo aprobado se
+        // conserva y el cliente solo decide lo nuevo (fallback al valor en BD).
         if (item.is_approved !== undefined) {
           is_approved = item.is_approved ?? null
         } else {

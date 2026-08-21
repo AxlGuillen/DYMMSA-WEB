@@ -6,13 +6,8 @@ import Image from 'next/image'
 const SPLASH_KEY = 'dymmsa-approval-splash'
 
 /**
- * Intro del logo DYMMSA: aparece al centro y vuela a su lugar en el header
- * (issue #24). Se muestra **solo la primera vez por sesión** y respeta
- * `prefers-reduced-motion`. SSR-safe: no renderiza nada hasta decidir en el
- * cliente. Si no puede medir el logo del header, hace un fade simple.
- *
- * El logo aterriza exactamente sobre `[data-approval-logo]` (mismo asset), así
- * que al desmontarse el overlay la transición al header es continua.
+ * Intro del logo (#24): vuela al header y aterriza sobre [data-approval-logo].
+ * Solo una vez por sesión; respeta reduced-motion; SSR-safe.
  */
 export function SplashIntro() {
   const [active, setActive] = useState(false)
@@ -56,11 +51,7 @@ export function SplashIntro() {
         ],
         { duration: 1400, easing: 'cubic-bezier(.66,0,.24,1)', fill: 'forwards' },
       )
-      // El backdrop se mantiene opaco casi hasta el final: si se desvanece antes
-      // (offset 0.55), destapa el logo del header mientras el logo volador aún
-      // va en camino → se ven DOS logos. La fase de vuelo corre entre 0.44 y 1;
-      // a 0.86 (≈95% con el easing) el logo ya prácticamente aterrizó sobre el
-      // del header (misma posición y tamaño), así que revelar ahí es continuo.
+      // Backdrop opaco hasta 0.86 (≈aterrizaje): desvanecerlo antes muestra DOS logos.
       backdropRef.current?.animate(
         [{ opacity: 1 }, { opacity: 1, offset: 0.86 }, { opacity: 0 }],
         { duration: 1400, easing: 'ease-in-out', fill: 'forwards' },
@@ -85,11 +76,8 @@ export function SplashIntro() {
         width={280}
         height={112}
         priority
-        // Centrado vía `transform` INLINE, no con -translate-x-1/2 de Tailwind:
-        // en v4 esas clases usan la propiedad CSS `translate`, que se COMPONE
-        // con el `transform` de los keyframes → doble desplazamiento (el logo
-        // salía descentrado y el vuelo aterrizaba fuera del logo del header).
-        // Opacity 0 inicial: la animación (fill forwards) la controla desde 0.
+        // Centrado con transform INLINE: las clases translate de Tailwind v4 se
+        // COMPONEN con el transform de los keyframes → doble desplazamiento.
         className="absolute left-1/2 top-1/2 h-auto w-[220px] object-contain drop-shadow-[0_12px_50px_rgba(163,3,5,0.35)]"
         style={{ transform: 'translate(-50%,-50%)', opacity: 0 }}
       />

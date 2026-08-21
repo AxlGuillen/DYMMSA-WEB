@@ -1,12 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-/**
- * Default: activado, SALVO que el sistema pida menos movimiento. No existe
- * "prefers-reduced-sound"; reduced-motion es el mejor proxy de "no me
- * molestes con efectos". El usuario puede re-activarlo manualmente y su
- * elección persiste por encima de este default.
- */
+/** Default activado salvo reduced-motion (el mejor proxy de "sin efectos"); la elección manual persiste. */
 function defaultEnabled(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return true
   return !window.matchMedia('(prefers-reduced-motion: reduce)').matches

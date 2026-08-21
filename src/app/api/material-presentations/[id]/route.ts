@@ -6,12 +6,7 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/**
- * DELETE /api/material-presentations/[id] — elimina una medida registrada
- * (issue #71: el catálogo se arma solo, así que las capturas erróneas se
- * corrigen borrando). Seguro: cut_plan_pieces no referencia presentaciones —
- * solo desaparece la sugerencia en planes futuros.
- */
+/** DELETE: borra una captura errónea (#71). Seguro — nada referencia presentaciones, solo muere la sugerencia. */
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params

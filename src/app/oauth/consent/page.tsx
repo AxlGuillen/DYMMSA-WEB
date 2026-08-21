@@ -1,11 +1,6 @@
 /**
- * Pantalla de consentimiento OAuth (ADR-023). Supabase redirige aquí
- * (Authorization Path del OAuth Server) con ?authorization_id=...; el usuario
- * ya logueado decide si autoriza al cliente (p. ej. Claude) a actuar como él.
- *
- * Vive DETRÁS del login a propósito — el consentimiento sin sesión no significa
- * nada. El redirect a /login conserva la query (authorization_id): sin ella, el
- * usuario volvería del login a una pantalla que ya no sabe qué autorizaba.
+ * Consentimiento OAuth (ADR-023), DETRÁS del login a propósito. El redirect a
+ * /login conserva ?authorization_id — sin él la pantalla no sabe qué autorizaba.
  */
 
 import Image from 'next/image'

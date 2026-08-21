@@ -4,13 +4,8 @@ import type { CutPlanCandidate } from '@/hooks/useCutPlan'
 import type { PieceDraft } from '@/components/orders/CutPlanner'
 
 /**
- * Borrador del corte rápido (issue #71): el modo standalone es EFÍMERO por
- * decisión de diseño (ADR-022, enmienda #71) — no persiste en BD porque
- * cut_plan_pieces cuelga de una orden. localStorage evita perder la captura
- * por un refresh; "Limpiar" arranca de cero.
- *
- * `candidates` son las piezas DYMMSA sembradas desde una cotización (fase 2):
- * mismas sugerencias que el planner de orden, el usuario decide cuáles agregar.
+ * Borrador del corte rápido (#71): efímero a propósito, jamás en BD (ADR-022).
+ * localStorage solo evita perder la captura por un refresh.
  */
 interface CutDraftState {
   drafts: PieceDraft[]

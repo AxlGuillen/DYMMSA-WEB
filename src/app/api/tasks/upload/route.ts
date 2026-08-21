@@ -12,11 +12,7 @@ const ALLOWED = new Map<string, string>([
   ['image/webp', 'webp'],
 ])
 
-// ------------------------------------------------------------------ //
-// POST /api/tasks/upload  (multipart: file)                          //
-// Sube una imagen al bucket público y devuelve { url } para embeberla //
-// en el markdown del issue. Subida con service role (bypassa RLS).    //
-// ------------------------------------------------------------------ //
+// POST upload: imagen al bucket público → { url } para el markdown (service role, bypassa RLS).
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()

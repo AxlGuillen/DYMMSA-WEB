@@ -3,10 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendApprovalNotification } from '@/lib/email/send-approval-notification'
 import { calculateQuotationTotal } from '@/lib/business-rules'
 
-// ------------------------------------------------------------------ //
-// GET /api/approve/[token]                                           //
-// Public: fetch quotation by approval token                         //
-// ------------------------------------------------------------------ //
+// GET público: la cotización por su approval token.
 
 export async function GET(
   _req: NextRequest,
@@ -34,15 +31,9 @@ export async function GET(
   }
 }
 
-// ------------------------------------------------------------------ //
-// POST /api/approve/[token]                                          //
-// Público. Persiste las decisiones del cliente.                      //
-//   - finalize=false → "guardar avance": aprobados=true, el resto=null
-//     (pendiente), y el status NO cambia (el link sigue vivo).       //
-//   - finalize=true  → "enviar aprobación": el resto=false (rechazo),
-//     status→approved/rejected + approved_at.                        //
-// Eficiente: 2-3 queries fijas (no una por ítem).                    //
-// ------------------------------------------------------------------ //
+// POST público: persiste las decisiones del cliente. finalize=false = guardar
+// avance (resto → null, el link sigue vivo); finalize=true = enviar (resto →
+// false, status → approved/rejected + approved_at). 2-3 queries fijas.
 
 interface ApprovePayload {
   approvedIds?: string[]
@@ -110,11 +101,8 @@ export async function POST(
       return NextResponse.json({ saved: true, finalized: false, approvedCount: approvedIds.length })
     }
 
-    // 4. Finalizar → status + approved_at, con guarda de concurrencia optimista.
-    //    El `.eq('status', 'sent_for_approval')` garantiza que sólo UN request
-    //    finalice: si otro (misma liga abierta en dos pestañas/dispositivos) ya
-    //    transicionó entre el fetch inicial y aquí, este update matchea 0 filas y
-    //    devolvemos 409 en vez de sellar un estado inconsistente.
+    // 4. Finalizar con guarda optimista: el .eq('status', ...) hace que solo UN
+    //    request finalice — el segundo matchea 0 filas y responde 409.
     const newStatus = approvedIds.length > 0 ? 'approved' : 'rejected'
     const { data: finalized, error: statusError } = await supabase
       .from('quotations')

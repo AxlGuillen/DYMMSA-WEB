@@ -51,11 +51,7 @@ export type EtmProductUpdate = Partial<Omit<EtmProduct, 'id' | 'created_at' | 'u
 
 export type CutMaterialType = 'tube' | 'plate'
 
-/**
- * Pieza de la lista de corte de una orden. La forma depende del tipo (CHECK en
- * BD): tubo → `diameter_mm`; placa → `thickness_mm` + `width_mm`. Ambos usan
- * `length_mm` como la longitud pedida.
- */
+/** Pieza de corte; la forma sigue el CHECK de BD: tubo → diameter, placa → thickness+width. */
 export interface CutPlanPiece {
   id: string
   order_id: string

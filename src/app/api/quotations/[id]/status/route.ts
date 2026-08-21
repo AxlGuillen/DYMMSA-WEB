@@ -49,13 +49,8 @@ export async function PATCH(
       }
     }
 
-    // Regenerar approval_token en cada cambio manual de estado: invalida cualquier
-    // link de aprobación compartido previamente (p. ej. al reabrir una cotización ya
-    // enviada/aprobada, el link viejo deja de funcionar).
-    // No se tocan los quotation_items → is_approved se preserva.
-    // approved_at: es la fecha en que el cliente aprobó y debe verse en CUALQUIER fase
-    // posterior (convertida, reabierta, etc.). Se preserva siempre (nunca se borra) y
-    // solo se sella al marcar 'approved' si aún no existe → conserva la fecha original.
+    // Cada cambio de estado regenera approval_token (el link viejo muere);
+    // is_approved y approved_at se preservan — approved_at solo se sella si no existe.
     const updatePayload: {
       status: QuotationStatus
       approval_token: string

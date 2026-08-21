@@ -2,14 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /**
- * Preferencias de columnas visibles por tabla (issue #18).
- *
- * Solo se persisten las columnas OCULTAS: el default es "todo visible", así
- * que las columnas nuevas que se agreguen a una tabla aparecen solas sin
- * migración. Los ids de columna son API persistida — renombrar uno deja la
- * preferencia huérfana (la columna vuelve a visible, inofensivo); si algún
- * día hace falta renombrar en serio, subir `version` + `migrate` (patrón de
- * quotationStore).
+ * Columnas ocultas por tabla (#18). Solo se persiste lo OCULTO: columnas nuevas
+ * aparecen solas sin migración. Renombrar un id huerfanea la preferencia.
  */
 interface ColumnStore {
   /** tableId → ids de columnas ocultas por el usuario. */

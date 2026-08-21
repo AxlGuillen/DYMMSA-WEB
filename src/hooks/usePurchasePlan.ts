@@ -11,13 +11,7 @@ export interface PurchasePlanResponse {
   plan: PurchasePlan
 }
 
-/**
- * Plan de compra de una orden (ADR-018), calculado en el servidor.
- *
- * Key anidada bajo [ORDERS_KEY, orderId]: toda mutación existente de la orden
- * (agregar/editar/quitar ítems, recepción) ya invalida ese prefijo → el plan y
- * su staleness se recalculan solos.
- */
+/** Plan de compra server-side (ADR-018); key bajo [ORDERS_KEY, id] → se recalcula con cada mutación. */
 export function usePurchasePlan(orderId: string) {
   return useQuery({
     queryKey: [...ORDERS_KEY, orderId, 'purchase-plan'],

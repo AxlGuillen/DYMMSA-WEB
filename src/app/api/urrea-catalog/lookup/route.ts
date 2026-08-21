@@ -3,14 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
 import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
 
-// ---------------------------------------------------------------------------- //
-// POST /api/urrea-catalog/lookup                                                //
-// Batch: { codes: string[] } → { descriptions: Record<catalogKey, desc> }       //
-// La query es por código, pero la respuesta viene indexada por `MARCA|CODIGO`   //
-// (catalogKey) e incluye TODAS las marcas de esos códigos — quien resuelve      //
-// elige la de su marca. Lo usan ProductModal/ProductForm para re-resolver la    //
-// Descripción DYMMSA al editar el model_code o la marca.                        //
-// ---------------------------------------------------------------------------- //
+// POST lookup batch: { codes } → { descriptions: Record<catalogKey, desc> } —
+// query por código, respuesta indexada por MARCA|CODIGO con TODAS las marcas.
 
 export async function POST(request: NextRequest) {
   try {

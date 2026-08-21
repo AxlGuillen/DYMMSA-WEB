@@ -6,13 +6,8 @@ import { explainPgError } from '@/lib/supabase-errors'
 import type { ConfirmReceptionInput, ConfirmReceptionResult } from '@/types/database'
 
 /**
- * Confirma la recepción de mercancía de URREA (ADR-019).
- *
- * Inventario: solo el EXCEDENTE (`max(0, recibido − pedido)`) entra a
- * `store_inventory` — lo pedido va al cliente y nunca pisa el stock. El
- * ajuste es por DELTA contra el excedente ya persistido, así que re-confirmar
- * es idempotente y una corrección a la baja resta lo que sobró de más
- * (clamp en 0 con warning si el stock ya se movió).
+ * Recepción URREA (ADR-019): solo el EXCEDENTE entra a inventario, por DELTA —
+ * re-confirmar es idempotente y corregir a la baja resta (clamp 0 + warning).
  */
 export async function POST(
   request: NextRequest,
@@ -65,11 +60,8 @@ export async function POST(
       if (!currentItem) continue
       if (currentItem.item_type === 'separator') continue
 
-      // OJO (ADR-019): el excedente previo se recalcula del quantity_to_order
-      // ACTUAL. El delta solo es correcto mientras quantity_to_order no cambie
-      // entre recepciones. Hoy no es editable post-orden; si algún día lo
-      // vuelves editable, este modelo delta debe revisarse (dejaría el stock
-      // desincronizado con lo pedido).
+      // OJO: el delta asume quantity_to_order estable entre recepciones — si
+      // algún día se vuelve editable post-orden, revisar este modelo (ADR-019).
       const oldExcess = receptionExcess(currentItem)
       const newExcess = receptionExcess({
         quantity_received: item.quantity_received,
