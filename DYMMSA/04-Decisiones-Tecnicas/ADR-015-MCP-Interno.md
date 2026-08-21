@@ -130,3 +130,25 @@ no-vendibles, ubicación oculta sin stock, jerarquía de descripción) y errores
 - 🔜 Pendiente (fases futuras): siguientes escrituras por nivel de riesgo (comentar/
   cerrar tasks, luego cotizaciones no destructivas, al final órdenes/inventario),
   OAuth para claude.ai web, auditoría de llamadas.
+
+---
+
+## Enmienda 2026-08-20 (issue #72): segunda ola de escrituras + mapa de bloques
+
+### Escrituras nuevas (decididas con el usuario)
+
+| Tool | Alcance | Riesgo | Candados |
+|------|---------|--------|----------|
+| `update_task` | Comentar (atribuido "Asistente (MCP)"), cambiar prioridad, cerrar/reabrir un issue | Bajo | **NO edita título ni descripción** (reescribir texto humano es el riesgo que se evita); prioridad estricta (typo NO quita el label en silencio — `"none"` explícito para removerla); conserva labels ajenos a `priority:*` |
+| `set_inventory_location` | Solo el metadato `location` (gaveta) de una fila EXISTENTE de `store_inventory` | Medio-bajo | El update manda ÚNICAMENTE `location` — **cantidades intocables**; no crea filas (la ubicación es metadato de algo ya inventariado); vacío = borrar |
+
+Decisión explícita del usuario (2026-08-20): el **núcleo transaccional se queda solo-lectura** (ni cambiar estado de cotización); se diseñará cuando haya caso de uso concreto. Total: 3 escrituras (`create_task`, `update_task`, `set_inventory_location`) sobre 29 tools.
+
+### Estructura en dos bloques (frente 1 de la issue)
+
+El listado MCP es plano — la agrupación se logra con cuatro mecanismos, no con carpetas:
+
+1. **`instructions` del server** (el más fuerte): `SERVER_INSTRUCTIONS` = mapa de los dos bloques (qué tool para qué, las 3 escrituras señaladas, la advertencia de mundos separados) + las reglas de negocio. Es lo primero que el cliente entrega al modelo al conectar.
+2. **Prefijo y título**: Odoo lleva `odoo_*` + título "(Odoo)"; la app va sin sufijo (el default es la app, lo marcado es lo externo). Decisión: **NO se renombran** las tools de la app con prefijo — cosmética que rompe el hábito.
+3. **Orden de registro** por bloques: A (app: resumen → cotizaciones → órdenes → inventario → catálogos → tareas) y B (Odoo: primitivas → contabilidad → ventas → documentos/pagos → operación).
+4. **Descripciones**: las de Odoo dicen "externo"; las stale se alinearon (p. ej. `odoo_query` ya lista todos los módulos del catálogo).

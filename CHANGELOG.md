@@ -6,6 +6,12 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-08-20
 
 ### Nuevo
+- **El asistente ahora da seguimiento a tareas y registra gavetas.** Vía el
+  conector puede **comentar, cambiar prioridad y cerrar/reabrir tareas** (los
+  comentarios quedan firmados como "Asistente (MCP)") y **registrar en qué
+  gaveta quedó un producto** del inventario — solo la ubicación, nunca las
+  cantidades. Además, al conectar ahora recibe un mapa claro de qué
+  herramientas son de la app y cuáles del Odoo externo.
 - **Planificar corte sin orden.** Nueva entrada **"Planificar corte"** en el menú:
   un modo rápido para calcular un corte al vuelo — capturas las piezas a mano,
   ves el acomodo y el Excel de pedido, sin necesidad de una orden. El borrador
