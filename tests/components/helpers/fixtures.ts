@@ -58,6 +58,7 @@ export function quotationItem(overrides: Partial<QuotationItem> = {}): Quotation
     quotation_id: 'q1',
     item_type: 'product',
     section_label: null,
+    separator_color: null,
     etm: 'ETM-1',
     description: 'Producto',
     description_es: 'Producto',
