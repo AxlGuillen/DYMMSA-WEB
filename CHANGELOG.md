@@ -3,6 +3,17 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-08-21
+
+### Nuevo
+- **Las secciones de una cotización ahora tienen color.** Cada separador se
+  pinta con un tono distinto que **rota automáticamente** (verde azulado, azul,
+  violeta, rosa…) para que las secciones se distingan de un vistazo en
+  cotizaciones largas. Si prefieres un color específico, el separador trae un
+  **botón de paleta** para fijarlo (y "A" para volver al automático). El color
+  se ve igual en el cotizador, el detalle, la **página de aprobación del
+  cliente** y la orden — viaja con la sección todo el flujo.
+
 ## 2026-08-20
 
 ### Nuevo
