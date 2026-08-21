@@ -1,13 +1,7 @@
 /**
- * Bloque Odoo — Fase 6: complementos de pago (REP) + desglose pago→facturas
- * (issue #70, ADR-025). SOLO lectura, mismo contrato que el resto del bloque.
- *
- * La verdad del timbrado de un pago NO está en account.payment: sus campos
- * l10n_mx_edi_* computan `false` incluso con REP timbrado (verificado
- * 2026-08-20 con PAY00068). El REP vive en l10n_mx_edi.document — estados
- * payment_sent/payment_sent_failed, sat_state y el vínculo invoice_ids. El
- * puente pago↔REP es por las facturas conciliadas (el pago no tiene FK al
- * documento): reconciled_invoice_ids ⊆ doc.invoice_ids.
+ * Odoo F6 — complementos de pago REP (#70, ADR-025). La verdad del timbrado es
+ * l10n_mx_edi.document (los l10n_mx_edi_* del pago computan false); el puente
+ * pago↔REP es por facturas conciliadas — no hay FK directa.
  */
 
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -147,12 +141,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const AUDIT_LIMIT = 50
 
 /**
- * Barrido mensual: pagos de cliente del rango clasificados por su REP.
- * 2 llamadas — pagos del rango + documentos REP de SUS facturas (sin filtro
- * de fecha en los docs: el REP puede timbrarse días después) — más una 3ª
- * SOLO si quedaron pagos sin REP: la política PUE/PPD de sus facturas, porque
- * un pago 100% PUE no requiere complemento y sería falso positivo (review
- * PR #75; en la instancia hoy todo es PPD, pero PUE existe en el selection).
+ * Barrido: pagos del rango + sus docs REP (sin filtro de fecha: el REP llega
+ * después) + 3ª llamada lazy con la política PUE/PPD — 100% PUE no requiere REP.
  */
 export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) {
   for (const date of [input.date_from, input.date_to]) {

@@ -1,11 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/**
- * Overview del cotizador (issue #74): la pantalla más cargada del sistema.
- * Tiene DOS momentos — subir el Excel y editar la tabla — y el tour cubre
- * ambos: los pasos del momento que no está en pantalla se saltan solos
- * (filtro de visibles de startOverview).
- */
+/** Overview del cotizador (#74): cubre sus dos momentos; el ausente se salta solo. */
 export const QUOTER_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="quoter-upload"]',

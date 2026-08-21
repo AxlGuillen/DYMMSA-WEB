@@ -1,15 +1,6 @@
 /**
- * Sonidos de interacción de la UI — wrapper sobre `cuelume` (ADR-017).
- *
- * ÚNICO módulo de la app que importa `cuelume`: la librería es joven (v0.1.x,
- * un mantenedor), así que todo pasa por aquí — si hay que cambiarla o quitarla,
- * se toca este archivo y nada más.
- *
- * Un solo listener delegado a nivel documento toca un sonido sutil en cada
- * click sobre un control interactivo (button / a / [role=button]). Nada de
- * data-attributes botón por botón: cobertura total sin tocar componentes.
- *
- * El on/off vive en `stores/soundStore` (persistido); este módulo solo ejecuta.
+ * Sonidos de UI (ADR-017): ÚNICO módulo que importa cuelume (lib joven — si se
+ * quita, se toca solo este archivo). Un listener delegado global; on/off en soundStore.
  */
 
 import { play, setEnabled, type SoundName } from 'cuelume'
@@ -38,11 +29,7 @@ function handleClick(event: MouseEvent): void {
   playSound('press')
 }
 
-/**
- * Arranca los sonidos: listeners declarativos de cuelume + el listener global
- * de clicks. Idempotente (React StrictMode monta los efectos dos veces) y
- * no-op fuera del navegador.
- */
+/** Arranca los listeners; idempotente (StrictMode monta doble) y no-op fuera del navegador. */
 export function initSounds(enabled: boolean): void {
   if (typeof document === 'undefined' || initialized) return
   initialized = true

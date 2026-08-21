@@ -1,21 +1,6 @@
 /**
- * Helpers para route handlers de Next.js: auth y respuestas estándar.
- *
- * Patrón de uso:
- *
- * ```ts
- * const supabase = await createClient()
- * const auth = await requireAuth(supabase)
- * if ('error' in auth) return auth.error
- * const { user } = auth
- * ```
- *
- * Esto reemplaza el patrón duplicado en 9+ routes:
- *
- * ```ts
- * const { data: { user } } = await supabase.auth.getUser()
- * if (!user) return NextResponse.json({ message: 'No autorizado' }, { status: 401 })
- * ```
+ * Helpers de route handlers: auth y respuestas estándar.
+ * Uso: `const auth = await requireAuth(supabase); if ('error' in auth) return auth.error`
  */
 
 import { NextResponse } from 'next/server'
@@ -26,12 +11,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
 // ─── Auth ──────────────────────────────────────────────────────────────
 
-/**
- * Verifica autenticación. Retorna `{ user }` si está autenticado,
- * o `{ error }` con un NextResponse 401 listo para devolver.
- *
- * Diseñado para no lanzar excepciones — los errores son valores.
- */
+/** Retorna { user } o { error } con el 401 listo — errores como valores, sin excepciones. */
 export async function requireAuth(
   supabase: SupabaseServerClient
 ): Promise<{ user: User } | { error: NextResponse }> {

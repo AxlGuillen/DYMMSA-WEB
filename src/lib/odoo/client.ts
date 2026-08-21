@@ -1,19 +1,7 @@
 /**
- * Cliente JSON-2 de Odoo (issue #65, ADR-025).
- *
- * Transporte sobre la External JSON-2 API (`POST /json/2/<model>/<method>`,
- * `Authorization: bearer <api-key>`) — la sucesora oficial: /jsonrpc y /xmlrpc
- * desaparecen en Odoo Online 21.1 (invierno 2027), por eso NO se usan aquí.
- *
- * Odoo Online tolera ~1 llamada/segundo SIN llamadas paralelas (respuesta
- * oficial en su foro); excederse produce 429. De ahí las dos reglas duras de
- * este módulo:
- *   1. Cola serializada: UNA request en vuelo, con espaciado mínimo entre
- *      llamadas — si el LLM dispara varias tools a la vez, aquí se forman.
- *   2. Backoff: ante 429 se espera (Retry-After o 2 s) y se reintenta UNA vez.
- *
- * `createOdooCaller` existe para inyectar fetch/sleep en tests; producción usa
- * el singleton `callOdoo` (la cola solo funciona si todos comparten la misma).
+ * Cliente JSON-2 de Odoo (ADR-025): /jsonrpc muere en Online 21.1, por eso no
+ * se usa. Odoo Online tolera ~1 req/s SIN paralelas → cola serializada con
+ * espaciado + un reintento ante 429. Producción usa SOLO el singleton callOdoo.
  */
 
 import { odooEnv } from './env'

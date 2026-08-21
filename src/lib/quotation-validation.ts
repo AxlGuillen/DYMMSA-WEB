@@ -1,19 +1,6 @@
 /**
- * Validación pre-flight de ítems de cotización: atrapa los casos conocidos
- * ANTES del request para dar feedback inmediato y señalar el ítem ofensor
- * por su `_id` (para resaltarlo en la UI) y por su ETM (para el toast).
- *
- * Reglas implementadas:
- *   - quantity == null || quantity <= 0  → error (mata save y create-order)
- *   - unit_price != null && unit_price < 0 → error
- *   - !etm → error (sin ETM no podemos identificarlo después)
- *   - !model_code → warning (no bloquea, informa)
- *
- * No se valida ETMs duplicados dentro de la misma cotización: es
- * comportamiento intencional (el mismo producto puede aparecer en distintas
- * secciones).
- *
- * Separadores se ignoran (no aplican ninguna regla de producto).
+ * Validación pre-flight del cotizador: señala el ítem ofensor por _id y ETM.
+ * ETMs duplicados NO se validan a propósito (un producto puede repetirse por sección).
  */
 
 import type { QuotationItemRow } from '@/types/database'
@@ -113,11 +100,7 @@ export function getErrorItemIds(items: QuotationItemRow[], options: ValidateOpti
   return new Set(getBlockingIssues(items, options).map((i) => i.itemId))
 }
 
-// ─── Encabezado de la cotización (nombre + cliente) ─────────────────────
-//
-// Antes se gateaban deshabilitando el botón de guardar sin explicar qué
-// faltaba (issue #26). Ahora el botón queda habilitado y el guardado avisa
-// con toast + resaltado, igual que la validación de ítems de arriba.
+// ─── Encabezado (nombre + cliente): avisa con toast+resaltado, no deshabilita (#26) ─
 
 export type HeaderField = 'name' | 'customer'
 

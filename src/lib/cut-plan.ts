@@ -1,23 +1,7 @@
 /**
- * Módulo de corte de material (issue #59) — matemática pura, sin UI.
- *
- * Productos DYMMSA que se mandan a hacer cortando tubo o placa de cobre.
- * El problema vive en dos momentos:
- *
- *  1. NECESIDAD NETA — antes de hablar con el proveedor no se conocen sus
- *     presentaciones, pero sí se le puede decir "necesito 14 m de Ø30":
- *     Σ (longitud + margen) × cantidad, agrupado por medida.
- *  2. ACOMODO — cuando el proveedor responde "tengo barras de 6 m", se calcula
- *     el patrón real: cuántas barras, cómo partir cada una y cuánto sobra.
- *
- * Convenciones:
- *  - Unidades SIEMPRE en mm. Los `numeric` de Postgres llegan como string por
- *    supabase-js: el caller (API/hooks) los coerce a number ANTES de llamar aquí.
- *  - El margen de corte (kerf) se come material en CADA partición. En la
- *    necesidad neta se cobra por pieza (sobreestima ligera y a propósito: es
- *    una cifra para PEDIR, el acomodo real la afina).
- *  - Placas v1 SIN rotación de piezas (si hiciera falta girar 90°, es mejora
- *    futura — puede haber veta/acabado que respetar).
+ * Módulo de corte — matemática pura en mm (ADR-022): momento 1 = necesidad
+ * neta para pedir; momento 2 = acomodo en barras/hojas del proveedor.
+ * El caller coerce los numeric-string de supabase-js ANTES de llamar aquí.
  */
 
 // ─── Margen de corte (ajuste) ──────────────────────────────────────────
@@ -26,11 +10,7 @@
 export const DEFAULT_CUT_MARGIN_MM = 20
 export const SETTING_CUT_MARGIN_MM = 'cut_margin_mm'
 
-/**
- * Margen desde `app_settings` con fallback al default. Acepta 0 (estimar sin
- * factor es legítimo); negativos o no-números caen al default — la config
- * nunca rompe el cálculo (mismo criterio que `resolveThresholds`).
- */
+/** Margen desde settings; 0 es válido, inválidos caen al default — la config nunca rompe el cálculo. */
 export function resolveCutMargin(settings: Record<string, unknown>): number {
   const raw = settings[SETTING_CUT_MARGIN_MM]
   const value = typeof raw === 'number' ? raw : Number(raw)
@@ -107,11 +87,7 @@ export interface PlateNeedGroup {
   minWidthMm: number
 }
 
-/**
- * Necesidad por espesor. En placas no hay "metros a pedir" hasta conocer el
- * ancho de la tira; lo útil antes del proveedor es el área y el ancho mínimo
- * que su material debe tener.
- */
+/** Necesidad por espesor: antes del proveedor lo útil es área + ancho mínimo, no metros. */
 export function plateNetNeeds(pieces: readonly PlatePieceInput[]): PlateNeedGroup[] {
   const groups = new Map<number, PlateNeedGroup>()
   for (const piece of pieces) {
@@ -155,14 +131,8 @@ export interface BarPackResult {
 }
 
 /**
- * Acomodo first-fit decreasing: unidades de mayor a menor, cada una a la
- * primera barra donde quepa; si ninguna, se abre barra nueva.
- *
- * Modelo físico del margen: la barra queda [p1][corte][p2][corte]…[sobrante].
- * Una pieza cabe si Σ colocadas + margen × cortes existentes + pieza ≤ barra —
- * la partición de la ÚLTIMA pieza puede caer exacta al final (ajuste a ras),
- * por eso su margen no se exige al entrar. El sobrante mostrado sí descuenta
- * un margen por segmento (clamp en 0): si hay resto, hace falta ese corte.
+ * First-fit decreasing en barras. Modelo del margen: [p][corte][p]…[sobrante];
+ * la última partición puede caer a ras, por eso su margen no se exige al entrar.
  */
 export function packBars(
   pieces: readonly { id: string; lengthMm: number; quantity: number }[],
@@ -234,14 +204,8 @@ export interface SheetPackResult {
 }
 
 /**
- * Acomodo en HOJAS de medida fija (issue #64 — el proveedor vende la placa
- * como hoja de ancho × largo, no como tira por largo). Dos pasos:
- *   1. Filas (shelf, first-fit decreasing por LARGO): la pieza más larga de
- *      cada fila define el largo que consume; las demás entran a lo ancho
- *      mientras quepan, con margen entre piezas.
- *   2. Las filas se paginan en hojas (first-fit, ya decreciente por herencia
- *      del sort): cada fila consume su largo + margen entre filas, sin exceder
- *      el largo de la hoja.
+ * Acomodo en HOJAS de medida fija (#64): filas shelf-FFD por largo, luego las
+ * filas se paginan en hojas con margen entre pares — la más larga define cada fila.
  */
 export function packSheets(
   pieces: readonly { id: string; widthMm: number; lengthMm: number; quantity: number }[],

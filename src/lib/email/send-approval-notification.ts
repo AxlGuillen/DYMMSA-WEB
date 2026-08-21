@@ -1,21 +1,11 @@
 import { getResend } from './client'
 
 /**
- * Notificación por correo a DYMMSA cuando el cliente FINALIZA una cotización
- * con al menos un ítem aprobado (status → 'approved').
- *
- * Diseño (ver ADR-012):
- * - Nunca lanza: devuelve { ok } para que el flujo de aprobación jamás falle
- *   por un problema de correo (mismo principio que auto-learn / ADR-009).
- * - Sin config (RESEND_API_KEY / RESEND_FROM_EMAIL / NOTIFICATION_EMAIL_TO) →
- *   { ok: false, skipped: true }: se omite en silencio, no es error.
+ * Correo a DYMMSA al aprobar una cotización (ADR-012). Nunca lanza — la
+ * aprobación jamás falla por correo; sin config → skipped, no error.
  */
 
-/**
- * Interruptor temporal: notificaciones por correo DESHABILITADAS hasta configurar
- * Resend en producción (dominio verificado + env vars, y decidir destinatarios).
- * Para reactivar: poner en `true` (y tener las env vars configuradas en Vercel).
- */
+/** Interruptor: correo APAGADO hasta configurar Resend en producción (#25); reactivar = true. */
 const EMAIL_NOTIFICATIONS_ENABLED: boolean = false
 
 interface ApprovalNotificationInput {
@@ -36,11 +26,7 @@ function formatMXN(amount: number): string {
   return amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
 }
 
-/**
- * Construye el link absoluto a la cotización, o `null` si `NEXT_PUBLIC_APP_URL`
- * falta o no es absoluta (evita meter un href relativo — roto en un cliente de
- * correo). Con `null`, el email se envía igual pero sin botón.
- */
+/** Link absoluto a la cotización; sin APP_URL válida → null (el correo va sin botón). */
 export function buildQuotationUrl(appUrl: string | undefined, quotationId: string): string | null {
   if (!appUrl) return null
   const base = appUrl.trim().replace(/\/+$/, '')

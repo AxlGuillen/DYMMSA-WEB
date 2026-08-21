@@ -1,10 +1,6 @@
 /**
- * Normalización de respuestas de Odoo → JSON digerido para el LLM (ADR-025).
- *
- * Odoo crudo es incómodo para un modelo: many2one como `[id, "nombre"]`,
- * `false` donde cualquier API diría null, y ruido interno (`__domain`) en los
- * agregados. La regla del bloque: el server normaliza y resume; el modelo
- * interpreta — nunca recibe registros crudos.
+ * Odoo crudo → JSON digerido: many2one → nombre, false → null, __* fuera.
+ * Regla del bloque: el server digiere, el modelo interpreta (ADR-025).
  */
 
 type OdooRecord = Record<string, unknown>
@@ -32,12 +28,7 @@ export function normalizeRecords(records: unknown): OdooRecord[] {
   return records.map((r) => normalizeRecord(r as OdooRecord))
 }
 
-/**
- * Limpia los grupos de read_group: quita `__domain`/`__range`, renombra
- * `<campo>_count` a `count` y descarta grupos vacíos — al agrupar por un campo
- * selection, Odoo devuelve TODAS las opciones aunque el dominio las excluya
- * (count 0 y métricas null: puro ruido para el modelo).
- */
+/** Limpia read_group (quita __*, renombra a count) y descarta count=0: Odoo devuelve todas las opciones del selection. */
 export function normalizeGroups(groups: unknown): OdooRecord[] {
   if (!Array.isArray(groups)) return []
   const out: OdooRecord[] = []

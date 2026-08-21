@@ -1,10 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/**
- * Overview del detalle de orden (issue #74): la pantalla operativa del día a
- * día — cantidades, recepción y los accesos a compra/corte/entrega. Algunos
- * bloques desaparecen en órdenes completadas/canceladas y el tour los salta.
- */
+/** Overview del detalle de orden (#74); los bloques ausentes en cerradas se saltan solos. */
 export const ORDER_DETAIL_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="od-status"]',

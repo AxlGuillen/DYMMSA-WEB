@@ -1,9 +1,4 @@
-/**
- * Contexto por llamada de tool (ADR-023): resuelve QUÉ cliente Supabase usa la
- * tool a partir del AuthInfo que el SDK entrega en el `extra` de cada handler.
- * Los tools no cambian de firma — siguen recibiendo `Db` — solo cambia quién
- * lo construye: antes un admin client global, ahora el token del request.
- */
+/** Contexto por llamada (ADR-023): construye el Db de la tool desde el token del request. */
 
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 

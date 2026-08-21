@@ -1,10 +1,6 @@
 /**
- * Bloque Odoo — Fase 1: Contabilidad (issue #65, ADR-025). SOLO lectura.
- *
- * Las tools reciben el caller por parámetro (inyección, como `Db` en las de
- * Supabase) y responden JSON compacto ya digerido: agregados calculados por
- * Odoo (`read_group`), many2one como nombres y `false` → null. Toda entrada
- * pasa por el catálogo (modelos y campos permitidos) ANTES de viajar a Odoo.
+ * Odoo F1 — Contabilidad (ADR-025), solo lectura: caller inyectado, catálogo
+ * como frontera y respuestas digeridas (el server digiere, el modelo interpreta).
  */
 
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -25,11 +21,7 @@ export interface OdooQueryInput {
   offset?: number
 }
 
-/**
- * Valida CADA columna de un `order` ("invoice_date asc, name desc") contra el
- * catálogo — validar solo la primera dejaba pasar campos ocultos en el resto
- * (review PR #66; mismo canal de inferencia que el traversal en dominios).
- */
+/** Valida CADA columna del order — solo la primera dejaba pasar campos ocultos (PR #66). */
 function assertOrderAllowed(model: string, order: string): void {
   const columns = order
     .split(',')

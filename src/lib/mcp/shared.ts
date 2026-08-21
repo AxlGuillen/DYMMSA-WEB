@@ -1,25 +1,14 @@
 /**
- * Tipos y errores compartidos del módulo MCP.
- *
- * Los tools reciben el cliente Supabase como parámetro (inyección) para ser
- * testeables con el mock de `tests/helpers/supabase-mock.ts`, igual que los
- * route handlers. En producción es un cliente **por request**, construido con
- * el token OAuth de quien llama (`contextFrom` → `clientForToken`), así que RLS
- * aplica igual que en la app — sin service_role en el camino MCP (ADR-023).
- *
- * Excepción: `src/lib/health.ts` reutiliza estas mismas funciones con el admin
- * client, porque el health es un endpoint público sin sesión de usuario.
+ * Tipos/errores compartidos del MCP. Los tools reciben el Db por parámetro
+ * (testeables con mock); en producción es por-request desde el token OAuth —
+ * RLS aplica, cero service_role (ADR-023; health es la excepción con admin).
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type Db = SupabaseClient
 
-/**
- * Error esperado de un tool (no encontrado, entrada inválida, fallo de BD
- * con contexto). Su `message` se devuelve al cliente MCP tal cual; cualquier
- * otro error se loguea y se responde con un mensaje genérico.
- */
+/** Error esperado de tool: su message va al cliente tal cual; el resto se loguea y sale genérico. */
 export class ToolError extends Error {
   constructor(message: string) {
     super(message)

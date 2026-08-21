@@ -1,11 +1,6 @@
 /**
- * Bloque Odoo — Fase 5: detalle de documentos con sus líneas + timbrado CFDI
- * (issue #65, ADR-025). SOLO lectura, mismo contrato que el resto del bloque.
- *
- * Resuelven el folio (F00167 / S00247) → id y filtran las líneas por la FK
- * numérica — el traversal por relación sigue vedado en las primitivas. El
- * timbrado sale de los campos l10n_mx_edi_* (la instancia usa la localización
- * mexicana; verificado 2026-08-13 con la F00167 timbrada y vigente).
+ * Odoo F5 — detalle de documentos + timbrado CFDI (ADR-025): folio → id y
+ * líneas por FK numérica (el traversal sigue vedado en las primitivas).
  */
 
 import type { OdooCaller } from '@/lib/odoo/client'

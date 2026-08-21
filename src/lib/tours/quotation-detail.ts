@@ -1,10 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/**
- * Overview del detalle de cotización (issue #74). Varias secciones dependen
- * del estado (link solo en aprobación, ✓/✗ solo en approved): los pasos
- * ausentes se saltan solos — el tour se adapta a la etapa de la cotización.
- */
+/** Overview del detalle de cotización (#74); los pasos condicionales por estado se saltan solos. */
 export const QUOTATION_DETAIL_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="qd-status"]',

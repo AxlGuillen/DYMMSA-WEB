@@ -1,9 +1,4 @@
-/**
- * Lógica de inventario: cálculos puros + operaciones de DB.
- *
- * Las funciones puras viven separadas de las impuras para poder probar
- * la lógica sin necesidad de mockear Supabase.
- */
+/** Inventario: cálculos puros separados de las operaciones de DB (testeables sin mock). */
 
 import { receivedForCustomer } from '@/lib/business-rules'
 import type { createClient } from '@/lib/supabase/server'
@@ -20,15 +15,8 @@ type RestorableItem = {
 }
 
 /**
- * Calcula qué cantidades restaurar a `store_inventory` cuando se cancela o
- * elimina una orden: lo tomado del stock al crearla + la porción del CLIENTE
- * de lo recibido de URREA (`min(recibido, pedido)`) — esa mercancía se queda
- * en tienda al morir la orden. El EXCEDENTE (recibido > pedido) NO se
- * restaura: ya entró a inventario al confirmar la recepción (ADR-019);
- * volver a sumarlo lo duplicaría. Excluye ítems sin `model_code` y con
- * cantidad 0.
- *
- * PURA — no toca DB.
+ * Restauración al cancelar/eliminar orden: stock tomado + min(recibido, pedido).
+ * El excedente NO se restaura — ya entró en la recepción; sumarlo lo duplicaría (ADR-019).
  */
 export function computeRestoration<T extends RestorableItem>(
   items: T[]
@@ -46,15 +34,7 @@ export function computeRestoration<T extends RestorableItem>(
 
 // ─── Operaciones de DB ─────────────────────────────────────────────────
 
-/**
- * Restaura el inventario de todos los ítems de una orden cancelada.
- * Usa `computeRestoration` para el cálculo puro y luego aplica los upserts.
- *
- * Si el `model_code` ya existe en `store_inventory`, suma a la cantidad.
- * Si no existe, crea una entrada nueva.
- *
- * @returns Cantidad de filas restauradas
- */
+/** Aplica computeRestoration con upserts (suma si existe, crea si no); retorna filas restauradas. */
 export async function restoreOrderInventory(
   supabase: SupabaseServerClient,
   orderId: string

@@ -1,10 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/**
- * Overview de la entrada al sistema: el sidebar (qué vive en cada sección del
- * menú) y el panel de inicio. Es lo primero que ve alguien nuevo — el tour
- * presenta el mapa completo antes de que entre a cualquier módulo.
- */
+/** Overview de la entrada al sistema: sidebar sección por sección + panel de inicio. */
 export const DASHBOARD_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="nav-main"]',

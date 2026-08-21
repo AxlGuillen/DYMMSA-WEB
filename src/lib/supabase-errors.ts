@@ -1,14 +1,6 @@
 /**
- * Parsea errores de Postgres (vía Supabase) y los traduce a mensajes en
- * español, identificando — cuando es posible — el ítem ofensor.
- *
- * Razón: por defecto Supabase devuelve mensajes como
- *   "new row for relation \"quotation_items\" violates check constraint
- *    \"quotation_items_quantity_check\""
- * lo cual el usuario no entiende. Esta utilidad mapea las CHECK/UNIQUE/FK
- * conocidas del proyecto a textos accionables ("ETM X: cantidad debe ser
- * mayor a 0") y, escaneando el array de ítems que se intentó insertar,
- * regresa el `etm` del primer ítem que viola la regla.
+ * Traduce errores de Postgres a mensajes accionables en español, identificando
+ * el ETM ofensor cuando se pasan los ítems del insert (ADR-009).
  */
 
 export interface PgErrorInput {
@@ -83,14 +75,7 @@ function findByNegativePrice(items: InspectableItem[]): InspectableItem | undefi
   return items.find((i) => typeof i.unit_price === 'number' && i.unit_price < 0)
 }
 
-/**
- * Traduce un error de Postgres a un mensaje accionable.
- *
- * @param error  El objeto error de Supabase/Postgres.
- * @param items  (opcional) Array de ítems que se intentó insertar. Si se
- *               provee, se escanea para identificar el `etm` ofensor y
- *               personalizar el mensaje.
- */
+/** Error de Postgres → mensaje accionable; con `items` identifica el ETM ofensor. */
 export function explainPgError(
   error: PgErrorInput | null | undefined,
   items?: InspectableItem[],

@@ -1,10 +1,8 @@
 import type { OverviewStep } from '@/lib/tours'
 
 /**
- * Overview de la página pública de aprobación (/approve/[token]). El lector es
- * el CLIENTE (o quien le enseña la página): tono sin jerga interna. Filtros y
- * dock solo existen cuando la cotización sigue en revisión — si el enlace ya
- * se procesó, esos pasos se saltan solos.
+ * Overview de /approve/[token] — el lector es el CLIENTE: tono sin jerga.
+ * Filtros y dock solo existen en revisión; ausentes, se saltan solos.
  */
 export const APPROVAL_TOUR: OverviewStep[] = [
   {

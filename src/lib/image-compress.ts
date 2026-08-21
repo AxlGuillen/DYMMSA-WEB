@@ -1,10 +1,6 @@
 /**
- * Compresión de imágenes en el navegador antes de subirlas (módulo Tareas).
- *
- * Reduce dimensiones y re-encoda a WebP para que los adjuntos (típicamente
- * screenshots) no ocupen megas. Todo pasa en el cliente vía canvas — sin
- * dependencias ni trabajo en el servidor. Ante cualquier fallo o si el
- * resultado no mejora, devuelve el archivo original (nunca rompe la subida).
+ * Compresión de imágenes en el navegador (canvas → WebP) antes de subir.
+ * Ante fallo o si no mejora, devuelve el original — nunca rompe la subida.
  */
 
 // GIF excluido: animarlo se perdería al pasarlo por canvas.

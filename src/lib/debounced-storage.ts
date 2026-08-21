@@ -1,15 +1,6 @@
 /**
- * localStorage con `setItem` debounced (trailing) para el draft del cotizador.
- *
- * Serializar y escribir ~1000 ítems en CADA mutación (agregar/editar/eliminar/
- * reordenar/renombrar sección) hace I/O síncrono que traba el hilo cuando se
- * encadenan acciones. Este wrapper coalesce las escrituras en una sola tras
- * `delayMs` de calma. Lecturas y `removeItem` son síncronos.
- *
- * Para no perder el último cambio si el usuario cierra/oculta la pestaña dentro
- * de la ventana de debounce, hace flush en `pagehide` y al pasar a `hidden`.
- * `getItem` sirve lo pendiente (read-your-writes) para que una recarga en
- * caliente no lea un valor viejo.
+ * localStorage con setItem debounced: escribir ~1000 ítems por mutación traba
+ * el hilo. Flush en pagehide/hidden; getItem sirve lo pendiente (read-your-writes).
  */
 export function createDebouncedStorage(
   backing: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined,

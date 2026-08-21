@@ -1,21 +1,8 @@
-/**
- * Utilidades de formato puras: fechas, strings, archivos, números.
- *
- * Reglas de diseño:
- * - Sin side effects (no DOM, no fetch, no Date.now() inline — el reloj se inyecta vía parámetro).
- * - Determinísticas: misma entrada → misma salida.
- * - Trivialmente testables con Bun test.
- */
+/** Utilidades de formato puras y determinísticas — el reloj se inyecta por parámetro. */
 
 // ─── Fechas ────────────────────────────────────────────────────────────
 
-/**
- * Formato relativo en español: "hace 5 min", "ayer", "hace 3 días", etc.
- * Para fechas > 30 días devuelve el formato corto "15 ene 2026".
- *
- * @param dateStr  ISO string o cualquier formato parseable por Date
- * @param now      Reloj inyectable para tests (default: ahora)
- */
+/** Fecha relativa en español ("hace 5 min", "ayer"); > 30 días → corto "15 ene 2026". */
 export function formatRelative(dateStr: string, now: Date = new Date()): string {
   const diff  = now.getTime() - new Date(dateStr).getTime()
   const mins  = Math.floor(diff / 60_000)

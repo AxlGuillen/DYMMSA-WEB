@@ -1,10 +1,4 @@
-/**
- * Wrapper de fetch compartido por los hooks de TanStack Query.
- *
- * Normaliza errores en `ApiError` para que el caller distinga
- * AUTH_EXPIRED / NETWORK / VALIDATION / SERVER, y expone `offendingEtm`
- * (ETM del ítem culpable, cuando el backend lo reporta).
- */
+/** Fetch compartido de los hooks: normaliza errores en ApiError (con offendingEtm si el backend lo reporta). */
 
 export class ApiError extends Error {
   constructor(
@@ -18,12 +12,7 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Wrapper de fetch que normaliza errores en ApiError. Detecta:
- *  - 401 → ApiError('Tu sesión expiró...', 'AUTH_EXPIRED')
- *  - TypeError (red caída / DNS) → ApiError('Sin conexión...', 'NETWORK')
- *  - 4xx/5xx con body { message, offendingEtm } → ApiError con el payload
- */
+/** 401 → AUTH_EXPIRED, TypeError → NETWORK, 4xx/5xx → ApiError con el payload del body. */
 export async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {

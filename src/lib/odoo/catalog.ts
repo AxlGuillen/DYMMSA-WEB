@@ -1,13 +1,6 @@
 /**
- * Catálogo del bloque Odoo (ADR-025): la FRONTERA de lo que el MCP puede ver.
- *
- * Las primitivas genéricas (odoo_query / odoo_aggregate) solo aceptan modelos
- * listados aquí, y de cada modelo solo los campos de su whitelist — también en
- * los filtros (un dominio sobre un campo oculto filtraría información que no
- * se puede leer). Agregar un módulo de Odoo = agregar entradas aquí.
- *
- * Regla permanente: datos sensibles (nómina, salarios) NUNCA entran al
- * catálogo, aunque la API key del server tenga permiso de leerlos.
+ * Catálogo Odoo = la FRONTERA del MCP (ADR-025): modelos y campos permitidos,
+ * también en filtros/order. Nómina y salarios JAMÁS entran.
  */
 
 import { OdooError } from './client'
@@ -16,12 +9,7 @@ export interface CatalogEntry {
   /** Para mensajes de error y descripciones de tools. */
   label: string
   fields: readonly string[]
-  /**
-   * Legibles pero VEDADOS en dominios y order: computados no-almacenados
-   * donde Odoo no truena al filtrar — devuelve 0 resultados EN SILENCIO
-   * (peor que el ValueError de qty_available; verificado 2026-08-20 con
-   * reconciled_invoice_ids). No entran en la proyección por defecto.
-   */
+  /** Legibles pero vedados en dominios/order: Odoo filtra computados devolviendo 0 EN SILENCIO (ADR-025 F6). */
   readOnlyFields?: readonly string[]
 }
 
@@ -63,9 +51,7 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
   },
 
   // ── Fase 3 — Inventario (almacén de Odoo, NO la tienda DYMMSA-WEB) ───
-  // `qty_available` queda FUERA a propósito: es computado no-almacenado y
-  // Odoo revienta al filtrar/ordenar por él (verificado 2026-08-11). La
-  // verdad almacenada del stock es stock.quant.
+  // qty_available fuera a propósito: computado no-almacenado (la verdad es stock.quant).
   'product.product': {
     label: 'Productos (catálogo de Odoo)',
     fields: ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'uom_id'],
@@ -104,9 +90,7 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
   },
 
   // ── Fase 6 — Complementos de pago (REP) ──────────────────────────────
-  // La verdad del timbrado de PAGOS: estados payment_sent/payment_sent_failed,
-  // sat_state y el vínculo invoice_ids → facturas que cubre. Todo ALMACENADO
-  // (filtrable sin trampas), a diferencia de los l10n_mx_edi_* del pago.
+  // La verdad del timbrado de pagos, todo almacenado (ADR-025 F6).
   'l10n_mx_edi.document': {
     label: 'Documentos CFDI (timbrado de facturas y complementos de pago REP)',
     fields: ['move_id', 'invoice_ids', 'state', 'sat_state', 'attachment_uuid', 'datetime', 'message', 'cancellation_reason'],
@@ -144,10 +128,7 @@ export type DomainTriple = [string, string, unknown]
 export function assertDomainAllowed(model: string, domain: DomainTriple[]): void {
   const entry = catalogEntry(model)
   for (const [field] of domain) {
-    // Traversal por relación ("partner_id.vat") vedado: filtrar por un campo
-    // relacionado fuera del catálogo habilita inferencia por búsqueda aunque
-    // el valor nunca se proyecte (review PR #66). Los many2one aceptan ilike
-    // sobre su display, así que el campo base cubre el caso legítimo.
+    // Traversal ("partner_id.vat") vedado: filtrar por campo oculto es un oracle de inferencia (PR #66).
     if (field.includes('.')) {
       throw new OdooError(
         `No se puede filtrar ${model} por "${field}": el traversal por relación no está permitido — filtra por el campo base (p. ej. partner_id con ilike).`,

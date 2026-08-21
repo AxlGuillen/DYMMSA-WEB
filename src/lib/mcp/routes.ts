@@ -1,8 +1,4 @@
-/**
- * Constantes de ruta y URLs del MCP remoto (ADR-023). Seguras en cliente y
- * servidor: aquí solo van constantes puras. La verificación del token vive en
- * oauth.ts (solo servidor).
- */
+/** Constantes de ruta del MCP (ADR-023), seguras en cliente y servidor. */
 
 export const MCP_PATH = '/api/mcp'
 

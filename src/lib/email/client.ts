@@ -1,12 +1,6 @@
 import { Resend } from 'resend'
 
-/**
- * Cliente Resend perezoso (lazy).
- *
- * No se instancia en import-time para no romper el build ni los tests cuando
- * falta RESEND_API_KEY. Devuelve `null` si no hay key configurada → el caller
- * trata la falta de config como "no se envía", no como error.
- */
+/** Cliente Resend lazy: sin RESEND_API_KEY devuelve null — falta de config = no se envía, no error. */
 let cached: Resend | null = null
 
 export function getResend(): Resend | null {

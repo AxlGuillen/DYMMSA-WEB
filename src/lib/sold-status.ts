@@ -1,11 +1,4 @@
-/**
- * Estado "¿lo vendemos?" (tri-estado `is_sold`) — helpers de presentación
- * compartidos por el cotizador, el detalle de cotización y la aprobación.
- *
- *   null / undefined → sin definir (comportamiento normal, sin color)
- *   true             → sí lo vendemos (normal)
- *   false            → no lo vendemos (color distinto, se salta, "No disponible")
- */
+/** Presentación del tri-estado is_sold (null=sin definir, true=sí, false="No disponible"). */
 
 export type SoldValue = boolean | null | undefined
 
@@ -21,14 +14,8 @@ export function soldLabel(v: SoldValue): string {
 }
 
 /**
- * Clase de fondo para filas "no lo vendemos". Tiene prioridad sobre el color
- * de completitud de datos: si no lo vendemos, no importa que falten datos.
- * Devuelve '' cuando no aplica.
- *
- * Los tonos van OPACOS vía `color-mix` (mismo color resultante que el `/70` o
- * `/50` sobre el fondo, pero sin canal alfa): la columna fija de acciones
- * hereda este color con `bg-inherit`, y con transparencia se alcanzaría a ver
- * el contenido de las columnas que pasan por debajo al hacer scroll lateral.
+ * Fondo de filas "no lo vendemos" (gana a la completitud de datos). Tonos
+ * OPACOS vía color-mix: la columna fija hereda con bg-inherit y el alfa transparentaría.
  */
 export function notSoldRowClass(v: SoldValue): string {
   return v === false
