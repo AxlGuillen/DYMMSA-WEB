@@ -247,7 +247,7 @@ export function registerDymmsaTools(server: McpServer): void {
       description:
         'Asigna o corrige la ubicación física (gaveta) de un producto YA inventariado. ESCRIBE: usa solo cuando el usuario pida registrar dónde quedó algo (p. ej. "el 6954 quedó en la gaveta B3"). Solo toca el metadato de ubicación — las cantidades de inventario NUNCA se modifican por aquí. location vacío o ausente = borrar la ubicación.',
       inputSchema: {
-        model_code: z.string().min(1).describe('Código del producto en inventario (se normaliza a mayúsculas)'),
+        model_code: z.string().min(1).describe('Código del producto en inventario (match exacto, sin distinguir mayúsculas/minúsculas)'),
         location: z.string().optional().describe('Ubicación física/gaveta, texto libre; omite o vacío para borrarla'),
       },
       // Escritura acotada (issue #72, ADR-015): metadato duradero, no transaccional.
