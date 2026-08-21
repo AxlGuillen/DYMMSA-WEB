@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       quotation_id:   quotation.id,
       item_type:      item.item_type      ?? 'product',
       section_label:  item.item_type === 'separator' ? (item.section_label ?? null) : null,
+      separator_color: item.item_type === 'separator' ? (item.separator_color ?? null) : null,
       etm:            item.item_type === 'separator' ? null : (item.etm || null),
       description:    item.item_type === 'separator' ? null : (item.description || null),
       description_es: item.item_type === 'separator' ? null : (item.description_es || null),
