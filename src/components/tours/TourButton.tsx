@@ -7,12 +7,18 @@ import { CUT_PLANNER_TOUR } from '@/lib/tours/cut-planner'
 import { DASHBOARD_TOUR } from '@/lib/tours/dashboard'
 import { APPROVAL_TOUR } from '@/lib/tours/approval'
 import { PURCHASE_PLANNER_TOUR } from '@/lib/tours/purchase-planner'
+import { QUOTER_TOUR } from '@/lib/tours/quoter'
+import { QUOTATIONS_LIST_TOUR } from '@/lib/tours/quotations-list'
+import { QUOTATION_DETAIL_TOUR } from '@/lib/tours/quotation-detail'
 
 const TOURS = {
   dashboard: DASHBOARD_TOUR,
   'cut-planner': CUT_PLANNER_TOUR,
   approval: APPROVAL_TOUR,
   'purchase-planner': PURCHASE_PLANNER_TOUR,
+  quoter: QUOTER_TOUR,
+  'quotations-list': QUOTATIONS_LIST_TOUR,
+  'quotation-detail': QUOTATION_DETAIL_TOUR,
 } satisfies Record<string, OverviewStep[]>
 
 export type TourId = keyof typeof TOURS

@@ -690,7 +690,7 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
 
       {/* Summary cards */}
       {items.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div data-tour="quoter-stats" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border bg-card px-4 py-3 space-y-0.5">
             <p className="text-xs text-muted-foreground">Total productos</p>
             <p className="text-xl font-bold">{productItems.length}</p>
@@ -729,7 +729,7 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
+      <div data-tour="quoter-toolbar" className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm">
           {partialTotal > 0 && (
             <span className="font-medium">
@@ -754,11 +754,11 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
 
       {/* Table */}
       {items.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+        <div data-tour="quoter-table" className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
           <p className="text-sm">No hay productos. Carga un Excel o agrega uno manualmente.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div data-tour="quoter-table" className="space-y-2">
           <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground flex-wrap">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
