@@ -93,13 +93,22 @@ export async function setInventoryLocation(db: Db, input: SetInventoryLocationIn
     .select('model_code, quantity, location')
 
   if (error) throw new ToolError(`Error al actualizar la ubicación: ${error.message}`)
-  const row = (data ?? [])[0] as StoreInventory | undefined
-  if (!row) {
+  const rows = (data ?? []) as StoreInventory[]
+  if (rows.length === 0) {
     // No se crea la fila: la ubicación es metadato de algo YA inventariado.
     throw new ToolError(
       `"${modelCode}" no está en el inventario — la ubicación solo se asigna a productos ya inventariados (usa search_inventory para verificar el código).`,
     )
   }
+  if (rows.length > 1) {
+    // model_code es UNIQUE por valor exacto: el ilike case-insensitive pudo
+    // haber tocado más de una fila (p. ej. "abc" y "ABC" coexistiendo). Ya se
+    // actualizaron todas — se avisa en vez de devolver solo la primera en silencio.
+    throw new ToolError(
+      `"${modelCode}" coincide con ${rows.length} códigos distintos por mayúsculas/minúsculas — repórtalo, no debería pasar.`,
+    )
+  }
+  const row = rows[0]
 
   return {
     model_code: row.model_code,

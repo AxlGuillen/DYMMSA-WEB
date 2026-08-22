@@ -103,6 +103,26 @@ describe('setInventoryLocation (issue #72)', () => {
     expect(filterValue(call, 'model_code', 'ilike')).toBe('50\\%\\_A')
   })
 
+  test('avisa en vez de devolver la primera en silencio si el ilike toca >1 fila', async () => {
+    // No debería pasar (model_code es UNIQUE por valor exacto), pero si "abc"
+    // y "ABC" coexistieran el ilike case-insensitive tocaría ambas.
+    const client = createMockSupabase({
+      responses: {
+        'store_inventory.update': {
+          data: [
+            { model_code: 'abc', quantity: 1, location: 'A1' },
+            { model_code: 'ABC', quantity: 2, location: 'A1' },
+          ],
+          error: null,
+        },
+      },
+    })
+
+    await expect(
+      setInventoryLocation(asDb(client), { model_code: 'abc', location: 'A1' }),
+    ).rejects.toThrow(/coincide con 2 códigos/)
+  })
+
   test('location vacío o ausente borra la ubicación (null) con nota', async () => {
     const client = createMockSupabase({
       responses: {
