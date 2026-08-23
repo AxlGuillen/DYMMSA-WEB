@@ -3,6 +3,48 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-08-21
+
+### Nuevo
+- **Las secciones de una cotización ahora tienen color.** Cada separador se
+  pinta con un tono distinto que **rota automáticamente** (verde azulado, azul,
+  violeta, rosa…) para que las secciones se distingan de un vistazo en
+  cotizaciones largas. Si prefieres un color específico, el separador trae un
+  **botón de paleta** para fijarlo (y "A" para volver al automático). El color
+  se ve igual en el cotizador, el detalle, la **página de aprobación del
+  cliente** y la orden — viaja con la sección todo el flujo.
+
+## 2026-08-20
+
+### Nuevo
+- **El asistente ahora da seguimiento a tareas y registra gavetas.** Vía el
+  conector puede **comentar, cambiar prioridad y cerrar/reabrir tareas** (los
+  comentarios quedan firmados como "Asistente (MCP)") y **registrar en qué
+  gaveta quedó un producto** del inventario — solo la ubicación, nunca las
+  cantidades. Además, al conectar ahora recibe un mapa claro de qué
+  herramientas son de la app y cuáles del Odoo externo.
+- **Planificar corte sin orden.** Nueva entrada **"Planificar corte"** en el menú:
+  un modo rápido para calcular un corte al vuelo — capturas las piezas a mano,
+  ves el acomodo y el Excel de pedido, sin necesidad de una orden. El borrador
+  se queda guardado en tu navegador hasta que lo limpies.
+- **Planificar corte desde la cotización.** Si la cotización tiene piezas DYMMSA,
+  el botón **"Planificar corte"** abre el modo rápido con esas piezas sugeridas —
+  para pensar el material desde antes de que exista la orden.
+- **Control de medidas de material.** Nueva página **"Medidas de material"**: las
+  barras y hojas que ofrece el proveedor (que se registran solas al usarlas) ahora
+  se pueden revisar, dar de alta a mano y borrar si se capturaron mal.
+
+### Mejorado
+- **Diagramas de corte más claros.** El paso de la sierra se dibuja con rayado
+  (ya no se confunde con una pieza delgada), el sobrante muestra su medida y
+  cada grupo trae una leyenda de qué es pieza, corte y sobrante.
+- **El asistente ya revisa los complementos de pago (REP).** Al preguntarle por un
+  pago (p. ej. "PAY00068") ahora responde si su complemento de pago está **timbrado
+  y validado ante el SAT**, y desglosa qué facturas paga, cada una con su saldo y su
+  propio CFDI. También puede hacer el **barrido del mes**: qué pagos quedaron en
+  regla, cuáles no tienen REP y cuáles lo tienen fallido — el pendiente más fácil de
+  olvidar, porque el REP se timbra después del cobro.
+
 ## 2026-08-13
 
 ### Mejorado

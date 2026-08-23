@@ -125,6 +125,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `quotation_id` | uuid | No | — | FK → `quotations.id` | |
 | `item_type` | text | No | `'product'` | | `product` o `separator` |
 | `section_label` | text | Sí | — | | Etiqueta del separador |
+| `separator_color` | text | Sí | — | | Override del color de sección (issue #73); NULL = automático; CHECK solo en separadores |
 | `sort_order` | integer | No | `0` | | Orden de visualización |
 | `etm` | text | Sí | — | | Código ETM (null en separadores) |
 | `description` | text | Sí | — | | |
@@ -179,6 +180,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `order_id` | uuid | No | — | FK → `orders.id` | |
 | `item_type` | text | No | `'product'` | | `product` o `separator` |
 | `section_label` | text | Sí | — | | Etiqueta del separador |
+| `separator_color` | text | Sí | — | | Override del color de sección (issue #73); NULL = automático; CHECK solo en separadores |
 | `sort_order` | integer | No | `0` | | Orden preservado desde cotización |
 | `etm` | text | Sí | — | | |
 | `model_code` | text | No | — | | |
@@ -341,3 +343,4 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `create_purchase_planner_tables` | (2026-07-15) | Tablas `order_purchase_decisions` (decisión mayoreo/menudeo por orden a nivel grupo, con snapshots para staleness y CHECK de cobertura) y `app_settings` (key-value jsonb para umbrales). RLS + policy authenticated. ADR-018 |
 | `allow_received_to_exceed_ordered` | (2026-07-16) | DROP `check_received_not_exceed_ordered` en `order_items`: lo recibido puede superar lo pedido (recepción con excedente → inventario, por delta). Se conserva `>= 0`. ADR-019 |
 | `create_suppliers_module` | (2026-07-16) | Tablas `suppliers`, `brands` (sembrada con las marcas existentes) y `supplier_brands` (M2M; brand_id sin cascade → borrar marca en uso se bloquea). RLS + policies. Issue #21 |
+| `add_separator_color` | (2026-08-21) | Columna `separator_color` (text, nullable) en `quotation_items` y `order_items`, CHECK solo-separadores. Override manual del color de sección; NULL = automático. Issue #73 |

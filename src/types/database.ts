@@ -217,6 +217,8 @@ export interface OrderItem {
   order_id: string
   item_type: 'product' | 'separator'
   section_label: string | null
+  /** Override del color de sección (issue #73); null = automático por índice. */
+  separator_color: string | null
   sort_order: number
   etm: string
   model_code: string
@@ -235,7 +237,8 @@ export interface OrderItem {
 
 // location es opcional en el insert (columna nullable; separadores no la llevan).
 export type OrderItemInsert =
-  Omit<OrderItem, 'id' | 'created_at' | 'location'> & { location?: string | null }
+  Omit<OrderItem, 'id' | 'created_at' | 'location' | 'separator_color'> &
+  { location?: string | null; separator_color?: string | null }
 export type OrderItemUpdate = Partial<Omit<OrderItem, 'id' | 'created_at' | 'order_id'>>
 
 // Decisión mayoreo/menudeo por orden a nivel GRUPO (model_code+brand
@@ -346,6 +349,8 @@ export interface QuotationItem {
   quotation_id: string
   item_type: 'product' | 'separator'
   section_label: string | null
+  /** Override del color de sección (issue #73); null = automático por índice. */
+  separator_color: string | null
   etm: string | null
   description: string | null
   description_es: string | null
@@ -378,6 +383,8 @@ export interface QuotationItemRow {
   _dbId?: string     // real DB id; present only on persisted items (undefined for newly added rows)
   item_type: 'product' | 'separator'
   section_label: string  // label for separator rows (may be empty)
+  /** Override del color de sección (issue #73); null/undefined = automático. */
+  separator_color?: string | null
   etm: string        // required, read-only in edit mode
   description: string
   description_es: string

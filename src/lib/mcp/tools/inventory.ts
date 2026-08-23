@@ -64,3 +64,56 @@ export async function getInventoryStats(db: Db) {
     in_stock: items.filter((i) => i.quantity > 5).length,
   }
 }
+
+export interface SetInventoryLocationInput {
+  model_code?: string
+  location?: string | null
+}
+
+/**
+ * Escritura acotada (issue #72, ADR-015): SOLO el metadato de ubicación física
+ * (gaveta) de una fila EXISTENTE del inventario. Las cantidades siguen vedadas
+ * vía MCP — son el núcleo transaccional. Mismo saneo que PATCH /api/inventory:
+ * texto trim, vacío → null (borrar la ubicación).
+ */
+export async function setInventoryLocation(db: Db, input: SetInventoryLocationInput) {
+  const modelCode = (input.model_code ?? '').trim()
+  if (!modelCode) throw new ToolError('Indica el model_code del producto en inventario')
+
+  const location = typeof input.location === 'string' ? (input.location.trim() || null) : null
+
+  // ilike con comodines escapados: match exacto pero case-insensitive — las
+  // filas de inventario se guardan con trim sin mayusculizar.
+  const exactPattern = modelCode.replace(/[\\%_]/g, (c) => `\\${c}`)
+
+  const { data, error } = await db
+    .from('store_inventory')
+    .update({ location })
+    .ilike('model_code', exactPattern)
+    .select('model_code, quantity, location')
+
+  if (error) throw new ToolError(`Error al actualizar la ubicación: ${error.message}`)
+  const rows = (data ?? []) as StoreInventory[]
+  if (rows.length === 0) {
+    // No se crea la fila: la ubicación es metadato de algo YA inventariado.
+    throw new ToolError(
+      `"${modelCode}" no está en el inventario — la ubicación solo se asigna a productos ya inventariados (usa search_inventory para verificar el código).`,
+    )
+  }
+  if (rows.length > 1) {
+    // model_code es UNIQUE por valor exacto: el ilike case-insensitive pudo
+    // haber tocado más de una fila (p. ej. "abc" y "ABC" coexistiendo). Ya se
+    // actualizaron todas — se avisa en vez de devolver solo la primera en silencio.
+    throw new ToolError(
+      `"${modelCode}" coincide con ${rows.length} códigos distintos por mayúsculas/minúsculas — repórtalo, no debería pasar.`,
+    )
+  }
+  const row = rows[0]
+
+  return {
+    model_code: row.model_code,
+    quantity: row.quantity,
+    ubicacion: row.location,
+    nota: location === null ? 'Ubicación borrada.' : undefined,
+  }
+}

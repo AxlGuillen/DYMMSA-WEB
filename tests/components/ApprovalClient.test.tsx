@@ -10,6 +10,7 @@ import { renderWithProviders } from './helpers/render'
 import { quotationWithItems, quotationItem, separatorRow } from './helpers/fixtures'
 import { ApprovalClient } from '@/app/approve/[token]/ApprovalClient'
 import { APPROVAL_TOUR } from '@/lib/tours/approval'
+import { SEPARATOR_PALETTE, SEPARATOR_COLOR_KEYS } from '@/lib/separator-palette'
 import type { QuotationItem } from '@/types/database'
 
 const driveMock = vi.hoisted(() => vi.fn())
@@ -115,5 +116,20 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
     await user.click(screen.getByRole('button', { name: /vista guiada/i }))
     expect(driveMock).toHaveBeenCalledOnce()
     expect(driverMock.mock.calls[0][0].steps).toHaveLength(APPROVAL_TOUR.length)
+  })
+
+  test('colores de sección: rotan por índice y el override guardado gana (issue #73)', () => {
+    const quotation = sentQuotation()
+    // sep-b trae override manual; sep-a queda en automático.
+    quotation.quotation_items = quotation.quotation_items.map((item) =>
+      item.id === 'sep-b' ? { ...item, separator_color: 'rose' } : item,
+    )
+    renderWithProviders(<ApprovalClient quotation={quotation} token="tok-1" />)
+
+    const rowA = screen.getByText('Obra Norte').closest('tr')!
+    const rowB = screen.getByText('Obra Sur').closest('tr')!
+    // 1er separador → 1er color de la paleta; override → su tono exacto.
+    expect(rowA.className).toContain(SEPARATOR_PALETTE[SEPARATOR_COLOR_KEYS[0]].row)
+    expect(rowB.className).toContain(SEPARATOR_PALETTE.rose.row)
   })
 })

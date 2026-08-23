@@ -38,6 +38,7 @@ import {
   ExternalLink,
   AlertCircle,
   RotateCcw,
+  Scissors,
   SeparatorHorizontal,
 } from '@/components/icons'
 import { toast } from 'sonner'
@@ -90,6 +91,9 @@ import { ProductModal } from '@/components/quoter/ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { QUOTATION_STATUS_LABELS, MANUAL_QUOTATION_STATUSES } from '@/lib/quotation-status'
 import { useSendForApproval, useUpdateQuotation, useCreateOrderFromQuotation, useDeleteQuotation, useChangeQuotationStatus, ApiError } from '@/hooks/useQuotations'
+import { fetchJson } from '@/lib/fetch-json'
+import { useCutDraftStore } from '@/stores/cutDraftStore'
+import type { CutPlanCandidate } from '@/hooks/useCutPlan'
 import { useOrderByQuotationId } from '@/hooks/useOrders'
 import { useCurrency } from '@/hooks/useCurrency'
 import { useVisibleColumns, type TableColumn } from '@/hooks/useVisibleColumns'
@@ -98,6 +102,8 @@ import { ResizableHead } from '@/components/ResizableHead'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import { calculateQuotationTotal, isProductItem as isProductRow, isNotSold } from '@/lib/business-rules'
 import { notSoldRowClass } from '@/lib/sold-status'
+import { separatorRowClass } from '@/lib/separator-palette'
+import { SeparatorColorPicker } from '@/components/SeparatorColorPicker'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import { getBlockingIssues } from '@/lib/quotation-validation'
 import { scrollToRow } from '@/lib/dom-helpers'
@@ -178,12 +184,15 @@ interface SortableSeparatorDetailRowProps {
   canEdit: boolean
   isDndEnabled: boolean
   totalCols: number
+  /** Posición del separador entre los separadores (color automático, issue #73). */
+  sectionIndex: number
   onLabelChange: (id: string, label: string) => void
+  onColorChange: (id: string, color: string | null) => void
   onRemove: (id: string) => void
 }
 
 function SortableSeparatorDetailRow({
-  item, canEdit, isDndEnabled, totalCols, onLabelChange, onRemove,
+  item, canEdit, isDndEnabled, totalCols, sectionIndex, onLabelChange, onColorChange, onRemove,
 }: SortableSeparatorDetailRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._id })
@@ -198,7 +207,7 @@ function SortableSeparatorDetailRow({
     <TableRow
       ref={setNodeRef}
       style={style}
-      className={`border-b border-dashed border-border/60 bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))] ${isDragging ? 'shadow-lg' : ''}`}
+      className={`border-b border-dashed border-border/60 ${separatorRowClass(item.separator_color, sectionIndex)} ${isDragging ? 'shadow-lg' : ''}`}
     >
       {canEdit && (
         <TableCell className="px-2">
@@ -219,6 +228,10 @@ function SortableSeparatorDetailRow({
       <TableCell colSpan={totalCols - (canEdit ? 2 : 0)} className="px-4 py-2">
         {canEdit ? (
           <div className="flex items-center gap-2">
+            <SeparatorColorPicker
+              value={item.separator_color}
+              onChange={(color) => onColorChange(item._id, color)}
+            />
             <SeparatorHorizontal className="size-3.5 text-muted-foreground shrink-0" />
             <Input
               value={item.section_label ?? ''}
@@ -438,6 +451,7 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   _dbId:          item.id,
   item_type:      item.item_type      ?? 'product',
   section_label:  item.section_label  ?? '',
+  separator_color: item.separator_color ?? null,
   etm:            item.etm            ?? '',
   description:    item.description    ?? '',
   description_es: item.description_es ?? '',
@@ -528,6 +542,32 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const { data: relatedOrder } = useOrderByQuotationId(quotation.id, isConvertedToOrder)
 
+  // Desde la cotización se empieza a pensar el corte, antes de que exista la
+  // orden (issue #71): el botón siembra el modo rápido con las piezas DYMMSA.
+  // Misma detección que OrderDetail; "no lo vendemos" fuera (no se manda a hacer).
+  const hasDymmsaItems = quotation.quotation_items.some(
+    (item) =>
+      (!item.item_type || item.item_type === 'product') &&
+      !isNotSold(item) &&
+      (item.brand ?? '').trim().toUpperCase() === 'DYMMSA',
+  )
+  const seedCutDraft = useCutDraftStore((s) => s.seed)
+  const [isSeedingCut, setIsSeedingCut] = useState(false)
+  const handlePlanCut = async () => {
+    setIsSeedingCut(true)
+    try {
+      const { candidates } = await fetchJson<{ candidates: CutPlanCandidate[] }>(
+        `/api/quotations/${quotation.id}/cut-candidates`,
+      )
+      seedCutDraft(candidates, quotation.name || quotation.customer_name || 'la cotización')
+      push('/dashboard/cutting')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo abrir el planificador de corte')
+    } finally {
+      setIsSeedingCut(false)
+    }
+  }
+
   // Re-sync local state when quotation IDs change OR when item IDs change.
   // After save, the route DELETE+INSERT regenerates item IDs, so we react to
   // the items signature to keep localItems in sync with the refetched data.
@@ -616,6 +656,24 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     )
     setIsDirty(true)
   }
+
+  const handleSeparatorColorChange = (id: string, color: string | null) => {
+    setLocalItems((prev) =>
+      prev.map((item) => item._id === id ? { ...item, separator_color: color } : item)
+    )
+    setIsDirty(true)
+  }
+
+  // Índice de sección por separador sobre la lista COMPLETA (no la filtrada):
+  // el color automático no debe cambiar al filtrar por aprobación (issue #73).
+  const sectionIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    let n = 0
+    for (const item of localItems) {
+      if (item.item_type === 'separator') map.set(item._id, n++)
+    }
+    return map
+  }, [localItems])
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -1076,6 +1134,22 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             </AlertDialog>
           )}
 
+          {hasDymmsaItems && (
+            <Button
+              variant="outline"
+              onClick={handlePlanCut}
+              disabled={isSeedingCut}
+              title="Abre el corte rápido con las piezas DYMMSA de esta cotización"
+            >
+              {isSeedingCut ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Scissors className="mr-2 size-4" />
+              )}
+              Planificar corte
+            </Button>
+          )}
+
           {/* Delete — always available */}
           <Button
             type="button"
@@ -1480,7 +1554,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                             canEdit={canEdit}
                             isDndEnabled={isDndEnabled}
                             totalCols={cols.visibleCount}
+                            sectionIndex={sectionIndexById.get(item._id) ?? 0}
                             onLabelChange={handleSeparatorLabelChange}
+                            onColorChange={handleSeparatorColorChange}
                             onRemove={handleRemove}
                           />
                         ) : (

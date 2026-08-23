@@ -238,6 +238,8 @@ export { Pencil } from 'lucide-react'
 export { Scissors } from 'lucide-react'
 // Ídem: sin impresora en los 248 animados (issue #64).
 export { Printer } from 'lucide-react'
+// Ídem: sin regla en los animados (issue #71 — página de medidas de material).
+export { Ruler } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
 export const RotateCcw = wrap(_CornerUpLeft)

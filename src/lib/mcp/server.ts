@@ -3,8 +3,9 @@
  *
  * Fase 1: solo lectura sobre todos los módulos. Fase 2 (ADR-015): escrituras
  * aprobadas como dirección (decisión 2026-07-12), incorporadas por nivel de
- * riesgo — primera: create_task. Las que muten el núcleo transaccional
- * (inventario, cotizaciones, órdenes) se diseñan con el usuario antes.
+ * riesgo — hoy: create_task, update_task y set_inventory_location (issue #72;
+ * ninguna toca cantidades ni el flujo cotización/orden). Las que muten el
+ * núcleo transaccional se diseñan con el usuario antes.
  *
  * Fase 3 (ADR-023): OAuth 2.1 de Supabase. CERO service_role — cada llamada
  * construye su cliente con el token del request (contextFrom → clientForToken),
@@ -23,12 +24,13 @@ import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } fr
 import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
 import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/odoo/operations'
 import { odooInvoiceDetail, odooSaleDetail } from './tools/odoo/documents'
+import { odooPaymentDetail, odooRepAudit } from './tools/odoo/payments'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
-import { searchInventory, getInventoryStats } from './tools/inventory'
+import { searchInventory, getInventoryStats, setInventoryLocation } from './tools/inventory'
 import { searchProducts } from './tools/products'
 import { searchUrreaCatalog } from './tools/urrea'
-import { listTasks, getTask, createTask } from './tools/tasks'
+import { listTasks, getTask, createTask, updateTask } from './tools/tasks'
 import { getBusinessSummary } from './tools/summary'
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
@@ -56,7 +58,10 @@ async function run(extra: ToolExtra, fn: (db: Db) => Promise<unknown>): Promise<
   }
 }
 
-/** Todas las tools menos create_task son de lectura pura. */
+/**
+ * Lectura pura — todas las tools salvo las escrituras acotadas de ADR-015
+ * (create_task, update_task, set_inventory_location).
+ */
 const readOnly = { readOnlyHint: true, openWorldHint: false } as const
 
 const pagination = {
@@ -79,7 +84,41 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB (solo lectura). Las cotizaciones/órdenes de aquí y las facturas de Odoo son mundos separados — no asumas cruces entre ambos.
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
+/**
+ * Instructions del server MCP (issue #72): el mapa de los dos bloques + las
+ * reglas de negocio. Es lo primero que el cliente entrega al modelo al
+ * conectar — la agrupación vive aquí porque el listado de tools es plano.
+ */
+export const SERVER_INSTRUCTIONS = `# MCP DYMMSA — mapa de herramientas
+
+Las tools se dividen en DOS bloques que NO se cruzan:
+
+## Bloque A — DYMMSA-WEB (la app de cotizaciones e inventario)
+- Panorama: get_business_summary (úsala primero para contexto global).
+- Cotizaciones: list_quotations, get_quotation, get_quotation_stats.
+- Órdenes: list_orders, get_order, get_order_by_quotation.
+- Inventario de la TIENDA: search_inventory, get_inventory_stats; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
+- Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
+- Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
+
+## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
+La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
+- Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
+- Contabilidad: odoo_overdue_invoices, odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit.
+- Ventas: odoo_sales_summary, odoo_customer_profile, odoo_sale_detail.
+- Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
+
+Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las tres del bloque A listadas arriba; todo lo demás es lectura.
+
+${BUSINESS_RULES_MD}`
+
 export function registerDymmsaTools(server: McpServer): void {
+  // ══════════════════════════════════════════════════════════════════════
+  // BLOQUE A — DYMMSA-WEB (la app): cotizaciones, órdenes, inventario,
+  // catálogos y tareas. Lectura + escrituras acotadas (ADR-015). Los títulos
+  // van sin sufijo: la app es el default; lo externo (Odoo) es lo marcado.
+  // ══════════════════════════════════════════════════════════════════════
+
   // ─── Resumen ─────────────────────────────────────────────────────────
   server.registerTool(
     'get_business_summary',
@@ -201,6 +240,22 @@ export function registerDymmsaTools(server: McpServer): void {
     (_input, extra) => run(extra, (db) => getInventoryStats(db)),
   )
 
+  server.registerTool(
+    'set_inventory_location',
+    {
+      title: 'Asignar ubicación en tienda',
+      description:
+        'Asigna o corrige la ubicación física (gaveta) de un producto YA inventariado. ESCRIBE: usa solo cuando el usuario pida registrar dónde quedó algo (p. ej. "el 6954 quedó en la gaveta B3"). Solo toca el metadato de ubicación — las cantidades de inventario NUNCA se modifican por aquí. location vacío o ausente = borrar la ubicación.',
+      inputSchema: {
+        model_code: z.string().min(1).describe('Código del producto en inventario (match exacto, sin distinguir mayúsculas/minúsculas)'),
+        location: z.string().optional().describe('Ubicación física/gaveta, texto libre; omite o vacío para borrarla'),
+      },
+      // Escritura acotada (issue #72, ADR-015): metadato duradero, no transaccional.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (db) => setInventoryLocation(db, input)),
+  )
+
   // ─── Catálogo ETM ────────────────────────────────────────────────────
   server.registerTool(
     'search_products',
@@ -269,13 +324,38 @@ export function registerDymmsaTools(server: McpServer): void {
         description: z.string().optional().describe('Descripción/detalle de la tarea'),
         priority: z.string().optional().describe('low | medium | high | highest'),
       },
-      // Única escritura (ADR-015 Fase 2): sin readOnlyHint a propósito.
+      // Escritura (ADR-015 Fase 2): sin readOnlyHint a propósito.
       annotations: { readOnlyHint: false, openWorldHint: false },
     },
     (input, extra) => run(extra, () => createTask(input)),
   )
 
-  // ─── Bloque Odoo — Fase 1: Contabilidad (issue #65, ADR-025) ─────────
+  server.registerTool(
+    'update_task',
+    {
+      title: 'Actualizar tarea',
+      description:
+        'Actualiza una tarea existente (GitHub Issue). ESCRIBE: usa solo cuando el usuario pida comentar, cambiar la prioridad o cerrar/reabrir una tarea. Acepta cualquier combinación de: comment (se publica atribuido a "Asistente (MCP)"), priority (low | medium | high | highest, o "none" para quitarla) y state (open | closed; al cerrar, state_reason "completed" o "not_planned" = descartada). NO edita título ni descripción — eso se hace en la app.',
+      inputSchema: {
+        task_number: z.number().int().min(1).describe('Número de la tarea (#N)'),
+        comment: z.string().optional().describe('Comentario a publicar en la tarea'),
+        priority: z.string().optional().describe('low | medium | high | highest, o "none" para quitarla'),
+        state: z.string().optional().describe('open (reabrir) | closed (cerrar)'),
+        state_reason: z.string().optional().describe('Solo al cerrar: completed (default) | not_planned (descartada)'),
+      },
+      // Escritura acotada (issue #72, ADR-015): comentar/priorizar/cerrar, nunca reescribir texto humano.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, () => updateTask(input)),
+  )
+
+  // ══════════════════════════════════════════════════════════════════════
+  // BLOQUE B — ODOO (externo, SOLO lectura, ADR-025): la facturación oficial
+  // de la empresa vive en un tercero. Prefijo odoo_* + título con "(Odoo)".
+  // Jamás se escribe ni se cruza con el bloque A — mundos separados.
+  // ══════════════════════════════════════════════════════════════════════
+
+  // ─── Odoo — Fase 1: Contabilidad (issue #65) ─────────────────────────
   // Consultan el Odoo de la EMPRESA (tercero donde vive la facturación
   // oficial), no la base de DYMMSA-WEB. Solo lectura, con API key del server.
   const domainSchema = z
@@ -288,7 +368,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Consulta genérica en Odoo',
       description:
-        'Consulta Odoo (el sistema de FACTURACIÓN de la empresa, externo a DYMMSA-WEB) sobre los modelos del catálogo permitido — hoy: account.move (facturas), account.payment (pagos). Úsala para preguntas que las tools curadas no cubran. Devuelve registros normalizados (máx 50). Prefiere odoo_aggregate para totales.',
+        'Consulta Odoo (el sistema de FACTURACIÓN de la empresa, externo a DYMMSA-WEB) sobre los modelos del catálogo permitido: facturas y sus líneas, pagos, documentos CFDI/REP, contactos, ventas y sus líneas, productos, existencias, empleados (directorio) y flotilla. Úsala para preguntas que las tools curadas no cubran. Devuelve registros normalizados (máx 50). Prefiere odoo_aggregate para totales.',
       inputSchema: {
         model: z.string().describe('Modelo Odoo del catálogo, p. ej. "account.move"'),
         domain: domainSchema,
@@ -406,6 +486,35 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, () => odooSaleDetail(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_payment_detail',
+    {
+      title: 'Detalle de pago con su REP (Odoo)',
+      description:
+        'Un pago de cliente de Odoo (externo) completo por folio (p. ej. "PAY00068"): encabezado, estado del COMPLEMENTO DE PAGO (REP) — timbrado y estado ante el SAT — y el desglose de facturas que paga, cada una con su saldo y su propio CFDI. Acepta folio parcial; con varias coincidencias devuelve la lista.',
+      inputSchema: {
+        folio: z.string().min(1).describe('Folio del pago, p. ej. "PAY00068"'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooPaymentDetail(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_rep_audit',
+    {
+      title: 'Auditoría de complementos de pago (Odoo)',
+      description:
+        'Barrido de pagos de cliente de Odoo (externo) en un rango de fechas, clasificados por su complemento de pago (REP): en regla, SIN REP, o con REP fallido/no válido ante el SAT. El cruce pago→REP es por las facturas conciliadas. Default: últimos 30 días. Úsala para el barrido mensual de "¿qué pagos se quedaron sin timbrar?".',
+      inputSchema: {
+        date_from: z.string().optional().describe('Desde (YYYY-MM-DD); default hace 30 días'),
+        date_to: z.string().optional().describe('Hasta (YYYY-MM-DD); default hoy'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooRepAudit(callOdoo, input)),
   )
 
   server.registerTool(

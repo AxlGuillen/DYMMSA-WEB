@@ -93,6 +93,30 @@ describe('POST /quotations/save', () => {
     expect(sep.etm).toBeNull()
     expect(sep.unit_price).toBeNull()
     expect(sep.section_label).toBe('Sección A')
+    // sin override → null (color automático); en productos siempre null
+    expect(sep.separator_color).toBeNull()
+    expect(items[0].separator_color).toBeNull()
+  })
+
+  test('persiste separator_color en separadores y lo nulea en productos (issue #73)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.insert': { data: { id: 'q1' }, error: null },
+        'quotation_items.insert': { data: null, error: null },
+      },
+    })
+    await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [
+        separator({ separator_color: 'rose' }),
+        // Un producto con color (payload malicioso/bug) NO lo persiste.
+        product({ separator_color: 'teal' }),
+      ],
+    }))
+    const items = activeClient.insertPayload('quotation_items')
+    expect(items[0].separator_color).toBe('rose')
+    expect(items[1].separator_color).toBeNull()
   })
 
   test('REGLA: persiste is_sold (false/true/null) y separador con is_sold null', async () => {
@@ -316,6 +340,30 @@ describe('PATCH /quotations/[id]/update', () => {
     expect(res.status).toBe(200)
   })
 
+  test('persiste separator_color del separador al reescribir los ítems (issue #73)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'draft' }, error: null },
+        'quotation_items.select': { data: [], error: null },
+        'quotation_items.delete': { data: null, error: null },
+        'quotation_items.insert': { data: null, error: null },
+        'quotations.update': { data: null, error: null },
+      },
+    })
+    const res = await update.PATCH(
+      makeRequest({
+        name: 'Q', customer_name: 'ACME',
+        items: [separator({ separator_color: 'amber' }), product({ separator_color: 'teal' })],
+      }),
+      makeParams({ id: 'q1' }),
+    )
+    expect(res.status).toBe(200)
+    const items = activeClient.insertPayload('quotation_items')
+    expect(items[0].separator_color).toBe('amber')
+    expect(items[1].separator_color).toBeNull()   // producto: siempre null
+  })
+
   test('REGLA: en aprobada, preserva is_approved del item (true/false) y deja null a los nuevos', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
@@ -474,7 +522,7 @@ describe('POST /quotations/[id]/create-order', () => {
           data: {
             id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
             quotation_items: [
-              { id: 'sep', item_type: 'separator', section_label: 'A', sort_order: 0 },
+              { id: 'sep', item_type: 'separator', section_label: 'A', separator_color: 'violet', sort_order: 0 },
               { id: 'p1', item_type: 'product', is_approved: true,  sort_order: 1, model_code: 'MC1', quantity: 3, unit_price: 100, etm: 'E1', brand: 'URREA' },
               { id: 'p2', item_type: 'product', is_approved: false, sort_order: 2, model_code: 'MC2', quantity: 5, unit_price: 50,  etm: 'E2', brand: 'URREA' },
             ],
@@ -498,6 +546,8 @@ describe('POST /quotations/[id]/create-order', () => {
     const items = activeClient.insertPayload('order_items')
     expect(items).toHaveLength(2)          // separador + p1 aprobado
     expect(items.map((i) => i.item_type)).toEqual(['separator', 'product'])
+    // el color del separador viaja a la orden (issue #73)
+    expect(items[0].separator_color).toBe('violet')
     const p1 = items.find((i) => i.item_type === 'product')!
     expect(p1.quantity_approved).toBe(3)
     expect(p1.quantity_in_stock).toBe(3)   // stock 10 cubre los 3
