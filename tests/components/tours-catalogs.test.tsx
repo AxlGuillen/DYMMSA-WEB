@@ -43,6 +43,10 @@ vi.mock('@/components/urrea-catalog/CatalogForm', () => ({ CatalogForm: () => nu
 vi.mock('@/components/urrea-catalog/CatalogImporter', () => ({ CatalogImporter: () => null }))
 
 vi.mock('@/hooks/useInventory', () => ({
+  // La página también importa las constantes del filtro por marca (#53);
+  // sin ellas el mock del módulo las deja undefined y revienta el render.
+  ALL_BRANDS: '__all__',
+  NO_BRAND: '__none__',
   useInventory: () => ({
     data: { data: [], count: 0, page: 1, pageSize: 20, totalPages: 1 },
     isLoading: false,
