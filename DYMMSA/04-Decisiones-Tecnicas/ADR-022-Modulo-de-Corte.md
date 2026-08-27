@@ -101,3 +101,14 @@ El planificador solo se alcanzaba desde una orden. Tres accesos nuevos:
 - El paso de la sierra ahora es un **achurado diagonal** (patrón SVG con id por instancia via `useId`) en vez de un bloque sólido confundible con una pieza delgada; tooltip con el margen.
 - El sobrante punteado muestra su medida dentro del área cuando cabe el texto.
 - **`CutLegend`** compartida (pieza / corte de sierra / sobrante), una por grupo — no por diagrama.
+
+---
+
+## Enmienda 2026-08-26 (issue #81): acomodo de placas por CARRILES, no por filas
+
+Reporte de campo: hoja 150×420 con piezas 30×400 + 2×100×200 pedía **2 hojas** cuando todo cabe en **1**. Causa: el modelo shelf armaba filas definidas por el LARGO de su pieza más larga — todas las piezas de una fila compartían el mismo inicio en X, así que una pieza jamás podía ir DESPUÉS de otra a lo largo.
+
+- `packSheets` ahora acomoda por **carriles a lo ancho** (FFD por ancho): dentro de un carril las piezas van **punta con punta a lo largo** con margen entre cortes — el mismo modelo 1D de las barras, por banda. Una pieza angosta puede rellenar el largo restante de un carril ancho.
+- `PackedSheet` pasa de `shelves` a `lanes` con **posiciones explícitas** (`xMm`, `yMm`) por pieza; `CutSheetDiagram` dibuja en coordenadas reales, con sobrante punteado POR CARRIL + banda de ancho libre, y el corte entre carriles corre a lo largo de lo usado (rip).
+- El caption de la hoja ahora reporta también el **ancho libre**.
+- Regresión fijada en tests con el caso reportado (1 hoja, encaje exacto 420 y 150).

@@ -174,26 +174,34 @@ export function packBars(
   }
 }
 
-// ─── Momento 2: acomodo en tira (placas, shelf packing) ────────────────
+// ─── Momento 2: acomodo en hojas (placas, carriles por ancho) ──────────
 
 export interface PackedPlateItem {
   pieceId: string
   widthMm: number
   lengthMm: number
-  /** Posición a lo ancho de la tira (para dibujar). */
-  offsetMm: number
+  /** Posición a lo LARGO de la hoja (X, para dibujar). */
+  xMm: number
+  /** Posición a lo ANCHO de la hoja (Y = offset del carril). */
+  yMm: number
 }
 
-export interface PackedShelf {
-  /** Largo de tira que consume la fila (la pieza más larga la define). */
-  lengthMm: number
+/** Banda a lo ancho de la hoja; las piezas corren a lo largo, punta con punta. */
+export interface PackedLane {
+  /** Ancho del carril (la pieza más ancha lo define). */
+  widthMm: number
+  /** Offset del carril a lo ancho de la hoja. */
+  yMm: number
+  /** Largo consumido: piezas + margen entre cada par. */
+  usedLengthMm: number
   items: PackedPlateItem[]
-  usedWidthMm: number
 }
 
 export interface PackedSheet {
-  shelves: PackedShelf[]
-  /** Largo de hoja consumido: filas + un margen entre cada par de filas. */
+  lanes: PackedLane[]
+  /** Ancho consumido: carriles + margen entre cada par. */
+  usedWidthMm: number
+  /** Máximo largo consumido entre carriles (para el sobrante global). */
   usedLengthMm: number
 }
 
@@ -204,8 +212,9 @@ export interface SheetPackResult {
 }
 
 /**
- * Acomodo en HOJAS de medida fija (#64): filas shelf-FFD por largo, luego las
- * filas se paginan en hojas con margen entre pares — la más larga define cada fila.
+ * Acomodo en HOJAS por CARRILES (#81, antes filas por largo): bandas a lo
+ * ancho (FFD por ancho) donde las piezas van punta con punta a lo largo —
+ * el modelo shelf no podía colocar una pieza DESPUÉS de otra y pedía hojas de más.
  */
 export function packSheets(
   pieces: readonly { id: string; widthMm: number; lengthMm: number; quantity: number }[],
@@ -226,36 +235,55 @@ export function packSheets(
         lengthMm: piece.lengthMm,
       })),
     )
-    .sort((a, b) => b.lengthMm - a.lengthMm)
-
-  const shelves: PackedShelf[] = []
-  for (const unit of units) {
-    const target = shelves.find(
-      (shelf) => shelf.usedWidthMm + marginMm + unit.widthMm <= sheetWidthMm,
-    )
-    if (target) {
-      target.items.push({ ...unit, offsetMm: target.usedWidthMm + marginMm })
-      target.usedWidthMm += marginMm + unit.widthMm
-    } else {
-      shelves.push({
-        lengthMm: unit.lengthMm,
-        items: [{ ...unit, offsetMm: 0 }],
-        usedWidthMm: unit.widthMm,
-      })
-    }
-  }
+    .sort((a, b) => b.widthMm - a.widthMm || b.lengthMm - a.lengthMm)
 
   const sheets: PackedSheet[] = []
-  for (const shelf of shelves) {
-    const target = sheets.find(
-      (sheet) => sheet.usedLengthMm + marginMm + shelf.lengthMm <= sheetLengthMm,
-    )
-    if (target) {
-      target.shelves.push(shelf)
-      target.usedLengthMm += marginMm + shelf.lengthMm
-    } else {
-      sheets.push({ shelves: [shelf], usedLengthMm: shelf.lengthMm })
+  for (const unit of units) {
+    // 1) Carril existente con ancho suficiente y largo restante (first-fit).
+    let placed = false
+    for (const sheet of sheets) {
+      const lane = sheet.lanes.find(
+        (l) => unit.widthMm <= l.widthMm && l.usedLengthMm + marginMm + unit.lengthMm <= sheetLengthMm,
+      )
+      if (lane) {
+        const xMm = lane.usedLengthMm + marginMm
+        lane.items.push({ ...unit, xMm, yMm: lane.yMm })
+        lane.usedLengthMm = xMm + unit.lengthMm
+        sheet.usedLengthMm = Math.max(sheet.usedLengthMm, lane.usedLengthMm)
+        placed = true
+        break
+      }
     }
+    if (placed) continue
+
+    // 2) Carril nuevo en una hoja con ancho restante.
+    const sheet = sheets.find(
+      (s) => s.usedWidthMm + marginMm + unit.widthMm <= sheetWidthMm,
+    )
+    if (sheet) {
+      const yMm = sheet.usedWidthMm + marginMm
+      sheet.lanes.push({
+        widthMm: unit.widthMm,
+        yMm,
+        usedLengthMm: unit.lengthMm,
+        items: [{ ...unit, xMm: 0, yMm }],
+      })
+      sheet.usedWidthMm = yMm + unit.widthMm
+      sheet.usedLengthMm = Math.max(sheet.usedLengthMm, unit.lengthMm)
+      continue
+    }
+
+    // 3) Hoja nueva.
+    sheets.push({
+      lanes: [{
+        widthMm: unit.widthMm,
+        yMm: 0,
+        usedLengthMm: unit.lengthMm,
+        items: [{ ...unit, xMm: 0, yMm: 0 }],
+      }],
+      usedWidthMm: unit.widthMm,
+      usedLengthMm: unit.lengthMm,
+    })
   }
 
   return { sheets, impossible }

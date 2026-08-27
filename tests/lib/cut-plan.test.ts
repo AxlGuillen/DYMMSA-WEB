@@ -194,38 +194,59 @@ describe('packBars', () => {
 // ─── Acomodo en hojas de medida fija (placas, issue #64) ─────────────────
 
 describe('packSheets', () => {
-  test('dos piezas comparten fila a lo ancho, con offset separado por margen', () => {
+  test('piezas del mismo ancho que no caben a lo largo van en carriles apilados', () => {
     const { sheets } = packSheets(
       [{ id: 'a', widthMm: 80, lengthMm: 500, quantity: 2 }],
       200,
-      1000,
+      600,
       10,
     )
-    // 80 + 10 + 80 = 170 ≤ 200 → una fila de 500 mm en una sola hoja.
+    // 500 + 10 + 500 > 600 (no caben punta con punta) pero 80 + 10 + 80 = 170 ≤ 200.
     expect(sheets).toHaveLength(1)
-    expect(sheets[0].shelves).toHaveLength(1)
-    expect(sheets[0].shelves[0].items.map((i) => i.offsetMm)).toEqual([0, 90])
+    expect(sheets[0].lanes.map((l) => l.yMm)).toEqual([0, 90])
     expect(sheets[0].usedLengthMm).toBe(500)
+    expect(sheets[0].usedWidthMm).toBe(170)
   })
 
-  test('cuando el ancho se agota abre fila nueva; el largo usado suma margen ENTRE filas', () => {
+  test('dentro de un carril las piezas van punta con punta, con margen entre cortes', () => {
     const { sheets } = packSheets(
-      [
-        { id: 'larga', widthMm: 150, lengthMm: 500, quantity: 1 },
-        { id: 'corta', widthMm: 150, lengthMm: 300, quantity: 1 },
-      ],
-      200,
+      [{ id: 'a', widthMm: 80, lengthMm: 400, quantity: 2 }],
+      100,
       1000,
       10,
     )
-    // 150 + 10 + 150 > 200 → dos filas (500 y 300) que SÍ caben en una hoja
-    // de 1000: 500 + 10 + 300 = 810.
     expect(sheets).toHaveLength(1)
-    expect(sheets[0].shelves.map((s) => s.lengthMm)).toEqual([500, 300])
+    expect(sheets[0].lanes).toHaveLength(1)
+    expect(sheets[0].lanes[0].items.map((i) => i.xMm)).toEqual([0, 410])
     expect(sheets[0].usedLengthMm).toBe(810)
   })
 
-  test('cuando el largo de la hoja se agota, las filas se paginan en una hoja nueva', () => {
+  test('REGRESIÓN #81: el caso reportado cabe en UNA hoja (antes pedía dos)', () => {
+    // Hoja 150 × 420, margen 20: la 30×400 en su carril y las dos 100×200
+    // punta con punta (200+20+200 = 420 exacto). El modelo shelf mandaba la
+    // segunda 100×200 a una hoja nueva.
+    const { sheets, impossible } = packSheets(
+      [
+        { id: 'angosta', widthMm: 30, lengthMm: 400, quantity: 1 },
+        { id: 'media', widthMm: 100, lengthMm: 200, quantity: 2 },
+      ],
+      150,
+      420,
+      20,
+    )
+    expect(impossible).toEqual([])
+    expect(sheets).toHaveLength(1)
+    // FFD por ancho: el carril de 100 va primero (y=0), el de 30 después.
+    const [wide, narrow] = sheets[0].lanes
+    expect(wide.widthMm).toBe(100)
+    expect(wide.items.map((i) => i.xMm)).toEqual([0, 220])
+    expect(narrow.widthMm).toBe(30)
+    expect(narrow.yMm).toBe(120)
+    expect(sheets[0].usedWidthMm).toBe(150)
+    expect(sheets[0].usedLengthMm).toBe(420)
+  })
+
+  test('cuando ni largo ni ancho alcanzan, la pieza abre hoja nueva', () => {
     const { sheets } = packSheets(
       [
         { id: 'larga', widthMm: 150, lengthMm: 500, quantity: 1 },
@@ -235,26 +256,26 @@ describe('packSheets', () => {
       600,
       10,
     )
-    // Dos filas de 500 y 300: 500 + 10 + 300 > 600 → la segunda abre hoja 2.
+    // En carril: 500 + 10 + 300 > 600; carril nuevo: 150 + 10 + 150 > 200 → hoja 2.
     expect(sheets).toHaveLength(2)
-    expect(sheets[0].shelves[0].lengthMm).toBe(500)
-    expect(sheets[1].shelves[0].lengthMm).toBe(300)
+    expect(sheets[0].lanes[0].usedLengthMm).toBe(500)
+    expect(sheets[1].lanes[0].usedLengthMm).toBe(300)
   })
 
-  test('la pieza más larga define la fila; una corta se le une si cabe a lo ancho', () => {
+  test('una pieza angosta rellena el largo restante del carril ancho', () => {
     const { sheets } = packSheets(
       [
-        { id: 'larga', widthMm: 100, lengthMm: 500, quantity: 1 },
-        { id: 'corta', widthMm: 100, lengthMm: 300, quantity: 1 },
+        { id: 'ancha', widthMm: 100, lengthMm: 500, quantity: 1 },
+        { id: 'angosta', widthMm: 40, lengthMm: 300, quantity: 1 },
       ],
-      250,
+      120,
       1000,
       10,
     )
-    // 100 + 10 + 100 = 210 ≤ 250 → misma fila; la de 500 la define.
+    // La de 40 cabe DENTRO del carril de 100 (ancho 40 ≤ 100) tras la de 500.
     expect(sheets).toHaveLength(1)
-    expect(sheets[0].shelves).toHaveLength(1)
-    expect(sheets[0].shelves[0].lengthMm).toBe(500)
+    expect(sheets[0].lanes).toHaveLength(1)
+    expect(sheets[0].lanes[0].items.map((i) => i.xMm)).toEqual([0, 510])
   })
 
   test('pieza más ancha O más larga que la hoja → imposible (v1 no rota)', () => {
