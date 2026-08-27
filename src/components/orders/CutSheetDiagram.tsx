@@ -81,7 +81,7 @@ export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }
                       rx={3}
                       className="fill-amber-600/80 stroke-amber-800/60 dark:fill-amber-500/70"
                     >
-                      <title>{`${formatMm(item.widthMm)} × ${formatMm(item.lengthMm)}`}</title>
+                      <title>{`${formatMm(item.widthMm)} × ${formatMm(item.lengthMm)}${item.rotated ? ' (rotada 90°)' : ''}`}</title>
                     </rect>
                     {w > 90 && h > 22 && (
                       <text

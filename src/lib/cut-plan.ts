@@ -180,6 +180,8 @@ export interface PackedPlateItem {
   pieceId: string
   widthMm: number
   lengthMm: number
+  /** true si la pieza se colocó girada 90° (ancho↔largo invertidos). */
+  rotated: boolean
   /** Posición a lo LARGO de la hoja (X, para dibujar). */
   xMm: number
   /** Posición a lo ANCHO de la hoja (Y = offset del carril). */
@@ -207,82 +209,125 @@ export interface PackedSheet {
 
 export interface SheetPackResult {
   sheets: PackedSheet[]
-  /** Piezas más anchas O más largas que la hoja (v1 no rota — puede haber veta). */
+  /** Piezas que no caben en NINGUNA orientación permitida. */
   impossible: ImpossiblePiece[]
 }
 
+/** Orientación colocable de una unidad (la rotada invierte ancho↔largo). */
+interface Orientation {
+  widthMm: number
+  lengthMm: number
+  rotated: boolean
+}
+
+function orientationsFor(
+  widthMm: number,
+  lengthMm: number,
+  sheetWidthMm: number,
+  sheetLengthMm: number,
+  allowRotation: boolean,
+): Orientation[] {
+  const out: Orientation[] = []
+  if (widthMm <= sheetWidthMm && lengthMm <= sheetLengthMm) {
+    out.push({ widthMm, lengthMm, rotated: false })
+  }
+  // La cuadrada no duplica; la rotada solo si cabe girada.
+  if (allowRotation && widthMm !== lengthMm && lengthMm <= sheetWidthMm && widthMm <= sheetLengthMm) {
+    out.push({ widthMm: lengthMm, lengthMm: widthMm, rotated: true })
+  }
+  return out
+}
+
 /**
- * Acomodo en HOJAS por CARRILES (#81, antes filas por largo): bandas a lo
- * ancho (FFD por ancho) donde las piezas van punta con punta a lo largo —
- * el modelo shelf no podía colocar una pieza DESPUÉS de otra y pedía hojas de más.
+ * Acomodo en HOJAS por CARRILES (#81): FFD por ancho; dentro del carril las
+ * piezas van punta con punta a lo largo. Con `allowRotation` cada pieza puede
+ * girarse 90° si así cabe (desactivable cuando la veta/acabado manda).
  */
 export function packSheets(
   pieces: readonly { id: string; widthMm: number; lengthMm: number; quantity: number }[],
   sheetWidthMm: number,
   sheetLengthMm: number,
   marginMm: number,
+  options: { allowRotation?: boolean } = {},
 ): SheetPackResult {
-  const impossible: ImpossiblePiece[] = pieces
-    .filter((piece) => piece.widthMm > sheetWidthMm || piece.lengthMm > sheetLengthMm)
-    .map((piece) => ({ pieceId: piece.id, lengthMm: piece.lengthMm, quantity: piece.quantity }))
+  const allowRotation = options.allowRotation ?? false
 
-  const units = pieces
-    .filter((piece) => piece.widthMm <= sheetWidthMm && piece.lengthMm <= sheetLengthMm)
-    .flatMap((piece) =>
-      Array.from({ length: piece.quantity }, () => ({
-        pieceId: piece.id,
-        widthMm: piece.widthMm,
-        lengthMm: piece.lengthMm,
-      })),
+  const impossible: ImpossiblePiece[] = []
+  const units: { pieceId: string; orientations: Orientation[] }[] = []
+  for (const piece of pieces) {
+    const orientations = orientationsFor(
+      piece.widthMm, piece.lengthMm, sheetWidthMm, sheetLengthMm, allowRotation,
     )
-    .sort((a, b) => b.widthMm - a.widthMm || b.lengthMm - a.lengthMm)
+    if (orientations.length === 0) {
+      impossible.push({ pieceId: piece.id, lengthMm: piece.lengthMm, quantity: piece.quantity })
+      continue
+    }
+    for (let i = 0; i < piece.quantity; i++) units.push({ pieceId: piece.id, orientations })
+  }
+
+  // Orientación "preferida" = la más angosta (conserva ancho de hoja); las
+  // unidades se ordenan por ese ancho desc — las difíciles definen carriles.
+  const preferred = (u: { orientations: Orientation[] }) =>
+    [...u.orientations].sort((a, b) => a.widthMm - b.widthMm || a.lengthMm - b.lengthMm)[0]
+  units.sort((a, b) => {
+    const pa = preferred(a), pb = preferred(b)
+    return pb.widthMm - pa.widthMm || pb.lengthMm - pa.lengthMm
+  })
 
   const sheets: PackedSheet[] = []
   for (const unit of units) {
-    // 1) Carril existente con ancho suficiente y largo restante (first-fit).
+    // 1) Carril existente (first-fit sobre todas las hojas): dentro del carril
+    //    gana la orientación de MENOR largo — conserva largo del carril.
     let placed = false
     for (const sheet of sheets) {
-      const lane = sheet.lanes.find(
-        (l) => unit.widthMm <= l.widthMm && l.usedLengthMm + marginMm + unit.lengthMm <= sheetLengthMm,
-      )
-      if (lane) {
-        const xMm = lane.usedLengthMm + marginMm
-        lane.items.push({ ...unit, xMm, yMm: lane.yMm })
-        lane.usedLengthMm = xMm + unit.lengthMm
-        sheet.usedLengthMm = Math.max(sheet.usedLengthMm, lane.usedLengthMm)
+      for (const lane of sheet.lanes) {
+        const fit = unit.orientations
+          .filter((o) => o.widthMm <= lane.widthMm && lane.usedLengthMm + marginMm + o.lengthMm <= sheetLengthMm)
+          .sort((a, b) => a.lengthMm - b.lengthMm)[0]
+        if (fit) {
+          const xMm = lane.usedLengthMm + marginMm
+          lane.items.push({ pieceId: unit.pieceId, widthMm: fit.widthMm, lengthMm: fit.lengthMm, rotated: fit.rotated, xMm, yMm: lane.yMm })
+          lane.usedLengthMm = xMm + fit.lengthMm
+          sheet.usedLengthMm = Math.max(sheet.usedLengthMm, lane.usedLengthMm)
+          placed = true
+          break
+        }
+      }
+      if (placed) break
+    }
+    if (placed) continue
+
+    // 2) Carril nuevo en hoja abierta: gana la orientación más ANGOSTA que quepa.
+    const byWidth = [...unit.orientations].sort((a, b) => a.widthMm - b.widthMm)
+    for (const o of byWidth) {
+      const sheet = sheets.find((s) => s.usedWidthMm + marginMm + o.widthMm <= sheetWidthMm)
+      if (sheet) {
+        const yMm = sheet.usedWidthMm + marginMm
+        sheet.lanes.push({
+          widthMm: o.widthMm,
+          yMm,
+          usedLengthMm: o.lengthMm,
+          items: [{ pieceId: unit.pieceId, widthMm: o.widthMm, lengthMm: o.lengthMm, rotated: o.rotated, xMm: 0, yMm }],
+        })
+        sheet.usedWidthMm = yMm + o.widthMm
+        sheet.usedLengthMm = Math.max(sheet.usedLengthMm, o.lengthMm)
         placed = true
         break
       }
     }
     if (placed) continue
 
-    // 2) Carril nuevo en una hoja con ancho restante.
-    const sheet = sheets.find(
-      (s) => s.usedWidthMm + marginMm + unit.widthMm <= sheetWidthMm,
-    )
-    if (sheet) {
-      const yMm = sheet.usedWidthMm + marginMm
-      sheet.lanes.push({
-        widthMm: unit.widthMm,
-        yMm,
-        usedLengthMm: unit.lengthMm,
-        items: [{ ...unit, xMm: 0, yMm }],
-      })
-      sheet.usedWidthMm = yMm + unit.widthMm
-      sheet.usedLengthMm = Math.max(sheet.usedLengthMm, unit.lengthMm)
-      continue
-    }
-
-    // 3) Hoja nueva.
+    // 3) Hoja nueva con la orientación preferida (la más angosta).
+    const o = byWidth[0]
     sheets.push({
       lanes: [{
-        widthMm: unit.widthMm,
+        widthMm: o.widthMm,
         yMm: 0,
-        usedLengthMm: unit.lengthMm,
-        items: [{ ...unit, xMm: 0, yMm: 0 }],
+        usedLengthMm: o.lengthMm,
+        items: [{ pieceId: unit.pieceId, widthMm: o.widthMm, lengthMm: o.lengthMm, rotated: o.rotated, xMm: 0, yMm: 0 }],
       }],
-      usedWidthMm: unit.widthMm,
-      usedLengthMm: unit.lengthMm,
+      usedWidthMm: o.widthMm,
+      usedLengthMm: o.lengthMm,
     })
   }
 

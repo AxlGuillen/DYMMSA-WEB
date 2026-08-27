@@ -278,6 +278,41 @@ describe('packSheets', () => {
     expect(sheets[0].lanes[0].items.map((i) => i.xMm)).toEqual([0, 510])
   })
 
+  test('rotación (#81): una pieza más ancha que la hoja se gira 90° y cabe', () => {
+    const { sheets, impossible } = packSheets(
+      [{ id: 'r', widthMm: 200, lengthMm: 100, quantity: 1 }],
+      150, 420, 20,
+      { allowRotation: true },
+    )
+    expect(impossible).toEqual([])
+    expect(sheets).toHaveLength(1)
+    expect(sheets[0].lanes[0].items[0]).toMatchObject({ widthMm: 100, lengthMm: 200, rotated: true })
+  })
+
+  test('sin allowRotation (default de la lib) la misma pieza es imposible', () => {
+    const { sheets, impossible } = packSheets(
+      [{ id: 'r', widthMm: 200, lengthMm: 100, quantity: 1 }],
+      150, 420, 20,
+    )
+    expect(sheets).toHaveLength(0)
+    expect(impossible).toHaveLength(1)
+  })
+
+  test('en un carril existente gana la orientación de MENOR largo (conserva carril)', () => {
+    const { sheets } = packSheets(
+      [
+        { id: 'ancha', widthMm: 130, lengthMm: 500, quantity: 1 },
+        { id: 'chica', widthMm: 80, lengthMm: 120, quantity: 1 },
+      ],
+      150, 700, 10,
+      { allowRotation: true },
+    )
+    // La 80×120 entra ROTADA (120×80) al carril de 130: consume 80 de largo, no 120.
+    expect(sheets).toHaveLength(1)
+    expect(sheets[0].lanes).toHaveLength(1)
+    expect(sheets[0].lanes[0].items[1]).toMatchObject({ widthMm: 120, lengthMm: 80, rotated: true, xMm: 510 })
+  })
+
   test('pieza más ancha O más larga que la hoja → imposible (v1 no rota)', () => {
     const { sheets, impossible } = packSheets(
       [

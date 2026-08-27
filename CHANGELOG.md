@@ -10,6 +10,10 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   también **una tras otra a lo largo** dentro de la misma franja de la hoja (antes
   solo lado a lado), así que casos que pedían 2 hojas caben en 1. El dibujo muestra
   cada pieza en su posición real, con el sobrante de cada franja y el ancho libre.
+- **Las piezas se rotan solas si así caben.** Si girar una pieza 90° evita pedir
+  otra hoja, el acomodo la gira (y el dibujo lo indica). Se puede apagar por
+  espesor con **"Rotar piezas si así caben"** cuando el acabado del material
+  tenga dirección.
 
 ## 2026-08-21
 
