@@ -115,6 +115,32 @@ describe('CutPlanner', () => {
     expect(screen.getByText('Hoja 2')).toBeInTheDocument()
   })
 
+  test('rotación (#81): la pieza más ancha que la hoja se gira; el toggle lo apaga', async () => {
+    const user = userEvent.setup()
+    const d = data()
+    // Una sola placa de 300 de ancho × 140 de largo: derecha no cabe en hoja
+    // de 150 de ancho, ROTADA (140×300) sí.
+    d.pieces = [{
+      id: 'pr', order_id: 'o1', material_type: 'plate',
+      diameter_mm: null, thickness_mm: 5, width_mm: 300, length_mm: 140,
+      quantity: 1, requested_label: 'Placa girable', source_item_id: null,
+      sort_order: 0, created_at: '', updated_at: '',
+    }]
+    renderWithProviders(<CutPlanner data={d} />)
+
+    await user.type(screen.getByLabelText(/Ancho de la hoja del proveedor/), '150')
+    await user.type(screen.getByLabelText(/Largo de la hoja del proveedor/), '400')
+
+    // Con rotación (default) el acomodo existe.
+    expect(screen.getByText('Hoja 1')).toBeInTheDocument()
+    expect(screen.queryByText(/no cabe/)).not.toBeInTheDocument()
+
+    // Apagar la rotación (veta manda) → vuelve el aviso.
+    await user.click(screen.getByLabelText('Permitir rotar piezas de 5 mm'))
+    expect(screen.queryByText('Hoja 1')).not.toBeInTheDocument()
+    expect(screen.getByText(/no cabe/)).toBeInTheDocument()
+  })
+
   test('hoja más angosta que la pieza → aviso, sin diagrama', async () => {
     const user = userEvent.setup()
     renderWithProviders(<CutPlanner data={data()} />)
