@@ -71,10 +71,8 @@ export interface SetInventoryLocationInput {
 }
 
 /**
- * Escritura acotada (issue #72, ADR-015): SOLO el metadato de ubicación física
- * (gaveta) de una fila EXISTENTE del inventario. Las cantidades siguen vedadas
- * vía MCP — son el núcleo transaccional. Mismo saneo que PATCH /api/inventory:
- * texto trim, vacío → null (borrar la ubicación).
+ * Escritura acotada (#72, ADR-015): SOLO la gaveta de filas existentes —
+ * cantidades vedadas (núcleo transaccional). Vacío = borrar ubicación.
  */
 export async function setInventoryLocation(db: Db, input: SetInventoryLocationInput) {
   const modelCode = (input.model_code ?? '').trim()

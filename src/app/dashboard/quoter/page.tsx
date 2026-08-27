@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { RotateCcw, Check, Loader2 } from '@/components/icons'
 import { FileUploader } from '@/components/quoter/FileUploader'
 import { QuotationEditor } from '@/components/quoter/QuotationEditor'
+import { TourButton } from '@/components/tours/TourButton'
 import { useLookupEtms } from '@/hooks/useQuotes'
 import { useSaveQuotation, ApiError } from '@/hooks/useQuotations'
 import { useQuotationStore } from '@/stores/quotationStore'
@@ -254,27 +255,32 @@ export default function QuoterPage() {
             Sube el Excel del cliente, completa los datos faltantes y genera la cotización.
           </p>
         </div>
-        {step === 'editor' && (
-          <Button variant="outline" size="sm" onClick={handleReset}>
-            <RotateCcw className="size-4 mr-2" />
-            Nueva cotización
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <TourButton tour="quoter" />
+          {step === 'editor' && (
+            <Button variant="outline" size="sm" onClick={handleReset}>
+              <RotateCcw className="size-4 mr-2" />
+              Nueva cotización
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Step: upload */}
       {step === 'upload' && (
-        <FileUploader
-          onFileSelected={handleFileSelected}
-          isLoading={lookupMutation.isPending}
-        />
+        <div data-tour="quoter-upload">
+          <FileUploader
+            onFileSelected={handleFileSelected}
+            isLoading={lookupMutation.isPending}
+          />
+        </div>
       )}
 
       {/* Step: editor */}
       {step === 'editor' && (
         <div className="space-y-6">
           {/* Quotation name + Customer name */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+          <div data-tour="quoter-header" className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
             <div className="space-y-1.5">
               <Label htmlFor="quotation_name">
                 Nombre de la cotización{' '}
@@ -313,7 +319,7 @@ export default function QuoterPage() {
           <QuotationEditor errorItemIds={errorItemIds} />
 
           {/* Save */}
-          <div className="flex justify-end pt-2 border-t">
+          <div data-tour="quoter-save" className="flex justify-end pt-2 border-t">
             <Button
               size="lg"
               disabled={!canSave}

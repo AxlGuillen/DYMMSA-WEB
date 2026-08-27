@@ -87,6 +87,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { QuotationStatusBadge } from './QuotationStatusBadge'
+import { TourButton } from '@/components/tours/TourButton'
 import { ProductModal } from '@/components/quoter/ProductModal'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { QUOTATION_STATUS_LABELS, MANUAL_QUOTATION_STATUSES } from '@/lib/quotation-status'
@@ -952,10 +953,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const displayItemIds = useMemo(() => displayItems.map((i) => i._id), [displayItems])
 
-  // Columnas de la tabla (issue #18). Las condicionales por status (drag/
-  // acciones con canEdit, aprobación con hasApprovalData) entran a las defs
-  // solo cuando aplican — el picker únicamente ofrece lo presente y el conteo
-  // visible reemplaza al viejo totalCols calculado a mano.
+  // Columnas (#18): las condicionales por status entran solo cuando aplican — el picker ofrece lo presente.
   const itemColumns = useMemo<TableColumn[]>(() => [
     // La manija de arrastre es un ancho fijo de icono: no se redimensiona.
     ...(canEdit ? [{ id: 'drag', label: 'Reordenar', hideable: false, width: 40 }] : []),
@@ -1009,9 +1007,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2">
+        <div data-tour="qd-actions" className="flex items-center gap-2">
+          <TourButton tour="quotation-detail" />
           {/* Manual status control */}
-          <div className="flex flex-col items-end gap-0.5">
+          <div data-tour="qd-status" className="flex flex-col items-end gap-0.5">
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1221,7 +1220,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
       {/* Approval link banner */}
       {isSentForApproval && (
-        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
+        <Card data-tour="qd-approval-link" className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
               <div className="flex-1 min-w-0">
@@ -1292,7 +1291,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       {/* Stats / Filter cards */}
       {hasApprovalData ? (
         /* Approval filter cards — clickable, same pattern as orders page */
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div data-tour="qd-stats" className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {/* Todos (acts as reset) */}
           <button type="button"
             onClick={() => handleFilterToggle('all')}
@@ -1359,7 +1358,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </div>
       ) : (
         /* Regular stats (draft / converted / rejected) */
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div data-tour="qd-stats" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card>
             <CardContent className="pt-4 pb-4">
               <p className="text-xs text-muted-foreground">Productos</p>
@@ -1444,7 +1443,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
       )}
 
       {/* Products section */}
-      <Card>
+      <Card data-tour="qd-items">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>

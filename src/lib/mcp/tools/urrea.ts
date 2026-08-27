@@ -13,10 +13,7 @@ export async function searchUrreaCatalog(db: Db, rawQuery: string) {
   const query = rawQuery.trim()
   if (!query) throw new ToolError('La búsqueda no puede estar vacía')
 
-  // 1. Match exacto por código normalizado (el caso típico: "¿qué es el 6954?").
-  // Devuelve TODAS las marcas de ese código: la identidad es (code, brand), así
-  // que un código puede vivir en varias líneas — y saber en cuáles es justo lo
-  // útil aquí. (Nada de .maybeSingle(): con ≥2 marcas reventaría con PGRST116.)
+  // 1. Match exacto → TODAS las marcas del código (identidad = code+brand; maybeSingle reventaría con ≥2).
   const code = normalizeCatalogCode(query)
   const { data: exact, error: exactError } = await db
     .from('urrea_catalog')

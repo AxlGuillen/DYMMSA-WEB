@@ -5,6 +5,7 @@ import { useProducts } from '@/hooks/useProducts'
 import type { ProductSortBy, SortDir } from '@/hooks/useProducts'
 import { ProductsTable, PRODUCTS_COLUMNS } from '@/components/db/ProductsTable'
 import { ColumnPicker } from '@/components/ColumnPicker'
+import { TourButton } from '@/components/tours/TourButton'
 import { ProductForm } from '@/components/db/ProductForm'
 import { ExcelImporter } from '@/components/db/ExcelImporter'
 import { Button } from '@/components/ui/button'
@@ -81,18 +82,21 @@ export default function ProductosPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-            <Upload className="mr-2 size-4" />
-            Importar Excel
-          </Button>
-          <Button onClick={() => setIsFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Agregar Producto
-          </Button>
+          <TourButton tour="etm-db" />
+          <div data-tour="db-actions" className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+              <Upload className="mr-2 size-4" />
+              Importar Excel
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <Plus className="mr-2 size-4" />
+              Agregar Producto
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div data-tour="db-filters" className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -131,6 +135,7 @@ export default function ProductosPage() {
         )}
       </div>
 
+      <div data-tour="db-table">
       <ProductsTable
         products={data?.data || []}
         isLoading={isLoading}
@@ -139,6 +144,7 @@ export default function ProductosPage() {
         sortDir={sortDir}
         onSort={handleSort}
       />
+      </div>
 
       {data && data.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">

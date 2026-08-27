@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { OrdersTable, ORDERS_COLUMNS } from '@/components/orders/OrdersTable'
+import { TourButton } from '@/components/tours/TourButton'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import { useOrders, useOrderStats } from '@/hooks/useOrders'
 import type { OrderStatus } from '@/types/database'
@@ -63,16 +64,19 @@ export default function OrdersPage() {
             Gestiona las órdenes de venta y pedidos a URREA
           </p>
         </div>
-        <Link href="/dashboard/orders/new">
-          <Button>
-            <Plus className="mr-2 size-4" />
-            Nueva Orden
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <TourButton tour="orders-list" />
+          <Link href="/dashboard/orders/new" data-tour="ol-new">
+            <Button>
+              <Plus className="mr-2 size-4" />
+              Nueva Orden
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div data-tour="ol-stats" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {STAT_CARDS.map((card) => (
           <button type="button"
             key={card.status}
@@ -96,7 +100,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+      <div data-tour="ol-filters" className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -140,7 +144,9 @@ export default function OrdersPage() {
       </div>
 
       {/* Table */}
-      <OrdersTable orders={data?.data ?? []} isLoading={isLoading} />
+      <div data-tour="ol-table">
+        <OrdersTable orders={data?.data ?? []} isLoading={isLoading} />
+      </div>
 
       {/* Pagination */}
       {data && data.totalPages > 1 && (

@@ -1,11 +1,6 @@
 /**
- * Metadata del recurso protegido (RFC 9728, ADR-023). Es lo que el 401 de
- * /api/mcp anuncia en WWW-Authenticate para que el cliente MCP descubra el
- * authorization server (el OAuth nativo de Supabase).
- *
- * Catch-all OPCIONAL a propósito: los clientes piden el metadata tanto en la
- * raíz como en /.well-known/oauth-protected-resource/api/mcp; una ruta fija
- * solo respondería a una de las dos. Ambas devuelven el mismo documento.
+ * Metadata RFC 9728 (ADR-023) — lo que el 401 anuncia en WWW-Authenticate.
+ * Catch-all a propósito: los clientes lo piden en la raíz Y en .../api/mcp.
  */
 
 import { metadataCorsOptionsRequestHandler, protectedResourceHandler } from 'mcp-handler'

@@ -1,10 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/**
- * Overview del planificador de corte (issue #59): explica el diseño de "dos
- * momentos" del módulo — lista de piezas → necesidad neta, y captura de la
- * presentación del proveedor → diagrama de acomodo (ADR-022).
- */
+/** Overview del planificador de corte: los dos momentos del módulo (ADR-022). */
 export const CUT_PLANNER_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="cut-candidates"]',

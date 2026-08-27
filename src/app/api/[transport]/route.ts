@@ -1,14 +1,6 @@
 /**
- * Endpoint MCP remoto (ADR-023): Streamable HTTP en /api/mcp, protegido con
- * OAuth 2.1 nativo de Supabase vía withMcpAuth.
- *
- * - `basePath: '/api'` + el segmento [transport] derivan /api/mcp. Las rutas
- *   API estáticas existentes siempre ganan sobre este segmento dinámico.
- * - `disableSse` → no requiere Redis.
- * - `resourceUrl` es el ORIGEN, no la URI del recurso: withMcpAuth concatena
- *   `${resourceUrl}${resourceMetadataPath}` para el header WWW-Authenticate.
- * - Sin `requiredScopes`: los access tokens de Supabase no traen claim `scope`;
- *   exigir cualquiera daría 403 en todas las requests.
+ * Endpoint MCP en /api/mcp (ADR-023), OAuth de Supabase vía withMcpAuth.
+ * Sin requiredScopes: los tokens de Supabase no traen claim scope (daría 403).
  */
 
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'

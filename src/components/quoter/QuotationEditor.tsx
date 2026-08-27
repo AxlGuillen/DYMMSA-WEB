@@ -33,11 +33,8 @@ import { SeparatorColorPicker } from '@/components/SeparatorColorPicker'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import type { QuotationItemRow } from '@/types/database'
 
-// Arriba de este número de ítems el drag & drop se apaga y se reordena con
-// flechas ↑↓ sobre una tabla virtualizada (issue #29). Debajo, la lista se
-// renderiza completa con drag — 300 filas vuelan con el memo por fila arreglado.
-// Así virtualización y DnD nunca coexisten (dnd-kit necesita la fila montada
-// para soltar sobre ella; virtualizar desmonta las fuera de viewport).
+// Umbral DnD↔virtualización (#29): nunca coexisten — dnd-kit necesita la fila
+// montada para soltar y virtualizar desmonta las fuera de viewport.
 const DRAG_MAX_ITEMS = 300
 
 // Columnas del editor (issue #18). Los ids son API persistida (localStorage).
@@ -333,10 +330,7 @@ interface SeparatorLabelCellsProps {
 const SeparatorLabelCells = memo(function SeparatorLabelCells({
   item, labelSpan, onLabelChange, onColorChange, onRemove,
 }: SeparatorLabelCellsProps) {
-  // Estado local del input: cada keystroke ya no llama updateItem (que
-  // re-renderiza todas las filas y escribe a localStorage). Commit en blur.
-  // Sincronía prop→estado con el patrón "derivar durante render" de las docs de
-  // React (adjusting state when a prop changes) en vez de setState en efecto.
+  // Input local con commit en blur: cada keystroke re-renderizaría todas las filas.
   const [localLabel, setLocalLabel] = useState(item.section_label ?? '')
   const [prevLabel, setPrevLabel] = useState(item.section_label)
   if (prevLabel !== item.section_label) {
@@ -344,11 +338,8 @@ const SeparatorLabelCells = memo(function SeparatorLabelCells({
     setLocalLabel(item.section_label ?? '')
   }
 
-  // Commit también al desmontar: en la tabla virtualizada, hacer scroll saca la
-  // fila del overscan y la desmonta; si el input tenía foco, el onBlur podría no
-  // dispararse y se perdería el nombre de sección. commitRef espeja lo último
-  // (actualizada en efecto, no en render) y el cleanup de montaje escribe el
-  // pendiente (updateItem sobre un id ya borrado es no-op).
+  // Commit también al desmontar: la virtualización desmonta la fila con foco y
+  // el onBlur puede no disparar — sin esto se perdería el nombre de sección.
   const commitRef = useRef({ localLabel, committed: item.section_label ?? '', onLabelChange, id: item._id })
   useEffect(() => {
     commitRef.current = { localLabel, committed: item.section_label ?? '', onLabelChange, id: item._id }
@@ -584,11 +575,8 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
   const productItems = useMemo(() => items.filter(isProductItem), [items])
   const cols = useVisibleColumns('quoter-editor', EDITOR_COLUMNS)
 
-  // Descripción DYMMSA resuelta por fila, memoizada por _id. Resolverla inline en
-  // el map (`resolveDymmsaDescription(item, catalogMap)`) creaba un objeto nuevo
-  // por render → rompía el React.memo de SortableRow y repintaba las 1000 filas
-  // en CADA render del editor (p.ej. tipear el nombre de la cotización). Con el
-  // Map memoizado la referencia es estable salvo que cambien items/catálogo.
+  // Descripción DYMMSA memoizada por _id: resolverla inline rompía el memo por
+  // fila y repintaba las 1000 filas en cada render.
   const dymmsaByRow = useMemo(() => {
     const map = new Map<string, { value: string | null; source: DymmsaDescriptionSource }>()
     for (const item of items) map.set(item._id, resolveDymmsaDescription(item, catalogMap))
@@ -690,7 +678,7 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
 
       {/* Summary cards */}
       {items.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div data-tour="quoter-stats" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border bg-card px-4 py-3 space-y-0.5">
             <p className="text-xs text-muted-foreground">Total productos</p>
             <p className="text-xl font-bold">{productItems.length}</p>
@@ -729,7 +717,7 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
+      <div data-tour="quoter-toolbar" className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm">
           {partialTotal > 0 && (
             <span className="font-medium">
@@ -754,11 +742,11 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
 
       {/* Table */}
       {items.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+        <div data-tour="quoter-table" className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
           <p className="text-sm">No hay productos. Carga un Excel o agrega uno manualmente.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div data-tour="quoter-table" className="space-y-2">
           <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground flex-wrap">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
@@ -874,9 +862,7 @@ function VirtualizedTable({
   const scrollRef = useRef<HTMLDivElement>(null)
   const totalCols = cols.visibleCount // control + body cols
 
-  // useVirtualizer devuelve funciones no memoizables: incompatibilidad conocida
-  // del React Compiler (igual que watch() de react-hook-form). Este componente
-  // solo se queda sin auto-memoizar — sin impacto funcional.
+  // useVirtualizer es incompatible con el React Compiler (solo pierde auto-memo).
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: items.length,

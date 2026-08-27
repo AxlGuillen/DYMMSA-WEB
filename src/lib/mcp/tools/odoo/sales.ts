@@ -1,9 +1,6 @@
 /**
- * Bloque Odoo — Fase 2: Contactos + Ventas (issue #65, ADR-025). SOLO lectura.
- *
- * Mismo contrato que accounting.ts: caller inyectado, catálogo como frontera,
- * respuestas digeridas. `sale.order.date_order` es DATETIME — los rangos de
- * fecha se expanden a los extremos del día para no perder registros.
+ * Odoo F2 — Contactos + Ventas (ADR-025). date_order es DATETIME: los rangos
+ * se expanden a los extremos del día para no perder registros.
  */
 
 import type { OdooCaller } from '@/lib/odoo/client'

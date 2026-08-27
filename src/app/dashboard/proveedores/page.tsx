@@ -6,6 +6,7 @@ import { SuppliersTable, SUPPLIERS_COLUMNS } from '@/components/suppliers/Suppli
 import { SupplierForm } from '@/components/suppliers/SupplierForm'
 import { BrandsManager } from '@/components/suppliers/BrandsManager'
 import { ColumnPicker } from '@/components/ColumnPicker'
+import { TourButton } from '@/components/tours/TourButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -72,19 +73,22 @@ export default function SuppliersPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsBrandsOpen(true)}>
-            <ListFilter className="mr-2 size-4" />
-            Marcas
-          </Button>
-          <Button onClick={() => setIsFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Agregar proveedor
-          </Button>
+          <TourButton tour="suppliers" />
+          <div data-tour="sup-actions" className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsBrandsOpen(true)}>
+              <ListFilter className="mr-2 size-4" />
+              Marcas
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <Plus className="mr-2 size-4" />
+              Agregar proveedor
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Search + brand filter */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div data-tour="sup-filters" className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -120,6 +124,7 @@ export default function SuppliersPage() {
       </div>
 
       {/* Table */}
+      <div data-tour="sup-table">
       <SuppliersTable
         suppliers={data?.data || []}
         isLoading={isLoading}
@@ -129,6 +134,7 @@ export default function SuppliersPage() {
         sortDir={sortDir}
         onSort={handleSort}
       />
+      </div>
 
       {/* Pagination */}
       {data && data.totalPages > 1 && (

@@ -13,11 +13,7 @@ interface FillColor {
   indexed?: number
 }
 
-/**
- * Extracts the 10 base theme colors from xl/theme/theme1.xml.
- * Order: dk1, lt1, dk2, lt2, accent1–accent6 (indices 0–9).
- * Returns hex strings without '#', e.g. "4f6228".
- */
+/** Los 10 colores base del tema (dk1..accent6) desde theme1.xml, hex sin '#'. */
 async function loadThemeColors(buffer: ArrayBuffer): Promise<string[]> {
   try {
     const zip = await JSZip.loadAsync(buffer)
@@ -64,13 +60,7 @@ function applyTint(hex: string, tint: number): string {
   )
 }
 
-/**
- * Check if a color is considered green using HSL range detection.
- * Accepts any shade of green: bright, dark, light, pale, olive, etc.
- *
- * Hue range 70°–165° covers all greens (including olive/yellow-greens).
- * Saturation > 15% and lightness between 15%–93% excludes grays and near-whites.
- */
+/** Verde por rango HSL (hue 70–165°, sat >15%, light 15–93%): cubre olivas y excluye grises. */
 function isGreenColor(hex: string): boolean {
   if (!hex || hex.length !== 6) return false
 
@@ -186,12 +176,7 @@ export interface DetectionResult {
   greenRowsFound: number
 }
 
-/**
- * Detect approved products from Excel file.
- * Looks for rows with green background in any cell.
- * Handles both explicit hex colors and Office theme colors.
- * Expected columns: ETM, description, description_es, model_code, quantity, price, brand
- */
+/** Detecta aprobados por fondo verde en cualquier celda (hex directo o color de tema Office). */
 export async function detectApprovedProducts(buffer: ArrayBuffer): Promise<DetectionResult> {
   // Load theme colors first (needed to resolve theme-based cell backgrounds)
   const themeColors = await loadThemeColors(buffer)

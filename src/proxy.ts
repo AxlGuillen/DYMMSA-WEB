@@ -80,11 +80,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Excluye estáticos, el transporte MCP, los documentos de discovery OAuth
-    // (/.well-known/*) y el health público: esos autentican en su propio handler
-    // (o son públicos por diseño), y un redirect a /login reemplazaría el 401
-    // con resource_metadata que los clientes MCP necesitan para descubrir el
-    // authorization server (ADR-023). /oauth/consent SÍ queda dentro.
+    // Excluye estáticos, /api/mcp, /.well-known/* y health: autentican en su
+    // handler — un redirect a /login mataría el 401 de discovery (ADR-023).
     '/((?!_next/static|_next/image|favicon.ico|\\.well-known|api/mcp|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

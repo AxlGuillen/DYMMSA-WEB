@@ -5,6 +5,7 @@ import { useUrreaCatalog, useUrreaCatalogStats } from '@/hooks/useUrreaCatalog'
 import type { CatalogSortField, SortDir } from '@/hooks/useUrreaCatalog'
 import { CatalogTable, CATALOG_COLUMNS } from '@/components/urrea-catalog/CatalogTable'
 import { ColumnPicker } from '@/components/ColumnPicker'
+import { TourButton } from '@/components/tours/TourButton'
 import { CatalogForm } from '@/components/urrea-catalog/CatalogForm'
 import { CatalogImporter } from '@/components/urrea-catalog/CatalogImporter'
 import { Button } from '@/components/ui/button'
@@ -67,19 +68,22 @@ export default function UrreaCatalogPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-            <Upload className="mr-2 size-4" />
-            Importar Excel
-          </Button>
-          <Button onClick={() => setIsFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Agregar Producto
-          </Button>
+          <TourButton tour="urrea-catalog" />
+          <div data-tour="uc-actions" className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+              <Upload className="mr-2 size-4" />
+              Importar Excel
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <Plus className="mr-2 size-4" />
+              Agregar Producto
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Search + brand filter */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div data-tour="uc-filters" className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -115,6 +119,7 @@ export default function UrreaCatalogPage() {
       </div>
 
       {/* Table */}
+      <div data-tour="uc-table">
       <CatalogTable
         items={data?.data || []}
         isLoading={isLoading}
@@ -124,6 +129,7 @@ export default function UrreaCatalogPage() {
         sortDir={sortDir}
         onSort={handleSort}
       />
+      </div>
 
       {/* Pagination */}
       {data && data.totalPages > 1 && (

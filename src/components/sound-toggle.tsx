@@ -8,11 +8,8 @@ import { setSoundEnabled, playSound } from '@/lib/sound'
 
 export function SoundToggle() {
   const { soundEnabled, toggleSound } = useSoundStore()
-  // SSR-safe (precedente del sidebar): el server siempre renderiza "activado";
-  // el cliente puede arrancar silenciado (persistencia o reduced-motion) y ese
-  // branch en la hidratación descuadraba el árbol — React re-renderizaba el
-  // root y TODOS los useId (p.ej. aria-controls de los Select de la página de
-  // aprobación) quedaban distintos al HTML del server.
+  // SSR-safe: el server renderiza "activado" siempre — el branch en hidratación
+  // descuadraba el árbol y todos los useId de la página.
   const mounted = useMounted()
   const showEnabled = mounted ? soundEnabled : true
 

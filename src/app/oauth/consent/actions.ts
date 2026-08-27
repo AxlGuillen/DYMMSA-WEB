@@ -1,10 +1,6 @@
 'use server'
 
-/**
- * Decisión del consentimiento OAuth (ADR-023). Supabase valida el
- * authorization_id contra la sesión de ESTE usuario: uno manipulado
- * simplemente falla — el campo oculto no es de fiar y no hace falta que lo sea.
- */
+/** Consentimiento OAuth (ADR-023): Supabase valida el authorization_id contra la sesión — el campo oculto no necesita ser de fiar. */
 
 import { redirect } from 'next/navigation'
 

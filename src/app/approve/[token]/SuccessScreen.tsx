@@ -6,12 +6,7 @@ interface SuccessScreenProps {
   notApprovedCount: number
 }
 
-/**
- * Pantalla de confirmación tras enviar la aprobación definitiva.
- * Mismo lenguaje glass que el resto de la página (issue #24): fondo con los
- * radiales + retícula de puntos de ApprovalClient, card `bg-card/40` con
- * blur, labels mono en mayúsculas (patrón SummaryTiles) y escudo con glow.
- */
+/** Confirmación del envío definitivo — mismo lenguaje glass del resto de la página (#24). */
 export function SuccessScreen({ approvedCount, notApprovedCount }: SuccessScreenProps) {
   const label = 'font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground'
 

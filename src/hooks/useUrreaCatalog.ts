@@ -137,14 +137,7 @@ export function useImportUrreaCatalog() {
   })
 }
 
-/**
- * Descripción oficial del catálogo para un (código, marca).
- * `null` = sin match. Cachea 5 min por par — la usan ProductModal/ProductForm
- * para resolver "Desc. DYMMSA" al editar el model_code o la marca.
- *
- * El match es estricto por marca: el mismo código en otra marca NO aplica
- * (la respuesta viene indexada por `catalogKey`).
- */
+/** Descripción oficial por (código, marca) estricto — indexada por catalogKey; cache 5 min. */
 export function useCatalogDescription(code: string, brand?: string | null) {
   const normalized = normalizeCatalogCode(code)
   const key = catalogKey(code, brand)

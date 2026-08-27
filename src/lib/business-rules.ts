@@ -1,56 +1,32 @@
 /**
- * Reglas de negocio críticas como funciones puras.
- *
- * Estas funciones encodan las reglas del CLAUDE.md y deben ser la única
- * fuente de verdad para cálculos de totales, separadores e inventario.
- *
- * Reglas críticas implementadas:
- * - Separadores (`item_type='separator'`) excluidos de totales y conteos
- * - Invariante de allocation: in_stock + to_order = approved
- * - Stock deducido al CREAR la orden, no al confirmar recepción
+ * Reglas de negocio críticas como funciones puras — la única fuente de verdad
+ * ejecutable de totales, separadores, descripción DYMMSA e inventario.
+ * La narrativa de cada regla vive en CLAUDE.md ("Reglas de negocio críticas").
  */
 
 // ─── Tipos de ítem ─────────────────────────────────────────────────────
 
-/**
- * Item es separador si su `item_type` es explícitamente 'separator'.
- */
 export function isSeparator(item: { item_type?: string | null }): boolean {
   return item.item_type === 'separator'
 }
 
-/**
- * Item es producto si no tiene `item_type` definido (legacy) o es 'product'.
- * Cualquier otro valor (incluido 'separator') retorna false.
- */
+/** Producto = sin `item_type` (legacy) o 'product'; cualquier otro valor no lo es. */
 export function isProductItem(item: { item_type?: string | null }): boolean {
   return !item.item_type || item.item_type === 'product'
 }
 
-/**
- * Filtra solo ítems de tipo producto, excluyendo separadores.
- */
 export function filterProductItems<T extends { item_type?: string | null }>(items: T[]): T[] {
   return items.filter(isProductItem)
 }
 
-/**
- * Item marcado como "no lo vendemos" (`is_sold === false`).
- * Se excluye de totales, Excel URREA, órdenes y validación de guardado.
- * `null` (sin definir) y `true` (lo vendemos) NO cuentan como no-vendible.
- */
+/** "No lo vendemos" = SOLO `is_sold === false` (tri-estado: null/true no excluyen). */
 export function isNotSold(item: { is_sold?: boolean | null }): boolean {
   return item.is_sold === false
 }
 
-// ─── Descripción DYMMSA (jerarquía de catálogo) ────────────────────────
+// ─── Descripción DYMMSA (jerarquía de catálogo, ADR-013) ───────────────
 
-/**
- * Normaliza la llave de cruce entre `etm_products.model_code` y
- * `urrea_catalog.code`: trim + mayúsculas. Debe aplicarse en TODOS los
- * caminos de escritura del catálogo y al armar lookups — un espacio o
- * minúscula hace fallar el match en silencio.
- */
+/** Llave de cruce con urrea_catalog: trim+upper SIEMPRE — un espacio rompe el match en silencio. */
 export function normalizeCatalogCode(code: string | null | undefined): string {
   return (code ?? '').trim().toUpperCase()
 }
@@ -58,33 +34,19 @@ export function normalizeCatalogCode(code: string | null | undefined): string {
 /** Marca por defecto del catálogo/sistema (etm_products.brand y urrea_catalog.brand). */
 export const DEFAULT_BRAND = 'URREA'
 
-/**
- * Normaliza la marca (trim + mayúsculas) — misma disciplina que el código, para
- * que el cruce `(model_code, brand)` no falle en silencio por casing/espacios.
- * Vacío → `DEFAULT_BRAND` (la columna es NOT NULL DEFAULT 'URREA').
- */
+/** Marca normalizada trim+upper; vacía → DEFAULT_BRAND (la columna es NOT NULL DEFAULT). */
 export function normalizeCatalogBrand(brand: string | null | undefined): string {
   return (brand ?? '').trim().toUpperCase() || DEFAULT_BRAND
 }
 
-/**
- * Normaliza una marca como ETIQUETA (módulo de proveedores, issue #21):
- * trim + mayúsculas, pero SIN el default 'URREA' — una etiqueta vacía es
- * inválida (`''`), no una marca implícita. Mismo criterio de normalización
- * que `normalizeCatalogBrand` para que las marcas de proveedores crucen por
- * valor con `etm_products.brand` / `urrea_catalog.brand` en el futuro.
- */
+/** Marca como ETIQUETA (proveedores, #21): trim+upper SIN default — vacía es inválida, no URREA. */
 export function normalizeBrandTag(name: string | null | undefined): string {
   return (name ?? '').trim().toUpperCase()
 }
 
 /**
- * Llave de cruce con `urrea_catalog`: **código + marca**, ambos normalizados.
- *
- * La identidad del catálogo es `UNIQUE(code, brand)` — el mismo código puede
- * existir en varias marcas (URREA maneja varias líneas), así que cruzar solo
- * por código puede traer la descripción de OTRA marca. Es la llave de los
- * mapas de `fetchCatalogDescriptionMap` y de `resolveDymmsaDescription`.
+ * Llave `marca|código` para los mapas de catálogo. El cruce es SIEMPRE por
+ * (code, brand): el mismo código existe en varias marcas (ADR-013).
  */
 export function catalogKey(
   code: string | null | undefined,
@@ -103,22 +65,8 @@ type DescriptionResolvable = {
 }
 
 /**
- * Resuelve la "Descripción DYMMSA" de un ítem con jerarquía de catálogo:
- *
- *   1. Catálogo oficial (match por `model_code` + `brand`, ambos normalizados)
- *      — gana siempre; no se puede tapar con la curada (si está mal, se corrige
- *      reimportando el catálogo).
- *   2. Curada DYMMSA (`dymmsa_description`) — solo productos sin catálogo.
- *   3. `null` — celda vacía para que el cotizador la llene.
- *
- * El match es ESTRICTO por (código, marca): un producto marcado URREA cuyo
- * código solo existe bajo SURTEK ya NO hereda esa descripción — antes sí, y esa
- * era la fuente del bug. Marca vacía → `DEFAULT_BRAND` (ver normalizeCatalogBrand).
- *
- * `source` permite a la UI etiquetar el origen y deshabilitar la edición
- * cuando la descripción viene del catálogo. Separadores siempre `null`.
- *
- * @param catalogMap  Map<catalogKey(code, brand), descripción> (batch por cotización)
+ * Jerarquía: catálogo oficial (por code+brand estricto) > curada > null.
+ * `source` deja a la UI etiquetar el origen y bloquear la edición de la oficial.
  */
 export function resolveDymmsaDescription(
   item: DescriptionResolvable,
@@ -128,8 +76,7 @@ export function resolveDymmsaDescription(
 
   if (normalizeCatalogCode(item.model_code)) {
     const catalogDesc = catalogMap.get(catalogKey(item.model_code, item.brand))
-    // Solo gana si el catálogo trae descripción real; una fila sin descripción
-    // no aporta nada oficial y cede el turno a la curada.
+    // Una fila de catálogo sin descripción no aporta nada oficial: cede a la curada.
     if (catalogDesc && catalogDesc.trim() !== '') {
       return { value: catalogDesc.trim(), source: 'catalog' }
     }
@@ -143,10 +90,7 @@ export function resolveDymmsaDescription(
 
 // ─── Cálculos de líneas ────────────────────────────────────────────────
 
-/**
- * Calcula el subtotal de una línea: unit_price * quantity.
- * Retorna `null` si falta cualquiera de los dos.
- */
+/** Subtotal de línea; null si falta precio o cantidad. */
 export function calculateLineTotal(
   unitPrice: number | null | undefined,
   quantity: number | null | undefined
@@ -165,12 +109,7 @@ type QuotationItemLike = {
   is_sold?: boolean | null
 }
 
-/**
- * Total de una cotización. Excluye separadores, ítems "no lo vendemos"
- * (`is_sold === false`) e ítems sin precio o cantidad.
- *
- * @param options.onlyApproved  Si true, solo suma ítems con `is_approved === true`
- */
+/** Total de cotización: fuera separadores, "no lo vendemos" y líneas incompletas. */
 export function calculateQuotationTotal<T extends QuotationItemLike>(
   items: T[],
   options: { onlyApproved?: boolean } = {}
@@ -185,12 +124,8 @@ export function calculateQuotationTotal<T extends QuotationItemLike>(
 }
 
 /**
- * Subtotal de los ítems que el cliente aprobó EN VIVO en `/approve/[token]`.
- *
- * A diferencia de `calculateQuotationTotal({ onlyApproved })`, que lee el campo
- * persistido `is_approved`, aquí la aprobación es el estado local (set de ids)
- * que el cliente va marcando antes de guardar/enviar. Aplica las mismas reglas:
- * excluye separadores, "no lo vendemos" y líneas sin precio/cantidad.
+ * Subtotal EN VIVO de `/approve/[token]`: la aprobación es el set local de ids
+ * que el cliente marca, no el campo persistido. Mismas exclusiones que el total.
  */
 export function calculateApprovedSubtotal<T extends QuotationItemLike & { id: string }>(
   items: T[],
@@ -212,10 +147,7 @@ type OrderItemLike = {
   item_type?: string | null
 }
 
-/**
- * Total de una orden. Suma `unit_price * quantity_approved` para todos los
- * ítems de tipo producto. Separadores excluidos.
- */
+/** Total de orden: precio × cantidad aprobada, separadores fuera. */
 export function calculateOrderTotal<T extends OrderItemLike>(items: T[]): number {
   return items.reduce((sum, item) => {
     if (!isProductItem(item)) return sum
@@ -224,10 +156,8 @@ export function calculateOrderTotal<T extends OrderItemLike>(items: T[]): number
 }
 
 /**
- * Total real entregado al cliente, usado en confirm-reception.
- * Suma `quantity_in_stock + min(recibido, pedido)` (si URREA no marcó
- * "no suministrado"), multiplicado por `unit_price`. El EXCEDENTE de
- * recepción nunca se factura — es stock de tienda, no venta (ADR-019).
+ * Total real entregado (confirm-reception): stock + min(recibido, pedido).
+ * El excedente de recepción nunca se factura (ADR-019).
  */
 export function calculateDeliveredTotal<T extends {
   quantity_in_stock: number
@@ -254,34 +184,19 @@ type ReceptionLike = {
   quantity_to_order: number
 }
 
-/**
- * Porción de lo recibido que corresponde al cliente (facturable/entregable):
- * `min(recibido, pedido)`. El excedente no se cobra ni aparece en el formato
- * de entrega — la aprobación ya fijó qué compra el cliente.
- */
+/** Lo facturable/entregable de una recepción: min(recibido, pedido). */
 export function receivedForCustomer<T extends ReceptionLike>(item: T): number {
   return Math.min(item.quantity_received, item.quantity_to_order)
 }
 
-/**
- * Excedente de recepción: `max(0, recibido − pedido)`. Es lo ÚNICO que entra
- * a `store_inventory` al confirmar recepción (por delta — re-confirmar es
- * idempotente). Independiente de `urrea_status`.
- */
+/** Excedente = max(0, recibido − pedido): lo ÚNICO que entra a inventario (por delta). */
 export function receptionExcess<T extends ReceptionLike>(item: T): number {
   return Math.max(0, item.quantity_received - item.quantity_to_order)
 }
 
 // ─── Inventario / Allocation ───────────────────────────────────────────
 
-/**
- * Reparte una cantidad necesaria entre stock disponible y por pedir.
- *
- * Invariante garantizado: inStock + toOrder === needed
- *
- * @param needed     Cantidad solicitada (aprobada)
- * @param available  Stock disponible en `store_inventory`
- */
+/** Reparte lo aprobado entre stock y por pedir. Invariante: inStock + toOrder === needed. */
 export function allocateInventory(
   needed: number,
   available: number
@@ -291,12 +206,7 @@ export function allocateInventory(
   return { inStock, toOrder }
 }
 
-/**
- * Valida el invariante crítico del CLAUDE.md:
- * `quantity_in_stock + quantity_to_order === quantity_approved`
- *
- * Útil para asserts en routes que mutan order_items.
- */
+/** Assert del invariante in_stock + to_order === approved (routes que mutan order_items). */
 export function validateAllocationInvariant(item: {
   quantity_in_stock: number
   quantity_to_order: number

@@ -6,12 +6,7 @@ import type { StoreInventoryInsert } from '@/types/database'
 const STOCK_FILTERS = ['all', 'with_stock', 'in_stock', 'low_stock', 'sin_stock'] as const
 type StockFilter = (typeof STOCK_FILTERS)[number]
 
-/**
- * Marca vacía en el filtro. `store_inventory` no guarda la marca: se resuelve
- * contra `etm_products` en la vista `store_inventory_with_brand`, y hay ~40
- * productos (con stock real) cuyos ETM no la traen. Necesitan ser filtrables,
- * así que se les da un valor propio en vez de esconderlos (issue #53).
- */
+/** "Sin marca" es categoría filtrable (#53): hay productos con stock cuyos ETM no traen marca. */
 export const NO_BRAND = '__none__'
 
 /** Escapa el patrón de búsqueda para `ilike` (model_code no usa `.or()`). */

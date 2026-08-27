@@ -6,10 +6,8 @@ import { useCutMargin, useMaterialPresentations, type CutPlanResponse } from '@/
 import { useCutDraftStore } from '@/stores/cutDraftStore'
 
 /**
- * Corte rápido (issue #71): planificador standalone desde el sidebar — un
- * corte al vuelo sin orden de por medio. EFÍMERO por diseño: las piezas viven
- * en localStorage (store dymmsa-cut-draft), nunca en BD; las presentaciones
- * del proveedor sí persisten (catálogo global que se arma solo).
+ * Corte rápido (#71): standalone y EFÍMERO — piezas en localStorage, jamás en
+ * BD; solo las presentaciones del proveedor persisten (ADR-022).
  */
 export default function QuickCuttingPage() {
   const presentations = useMaterialPresentations()

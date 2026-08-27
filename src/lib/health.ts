@@ -1,21 +1,7 @@
 /**
- * Health checks de la aplicación — lógica pura del endpoint público GET /api/health.
- *
- * Contrato (pensado para reutilizarse en todos los proyectos):
- *   - status global: ok | degraded | down  →  HTTP 200 | 200 | 503
- *   - `down` solo por fallas que impiden operar (módulos de negocio);
- *     `degraded` por dependencias secundarias (GitHub/Tareas, Storage).
- *   - Respuestas GRUESAS: el endpoint es público, así que nunca se exponen
- *     mensajes de error internos ni nombres de env vars — solo ok/fail/skip.
- *     El porqué de un fail va al server log.
- *
- * Los checks de módulos ejecutan las MISMAS queries que sirven a la app
- * (reutilizan las funciones de src/lib/mcp/tools) directo con el admin client
- * — no self-fetch a /api/* (esas rutas exigen sesión y responderían 401).
- * Que el endpoint responda ya prueba que el deploy vive.
- *
- * Cada check está aislado (una dependencia caída no tumba a las demás) y las
- * dependencias (db, fetch) se inyectan para testear con stubs.
+ * Health checks del endpoint público /api/health: ok | degraded | down.
+ * Endpoint público → respuestas gruesas (ok/fail/skip, sin detalles internos);
+ * los checks reusan las queries reales de la app y se aíslan entre sí.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -66,12 +52,7 @@ function checkTimeout(ms: number): Promise<never> {
   })
 }
 
-/**
- * Ejecuta un check midiendo latencia; cualquier error → fail (detalle al log).
- * Todos los checks corren con cap de CHECK_TIMEOUT_MS: si la dependencia se
- * cuelga (BD lenta, Storage sin responder), el endpoint público reporta fail
- * en vez de esperar al límite de la plataforma.
- */
+/** Corre un check con latencia y cap de timeout: colgado = fail, no espera a la plataforma. */
 async function timed(name: string, fn: () => Promise<unknown>): Promise<HealthCheck> {
   const start = Date.now()
   try {
@@ -85,11 +66,7 @@ async function timed(name: string, fn: () => Promise<unknown>): Promise<HealthCh
 
 // ─── Checks ────────────────────────────────────────────────────────────
 
-/**
- * Módulos de negocio: corren la misma query que usa la app (vía las funciones
- * compartidas de los tools MCP) — prueban conexión, service role, schema y
- * relaciones embebidas, no solo que la BD conteste un ping.
- */
+/** Módulos de negocio: la misma query que usa la app — prueba schema y relaciones, no un ping. */
 export const checkQuotations = (db: SupabaseClient) =>
   timed('quotations', () => listQuotations(db, { pageSize: 1 }))
 
@@ -125,11 +102,7 @@ export async function checkGitHub(fetchFn: Fetcher = fetch): Promise<HealthCheck
   })
 }
 
-/**
- * La API JSON-2 de Odoo responde con la key del server (bloque Odoo del MCP,
- * ADR-025). Un search_count vacío es la llamada autenticada más barata. Sin
- * configuración → skip (el bloque es opcional).
- */
+/** Odoo (ADR-025): search_count vacío = llamada autenticada más barata; sin env → skip. */
 export async function checkOdoo(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
   if (!isOdooConfigured()) return { status: 'skip', detail: 'no configurado' }
   return timed('odoo', async () => {
@@ -182,12 +155,7 @@ export async function checkProtectedResource(fetchFn: Fetcher = fetch): Promise<
   })
 }
 
-/**
- * El check más valioso: POST /api/mcp SIN token debe dar 401 con
- * `resource_metadata` en WWW-Authenticate. Atrapa dos fallos silenciosos: un
- * fail-open (¡200 sin auth!) y un 401 mudo que los conectores no pueden usar
- * para descubrir el authorization server.
- */
+/** MCP sin token debe dar 401 CON resource_metadata: atrapa fail-open y 401 mudo. */
 export async function checkMcpUnauthenticated(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
   const start = Date.now()
   try {

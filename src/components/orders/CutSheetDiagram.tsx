@@ -26,11 +26,8 @@ function layoutShelves(sheet: PackedSheet, marginMm: number, scaleX: number) {
 }
 
 /**
- * Una HOJA de placa de medida fija vista desde arriba (issue #64): el largo de
- * la hoja corre en X, el ancho en Y — el lienzo es la hoja completa que vende
- * el proveedor, y el sobrante queda punteado como en el diagrama de barras.
- * Cada fila (shelf) consume el largo de su pieza más larga; los cortes entre
- * filas van en oscuro. SVG imprimible para el taller.
+ * Hoja de placa vista desde arriba (#64): largo en X, ancho en Y, sobrante
+ * punteado; cada fila consume el largo de su pieza más larga. Imprimible.
  */
 export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }: CutSheetDiagramProps) {
   const kerfPatternId = useId()

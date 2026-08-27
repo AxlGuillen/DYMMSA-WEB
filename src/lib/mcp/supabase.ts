@@ -1,15 +1,7 @@
 /**
- * Clientes Supabase del MCP remoto (ADR-023). CERO service_role.
- *
- * `clientForToken` construye un cliente por request que actúa COMO el usuario
- * del token: la opción `accessToken` hace que PostgREST reciba ese JWT y RLS
- * aplique exactamente igual que en la app. Ninguna query filtra a mano — RLS
- * es la única barrera de datos.
- *
- * supabase-js reemplaza `client.auth` por un proxy que lanza cuando se pasa
- * `accessToken` (así este cliente no puede iniciar/cerrar sesión por
- * accidente); por eso existe `verifierClient`, un cliente aparte y compartido
- * (stateless) cuyo único trabajo es `auth.getUser(token)` contra GoTrue.
+ * Clientes Supabase del MCP (ADR-023), CERO service_role: clientForToken actúa
+ * como el usuario del token (RLS es la única barrera). verifierClient existe
+ * aparte porque con accessToken supabase-js bloquea client.auth.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'

@@ -103,10 +103,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
     return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">{quantity}</Badge>
   }
 
-  // Los tonos van OPACOS vía color-mix (mismo color resultante que un `/50` o
-  // `/20` sobre el fondo, pero sin canal alfa): la columna fija de acciones
-  // hereda este color con `bg-inherit`, y con transparencia se alcanzaría a ver
-  // el contenido de las columnas que pasan por debajo al hacer scroll lateral.
+  // Tonos OPACOS vía color-mix: la columna fija hereda con bg-inherit y el alfa transparentaría.
   const getRowClass = (quantity: number) => {
     if (quantity === 0)
       return 'bg-[color-mix(in_oklab,var(--color-red-50)_50%,var(--background))] dark:bg-[color-mix(in_oklab,var(--color-red-950)_20%,var(--background))]'

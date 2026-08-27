@@ -1,22 +1,7 @@
 /**
- * Verificación de tokens OAuth 2.1 del MCP remoto (ADR-023).
- *
- * Dos puertas, en orden:
- *   1. `getUser(token)` contra GoTrue — autoritativo: detecta revocación y
- *      expiración, no solo firma.
- *   2. El token debe traer claim `client_id` (solo los emitidos por el flujo
- *      OAuth lo llevan — un token de sesión web normal NO abre el conector) y,
- *      si hay allowlist (`MCP_OAUTH_CLIENT_IDS`), estar en ella.
- *
- * NO hay puerta de tenant: dymmsa es una sola empresa con proyecto Supabase
- * propio (sin signup público, usuarios sembrados a mano) — ser usuario del
- * proyecto ES ser staff. Si algún día el proyecto se comparte o aparece
- * multi-tenancy, esta es la puerta que hay que agregar (ver admin-home).
- *
- * La caché de identidad amortiza el round trip a GoTrue (una pregunta del LLM
- * encadena varias tools). Clave = SHA-256 del token — nunca el token en claro
- * (un heap dump o log lo expondría) y por construcción una entrada jamás puede
- * servirle a otro token. El precio: revocar tarda hasta TTL_MS en surtir efecto.
+ * Verificación OAuth 2.1 (ADR-023): getUser contra GoTrue (autoritativo) +
+ * claim client_id en allowlist — un token de sesión web NO abre el conector.
+ * Caché por SHA-256 del token (jamás en claro); revocar tarda hasta TTL_MS.
  */
 
 import { createHash } from 'node:crypto'
@@ -104,11 +89,7 @@ function identityFor(token: string): Promise<CachedIdentity | null> {
   return pending
 }
 
-/**
- * Devolver `undefined` es lo que hace que `withMcpAuth` conteste 401 con el
- * header `WWW-Authenticate` apuntando al metadata del recurso. Sin ese header
- * ningún cliente MCP puede descubrir el authorization server.
- */
+/** `undefined` → withMcpAuth responde 401 CON WWW-Authenticate (sin él, los clientes no descubren el auth server). */
 export async function verifyToken(
   _req: Request,
   bearerToken?: string,

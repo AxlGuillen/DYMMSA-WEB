@@ -12,10 +12,7 @@ import {
   type GitHubIssue,
 } from '@/lib/github'
 
-// ------------------------------------------------------------------ //
-// GET /api/tasks?state=open|closed|all&priority=&page=                //
-// Lista de tasks (issues del repo). El filtro state=closed = histórico.
-// ------------------------------------------------------------------ //
+// GET /api/tasks?state=&priority=&page= — lista de issues; state=closed es el histórico.
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()

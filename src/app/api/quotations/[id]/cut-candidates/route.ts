@@ -16,14 +16,8 @@ function num(value: unknown): number | null {
 }
 
 /**
- * GET /api/quotations/[id]/cut-candidates — piezas DYMMSA de una cotización
- * para SEMBRAR el corte rápido (issue #71): desde la cotización se empieza a
- * pensar el corte, antes de que exista la orden. Misma forma que los
- * candidatos del cut-plan de orden (cruce con las medidas nominales cut_* de
- * etm_products), mismo filtro por marca normalizada trim+upper.
- *
- * Reglas: separadores fuera y "no lo vendemos" (is_sold=false) fuera — lo que
- * no se va a vender no se manda a hacer.
+ * Piezas DYMMSA de la cotización para sembrar el corte rápido (#71) — misma
+ * forma que los candidatos de orden; separadores e is_sold=false fuera.
  */
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {

@@ -32,10 +32,7 @@ export default function LoginPage() {
     }
 
     toast.success('Sesión iniciada')
-    // Honra ?next= (el consentimiento OAuth llega con su authorization_id ahí,
-    // ADR-023). El guard de open-redirect vive en isSafeNext, compartido con el
-    // proxy. Se lee de window.location y no de useSearchParams para no exigir
-    // Suspense.
+    // Honra ?next= (ADR-023) con el guard isSafeNext; window.location evita exigir Suspense.
     const next = new URLSearchParams(window.location.search).get('next')
     push(isSafeNext(next) ? next : '/dashboard')
     refresh()
