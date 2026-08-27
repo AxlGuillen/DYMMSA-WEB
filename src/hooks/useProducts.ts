@@ -73,13 +73,7 @@ export function useUpdateProduct() {
   })
 }
 
-/**
- * Toggle rápido del tri-estado `is_sold` desde la tabla (issue #55).
- *
- * Optimista: la fila cambia al instante en todas las páginas cacheadas y se
- * revierte al snapshot si el PATCH falla — marcar decenas de productos seguidos
- * no debe esperar al servidor en cada click.
- */
+/** Toggle optimista de is_sold (#55): cambia al instante y revierte si el PATCH falla. */
 export function useSetProductSold() {
   const queryClient = useQueryClient()
 

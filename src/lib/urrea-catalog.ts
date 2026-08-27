@@ -1,14 +1,6 @@
 /**
- * Acceso compartido al catálogo URREA para la resolución de descripciones.
- *
- * La llave de cruce es **(código, marca)** — `urrea_catalog` tiene identidad
- * `UNIQUE(code, brand)` porque el mismo código puede existir en varias marcas.
- * Ambas partes se normalizan (trim + mayúsculas) con `catalogKey` en los dos
- * lados: un espacio o una minúscula hace fallar el match en silencio.
- *
- * La QUERY sigue siendo por código (trae todas las marcas de esos códigos) y el
- * mapa resultante se indexa por `catalogKey` — así quien resuelve elige la fila
- * de SU marca sin que el llamador tenga que mandar marcas.
+ * Acceso al catálogo URREA: query por código, mapa indexado por catalogKey
+ * (code+brand) — quien resuelve elige la fila de SU marca (ADR-013).
  */
 
 import { catalogKey, normalizeCatalogCode } from '@/lib/business-rules'
@@ -17,12 +9,7 @@ import type { createClient } from '@/lib/supabase/server'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
-/**
- * Trae las descripciones del catálogo para un lote de códigos (una sola query).
- * Devuelve un `Map<catalogKey(code, brand), descripción>` — el formato que
- * consume `resolveDymmsaDescription`. Códigos vacíos se descartan; lote vacío
- * no consulta.
- */
+/** Descripciones por lote en una query → Map<catalogKey, descripción> para resolveDymmsaDescription. */
 export async function fetchCatalogDescriptionMap(
   supabase: SupabaseServerClient,
   codes: (string | null | undefined)[],
@@ -45,12 +32,7 @@ export async function fetchCatalogDescriptionMap(
   return new Map(data.map((row) => [catalogKey(row.code, row.brand), row.description]))
 }
 
-/**
- * Variante para el planificador de compra (ADR-018): además de la descripción
- * trae el STD. Misma disciplina que fetchCatalogDescriptionMap — query por
- * código, mapa indexado por `catalogKey`, degradación a mapa vacío si el
- * catálogo no responde (los grupos caen al bucket "local", el plan no truena).
- */
+/** Variante con STD para el planificador (ADR-018); si el catálogo falla → mapa vacío, el plan no truena. */
 export async function fetchCatalogEntryMap(
   supabase: SupabaseServerClient,
   codes: (string | null | undefined)[],

@@ -7,10 +7,7 @@ interface QuotationDraftState {
   name: string
   customer_name: string
   items: QuotationItemRow[]
-  // Descripciones oficiales del catálogo, indexadas por `catalogKey` (MARCA|CODIGO
-  // normalizados) — el match es por código Y marca. Derivado del lookup al
-  // importar/editar; resuelve la columna "Desc. DYMMSA" (el catálogo gana
-  // jerarquía sobre la curada del ítem).
+  // Descripciones oficiales indexadas por catalogKey (marca|código); derivado del lookup (ADR-013).
   catalogDescriptions: Record<string, string>
 }
 
@@ -135,12 +132,8 @@ export const useQuotationStore = create<QuotationStore>()(
           typeof window !== 'undefined' ? window.localStorage : undefined,
         ),
       ),
-      // v0 → v1: `catalogDescriptions` pasó de estar indexado por CODIGO a
-      // MARCA|CODIGO (match estricto por marca). Las llaves viejas ya no cruzan,
-      // así que se descartan en vez de mostrar la descripción de otra marca. El
-      // mapa es derivado (se repuebla en el próximo lookup) y el borrador —ítems,
-      // nombre, cliente— se conserva intacto. Al guardar, el server resuelve la
-      // descripción de cero, así que el dato persistido nunca depende de esto.
+      // v0→v1: el índice pasó de código a marca|código — las llaves viejas se
+      // descartan (mostrarían otra marca); el mapa es derivado y se repuebla.
       migrate: (persisted): QuotationDraftState => ({
         ...(persisted as QuotationDraftState),
         catalogDescriptions: {},

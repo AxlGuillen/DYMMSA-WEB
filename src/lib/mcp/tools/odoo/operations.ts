@@ -1,10 +1,6 @@
 /**
- * Bloque Odoo — Fases 3 y 4: Inventario, Empleados y Flotilla (issue #65,
- * ADR-025). SOLO lectura, mismo contrato que accounting/sales.
- *
- * Inventario: la verdad almacenada es stock.quant (qty_available de
- * product.product es computado no-almacenado: Odoo no puede filtrar/ordenar
- * por él). El display de product_id ya trae el código: "[510023782] Punta…".
+ * Odoo F3-F4 — inventario (stock.quant es la verdad; qty_available computado),
+ * empleados y flotilla (ADR-025). Solo lectura.
  */
 
 import type { OdooCaller } from '@/lib/odoo/client'

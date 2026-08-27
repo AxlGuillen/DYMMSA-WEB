@@ -10,13 +10,8 @@ interface SoldStatusToggleProps {
 }
 
 /**
- * Toggle rápido de "¿lo vendemos?" (issue #55), con el mismo gesto que aprobar
- * un producto en `/approve/[token]`: un click marca, y volver a hacer click en
- * el botón ACTIVO regresa a "sin definir".
- *
- * Ese regreso a `null` importa: `is_sold` es tri-estado y solo los valores
- * explícitos (true/false) pisan el catálogo vía auto-learn — sin esto no habría
- * forma de deshacer una marca puesta por error desde la tabla.
+ * Toggle de "¿lo vendemos?" (#55): click marca, re-click en el activo vuelve a
+ * null — el único camino para deshacer una marca errónea (solo true/false pisan catálogo).
  */
 export function SoldStatusToggle({ value, onChange, disabled }: SoldStatusToggleProps) {
   const base = 'rounded p-1 transition-colors disabled:opacity-50 disabled:pointer-events-none'

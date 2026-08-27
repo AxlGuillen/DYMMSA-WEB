@@ -31,10 +31,8 @@ function layoutSegments(segments: DiagramSegment[], marginMm: number, scale: num
 }
 
 /**
- * Diagrama SVG de una barra cortada (issue #59): [pieza][corte][pieza]…[sobrante].
- * Proporcional al largo real; el sobrante va punteado y los cortes en oscuro.
- * SVG a propósito (no 3D): un corte lineal ES una barra segmentada, y así el
- * diagrama se imprime tal cual para llevarlo al taller.
+ * Barra cortada en SVG proporcional: [pieza][corte]…[sobrante punteado].
+ * SVG a propósito — se imprime tal cual para el taller (ADR-022).
  */
 export function CutBarDiagram({ barLengthMm, marginMm, segments }: CutBarDiagramProps) {
   // Ids únicos por instancia: una página puede tener muchos diagramas y los

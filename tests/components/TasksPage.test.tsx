@@ -7,7 +7,11 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { renderWithProviders, screen, setupUser } from './helpers/render'
 import TasksPage from '@/app/dashboard/tasks/page'
 import { useTasks, useCreateTask, useUploadTaskImage } from '@/hooks/useTasks'
+import { TASKS_TOUR } from '@/lib/tours/tasks'
 import type { Task } from '@/lib/github'
+
+vi.mock('driver.js', () => ({ driver: vi.fn(() => ({ drive: vi.fn() })) }))
+vi.mock('driver.js/dist/driver.css', () => ({}))
 
 vi.mock('@/hooks/useTasks', () => ({
   useTasks: vi.fn(),
@@ -64,5 +68,15 @@ describe('TasksPage', () => {
     await user.click(screen.getByRole('button', { name: /Nueva tarea/ }))
     expect(await screen.findByRole('heading', { name: 'Nueva tarea' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/El total no suma bien/)).toBeInTheDocument()
+  })
+})
+
+describe('TasksPage — vista guiada (issue #74)', () => {
+  test('anti-drift: todos los selectores del tour existen', () => {
+    mockUseTasks.mockReturnValue({ data: { tasks: [task()], page: 1 }, isLoading: false, error: null } as never)
+    renderWithProviders(<TasksPage />)
+    for (const step of TASKS_TOUR) {
+      expect(document.querySelector(step.selector), step.selector).not.toBeNull()
+    }
   })
 })

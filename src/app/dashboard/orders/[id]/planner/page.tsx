@@ -37,11 +37,7 @@ export default function PlannerPage({ params }: PlannerPageProps) {
   return <PurchasePlanner data={data} />
 }
 
-/**
- * Esqueleto con la MISMA forma del planificador (encabezado, 4 tarjetas de
- * resumen y las filas de grupo). Antes había un spinner centrado, que no
- * anticipa nada y hace sentir la espera más larga en órdenes grandes.
- */
+/** Esqueleto con la MISMA forma del planificador — un spinner centrado alarga la espera percibida. */
 function PlannerSkeleton() {
   return (
     <div className="space-y-6 pb-24">

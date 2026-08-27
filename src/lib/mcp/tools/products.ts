@@ -1,8 +1,4 @@
-/**
- * Tools MCP del módulo Catálogo ETM (solo lectura).
- * Resuelve la Descripción DYMMSA en vivo con la jerarquía de catálogo
- * (catálogo URREA > curada > null, ADR-013) — el LLM recibe el valor final.
- */
+/** Tools del catálogo ETM (lectura); la Descripción DYMMSA va YA resuelta (ADR-013). */
 
 import { resolveDymmsaDescription } from '@/lib/business-rules'
 import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'

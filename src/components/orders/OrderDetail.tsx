@@ -71,6 +71,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { OrderStatusBadge } from './OrderStatusBadge'
+import { TourButton } from '@/components/tours/TourButton'
 import {
   useUpdateOrderStatus,
   useConfirmReception,
@@ -246,10 +247,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }))
   }
 
-  // ── Recepción con confirmación (anti-dedazo, ADR-019) ──────────────
-  // El botón abre un resumen de lo capturado; la mutación solo corre al
-  // confirmar en el diálogo. Sin tope en el input, un typo (100 vs 10)
-  // mandaría excedente fantasma al inventario en silencio.
+  // ── Recepción con confirmación (ADR-019): la mutación solo corre tras el
+  // resumen — sin tope, un typo mandaría excedente fantasma al inventario. ──
   const [receptionDialogOpen, setReceptionDialogOpen] = useState(false)
 
   /** Filas del resumen: edición + datos del ítem para mostrar el efecto. */
@@ -502,9 +501,10 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </div>
 
         {/* Actions — ml-auto: alineadas a la derecha también cuando bajan de línea */}
-        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0 ml-auto print:hidden">
+        <div data-tour="od-actions" className="flex items-center gap-2 flex-wrap justify-end shrink-0 ml-auto print:hidden">
+          <TourButton tour="order-detail" />
           {!isCancelled && (
-            <div className="flex items-center gap-2">
+            <div data-tour="od-status" className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Estado:</span>
               <Select
                 value={order.status}
@@ -663,7 +663,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
       {/* Info notes — only when order is active */}
       {!isCancelled && !isCompleted && (
-        <div className="flex flex-col gap-1.5 text-xs text-muted-foreground px-1 print:hidden">
+        <div data-tour="od-notes" className="flex flex-col gap-1.5 text-xs text-muted-foreground px-1 print:hidden">
           <div className="flex items-start gap-1.5">
             <Info className="size-3.5 mt-0.5 shrink-0" />
             <span>
@@ -684,7 +684,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div data-tour="od-stats" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-lg border p-4 bg-card">
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
             <Package className="size-3" /> Productos
@@ -721,7 +721,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       </div>
 
       {/* Order Items */}
-      <Card>
+      <Card data-tour="od-items">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>

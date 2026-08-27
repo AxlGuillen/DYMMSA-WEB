@@ -39,10 +39,7 @@ export async function POST(request: NextRequest) {
     const foundEtms = new Set(data?.map((p) => p.etm) || [])
     const notFound = etmCodes.filter((etm) => !foundEtms.has(etm))
 
-    // Descripciones oficiales del catálogo (jerarquía mayor que la curada):
-    // union de model_codes de los productos encontrados + los del Excel.
-    // El mapa devuelto se indexa por `catalogKey` (MARCA|CODIGO) e incluye todas
-    // las marcas de esos códigos → el cotizador resuelve con la marca de cada ítem.
+    // Descripciones oficiales por catalogKey (todas las marcas de esos códigos, ADR-013).
     const codesForCatalog = [
       ...(data?.map((p) => p.model_code) ?? []),
       ...(Array.isArray(modelCodes) ? modelCodes : []),

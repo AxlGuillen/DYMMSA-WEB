@@ -27,11 +27,7 @@ export interface CutPlanResponse {
   marginMm: number
 }
 
-/**
- * Plan de corte de una orden (issue #59). Key anidada bajo [ORDERS_KEY,
- * orderId], igual que el plan de compra: las mutaciones de la orden ya
- * invalidan ese prefijo y la lista se refresca sola.
- */
+/** Plan de corte de una orden; key bajo [ORDERS_KEY, id] → las mutaciones de la orden lo refrescan solas. */
 export function useCutPlan(orderId: string) {
   return useQuery({
     queryKey: [...ORDERS_KEY, orderId, 'cut-plan'],
@@ -79,11 +75,7 @@ export interface SavePresentationInput {
 
 export const PRESENTATIONS_KEY = ['material-presentations'] as const
 
-/**
- * Registra la presentación que el proveedor ofreció ("barras de 6 m de Ø30").
- * El catálogo se arma solo: queda guardada y se sugiere en planes futuros.
- * `orderId` solo dirige la invalidación; el corte rápido pasa 'standalone'.
- */
+/** Registra una presentación del proveedor (catálogo que se arma solo); orderId solo dirige la invalidación. */
 export function useSavePresentation(orderId: string) {
   const queryClient = useQueryClient()
 

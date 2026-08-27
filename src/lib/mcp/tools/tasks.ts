@@ -1,11 +1,6 @@
 /**
- * Tools MCP del módulo Tareas.
- * Misma fuente que /api/tasks: los issues del repo GITHUB_REPO vía github.ts.
- * Los GitHubError se propagan — el wrapper del server los muestra tal cual.
- *
- * Lectura: listTasks, getTask. Escritura (Fase 2, ADR-015): createTask — crear
- * un issue. Es la primera y única escritura del MCP; deliberadamente acotada a
- * tareas (un issue se cierra/borra trivialmente y no toca el núcleo transaccional).
+ * Tools de tareas — misma fuente que /api/tasks (GitHub Issues, ADR-014).
+ * Escrituras acotadas de ADR-015: createTask y updateTask.
  */
 
 import {
@@ -73,11 +68,7 @@ export interface CreateTaskInput {
   priority?: string
 }
 
-/**
- * Crea una tarea (GitHub Issue). Espeja POST /api/tasks pero con reporter fijo
- * (ver MCP_REPORTER): el MCP no tiene sesión de usuario. Título obligatorio;
- * prioridad opcional (se ignora si no es válida, igual que la ruta HTTP).
- */
+/** Espeja POST /api/tasks con reporter fijo (el MCP no tiene sesión); prioridad inválida se ignora. */
 export async function createTask(input: CreateTaskInput) {
   const title = input.title?.trim()
   if (!title) throw new ToolError('El título es obligatorio')
@@ -105,11 +96,8 @@ export interface UpdateTaskInput {
 }
 
 /**
- * Actualiza una tarea existente (issue #72, ADR-015): comentar, cambiar
- * prioridad y cerrar/reabrir. Espeja PATCH /api/tasks/[number] y el POST de
- * comentarios, con atribución fija MCP_REPORTER. Deliberadamente NO edita
- * título ni descripción: reescribir texto redactado por humanos es el riesgo
- * que esta tool acotada evita.
+ * Comentar / priorizar / cerrar-reabrir (#72, ADR-015). NO edita título ni
+ * descripción: reescribir texto humano es el riesgo que esta tool evita.
  */
 export async function updateTask(input: UpdateTaskInput) {
   const n = input.task_number

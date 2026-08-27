@@ -1,26 +1,13 @@
 /**
- * Auto-learn de catálogo ETM.
- *
- * Cuando se guarda una cotización u orden, los ítems con `etm` se usan para
- * crecer/enriquecer el catálogo `etm_products`. Reglas críticas del CLAUDE.md:
- *
- * - Solo procesa ítems de tipo producto (separadores excluidos)
- * - Solo procesa ítems con `etm` Y (model_code o description)
- * - Al INSERTAR: `brand` default es 'URREA' **solo si** hay model_code
- * - Al ACTUALIZAR: solo se sobreescriben campos no vacíos que cambiaron
- *
- * Estructura: cálculos puros + función impura que los usa.
+ * Auto-learn: cada cotización/orden guardada enriquece etm_products.
+ * Reglas en CLAUDE.md; cálculos puros + una función impura que los usa.
  */
 
 import { isProductItem } from '@/lib/business-rules'
 import type { createClient } from '@/lib/supabase/server'
 import type { QuotationItemRow } from '@/types/database'
 
-/**
- * Resultado del auto-learn de cotizaciones/órdenes.
- * Distinto del `AutoLearnResult` en `types/database.ts` que pertenece al
- * endpoint legacy `/api/orders/auto-learn` (insert-only).
- */
+/** Resultado del auto-learn (distinto del AutoLearnResult legacy de types/database.ts). */
 export interface QuotationAutoLearnResult {
   added: number
   updated: number
@@ -46,12 +33,7 @@ type EligibleItem = QuotationItemRow & { etm: string }
 
 // ─── Funciones puras ───────────────────────────────────────────────────
 
-/**
- * Decide si un ítem es elegible para auto-learn.
- * Reglas: tipo producto, tiene etm, y al menos model_code o description
- * — O un `is_sold` explícito (para persistir "no lo vendemos" aunque el ítem
- * solo traiga ETM, que es el caso típico de un producto que no manejamos).
- */
+/** Elegible: producto con etm y (model_code o description) — o un is_sold explícito solo. */
 export function isEligibleForAutoLearn(item: QuotationItemRow): item is EligibleItem {
   return (
     isProductItem(item) &&
@@ -60,12 +42,7 @@ export function isEligibleForAutoLearn(item: QuotationItemRow): item is Eligible
   )
 }
 
-/**
- * Calcula los campos para un INSERT nuevo en `etm_products`.
- *
- * REGLA CRÍTICA: brand default 'URREA' solo si hay model_code.
- * Sin model_code, brand queda null (no se asume URREA).
- */
+/** Campos del INSERT nuevo. Regla: brand default URREA SOLO si hay model_code. */
 export function computeNewEtmFields(item: EligibleItem): {
   etm: string
   description: string
@@ -90,13 +67,7 @@ export function computeNewEtmFields(item: EligibleItem): {
   }
 }
 
-/**
- * Merge de campos para UPDATE de un ETM existente.
- * Solo retorna los campos NO VACÍOS que han cambiado.
- *
- * REGLA CRÍTICA: nunca sobreescribe con string vacío. Si el ítem no tiene
- * valor para un campo, ese campo queda intacto en la BD.
- */
+/** Merge del UPDATE: solo campos no vacíos que cambiaron — jamás pisa con vacío. */
 export function mergeEtmFields(
   existing: ExistingEtm,
   incoming: EligibleItem
@@ -126,12 +97,7 @@ export function mergeEtmFields(
 
 // ─── Función impura (orchestración) ────────────────────────────────────
 
-/**
- * Procesa auto-learn: para cada ítem elegible, INSERTA si no existe en
- * `etm_products` o ACTUALIZA si existe y cambió algún campo.
- *
- * Retorna métricas `{ added, updated, skipped }`.
- */
+/** Inserta o actualiza cada ítem elegible; retorna { added, updated, skipped }. */
 export async function processAutoLearn(
   supabase: SupabaseServerClient,
   userId: string,

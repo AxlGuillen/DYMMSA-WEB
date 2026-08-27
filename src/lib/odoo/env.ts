@@ -1,10 +1,6 @@
 import { OdooError } from './client'
 
-/**
- * Env del bloque Odoo (issue #65, ADR-025). A diferencia de mcp/env.ts NO se
- * valida al importar: Odoo es un bloque opcional — si falta, el resto del MCP
- * sigue operando y solo las tools odoo_* responden con el error accionable.
- */
+/** Env de Odoo — NO valida al importar: el bloque es opcional (ADR-025). */
 export interface OdooEnv {
   /** Solo el origen, sin diagonal final. */
   url: string

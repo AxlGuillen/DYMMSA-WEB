@@ -1,20 +1,7 @@
 /**
- * Paleta de colores de separadores (issue #73).
- *
- * Cada sección de una cotización/orden se tiñe para leer la jerarquía de un
- * vistazo: por defecto el color ROTA por índice de sección (posición del
- * separador en el documento), y un separador puede fijar un override manual
- * (`separator_color` en BD; NULL = automático).
- *
- * Los fondos van OPACOS vía `color-mix` (nunca alfa): la columna fija de
- * acciones hereda el color con `bg-inherit`, y con transparencia se vería el
- * contenido pasando por debajo al hacer scroll lateral (ver notSoldRowClass).
- * Clases estáticas a propósito — Tailwind no compila valores en runtime.
- *
- * `separator_color` es TEXT libre en BD (no enum): la validación vive SOLO
- * aquí. Una escritura fuera de save/update (p. ej. un futuro `set_*` del MCP)
- * podría guardar un valor fuera de la paleta — `resolveSeparatorColor` lo
- * absorbe cayendo a automático, en silencio.
+ * Paleta de separadores (#73): rota por índice, override manual en separator_color
+ * (TEXT libre — la validación vive SOLO aquí; valores desconocidos caen a automático).
+ * Fondos OPACOS vía color-mix: la columna fija hereda con bg-inherit y el alfa transparentaría.
  */
 
 export interface SeparatorTone {

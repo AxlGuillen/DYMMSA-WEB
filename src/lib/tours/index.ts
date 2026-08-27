@@ -2,11 +2,8 @@ import { driver } from 'driver.js'
 import 'driver.js/dist/driver.css'
 
 /**
- * Vistas guiadas (issue #52, ADR-024) — driver.js con propósito de OVERVIEW:
- * explican qué es cada bloque de la pantalla y cómo se conecta con el resto,
- * no un paso-a-paso de captura. Siempre opcionales: se lanzan con el botón
- * "Vista guiada", nunca solas. Cada módulo define sus pasos apuntando a
- * atributos `data-tour="..."` (no a clases: el estilo cambia, el ancla no).
+ * Vistas guiadas (ADR-024): OVERVIEWS opcionales — nunca arrancan solas.
+ * Anclas por data-tour, jamás clases: el estilo cambia, el ancla no.
  */
 export interface OverviewStep {
   /** Selector del bloque (por convención `[data-tour="..."]`). */
@@ -17,11 +14,8 @@ export interface OverviewStep {
 }
 
 /**
- * El sidebar existe DOS veces en el DOM (drawer móvil + aside de desktop) y
- * varias secciones son condicionales: se resuelve el primer match VISIBLE.
- * Las opciones extienden el chequeo a `visibility` y `opacity` (por default
- * solo cubre display/content-visibility — review PR #62). `checkVisibility`
- * no existe en jsdom (tests) → ahí cuenta solo existir.
+ * Primer match VISIBLE: el sidebar existe dos veces en el DOM y hay secciones
+ * condicionales. checkVisibility no existe en jsdom → ahí basta existir.
  */
 function resolveVisible(selector: string): Element | null {
   for (const el of document.querySelectorAll(selector)) {
@@ -35,11 +29,7 @@ function resolveVisible(selector: string): Element | null {
   return null
 }
 
-/**
- * Arranca la vista guiada con los bloques que SÍ están en pantalla: las
- * secciones condicionales (candidatos ya consumidos, filtros de una página
- * read-only) simplemente se saltan en vez de mostrar un popover huérfano.
- */
+/** Arranca solo con los bloques presentes — lo condicional se salta, sin popovers huérfanos. */
 export function startOverview(steps: OverviewStep[]) {
   const present = steps.flatMap((step) => {
     const element = resolveVisible(step.selector)

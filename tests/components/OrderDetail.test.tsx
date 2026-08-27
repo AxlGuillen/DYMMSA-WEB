@@ -13,6 +13,7 @@ import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
 import { resetStores } from './helpers/stores'
 import { OrderDetail } from '@/components/orders/OrderDetail'
+import { ORDER_DETAIL_TOUR } from '@/lib/tours/order-detail'
 import type { OrderWithItems, OrderItem } from '@/types/database'
 
 const { confirmAsync } = vi.hoisted(() => ({
@@ -31,6 +32,9 @@ vi.mock('@/hooks/useOrders', () => ({
   useRemoveOrderItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateOrderOdooId: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
+
+vi.mock('driver.js', () => ({ driver: vi.fn(() => ({ drive: vi.fn() })) }))
+vi.mock('driver.js/dist/driver.css', () => ({}))
 
 vi.mock('@/hooks/usePurchasePlan', () => ({
   usePurchasePlan: () => ({ data: undefined }),
@@ -184,5 +188,23 @@ describe('OrderDetail — columnas redimensionables (issue #55)', () => {
     renderWithProviders(<OrderDetail order={order([orderItem()])} />)
     const header = screen.getByRole('columnheader', { name: /Acciones/ })
     expect(header.className).toContain('sticky')
+  })
+})
+
+describe('OrderDetail — vista guiada (issue #74)', () => {
+  beforeEach(() => resetStores())
+
+  test('anti-drift: en una orden activa existen los 5 bloques del tour', () => {
+    renderWithProviders(<OrderDetail order={order([orderItem()])} />)
+    for (const step of ORDER_DETAIL_TOUR) {
+      expect(document.querySelector(step.selector), step.selector).not.toBeNull()
+    }
+  })
+
+  test('en cancelada desaparecen estado y notas — el tour los salta sin tronar', () => {
+    renderWithProviders(<OrderDetail order={order([orderItem()], { status: 'cancelled' })} />)
+    expect(document.querySelector('[data-tour="od-status"]')).toBeNull()
+    expect(document.querySelector('[data-tour="od-notes"]')).toBeNull()
+    expect(document.querySelector('[data-tour="od-items"]')).not.toBeNull()
   })
 })

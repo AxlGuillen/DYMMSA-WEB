@@ -22,12 +22,8 @@ interface ApprovalFiltersProps {
 }
 
 /**
- * Filtros de la aprobación (issue #24): marca y proyecto/sección + botón
- * contextual de "aprobar lo visible". Vive en el encabezado de la card de
- * productos (arriba de la tabla) — antes era una barra sticky aparte que
- * rompía con el diseño y truncaba las etiquetas. Los triggers usan ancho
- * automático (`w-auto` + `min-w`) para que ninguna opción se corte.
- * Cada Select solo aparece si hay más de una opción que filtrar.
+ * Filtros de la aprobación (#24): marca + sección y "aprobar lo visible".
+ * Cada Select solo aparece con más de una opción que filtrar.
  */
 export function ApprovalFilters({
   brands,

@@ -116,11 +116,7 @@ function colLetterToIndex(col: string): number {
   return index
 }
 
-/**
- * Sets a cell value in the worksheet XML DOM.
- * Strings use inline string format, numbers use value format.
- * Preserves existing cells (formulas) in the same row.
- */
+/** Escribe una celda en el XML preservando las demás de la fila (fórmulas intactas). */
 function setCellValue(doc: Document, sheetData: Element, ref: string, value: string | number) {
   const rowNum = parseInt(ref.replace(/[A-Z]+/, ''))
   const colLetter = ref.replace(/[0-9]+/, '')
@@ -206,12 +202,8 @@ const URREA_TEMPLATE_START_ROW = 15
 const URREA_TEMPLATE_MAX_ROWS = 1012
 
 /**
- * Genera un archivo Excel de pedido URREA usando el template .xlsm
- * Manipula el ZIP directamente para preservar macros VBA y formulas intactas.
- * Solo rellena columnas A (CÓDIGO) y B (CANTIDAD) en la hoja FORMATO.
- *
- * Las filas vienen del planificador de compra (decisiones de mayoreo, piezas
- * ya redondeadas a múltiplos de STD) — el filtrado es responsabilidad del caller.
+ * Pedido URREA sobre el template .xlsm (ZIP directo para no romper macros):
+ * solo llena A/B de FORMATO. Las filas ya vienen decididas del planificador.
  */
 export async function generateUrreaOrderExcel(rows: UrreaOrderRow[]): Promise<Blob> {
   if (rows.length > URREA_TEMPLATE_MAX_ROWS) {
@@ -260,11 +252,7 @@ export async function generateUrreaOrderExcel(rows: UrreaOrderRow[]): Promise<Bl
 
 const IVA_RATE = 0.16
 
-/**
- * Genera el Excel de entrega al cliente con productos surtidos.
- * "Surtido" = quantity_in_stock + min(recibido, pedido) > 0. El excedente de
- * recepción no se entrega ni se cobra — es stock de tienda (ADR-019).
- */
+/** Excel de entrega: surtido = stock + min(recibido, pedido); el excedente jamás se entrega (ADR-019). */
 export function generateDeliveryExcel(items: OrderItem[], _customerName: string): Blob {
   const deliveredItems = items.filter(
     (item) => item.quantity_in_stock + receivedForCustomer(item) > 0
@@ -365,11 +353,7 @@ export interface CutRequestRow {
   request: string
 }
 
-/**
- * Excel del pedido de materia prima al proveedor: una fila por medida con lo
- * que se necesita pedir. Sale de la necesidad neta — no exige conocer las
- * presentaciones del proveedor.
- */
+/** Pedido de materia prima: una fila por medida, desde la necesidad neta (ADR-022). */
 export function generateCutRequestExcel(rows: CutRequestRow[]): Blob {
   const data: (string | number)[][] = [
     ['Material', 'Medida', 'Piezas', 'A pedir'],

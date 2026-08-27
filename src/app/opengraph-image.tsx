@@ -1,9 +1,6 @@
 import { ImageResponse } from 'next/og'
 
-// Tarjeta de preview (Open Graph) para links compartidos en Slack/WhatsApp/etc.
-// Se genera como PNG 1200×630 — WhatsApp no renderiza WebP, así que la tarjeta
-// se dibuja con tipografía + colores de marca (rojo URREA sobre base oscura,
-// igual que el login) en vez de embeber el logo .webp.
+// Tarjeta Open Graph en PNG 1200×630 dibujada con tipografía — WhatsApp no renderiza WebP.
 export const runtime = 'edge'
 export const alt = 'DYMMSA — Sistema de Cotizaciones e Inventario'
 export const size = { width: 1200, height: 630 }

@@ -6,6 +6,7 @@ import { resetStores } from './helpers/stores'
 import { quotationWithItems, quotationItem } from './helpers/fixtures'
 import { QuotationDetail } from '@/components/quotations/QuotationDetail'
 import { useCutDraftStore } from '@/stores/cutDraftStore'
+import { QUOTATION_DETAIL_TOUR } from '@/lib/tours/quotation-detail'
 
 // Spies de los mutation hooks (hoisted para usarlos dentro de vi.mock).
 const { updateAsync, sendAsync, createAsync, deleteAsync, changeStatusAsync, pushMock, fetchJsonMock } = vi.hoisted(() => ({
@@ -22,6 +23,10 @@ vi.mock('@/lib/fetch-json', () => ({
   fetchJson: fetchJsonMock,
   ApiError: class ApiError extends Error {},
 }))
+
+// TourButton importa driver.js (y su CSS) — mock como en el resto de suites de tours.
+vi.mock('driver.js', () => ({ driver: vi.fn(() => ({ drive: vi.fn() })) }))
+vi.mock('driver.js/dist/driver.css', () => ({}))
 
 vi.mock('@/hooks/useQuotations', () => ({
   useSendForApproval: () => ({ mutateAsync: sendAsync, isPending: false }),
@@ -178,5 +183,35 @@ describe('QuotationDetail — planificar corte (issue #71)', () => {
     const store = useCutDraftStore.getState()
     expect(store.candidates).toEqual(candidates)
     expect(store.seededFrom).toBe('Cotización de prueba')
+  })
+})
+
+describe('QuotationDetail — vista guiada (issue #74)', () => {
+  beforeEach(() => {
+    resetStores()
+    vi.clearAllMocks()
+  })
+
+  test('anti-drift: en sent_for_approval existen los 5 bloques del tour', () => {
+    // El estado más rico para el tour: con link de aprobación Y filter cards.
+    const q = quotationWithItems({
+      status: 'sent_for_approval',
+      approval_token: 'tok-1',
+      quotation_items: [quotationItem({ id: 'p1', is_approved: null })],
+    })
+    renderWithProviders(<QuotationDetail quotation={q} />)
+
+    for (const step of QUOTATION_DETAIL_TOUR) {
+      expect(document.querySelector(step.selector), step.selector).not.toBeNull()
+    }
+  })
+
+  test('en draft el link de aprobación no existe — el tour lo salta sin tronar', () => {
+    const q = quotationWithItems({ status: 'draft', quotation_items: [quotationItem({ id: 'p1' })] })
+    renderWithProviders(<QuotationDetail quotation={q} />)
+    expect(document.querySelector('[data-tour="qd-approval-link"]')).toBeNull()
+    // El resto sí está.
+    expect(document.querySelector('[data-tour="qd-status"]')).not.toBeNull()
+    expect(document.querySelector('[data-tour="qd-items"]')).not.toBeNull()
   })
 })

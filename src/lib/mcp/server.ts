@@ -1,16 +1,6 @@
 /**
- * Registro de tools MCP.
- *
- * Fase 1: solo lectura sobre todos los módulos. Fase 2 (ADR-015): escrituras
- * aprobadas como dirección (decisión 2026-07-12), incorporadas por nivel de
- * riesgo — hoy: create_task, update_task y set_inventory_location (issue #72;
- * ninguna toca cantidades ni el flujo cotización/orden). Las que muten el
- * núcleo transaccional se diseñan con el usuario antes.
- *
- * Fase 3 (ADR-023): OAuth 2.1 de Supabase. CERO service_role — cada llamada
- * construye su cliente con el token del request (contextFrom → clientForToken),
- * así que RLS aplica exactamente como en la app. Los tools no cambiaron de
- * firma: siguen recibiendo `Db`; solo cambió quién lo fabrica.
+ * Registro de tools MCP: lectura + 3 escrituras acotadas (ADR-015), OAuth de
+ * Supabase sin service_role — el db de cada llamada sale del token (ADR-023).
  */
 
 import { z } from 'zod'
@@ -38,12 +28,7 @@ type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean
 /** El SDK entrega el AuthInfo validado por withMcpAuth en el extra de cada llamada. */
 type ToolExtra = { authInfo?: AuthInfo }
 
-/**
- * Ejecuta un tool con el cliente del usuario del request (RLS aplica) y traduce
- * errores: esperados → mensaje; el resto → genérico (el detalle va al log).
- * Los tools de GitHub ignoran el `db` — igual pasan por contextFrom, que es la
- * garantía de que solo un token verificado ejecuta tools.
- */
+/** Corre el tool con el db del token (RLS aplica); errores esperados → mensaje, resto → genérico. */
 async function run(extra: ToolExtra, fn: (db: Db) => Promise<unknown>): Promise<ToolResult> {
   try {
     const { db } = contextFrom(extra.authInfo)
@@ -84,11 +69,7 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB (solo lectura). Las cotizaciones/órdenes de aquí y las facturas de Odoo son mundos separados — no asumas cruces entre ambos.
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
-/**
- * Instructions del server MCP (issue #72): el mapa de los dos bloques + las
- * reglas de negocio. Es lo primero que el cliente entrega al modelo al
- * conectar — la agrupación vive aquí porque el listado de tools es plano.
- */
+/** Instructions del server: mapa de bloques + reglas — la agrupación vive aquí, el listado es plano (#72). */
 export const SERVER_INSTRUCTIONS = `# MCP DYMMSA — mapa de herramientas
 
 Las tools se dividen en DOS bloques que NO se cruzan:
@@ -113,11 +94,7 @@ Regla de oro: los dos bloques son mundos separados — nunca asumas que una coti
 ${BUSINESS_RULES_MD}`
 
 export function registerDymmsaTools(server: McpServer): void {
-  // ══════════════════════════════════════════════════════════════════════
-  // BLOQUE A — DYMMSA-WEB (la app): cotizaciones, órdenes, inventario,
-  // catálogos y tareas. Lectura + escrituras acotadas (ADR-015). Los títulos
-  // van sin sufijo: la app es el default; lo externo (Odoo) es lo marcado.
-  // ══════════════════════════════════════════════════════════════════════
+  // ═══ BLOQUE A — DYMMSA-WEB (títulos sin sufijo: la app es el default) ═══
 
   // ─── Resumen ─────────────────────────────────────────────────────────
   server.registerTool(
@@ -349,11 +326,7 @@ export function registerDymmsaTools(server: McpServer): void {
     (input, extra) => run(extra, () => updateTask(input)),
   )
 
-  // ══════════════════════════════════════════════════════════════════════
-  // BLOQUE B — ODOO (externo, SOLO lectura, ADR-025): la facturación oficial
-  // de la empresa vive en un tercero. Prefijo odoo_* + título con "(Odoo)".
-  // Jamás se escribe ni se cruza con el bloque A — mundos separados.
-  // ══════════════════════════════════════════════════════════════════════
+  // ═══ BLOQUE B — ODOO (externo, SOLO lectura; mundos separados, ADR-025) ═══
 
   // ─── Odoo — Fase 1: Contabilidad (issue #65) ─────────────────────────
   // Consultan el Odoo de la EMPRESA (tercero donde vive la facturación

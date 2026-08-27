@@ -1,11 +1,6 @@
 /**
- * Filtrado de la página de aprobación pública (issue #24): filtro por marca y
- * por proyecto/sección (derivada de los separadores de la cotización).
- *
- * Puro y sin dependencias de React — la lógica se prueba sin renderizar.
- * La sección de un ítem es el `section_label` del último separador que lo
- * precede en `sort_order`; los ítems antes del primer separador caen en la
- * sección sintética "General".
+ * Filtros de la aprobación pública (#24): por marca y por sección — la sección
+ * de un ítem es el último separador que lo precede; antes del primero, "General".
  */
 
 import { isSeparator } from '@/lib/business-rules'
@@ -33,11 +28,7 @@ export function hasActiveFilters(filters: ApprovalFilters): boolean {
   return filters.brand !== 'all' || filters.section !== 'all'
 }
 
-/**
- * Mapa `itemId → sección` recorriendo los ítems en orden. Los separadores no
- * entran al mapa (no son ítems filtrables). Un separador con `section_label`
- * vacío igual abre una sección: cae en `GENERAL` para no perder sus ítems.
- */
+/** itemId → sección; un separador con label vacío igual abre sección (GENERAL) para no perder ítems. */
 export function deriveItemSections<T extends FilterableItem>(items: T[]): Map<string, string> {
   const map = new Map<string, string>()
   let current = GENERAL_SECTION
@@ -88,11 +79,7 @@ export function matchesFilters(
   return true
 }
 
-/**
- * Set de ids de ítems (producto y "no disponible") visibles bajo los filtros.
- * Los separadores no entran; el llamador decide mostrar un separador solo si su
- * sección tiene ≥1 ítem visible.
- */
+/** Ids visibles bajo los filtros; el caller muestra un separador solo si su sección tiene ítems. */
 export function computeVisibleItemIds<T extends FilterableItem>(
   items: T[],
   filters: ApprovalFilters,

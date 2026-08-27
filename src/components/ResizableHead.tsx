@@ -12,11 +12,7 @@ interface ResizableHeadProps {
   label: string
   widths: ColumnWidths
   className?: string
-  /**
-   * Fija la columna al borde derecho. Se usa en "Acciones": al poder ensanchar
-   * columnas la tabla desborda, y sin esto editar/eliminar quedan fuera de
-   * pantalla — justo lo contrario de tenerlas a un click.
-   */
+  /** Fija la columna a la derecha (Acciones): al ensanchar, editar/eliminar no salen de pantalla. */
   sticky?: boolean
   /**
    * Contenido propio del encabezado (p. ej. el botón de ordenamiento de la
@@ -25,11 +21,7 @@ interface ResizableHeadProps {
   children?: ReactNode
 }
 
-/**
- * `<th>` con ancho ajustable por arrastre (issue #55). Compartido por las
- * tablas del dashboard para que la manija y el clamp se comporten igual en
- * todas; la tabla solo aporta el contenido del encabezado.
- */
+/** <th> con ancho ajustable (#55), compartido para que manija y clamp sean iguales en todas las tablas. */
 export function ResizableHead({ id, label, widths, className, sticky, children }: ResizableHeadProps) {
   const width = widths.width(id)
 

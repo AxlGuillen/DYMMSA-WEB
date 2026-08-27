@@ -1,9 +1,4 @@
-/**
- * Hace scroll a la fila identificada por `data-row-id="<id>"` (centrada y suave).
- * Útil para llevar al usuario al ítem ofensor tras un error de validación.
- *
- * No-op en SSR o si el elemento no existe.
- */
+/** Scroll suave a la fila data-row-id (ítem ofensor tras validación); no-op en SSR. */
 export function scrollToRow(id: string): void {
   if (typeof document === 'undefined') return
   const el = document.querySelector(`[data-row-id="${CSS.escape(id)}"]`)
@@ -12,11 +7,7 @@ export function scrollToRow(id: string): void {
   }
 }
 
-/**
- * Enfoca el input con el `id` dado (el focus lo trae a la vista y pone el
- * cursor). Útil para llevar al usuario al campo faltante tras un aviso de
- * validación. No-op en SSR o si el elemento no existe.
- */
+/** Enfoca el input por id (campo faltante tras validación); no-op en SSR. */
 export function focusById(id: string): void {
   if (typeof document === 'undefined') return
   const el = document.getElementById(id)

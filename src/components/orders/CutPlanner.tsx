@@ -173,6 +173,8 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
   // Hoja del proveedor por espesor (issue #64): la placa se vende como HOJA
   // de ancho × largo fijos, no como tira por largo.
   const [sheetDims, setSheetDims] = useState<Record<string, { w: string; l: string }>>({})
+  // Rotar 90° si así cabe (#81): default activado; se apaga cuando la veta manda.
+  const [allowRotate, setAllowRotate] = useState<Record<string, boolean>>({})
   const [manualLayouts, setManualLayouts] = useState<
     Record<string, { sig: string; bars: UnitRef[][] }>
   >({})
@@ -347,7 +349,7 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
         const sheetW = Number(dims?.w)
         const sheetL = Number(dims?.l)
         const pack = sheetW > 0 && sheetL > 0
-          ? packSheets(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), sheetW, sheetL, marginMm)
+          ? packSheets(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), sheetW, sheetL, marginMm, { allowRotation: allowRotate[String(group.thicknessMm)] ?? true })
           : null
         return {
           material: 'Placa cobre',
@@ -742,8 +744,9 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
         const dims = sheetDims[thicknessKey]
         const sheetW = Number(dims?.w)
         const sheetL = Number(dims?.l)
+        const rotate = allowRotate[thicknessKey] ?? true
         const pack = sheetW > 0 && sheetL > 0
-          ? packSheets(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), sheetW, sheetL, marginMm)
+          ? packSheets(group.pieces.map((p) => ({ id: p.id, widthMm: p.widthMm, lengthMm: p.lengthMm, quantity: p.quantity })), sheetW, sheetL, marginMm, { allowRotation: rotate })
           : null
         const suggestions = data.presentations
           .filter((pres) => pres.material_type === 'plate' && pres.thickness_mm === group.thicknessMm && pres.width_mm && pres.length_mm)
@@ -798,6 +801,16 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
                     La placa se vende por hoja: captura el ancho × largo que ofrezca el proveedor.
                   </span>
                 )}
+                <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="size-3.5 accent-primary"
+                    checked={rotate}
+                    aria-label={`Permitir rotar piezas de ${group.thicknessMm} mm`}
+                    onChange={(e) => setAllowRotate((prev) => ({ ...prev, [thicknessKey]: e.target.checked }))}
+                  />
+                  Rotar piezas si así caben
+                </label>
               </div>
 
               {pack && pack.impossible.length > 0 && (

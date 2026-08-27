@@ -39,11 +39,7 @@ function findColumnHeader(headers: string[], aliases: string[]): string | null {
   return null
 }
 
-/**
- * Extrae todas las filas de producto de un Excel multi-hoja.
- * Solo ETM es obligatorio; los demás campos se extraen si la columna existe.
- * Permite el mismo ETM múltiples veces (distintas secciones = filas independientes).
- */
+/** Filas de producto de un Excel multi-hoja; solo ETM obligatorio, duplicados permitidos. */
 export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProductResult {
   const workbook = XLSX.read(buffer, { type: 'array' })
   const rows: ExcelExtractedRow[] = []

@@ -1,15 +1,6 @@
 /**
- * Cliente de la API de GitHub Issues — backend del módulo Tareas.
- *
- * Los issues del repo (`GITHUB_REPO`) SON las tasks: no hay tabla en Supabase.
- * La prioridad vive en labels `priority:<nivel>`, el estado en open/closed, y
- * "quién reportó" en una línea al inicio del body. Ver ADR-014.
- *
- * `fetchGitHub()` centraliza auth y mapeo de errores. Las funciones puras
- * (mapIssueToTask, buildIssueBody, priority helpers) son testeables sin red.
- *
- * Nota: los componentes/hooks del cliente importan de aquí SOLO con `import type`
- * (se borra en compilación) → `next/server` nunca llega al bundle del navegador.
+ * Cliente GitHub Issues = backend del módulo Tareas (ADR-014).
+ * El cliente importa de aquí SOLO con `import type` — next/server jamás va al bundle.
  */
 
 import { NextResponse } from 'next/server'
@@ -183,11 +174,7 @@ export function explainGitHubStatus(status: number): string {
   }
 }
 
-/**
- * Traduce un `GitHubError` a `NextResponse` (mismo patrón que `explainPgError`
- * en `supabase-errors.ts`). Cualquier otro error → 500. Lo usan los route
- * handlers de tasks — vive aquí, no en un route.ts, para no acoplar rutas entre sí.
- */
+/** GitHubError → NextResponse (patrón explainPgError); cualquier otro error → 500. */
 export function handleGitHubError(e: unknown): NextResponse {
   if (e instanceof GitHubError) {
     const status = e.status >= 400 && e.status < 600 ? e.status : 502
@@ -197,11 +184,7 @@ export function handleGitHubError(e: unknown): NextResponse {
   return NextResponse.json({ message: 'Error interno' }, { status: 500 })
 }
 
-/**
- * Wrapper de fetch a la API de GitHub del repo configurado. Lanza `GitHubError`
- * con un mensaje claro; el route handler lo traduce a HTTP. `path` es relativo
- * al repo, p. ej. `/issues?state=open`.
- */
+/** Fetch a la API del repo (`path` relativo, p. ej. `/issues`); lanza GitHubError claro. */
 export async function fetchGitHub<T>(
   path: string,
   init: RequestInit = {},

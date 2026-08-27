@@ -4,13 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useColumnStore } from '@/stores/columnStore'
 import { useMounted } from '@/hooks/useMounted'
 
-/**
- * Definición de una columna de tabla para el selector de columnas (issue #18).
- *
- * `id` es un slug estable en inglés y es **API persistida** (se guarda en
- * localStorage): renombrarlo huerfanea la preferencia — la columna vuelve a
- * visible (default seguro), pero evítalo.
- */
+/** Columna del picker (#18). El `id` es API persistida en localStorage — renombrarlo huerfanea la preferencia. */
 export interface TableColumn {
   id: string
   /** Etiqueta en español que se muestra en el picker. */
@@ -25,15 +19,8 @@ export interface TableColumn {
 }
 
 /**
- * Visibilidad de columnas de una tabla, persistida por `tableId`.
- *
- * SSR-safe: hasta el primer frame pintado (`useMounted`) reporta TODO visible
- * para coincidir con el HTML del server — mismo precedente que el sidebar
- * (evita el mismatch de hidratación al rehidratar el store de localStorage).
- *
- * `isVisible` tiene identidad estable entre renders (useCallback sobre el
- * array del store, que es referencialmente estable hasta el siguiente toggle)
- * — apto para bajarlo a filas memoizadas (DnD) sin romper su memo.
+ * Visibilidad por tableId. SSR-safe: hasta el primer frame reporta TODO visible
+ * (hidratación). `isVisible` es estable — apto para filas memoizadas.
  */
 export function useVisibleColumns(tableId: string, columns: readonly TableColumn[]) {
   const hiddenIds = useColumnStore((s) => s.hidden[tableId])

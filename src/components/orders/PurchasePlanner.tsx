@@ -81,11 +81,7 @@ const RECOMMENDATION_BADGE: Record<
   review: { label: 'Revisar', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' },
 }
 
-/**
- * Fondo sutil por decisión, para leer de un vistazo cómo quedó repartida la
- * compra. Mismos colores que los badges de recomendación (verde mayoreo, azul
- * mixto, ámbar por decidir) y opacidad baja: tiñe sin competir con el texto.
- */
+/** Fondo sutil por decisión — mismos colores que los badges, sin competir con el texto. */
 const CHOICE_ROW_CLASS: Record<PurchaseChoice | 'undecided', string> = {
   wholesale: 'bg-green-500/5 border-green-500/30',
   mixed: 'bg-blue-500/5 border-blue-500/30',
@@ -125,11 +121,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
   const localGroups = plan.groups.filter((g) => g.bucket === 'local')
   const isReadOnly = ['completed', 'cancelled'].includes(order.status)
 
-  /**
-   * Filtro por marca (issue #53). Es SOLO VISUAL: guardar, los totales y ambos
-   * Excel siguen corriendo sobre `mathGroups`/`localGroups` completos. Filtrar
-   * lo que se descarga produciría un pedido incompleto sin avisar.
-   */
+  /** Filtro por marca (#53): SOLO visual — guardar y los Excel corren sobre las listas completas. */
   // `filter(Boolean)` es defensivo: hoy `normalizeCatalogBrand` nunca devuelve
   // vacío (cae a URREA), pero un `SelectItem` con value="" hace que Radix lance
   // y tumbe la página — no vale la pena depender de esa invariante remota.
@@ -173,11 +165,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
       }
     })
 
-  /**
-   * Hay algo por guardar si la elección en pantalla no coincide con lo
-   * persistido — incluye grupos sin decisión previa y decisiones marcadas
-   * stale (cambió la cantidad o el STD del catálogo desde que se decidió).
-   */
+  /** Dirty = elección en pantalla ≠ persistido (incluye sin-decisión y stale). */
   const isDirty = mathGroups.some((group) => {
     const choice = effectiveChoice(group)
     if (!choice) return true
@@ -207,15 +195,8 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
     }
   }
 
-  /**
-   * Excel de pedido URREA (mayoreo). El archivo debe reflejar lo GUARDADO
-   * (ADR-018), así que si hay cambios en pantalla se persisten primero y
-   * luego se genera — en un solo paso, sin mandar al usuario a guardar aparte.
-   */
-  // En una orden cerrada no se puede guardar, así que el pedido sale
-  // EXCLUSIVAMENTE de lo persistido: `effectiveChoice` caería en la
-  // recomendación de un grupo que quizá nunca se decidió, y eso no
-  // corresponde a la orden.
+  /** Excel URREA: refleja lo GUARDADO (ADR-018) — con cambios, persiste primero y luego genera. */
+  // Orden cerrada: el pedido sale SOLO de lo persistido (la recomendación no corresponde).
   const buildUrreaRows = () =>
     isReadOnly
       ? mathGroups.flatMap((group) => {
@@ -264,11 +245,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
     }
   }
 
-  /**
-   * Copia el pedido URREA como texto tabulado (código ⇥ piezas por renglón):
-   * al pegarlo en el Excel VIEJO de URREA cae en dos columnas contiguas —
-   * su sistema no abre bien el formato moderno del .xlsm (issue #64).
-   */
+  /** Copia código⇥piezas tab-separado para el Excel viejo de URREA (#64). */
   const handleCopyUrrea = async () => {
     if (pendingCount > 0) {
       toast.error(missingDecisionsMessage())
@@ -606,11 +583,7 @@ function OverviewCard({
   )
 }
 
-/**
- * Lectura rápida del plan: qué se está parando, qué se evitó parar y cómo
- * queda repartida la compra. Refleja las decisiones EN PANTALLA (incluidas las
- * no guardadas) para que mover una opción se sienta de inmediato.
- */
+/** Resumen del plan con las decisiones EN PANTALLA — mover una opción se siente al instante. */
 function PlanOverview({
   totals,
   fmt,

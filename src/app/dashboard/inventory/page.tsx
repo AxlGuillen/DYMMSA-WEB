@@ -5,6 +5,7 @@ import { useInventory, useInventoryStats, ALL_BRANDS, NO_BRAND } from '@/hooks/u
 import type { StockFilter, QuantitySort } from '@/hooks/useInventory'
 import { InventoryTable, INVENTORY_COLUMNS } from '@/components/inventory/InventoryTable'
 import { ColumnPicker } from '@/components/ColumnPicker'
+import { TourButton } from '@/components/tours/TourButton'
 import { InventoryForm } from '@/components/inventory/InventoryForm'
 import { InventoryImporter } from '@/components/inventory/InventoryImporter'
 import { Button } from '@/components/ui/button'
@@ -82,19 +83,22 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-            <Upload className="mr-2 size-4" />
-            Importar Excel
-          </Button>
-          <Button onClick={() => setIsFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Agregar Producto
-          </Button>
+          <TourButton tour="inventory" />
+          <div data-tour="inv-actions" className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+              <Upload className="mr-2 size-4" />
+              Importar Excel
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <Plus className="mr-2 size-4" />
+              Agregar Producto
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div data-tour="inv-stats" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {STAT_CARDS.map((card) => {
           const isActive = stockFilter === card.key
           return (
@@ -129,7 +133,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-3">
+      <div data-tour="inv-filters" className="flex items-center gap-3">
       <div className="relative max-w-sm flex-1">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -165,6 +169,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Table */}
+      <div data-tour="inv-table">
       <InventoryTable
         items={data?.data || []}
         isLoading={isLoading}
@@ -176,6 +181,7 @@ export default function InventoryPage() {
           setPage(1)
         }}
       />
+      </div>
 
       {/* Pagination */}
       {data && data.totalPages > 1 && (

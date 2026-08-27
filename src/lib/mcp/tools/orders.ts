@@ -1,8 +1,4 @@
-/**
- * Tools MCP del módulo Órdenes (solo lectura).
- * No existe GET /api/orders de lista (useOrders aún lee directo), así que la
- * query de lista vive aquí con la misma forma que las demás rutas.
- */
+/** Tools de órdenes (lectura). La query de lista vive aquí: no existe GET /api/orders aún. */
 
 import { calculateOrderTotal, isProductItem } from '@/lib/business-rules'
 import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'

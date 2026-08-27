@@ -1,24 +1,7 @@
 /**
- * Parser del CHANGELOG.md (raíz) a una estructura tipada para renderizar la
- * línea de tiempo de "Novedades". Función pura (sin fs) → testeable.
- *
- * Formato esperado (variante Keep a Changelog en español):
- *
- *   # Novedades
- *   <intro opcional, se ignora>
- *
- *   ## 2026-06-09 — v1.4      ← release (fecha + versión opcional)
- *
- *   ### Mejorado              ← categoría
- *   - entrada                 ← entrada (puede continuar en líneas siguientes)
- *     continuación de la entrada
- *
- * Reglas:
- *  - `## ` abre un release. Extrae la fecha (YYYY-MM-DD) y, si existe, la versión.
- *  - `### ` cambia la categoría activa (Nuevo / Mejorado / Corregido).
- *  - `- ` abre una entrada bajo la categoría activa. Líneas indentadas siguientes
- *    (sin `-`) se concatenan a la última entrada.
- *  - `#`, `---`, intro y líneas sin categoría activa se ignoran.
+ * Parser puro del CHANGELOG.md para /dashboard/changelog:
+ * `##` fecha[—versión] → release, `###` categoría, `- ` entrada (líneas
+ * indentadas continúan la entrada); todo lo demás se ignora.
  */
 
 export type ChangelogCategory = 'nuevo' | 'mejorado' | 'corregido'

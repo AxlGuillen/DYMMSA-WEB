@@ -40,10 +40,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
         .select('*')
         .eq('order_id', id)
         .order('sort_order', { ascending: true }),
-      // Candidatos: ítems DYMMSA de la orden (los que se mandan a hacer). Se
-      // filtra en JS (no con ilike) para usar EXACTAMENTE la misma
-      // normalización trim+upper que el botón de OrderDetail — si divergen,
-      // el botón aparece pero la página no ofrece candidatos.
+      // Candidatos DYMMSA filtrados en JS con el MISMO trim+upper del botón de OrderDetail.
       supabase
         .from('order_items')
         .select('id, etm, description, quantity_approved, item_type, brand')
@@ -130,10 +127,8 @@ const isPositive = (v: unknown): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v > 0
 
 /**
- * PUT /api/orders/[id]/cut-plan — reemplaza la lista de corte COMPLETA (el
- * body es el estado deseado, como purchase-decisions). Las piezas no tienen
- * llave natural para un upsert, así que es delete → insert con RESTAURACIÓN
- * de las filas previas si el insert falla (no se pierde la lista por un error).
+ * Replace-all de la lista de corte (el body ES el estado deseado): sin llave
+ * natural es delete → insert, con restauración si el insert falla.
  */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {

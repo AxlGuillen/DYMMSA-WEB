@@ -1,11 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/**
- * Overview del planificador de compra (issue #54, ADR-018): explica el modelo
- * mayoreo vs menudeo — cantidades consolidadas contra el STD del catálogo,
- * la recomendación por umbrales de dinero/porcentaje parado, y por qué los
- * Excel salen de las decisiones GUARDADAS.
- */
+/** Overview del planificador de compra: el modelo mayoreo vs menudeo (ADR-018). */
 export const PURCHASE_PLANNER_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="plan-summary"]',

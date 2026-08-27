@@ -6,12 +6,7 @@ import { ORDERS_KEY } from '@/hooks/useOrders'
 
 export const SETTINGS_KEY = ['settings']
 
-/**
- * Actualiza configuración key-value (app_settings). La whitelist de keys
- * válidas vive en el servidor (/api/settings). Los valores actuales llegan a
- * la UI ya resueltos dentro de sus consumidores (ej. plan.thresholds del
- * planificador) — por eso aún no hay hook de lectura.
- */
+/** Actualiza app_settings (whitelist en el server); la lectura llega ya resuelta en cada consumidor. */
 export function useUpdateSettings() {
   const queryClient = useQueryClient()
 

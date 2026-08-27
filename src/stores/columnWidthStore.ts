@@ -2,13 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /**
- * Anchos de columna personalizados por tabla (issue #55, tipo Excel).
- *
- * Store aparte de `columnStore` (visibilidad) a propósito: son preferencias
- * independientes y así no hay que versionar/migrar un store que ya funciona.
- * Solo se persisten los anchos que el usuario ARRASTRÓ — el resto sale del
- * default declarado en la columna, así que cambiar un default en código se
- * refleja solo para quien no lo haya tocado.
+ * Anchos arrastrados por tabla (#55), store aparte a propósito. Solo se persiste
+ * lo que el usuario TOCÓ — cambiar un default en código aplica a quien no lo tocó.
  */
 interface ColumnWidthStore {
   /** tableId → columnId → ancho en px. */

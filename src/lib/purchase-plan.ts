@@ -1,24 +1,7 @@
 /**
- * Planificador de compra: mayoreo (URREA) vs menudeo (proveedores locales).
- *
- * Lógica pura del ADR-018. La decisión NUNCA es global del producto: la
- * recomendación se recalcula al vuelo con las cantidades de CADA orden, y lo
- * que se persiste (`order_purchase_decisions`) es la decisión del usuario para
- * esa orden concreta.
- *
- * Reglas clave:
- * - "Pedible a URREA" ⇔ existe en `urrea_catalog` por `catalogKey(model_code,
- *   brand)` (cualquier línea del catálogo: URREA, SURTEK, FOY...). Reemplaza
- *   al viejo filtro `brand === 'URREA'`.
- * - La matemática corre SIEMPRE sobre cantidades consolidadas por grupo
- *   (líneas duplicadas entre secciones se suman): 5+5 con STD=10 es un paquete
- *   exacto, no dos restos del 50%.
- * - La decisión real es sobre el RESTO (`N mod STD`): los paquetes completos
- *   casi siempre convienen en mayoreo → pedido mixto permitido.
- * - Precio del grupo = promedio ponderado por cantidad de las líneas con
- *   precio > 0 (0 = "sin capturar", se excluye — incluirlo subestimaría el
- *   dinero parado). Es el precio de VENTA como proxy del costo (ADR-018 §4):
- *   sobreestima pero es proporcional.
+ * Planificador de compra: mayoreo URREA vs menudeo, lógica pura del ADR-018.
+ * La decisión es por orden (nunca verdad global) y la matemática corre sobre
+ * cantidades consolidadas por catalogKey; la decisión real es sobre el resto.
  */
 
 import type { OrderPurchaseDecision } from '@/types/database'
@@ -47,10 +30,7 @@ function asFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-/**
- * Merge de filas crudas de `app_settings` con los defaults. Valores inválidos
- * (no numéricos, ≤ 0, pct > 1) caen al default — la config nunca rompe el plan.
- */
+/** Settings crudos + defaults; valores inválidos caen al default — la config nunca rompe el plan. */
 export function resolveThresholds(settings: Record<string, unknown>): PurchaseThresholds {
   const money = asFiniteNumber(settings[SETTING_THRESHOLD_MONEY])
   const pct = asFiniteNumber(settings[SETTING_THRESHOLD_PCT])
@@ -108,10 +88,8 @@ export interface ConsolidatedGroup {
 }
 
 /**
- * Agrupa los ítems a pedir por `catalogKey(model_code, brand)`. Solo productos
- * (separadores fuera) con `quantity_to_order > 0`. Orden estable por primera
- * aparición. Ítems SIN model_code no pueden cruzar con el catálogo ni fusionarse
- * con seguridad entre sí → cada uno queda como grupo propio (bucket local).
+ * Agrupa por catalogKey (solo productos con to_order > 0, orden estable).
+ * Sin model_code no hay cruce seguro → cada ítem es su propio grupo (local).
  */
 export function consolidateOrderItems(items: PlannableItem[]): ConsolidatedGroup[] {
   const groups = new Map<string, ConsolidatedGroup>()
@@ -219,9 +197,8 @@ export interface PurchaseRecommendation {
 }
 
 /**
- * Recomienda qué hacer con el RESTO del grupo (ADR-018 §4). Precedencia:
- * dinero parado (> umbral, estricto) antes que % parado (≥ umbral, inclusivo).
- * Sin precio (parkedMoney null) la regla de dinero se salta y solo aplica el %.
+ * Recomendación sobre el RESTO: dinero parado (>, estricto) antes que % parado
+ * (≥, inclusivo); sin precio solo aplica el % (ADR-018 §4).
  */
 export function recommendPurchase(
   math: PurchaseGroupMath,
@@ -263,12 +240,7 @@ export function recommendPurchase(
   }
 }
 
-/**
- * Traduce una elección del usuario a cantidades:
- * wholesale → ceil(N/STD) paquetes, 0 menudeo (redondea al paquete extra);
- * mixed → floor(N/STD) paquetes + resto a menudeo (cobertura exacta);
- * retail → 0 paquetes, N piezas a menudeo.
- */
+/** Elección → cantidades: wholesale=ceil a paquetes; mixed=floor+resto; retail=todo a menudeo. */
 export function applyChoice(
   math: PurchaseGroupMath,
   choice: PurchaseChoice,
@@ -317,17 +289,8 @@ const EMPTY_TOTALS: PurchasePlanTotals = {
 }
 
 /**
- * Agrega el efecto económico de las decisiones vigentes (ADR-018), para el
- * resumen del planificador.
- *
- * "Parado" mide lo que REALMENTE se para con lo decidido —solo los grupos que
- * van a mayoreo teniendo resto—, no el teórico de redondear todo. Su espejo es
- * "ahorrado": el mismo excedente en los grupos donde el resto se mandó a
- * menudeo. Un grupo sin decidir no cuenta en ninguno: todavía no para ni
- * ahorra nada.
- *
- * Los grupos sin precio (`parkedMoney` null en su math) sí suman piezas pero
- * no dinero — de otro modo el total mentiría hacia abajo sin avisar.
+ * Resumen económico de lo YA decidido: "parado" = mayoreo con resto,
+ * "ahorrado" = su espejo a menudeo; sin decidir no cuenta en ninguno (ADR-018).
  */
 export function summarizePlanDecisions(
   groups: readonly PurchaseGroupPlan[],
@@ -369,13 +332,7 @@ export function summarizePlanDecisions(
 
 // ─── Staleness ─────────────────────────────────────────────────────────
 
-/**
- * Una decisión guardada queda desactualizada si cambió la necesidad
- * consolidada (editaron "A pedir") o el STD del catálogo (reimport). También
- * si el grupo ya no cruza con el catálogo (`currentStd` null) — la base de la
- * decisión desapareció. Nunca se genera el Excel URREA con múltiplos viejos
- * sin avisar.
- */
+/** Stale si cambió la necesidad, el STD, o el grupo salió del catálogo — el Excel jamás usa múltiplos viejos sin avisar. */
 export function isDecisionStale(
   decision: Pick<OrderPurchaseDecision, 'needed_qty' | 'std_snapshot'>,
   currentNeeded: number,
@@ -427,12 +384,7 @@ export interface PurchasePlan {
   }
 }
 
-/**
- * Arma el plan completo de una orden: consolida, clasifica en buckets, calcula
- * math + recomendación y casa las decisiones guardadas (con staleness).
- *
- * @param catalog  Map<catalogKey, CatalogEntry> (ver fetchCatalogEntryMap)
- */
+/** Plan completo: consolida → buckets → math+recomendación → casa decisiones (con staleness). */
 export function buildPurchasePlan(
   items: PlannableItem[],
   catalog: Map<string, CatalogEntry>,

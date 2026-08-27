@@ -5,11 +5,8 @@ import { SETTING_THRESHOLD_MONEY, SETTING_THRESHOLD_PCT } from '@/lib/purchase-p
 import { SETTING_CUT_MARGIN_MM } from '@/lib/cut-plan'
 
 /**
- * Configuración key-value (`app_settings`). Sin seeds: los callers mergean
- * con sus defaults en código (ej. resolveThresholds) — fila ausente → default.
- *
- * PATCH con whitelist ESTRICTA por key: app_settings no es un basurero
- * genérico; cada key nueva se registra aquí con su validador.
+ * app_settings sin seeds (fila ausente → default en código). PATCH con
+ * whitelist estricta: cada key nueva se registra aquí con su validador.
  */
 const SETTING_VALIDATORS: Record<string, (value: unknown) => boolean> = {
   // Dinero parado (MXN) — número finito > 0

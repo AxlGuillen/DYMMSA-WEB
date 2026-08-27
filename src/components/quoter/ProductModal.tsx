@@ -36,10 +36,7 @@ interface ProductModalProps {
   onOpenChange: (open: boolean) => void
   onSave: (data: Omit<QuotationItemRow, '_id'>, id?: string) => void
   existingEtms?: string[]
-  // Opcional: al guardar un producto cuyo model_code matchea el catálogo URREA,
-  // el caller recibe (code normalizado, descripción oficial) para refrescar su
-  // mapa de catálogo y que la columna "Desc. DYMMSA" resuelva sin recargar.
-  // Solo lo cablea el cotizador (draft store); QuotationDetail lo omite.
+  // Opcional: notifica (code, descripción oficial) al caller para refrescar su mapa sin recargar.
   onCatalogResolved?: (code: string, description: string) => void
 }
 
@@ -126,10 +123,7 @@ export function ProductModal({
 
   const notSold = isSold === false
 
-  // Única regla bloqueante: ETM requerido. Que exista en el catálogo maestro o
-  // repetido en la misma cotización NO bloquea (issue #40): una cotización puede
-  // tener varios proyectos (separados por encabezados) que repiten el mismo ETM
-  // — se avisa y se deja agregar; el catálogo además precarga sus datos.
+  // Solo ETM es bloqueante; duplicados NO bloquean a propósito (#40) — se avisa y se deja.
   const validateEtm = (value: string): string | null => {
     if (!value.trim()) return 'El ETM es requerido'
     return null

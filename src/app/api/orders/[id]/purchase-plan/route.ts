@@ -10,12 +10,8 @@ import {
 } from '@/lib/purchase-plan'
 
 /**
- * GET /api/orders/[id]/purchase-plan — plan de compra mayoreo/menudeo (ADR-018).
- *
- * El plan se calcula SIEMPRE al vuelo con las cantidades actuales de la orden;
- * las decisiones guardadas se casan por grupo y traen su flag de staleness.
- * Catálogo y settings degradan a defaults (el plan nunca truena por ellos);
- * solo el fetch de la orden/ítems es fatal.
+ * Plan de compra al vuelo (ADR-018) con staleness por grupo; catálogo y
+ * settings degradan a defaults — solo la orden/ítems es fatal.
  */
 export async function GET(
   _request: NextRequest,

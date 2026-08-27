@@ -6,13 +6,7 @@ import type { EtmProductInsert } from '@/types/database'
 const SORT_COLUMNS = ['etm', 'description_es', 'model_code', 'price'] as const
 type SortColumn = (typeof SORT_COLUMNS)[number]
 
-/**
- * Escapa el patrón de búsqueda:
- *  - `,` `(` `)` son separadores del filtro de `.or()`, donde el término se
- *    interpola: sin quitarlos, una búsqueda podría alterar el filtro.
- *  - `%` y `*` son comodines de `ilike` en PostgREST — buscarlos literalmente
- *    devolvería resultados de más en vez de coincidencias exactas.
- */
+/** Sanea la búsqueda: `,()` alterarían el filtro .or(); `%*` son comodines de ilike. */
 function sanitizeSearch(raw: string): string {
   return raw.replace(/[%*,()]/g, ' ').trim()
 }

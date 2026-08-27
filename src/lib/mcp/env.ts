@@ -1,16 +1,7 @@
 /**
- * Entorno del MCP remoto (ADR-023). Valida al importarse: si una variable está
- * mal formada el build/boot falla ruidosamente con un mensaje accionable, no
- * con un fallo silencioso en producción.
- *
- * - `APP_URL` es OPCIONAL: si falta se deriva de `VERCEL_PROJECT_PRODUCTION_URL`
- *   (Vercel la inyecta sola, también en previews apuntando a producción — eso
- *   hace estable el identificador del recurso entre deploys) y en local cae a
- *   http://localhost:3000. Debe ser SOLO el origen: pegarle una ruta produciría
- *   un identificador de recurso tipo `.../login/api/mcp` y el conector fallaría
- *   con un error que no menciona la causa.
- * - `MCP_OAUTH_CLIENT_IDS` (CSV) es el allowlist de clientes OAuth. Vacío =
- *   acepta cualquier cliente registrado en el proyecto Supabase.
+ * Env del MCP (ADR-023): valida al importar — mal formado truena en boot, no en
+ * silencio. APP_URL opcional (deriva de Vercel) y SOLO el origen: con ruta el
+ * identificador del recurso queda roto y el conector falla sin decir por qué.
  */
 
 /** Lanza con mensaje accionable si APP_URL trae ruta/query/hash o no es URL. */

@@ -13,12 +13,7 @@ function num(value: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/**
- * GET /api/material-presentations — el catálogo completo de medidas
- * registradas, ordenado por último uso. Lo consumen el corte rápido (issue
- * #71, que no tiene el cut-plan de una orden que hoy las trae embebidas) y la
- * página de control de medidas.
- */
+/** GET: catálogo completo de medidas por último uso (corte rápido + página de control, #71). */
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -58,12 +53,7 @@ interface PresentationInput {
   length_mm: number
 }
 
-/**
- * POST /api/material-presentations — registra una presentación del proveedor
- * ("tengo barras de 6 m de Ø30"). El catálogo se arma solo con el uso (issue
- * #59): upsert contra el UNIQUE NULLS NOT DISTINCT, refrescando `last_used_at`
- * para que las sugerencias ordenen por lo más reciente.
- */
+/** POST: upsert contra el UNIQUE NULLS NOT DISTINCT refrescando last_used_at — el catálogo se arma solo. */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
