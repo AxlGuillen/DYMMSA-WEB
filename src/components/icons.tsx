@@ -219,6 +219,8 @@ export { Scissors } from 'lucide-react'
 export { Printer } from 'lucide-react'
 // Ídem: sin regla en los animados (issue #71 — página de medidas de material).
 export { Ruler } from 'lucide-react'
+// Ídem: sin recibo en los animados (issue #84 — facturas por pagar).
+export { Receipt } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
 export const RotateCcw = wrap(_CornerUpLeft)

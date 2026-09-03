@@ -49,6 +49,8 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  DollarSign,
+  Receipt,
   Ruler,
   Scissors,
   Truck,
@@ -79,6 +81,11 @@ const dymmsaLinks: LinkItem[] = [
   // Corte rápido standalone + control de medidas registradas (issue #71).
   { href: '/dashboard/cutting',     label: 'Planificar corte',    icon: Scissors },
   { href: '/dashboard/materials',   label: 'Medidas de material', icon: Ruler },
+]
+
+const financeLinks: LinkItem[] = [
+  { href: '/dashboard/finance',          label: 'Overview',           icon: DollarSign, exact: true },
+  { href: '/dashboard/finance/payables', label: 'Facturas por pagar', icon: Receipt },
 ]
 
 const urreaLinks: LinkItem[] = [
@@ -231,6 +238,7 @@ function SidebarContent({
           <NavSection links={mainLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-main" />
           <NavSection title="ETM — Catálogo" links={etmUrreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-etm" />
           <NavSection title="DYMMSA" links={dymmsaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-dymmsa" />
+          <NavSection title="Finanzas" links={financeLinks} collapsed={collapsed} onNavigate={onNavigate} />
           <NavSection title="URREA" links={urreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-urrea" />
           <NavSection title="Recursos" links={recursosLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-recursos" />
         </div>
