@@ -140,6 +140,20 @@
 
 ---
 
+## Finanzas — Facturas por pagar
+
+> Módulo: Finanzas fase 1 (issue #84) · Registro simbólico de egresos; la facturación oficial vive en Odoo. Matemática en `src/lib/payables.ts`.
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/payables` | ✅ | Lista paginada con proveedor embebido. Query: `page`, `pageSize (≤100)`, `search` (concepto, ilike saneado), `status (pending/paid/cancelled)`, `month (YYYY-MM, por VENCIMIENTO)`, `sortField (due_date/invoice_date/amount/created_at)`, `sortDir` |
+| `POST` | `/api/payables` | ✅ | Registrar factura. Body: `{ supplier_id, concept, amount > 0, invoice_date, due_date, notes? }`. Proveedor obligatorio y existente (404 preciso). Siempre nace `pending` — el status del cliente se ignora |
+| `PATCH` | `/api/payables/[id]` | ✅ | Updates sparse. Regla de pago: `status→'paid'` sin `paid_at` → default hoy; `status→'pending'/'cancelled'` limpia `paid_at`; `paid_at` solo también se acepta (corregir fecha de una pagada) |
+| `DELETE` | `/api/payables/[id]` | ✅ | Eliminar factura |
+| `GET` | `/api/payables/overview` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, summary, payables }` — todas las pendientes (las vencidas de meses previos cuentan) + pagadas del mes; resumen de `summarizeMonth()` |
+
+---
+
 ## Tareas (GitHub Issues)
 
 > Módulo: [[03-Modulos/Tareas]] · Backend: GitHub Issues del repo (`GITHUB_REPO`), sin tabla en Supabase · ADR: [[04-Decisiones-Tecnicas/ADR-014-Modulo-Tareas-GitHub]]
