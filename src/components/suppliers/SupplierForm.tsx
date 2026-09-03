@@ -40,6 +40,11 @@ const supplierSchema = z.object({
   email: z.string().email('Correo inválido').or(z.literal('')),
   address: z.string(),
   notes: z.string(),
+  // Días de crédito como texto (input controlado); vacío = contado → null.
+  payment_terms_days: z.string().refine(
+    (v) => v === '' || (/^\d+$/.test(v.trim())),
+    'Días enteros (vacío = contado)',
+  ),
 })
 
 type SupplierFormValues = z.infer<typeof supplierSchema>
@@ -97,6 +102,7 @@ function SupplierFormBody({
       email: supplier?.email ?? '',
       address: supplier?.address ?? '',
       notes: supplier?.notes ?? '',
+      payment_terms_days: supplier?.payment_terms_days != null ? String(supplier.payment_terms_days) : '',
     },
   })
 
@@ -128,6 +134,7 @@ function SupplierFormBody({
       email: values.email.trim() || null,
       address: values.address.trim() || null,
       notes: values.notes.trim() || null,
+      payment_terms_days: values.payment_terms_days.trim() === '' ? null : Number(values.payment_terms_days),
       brandIds,
     }
     try {
@@ -189,6 +196,19 @@ function SupplierFormBody({
                 <FormLabel>Teléfono</FormLabel>
                 <FormControl>
                   <Input placeholder="443 765 4321" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="payment_terms_days"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Plazo de pago (días)</FormLabel>
+                <FormControl>
+                  <Input inputMode="numeric" placeholder="Vacío = contado" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

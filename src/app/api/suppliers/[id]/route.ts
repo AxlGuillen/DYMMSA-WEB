@@ -34,6 +34,13 @@ export async function PATCH(
         updates[field] = typeof body[field] === 'string' ? body[field].trim() || null : null
       }
     }
+    if (body.payment_terms_days !== undefined) {
+      const terms = body.payment_terms_days
+      if (terms != null && (!Number.isInteger(terms) || terms < 0)) {
+        return badRequest('El plazo de pago debe ser un entero de días (o vacío = contado)')
+      }
+      updates.payment_terms_days = terms ?? null
+    }
 
     if (Object.keys(updates).length === 0 && body.brandIds === undefined) {
       return badRequest('No hay cambios para guardar')
@@ -132,6 +139,10 @@ export async function DELETE(
     const { error } = await supabase.from('suppliers').delete().eq('id', id)
 
     if (error) {
+      // FK de payables SIN cascade (issue #84): el proveedor tiene facturas.
+      if (error.code === '23503') {
+        return badRequest('El proveedor tiene facturas por pagar registradas — elimínalas o reasígnalas primero')
+      }
       console.error('Error deleting supplier:', error)
       return serverError('Error al eliminar el proveedor')
     }
