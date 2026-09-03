@@ -34,6 +34,7 @@ import { PRODUCTS_COLUMNS } from '@/components/db/ProductsTable'
 import { INVENTORY_COLUMNS } from '@/components/inventory/InventoryTable'
 import { CATALOG_COLUMNS } from '@/components/urrea-catalog/CatalogTable'
 import { SUPPLIERS_COLUMNS } from '@/components/suppliers/SuppliersTable'
+import { PAYABLES_COLUMNS } from '@/components/finance/PayablesTable'
 
 const TABLES: [string, readonly TableColumn[]][] = [
   ['orders-list', ORDERS_COLUMNS],
@@ -42,6 +43,7 @@ const TABLES: [string, readonly TableColumn[]][] = [
   ['inventory', INVENTORY_COLUMNS],
   ['urrea-catalog', CATALOG_COLUMNS],
   ['suppliers', SUPPLIERS_COLUMNS],
+  ['payables', PAYABLES_COLUMNS],
 ]
 
 describe('defaults de ancho declarados', () => {

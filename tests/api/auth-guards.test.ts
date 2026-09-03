@@ -36,6 +36,9 @@ import * as productsImport from '@/app/api/products/import/route'
 import * as nextDymmsaCode from '@/app/api/products/next-dymmsa-code/route'
 import * as inventoryImport from '@/app/api/inventory/import/route'
 import * as approve from '@/app/api/approve/[token]/route'
+import * as payablesRoute from '@/app/api/payables/route'
+import * as payableById from '@/app/api/payables/[id]/route'
+import * as payablesOverview from '@/app/api/payables/overview/route'
 
 // ── Mocks de los módulos de Supabase ────────────────────────────────────
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -73,6 +76,11 @@ const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = 
   { name: 'POST   /products/import',                  call: () => productsImport.POST(makeRequest({})) },
   { name: 'GET    /products/next-dymmsa-code',        call: () => nextDymmsaCode.GET() },
   { name: 'POST   /inventory/import',                 call: () => inventoryImport.POST(makeRequest({})) },
+  { name: 'GET    /payables',                         call: () => payablesRoute.GET(makeRequest(undefined, { url: 'http://x/api/payables' })) },
+  { name: 'POST   /payables',                         call: () => payablesRoute.POST(makeRequest({})) },
+  { name: 'PATCH  /payables/[id]',                    call: () => payableById.PATCH(makeRequest({}, { method: 'PATCH' }), makeParams({ id: 'p1' })) },
+  { name: 'DELETE /payables/[id]',                    call: () => payableById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'p1' })) },
+  { name: 'GET    /payables/overview',                call: () => payablesOverview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview' })) },
 ]
 
 describe('Auth guards — rutas protegidas exigen requireAuth (401 sin usuario)', () => {
