@@ -8,8 +8,8 @@ import { MetricCard } from '@/components/dashboard/MetricCard'
 import { ChevronLeft, ChevronRight, DollarSign, AlertTriangle, Clock, Check, Receipt } from '@/components/icons'
 import { usePayablesOverview } from '@/hooks/usePayables'
 import { useCurrency } from '@/hooks/useCurrency'
-import { formatAbsolute, formatISODate } from '@/lib/format'
-import { monthOf } from '@/lib/payables'
+import { formatAbsolute, todayInMexico } from '@/lib/format'
+import { monthOf, weekOfMonth } from '@/lib/payables'
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -29,7 +29,7 @@ const monthLabel = (month: string) => {
 }
 
 export function FinanceOverview() {
-  const [month, setMonth] = useState(() => formatISODate().slice(0, 7))
+  const [month, setMonth] = useState(() => todayInMexico().slice(0, 7))
   const { data, isLoading } = usePayablesOverview(month)
   const fmt = useCurrency()
 
@@ -55,8 +55,8 @@ export function FinanceOverview() {
         <Button variant="outline" size="icon" className="size-8" onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Mes siguiente">
           <ChevronRight className="size-4" />
         </Button>
-        {month !== formatISODate().slice(0, 7) && (
-          <Button variant="ghost" size="sm" onClick={() => setMonth(formatISODate().slice(0, 7))}>
+        {month !== todayInMexico().slice(0, 7) && (
+          <Button variant="ghost" size="sm" onClick={() => setMonth(todayInMexico().slice(0, 7))}>
             Hoy
           </Button>
         )}
@@ -125,7 +125,7 @@ export function FinanceOverview() {
               </div>
               <div className="space-y-1">
                 {monthPending
-                  .filter((p) => Math.min(Math.ceil(Number(p.due_date.slice(8, 10)) / 7), 5) === week.week)
+                  .filter((p) => weekOfMonth(p.due_date) === week.week)
                   .map((p) => (
                     <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
                       <span className="min-w-0 truncate">

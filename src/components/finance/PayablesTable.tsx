@@ -29,7 +29,7 @@ import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import { useCurrency } from '@/hooks/useCurrency'
 import { toast } from 'sonner'
-import { formatAbsolute, formatISODate } from '@/lib/format'
+import { formatAbsolute, todayInMexico } from '@/lib/format'
 import { daysUntilDue, PAYABLE_STATUS_LABELS } from '@/lib/payables'
 import { ApiError } from '@/lib/fetch-json'
 import type { PayableStatus, PayableWithSupplier } from '@/types/database'
@@ -123,7 +123,7 @@ export function PayablesTable({
   const fmt = useCurrency()
   const cols = useVisibleColumns('payables', PAYABLES_COLUMNS)
   const widths = useColumnWidths('payables', PAYABLES_COLUMNS)
-  const today = formatISODate()
+  const today = todayInMexico()
 
   const handleDelete = async () => {
     if (!deleteId) return

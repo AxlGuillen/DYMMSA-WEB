@@ -32,7 +32,7 @@ import { Loader2 } from '@/components/icons'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { useCreatePayable, useUpdatePayable } from '@/hooks/usePayables'
 import { dueDateFrom } from '@/lib/payables'
-import { formatISODate, parseNumber } from '@/lib/format'
+import { parseNumber, todayInMexico } from '@/lib/format'
 import { ApiError } from '@/lib/fetch-json'
 import type { PayableWithSupplier } from '@/types/database'
 
@@ -93,7 +93,7 @@ function PayableFormBody({
       supplier_id: payable?.supplier_id ?? '',
       concept: payable?.concept ?? '',
       amount: payable != null ? String(payable.amount) : '',
-      invoice_date: payable?.invoice_date ?? formatISODate(),
+      invoice_date: payable?.invoice_date ?? todayInMexico(),
       due_date: payable?.due_date ?? '',
       notes: payable?.notes ?? '',
     },
