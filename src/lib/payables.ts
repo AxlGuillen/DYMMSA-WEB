@@ -33,8 +33,14 @@ export function dueDateFrom(invoiceDate: ISODate, termsDays: number | null | und
 /** 'YYYY-MM' del mes de una fecha ISO. */
 export const monthOf = (date: ISODate): string => date.slice(0, 7)
 
+/** Frontera EXCLUSIVA del mes ('2026-09' → '2026-10-01'); `${month}-31` no existe en meses cortos. */
+export function nextMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number)
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+}
+
 /** Semana del mes (1-based) por día del vencimiento: 1-7 → 1, 8-14 → 2, etc. */
-function weekOfMonth(date: ISODate): number {
+export function weekOfMonth(date: ISODate): number {
   const day = Number(date.slice(8, 10))
   return Math.min(Math.ceil(day / 7), 5)
 }

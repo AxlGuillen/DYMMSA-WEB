@@ -4,7 +4,7 @@
  */
 
 import { describe, test, expect } from 'vitest'
-import { daysUntilDue, dueDateFrom, monthOf, summarizeMonth } from '@/lib/payables'
+import { daysUntilDue, dueDateFrom, monthOf, nextMonth, summarizeMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -102,5 +102,18 @@ describe('summarizeMonth', () => {
 describe('monthOf', () => {
   test('recorta YYYY-MM', () => {
     expect(monthOf('2026-09-15')).toBe('2026-09')
+  })
+})
+
+describe('nextMonth', () => {
+  test('devuelve el primer dia del mes siguiente, no el dia 31', () => {
+    // El bug que motivo el helper: `${month}-31` es fecha invalida en los meses
+    // cortos y Postgres responde 22008, tumbando el overview de septiembre.
+    expect(nextMonth('2026-09')).toBe('2026-10-01')
+    expect(nextMonth('2026-02')).toBe('2026-03-01')
+  })
+
+  test('cruza el ano en diciembre', () => {
+    expect(nextMonth('2026-12')).toBe('2027-01-01')
   })
 })
