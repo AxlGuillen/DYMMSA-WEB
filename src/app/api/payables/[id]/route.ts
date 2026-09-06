@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import { formatISODate } from '@/lib/format'
+import { todayInMexico } from '@/lib/format'
 import type { PayableStatus, PayableUpdate } from '@/types/database'
 
 const STATUSES: PayableStatus[] = ['pending', 'paid', 'cancelled']
@@ -62,7 +62,7 @@ export async function PATCH(
         if (paidAt !== undefined && paidAt !== null && (typeof paidAt !== 'string' || !ISO_DATE.test(paidAt))) {
           return badRequest('Fecha de pago inválida')
         }
-        updates.paid_at = paidAt ?? formatISODate()
+        updates.paid_at = paidAt ?? todayInMexico()
       } else {
         updates.paid_at = null
       }

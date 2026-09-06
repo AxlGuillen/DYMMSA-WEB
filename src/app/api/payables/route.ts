@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { nextMonth } from '@/lib/payables'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
 import type { PayableInsert, PayableStatus } from '@/types/database'
@@ -66,11 +67,6 @@ export async function GET(request: NextRequest) {
 }
 
 /** Primer día del mes siguiente a 'YYYY-MM' (frontera exclusiva del filtro). */
-function nextMonth(month: string): string {
-  const [y, m] = month.split('-').map(Number)
-  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
-}
-
 // POST /api/payables → capturar factura (proveedor obligatorio del catálogo)
 export async function POST(request: NextRequest) {
   try {

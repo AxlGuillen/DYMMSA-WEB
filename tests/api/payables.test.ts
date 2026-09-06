@@ -193,4 +193,19 @@ describe('GET /api/payables/overview', () => {
     expect(body.summary.pendingTotal).toBe(3000)
     expect(Array.isArray(body.payables)).toBe(true)
   })
+
+  test('un mes de 30 dias filtra por frontera exclusiva (no por el dia 31)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'payables.select': { data: [PAYABLE_ROW], error: null } },
+    })
+    const res = await overview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview?month=2026-09' }))
+    expect(res.status).toBe(200)
+
+    // El select de pagadas es el segundo: '2026-09-31' no existe y Postgres
+    // habria respondido 22008 con el `lte` anterior.
+    const paidCall = activeClient.callsTo('payables', 'select')[1]
+    expect(filterValue(paidCall, 'paid_at', 'gte')).toBe('2026-09-01')
+    expect(filterValue(paidCall, 'paid_at', 'lt')).toBe('2026-10-01')
+  })
 })
