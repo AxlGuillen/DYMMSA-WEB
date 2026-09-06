@@ -254,7 +254,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 | **Nueva fase** | Crear `DYMMSA/05-Fases/Fase-N-Nombre.md` + agregar fila en tabla de arriba |
 | Nuevo **enum o estado** | `DYMMSA/00-Inicio/Glosario.md` + tabla de BD en este CLAUDE.md |
 | **Migración de BD** | `DYMMSA/06-Changelog/YYYY-MM.md` (fecha + migración + descripción + motivo) + **regenerar `supabase/schema.sql`** y agregar la fila en `supabase/migrations-log.md` — el snapshot del schema vive en git y se actualiza en el MISMO commit que la migración |
-| **Cambio visible para el usuario** (feature/fix que el usuario nota) | `CHANGELOG.md` (raíz) en lenguaje simple — lo renderiza la página `/dashboard/changelog`. Formato: `## YYYY-MM-DD` → `### Nuevo\|Mejorado\|Corregido` → `- entrada`. La bóveda `06-Changelog/` sigue siendo el detalle técnico. |
+| **Cambio visible para el usuario** (feature/fix que el usuario nota) | `CHANGELOG.md` (raíz) en lenguaje simple — lo renderiza la página `/dashboard/changelog`. Formato: `## YYYY-MM-DD` → `### Nuevo\|Mejorado\|Corregido` → `- entrada`. La bóveda `06-Changelog/` sigue siendo el detalle técnico — y desde 2026-09-05 **se publica** en la pestaña Actividad (`/dashboard/changelog/actividad`, parser en `src/lib/vault-changelog.ts`): se escribe sabiendo que se lee desde la app. |
 | Cambio en **flujo de negocio** | `DYMMSA/01-Negocio/Flujo-Operacional.md` |
 | Cambio en **estructura de carpetas** | `DYMMSA/02-Arquitectura/Estructura-de-Carpetas.md` |
 

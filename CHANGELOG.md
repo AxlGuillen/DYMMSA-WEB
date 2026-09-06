@@ -3,6 +3,20 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-05
+
+### Nuevo
+- **Actividad: la bitácora del desarrollo, dentro de Novedades.** La pantalla ahora tiene
+  dos pestañas. **Novedades** sigue igual: lo que cambió para ti, en lenguaje llano.
+  **Actividad** es la línea del tiempo del trabajo técnico — qué se hizo cada día,
+  agrupado por mes, con el **motivo** de cada cambio y liga a la tarea correspondiente.
+  Ahí se ve el trabajo que antes no aparecía en ningún lado (conexiones con Odoo,
+  el asistente, pruebas, mantenimiento).
+
+### Corregido
+- En Novedades las **negritas** se veían con los asteriscos a la vista (`**así**`) y los
+  nombres técnicos con sus comillas. Ahora se leen como texto normal.
+
 ## 2026-09-02
 
 ### Nuevo
