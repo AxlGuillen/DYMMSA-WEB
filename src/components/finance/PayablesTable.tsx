@@ -29,7 +29,7 @@ import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import { useCurrency } from '@/hooks/useCurrency'
 import { toast } from 'sonner'
-import { formatAbsolute, todayInMexico } from '@/lib/format'
+import { formatDayLong, todayInMexico } from '@/lib/format'
 import { daysUntilDue, PAYABLE_STATUS_LABELS } from '@/lib/payables'
 import { ApiError } from '@/lib/fetch-json'
 import type { PayableStatus, PayableWithSupplier } from '@/types/database'
@@ -92,7 +92,7 @@ function SortHeader({
 
 /** Tono del vencimiento: rojo vencida, ámbar ≤7 días — solo en pendientes. */
 function DueDateCell({ payable, today }: { payable: PayableWithSupplier; today: string }) {
-  const date = formatAbsolute(payable.due_date)
+  const date = formatDayLong(payable.due_date)
   if (payable.status !== 'pending') return <>{date}</>
   const days = daysUntilDue(payable.due_date, today)
   if (days < 0) {
@@ -231,7 +231,7 @@ export function PayablesTable({
                   <TableCell className="text-right tabular-nums">{fmt(payable.amount)}</TableCell>
                 )}
                 {cols.isVisible('invoice_date') && (
-                  <TableCell className="text-sm whitespace-nowrap">{formatAbsolute(payable.invoice_date)}</TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">{formatDayLong(payable.invoice_date)}</TableCell>
                 )}
                 {cols.isVisible('due_date') && (
                   <TableCell className="text-sm whitespace-nowrap">
@@ -247,7 +247,7 @@ export function PayablesTable({
                 )}
                 {cols.isVisible('paid_at') && (
                   <TableCell className="text-sm whitespace-nowrap">
-                    {payable.paid_at ? formatAbsolute(payable.paid_at) : dash}
+                    {payable.paid_at ? formatDayLong(payable.paid_at) : dash}
                   </TableCell>
                 )}
                 <TableCell className={STICKY_ACTIONS_CELL}>

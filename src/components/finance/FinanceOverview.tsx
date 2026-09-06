@@ -8,7 +8,7 @@ import { MetricCard } from '@/components/dashboard/MetricCard'
 import { ChevronLeft, ChevronRight, DollarSign, AlertTriangle, Clock, Check, Receipt } from '@/components/icons'
 import { usePayablesOverview } from '@/hooks/usePayables'
 import { useCurrency } from '@/hooks/useCurrency'
-import { formatAbsolute, todayInMexico } from '@/lib/format'
+import { formatDayLong, todayInMexico } from '@/lib/format'
 import { monthOf, weekOfMonth } from '@/lib/payables'
 
 const MONTH_LABELS = [
@@ -133,7 +133,7 @@ export function FinanceOverview() {
                         <span className="text-muted-foreground"> · {p.concept}</span>
                       </span>
                       <span className="ml-3 shrink-0 tabular-nums">
-                        {formatAbsolute(p.due_date)} · {fmt(p.amount)}
+                        {formatDayLong(p.due_date)} · {fmt(p.amount)}
                       </span>
                     </div>
                   ))}
