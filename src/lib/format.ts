@@ -36,6 +36,17 @@ export function formatISODate(date: Date = new Date()): string {
   return date.toISOString().split('T')[0]
 }
 
+/**
+ * Hoy en la zona del negocio (Morelia). `formatISODate` serializa en UTC y el
+ * server corre en UTC: de las 18:00 a la medianoche local ya sería mañana.
+ */
+export function todayInMexico(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date)
+}
+
 // ─── Strings ───────────────────────────────────────────────────────────
 
 /**

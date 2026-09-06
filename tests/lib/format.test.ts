@@ -1,12 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import {
-  formatRelative,
-  formatISODate,
-  normalizeString,
-  sanitizeFilename,
-  parseNumber,
-  parseInteger,
-} from '@/lib/format'
+import { formatISODate, formatRelative, normalizeString, parseInteger, parseNumber, sanitizeFilename, todayInMexico } from '@/lib/format'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -200,5 +193,17 @@ describe('parseInteger', () => {
   test('parses leading numeric portion (parseInt behavior)', () => {
     // parseInt('10px', 10) === 10 — stops at first non-numeric char
     expect(parseInteger('10px')).toBe(10)
+  })
+})
+
+describe('todayInMexico', () => {
+  test('de noche en Morelia sigue siendo hoy, no manana', () => {
+    // 02:00 UTC = 20:00 del dia anterior en Morelia. Con toISOString() la app
+    // habria sellado pagos y vencimientos con la fecha de manana.
+    expect(todayInMexico(new Date('2026-09-06T02:00:00Z'))).toBe('2026-09-05')
+  })
+
+  test('de dia coincide con la fecha UTC', () => {
+    expect(todayInMexico(new Date('2026-09-06T18:00:00Z'))).toBe('2026-09-06')
   })
 })
