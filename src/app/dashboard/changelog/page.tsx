@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { Sparkles, Plus, ArrowUp, Wrench } from '@/components/icons'
 import { Card, CardContent } from '@/components/ui/card'
+import { ChangelogTabs } from '@/components/changelog/ChangelogTabs'
+import { RichText } from '@/components/changelog/RichText'
 import { parseChangelog, type ChangelogCategory } from '@/lib/changelog'
 
 export const metadata: Metadata = {
@@ -34,25 +35,6 @@ const CATEGORY_META: Record<
 
 const CATEGORY_ORDER: ChangelogCategory[] = ['nuevo', 'mejorado', 'corregido']
 
-/** Convierte referencias `#123` en links a la tarea correspondiente. */
-function ChangelogText({ text }: { text: string }) {
-  const parts = text.split(/(#\d+)/g)
-  return (
-    <>
-      {parts.map((part, i) => {
-        const m = part.match(/^#(\d+)$/)
-        return m ? (
-          <Link key={i} href={`/dashboard/tasks/${m[1]}`} className="font-medium text-primary hover:underline">
-            {part}
-          </Link>
-        ) : (
-          <span key={i}>{part}</span>
-        )
-      })}
-    </>
-  )
-}
-
 function formatDate(iso: string): string {
   const date = new Date(`${iso}T00:00:00`)
   const label = date.toLocaleDateString('es-MX', {
@@ -78,6 +60,9 @@ export default async function ChangelogPage() {
           <p className="mt-2 text-muted-foreground">
             Mejoras y correcciones del sistema, de lo más reciente a lo más antiguo.
           </p>
+          <div className="mt-4">
+            <ChangelogTabs active="novedades" />
+          </div>
         </div>
 
         {releases.length === 0 ? (
@@ -136,7 +121,7 @@ export default async function ChangelogPage() {
                                     className="flex gap-2 text-sm text-muted-foreground"
                                   >
                                     <span className="mt-2 size-1 shrink-0 rounded-full bg-muted-foreground/40" />
-                                    <span><ChangelogText text={entry.text} /></span>
+                                    <span><RichText text={entry.text} /></span>
                                   </li>
                                 ))}
                               </ul>

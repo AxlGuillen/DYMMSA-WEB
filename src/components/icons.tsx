@@ -221,6 +221,8 @@ export { Printer } from 'lucide-react'
 export { Ruler } from 'lucide-react'
 // Ídem: sin recibo en los animados (issue #84 — facturas por pagar).
 export { Receipt } from 'lucide-react'
+// Ídem: sin historial en los animados (pestaña Actividad de Novedades).
+export { History } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
 export const RotateCcw = wrap(_CornerUpLeft)
