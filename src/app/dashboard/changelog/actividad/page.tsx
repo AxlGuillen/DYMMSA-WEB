@@ -12,6 +12,7 @@ import {
   type ActivityBlock,
   type ActivityDay,
   type ActivityMonth,
+  normalizeLabel,
 } from '@/lib/vault-changelog'
 
 export const metadata: Metadata = {
@@ -64,13 +65,8 @@ const AREA_TINT: Record<string, string> = {
 }
 
 function areaClass(area: string): string {
-  const key = area
-    .split('/')[0]
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .toLowerCase()
-  return AREA_TINT[key] ?? 'border text-muted-foreground'
+  // Misma normalizacion que el parser: las llaves de AREA_TINT dependen de que coincidan.
+  return AREA_TINT[normalizeLabel(area.split('/')[0])] ?? 'border text-muted-foreground'
 }
 
 function ActivityBlockView({ block, open }: { block: ActivityBlock; open: boolean }) {

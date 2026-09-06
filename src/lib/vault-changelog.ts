@@ -41,7 +41,7 @@ const CONTINUATION = new Set([
 ])
 
 /** Sin acentos y en minúsculas — las etiquetas se escribieron a mano por meses. */
-function normalizeLabel(label: string): string {
+export function normalizeLabel(label: string): string {
   return label
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

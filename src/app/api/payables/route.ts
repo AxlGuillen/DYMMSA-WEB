@@ -66,7 +66,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** Primer día del mes siguiente a 'YYYY-MM' (frontera exclusiva del filtro). */
 // POST /api/payables → capturar factura (proveedor obligatorio del catálogo)
 export async function POST(request: NextRequest) {
   try {

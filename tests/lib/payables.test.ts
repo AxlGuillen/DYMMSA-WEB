@@ -4,7 +4,7 @@
  */
 
 import { describe, test, expect } from 'vitest'
-import { daysUntilDue, dueDateFrom, monthOf, nextMonth, summarizeMonth } from '@/lib/payables'
+import { daysUntilDue, dueDateFrom, monthOf, nextMonth, summarizeMonth, weekOfMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -115,5 +115,20 @@ describe('nextMonth', () => {
 
   test('cruza el ano en diciembre', () => {
     expect(nextMonth('2026-12')).toBe('2027-01-01')
+  })
+})
+
+describe('weekOfMonth', () => {
+  // Contrato compartido: el server la usa en summarizeMonth y el cliente para
+  // colgar cada fila de su semana. Si se desalinean, los totales no cuadran.
+  test('agrupa por dia del mes en tramos de 7', () => {
+    expect(weekOfMonth('2026-09-01')).toBe(1)
+    expect(weekOfMonth('2026-09-07')).toBe(1)
+    expect(weekOfMonth('2026-09-08')).toBe(2)
+  })
+
+  test('el cierre de mes se topa en la semana 5', () => {
+    expect(weekOfMonth('2026-08-29')).toBe(5)
+    expect(weekOfMonth('2026-08-31')).toBe(5)
   })
 })
