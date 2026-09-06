@@ -142,6 +142,26 @@ describe('POST /api/suppliers', () => {
     ])
   })
 
+  test('payment_terms_days (issue #84): persiste el entero, null = contado, rechaza basura', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'suppliers.insert': { data: { ...SUPPLIER_ROW }, error: null } },
+    })
+    await suppliers.POST(makeRequest({ name: 'Con Crédito', payment_terms_days: 30 }))
+    expect(activeClient.insertPayload<Record<string, unknown>>('suppliers').payment_terms_days).toBe(30)
+
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'suppliers.insert': { data: { ...SUPPLIER_ROW }, error: null } },
+    })
+    await suppliers.POST(makeRequest({ name: 'De Contado' }))
+    expect(activeClient.insertPayload<Record<string, unknown>>('suppliers').payment_terms_days).toBeNull()
+
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await suppliers.POST(makeRequest({ name: 'X', payment_terms_days: -5 }))).status).toBe(400)
+    expect((await suppliers.POST(makeRequest({ name: 'X', payment_terms_days: 2.5 }))).status).toBe(400)
+  })
+
   test('REGLA: rollback — si fallan los links se elimina el proveedor', async () => {
     activeClient = createMockSupabase({
       user: AUTH,

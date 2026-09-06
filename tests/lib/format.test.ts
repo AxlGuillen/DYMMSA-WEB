@@ -1,12 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import {
-  formatRelative,
-  formatISODate,
-  normalizeString,
-  sanitizeFilename,
-  parseNumber,
-  parseInteger,
-} from '@/lib/format'
+import { formatDayLong, formatISODate, formatRelative, normalizeString, parseInteger, parseNumber, sanitizeFilename, todayInMexico } from '@/lib/format'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -200,5 +193,30 @@ describe('parseInteger', () => {
   test('parses leading numeric portion (parseInt behavior)', () => {
     // parseInt('10px', 10) === 10 — stops at first non-numeric char
     expect(parseInteger('10px')).toBe(10)
+  })
+})
+
+describe('todayInMexico', () => {
+  test('de noche en Morelia sigue siendo hoy, no manana', () => {
+    // 02:00 UTC = 20:00 del dia anterior en Morelia. Con toISOString() la app
+    // habria sellado pagos y vencimientos con la fecha de manana.
+    expect(todayInMexico(new Date('2026-09-06T02:00:00Z'))).toBe('2026-09-05')
+  })
+
+  test('de dia coincide con la fecha UTC', () => {
+    expect(todayInMexico(new Date('2026-09-06T18:00:00Z'))).toBe('2026-09-06')
+  })
+})
+
+describe('formatDayLong', () => {
+  test('una columna date se pinta en su propio dia, no en el anterior', () => {
+    // new Date('2026-09-15') es medianoche UTC: en Morelia la celda decia
+    // "14 de septiembre de 2026, 18:00" para una factura que vence el 15,
+    // contradiciendo al "vence hoy" que calcula la misma fila.
+    expect(formatDayLong('2026-09-15')).toBe('15 de septiembre de 2026')
+  })
+
+  test('no inventa hora: es una columna de dia', () => {
+    expect(formatDayLong('2026-01-01')).toBe('1 de enero de 2026')
   })
 })

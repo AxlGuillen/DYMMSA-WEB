@@ -138,6 +138,8 @@ export interface Supplier {
   email: string | null
   address: string | null
   notes: string | null
+  /** Plazo de crédito en días; null = contado (issue #84). */
+  payment_terms_days: number | null
   created_at: string
   updated_at: string
 }
@@ -161,6 +163,35 @@ export interface BrandWithCount extends Brand {
 export interface SupplierWithBrands extends Supplier {
   brands: Brand[]
 }
+
+// ─── Finanzas (issue #84) ───────────────────────────────────────────────
+
+export type PayableStatus = 'pending' | 'paid' | 'cancelled'
+
+/** Factura por pagar. Registro simbólico de egresos — la facturación oficial vive en Odoo. */
+export interface Payable {
+  id: string
+  supplier_id: string
+  concept: string
+  amount: number
+  invoice_date: string
+  /** Pre-llenado con invoice_date + payment_terms_days del proveedor; editable. */
+  due_date: string
+  status: PayableStatus
+  /** Fecha REAL de pago; puede diferir del vencimiento. */
+  paid_at: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Factura con su proveedor embebido (GET /api/payables). */
+export interface PayableWithSupplier extends Payable {
+  supplier: Pick<Supplier, 'id' | 'name' | 'payment_terms_days'>
+}
+
+export type PayableInsert = Omit<Payable, 'id' | 'created_at' | 'updated_at'>
+export type PayableUpdate = Partial<PayableInsert>
 
 // Excel row type for inventory import
 export interface ExcelInventoryRow {
