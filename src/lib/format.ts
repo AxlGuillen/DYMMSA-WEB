@@ -30,10 +30,32 @@ export function formatAbsolute(dateStr: string): string {
 }
 
 /**
+ * Columna `date` ('2026-09-15') a "15 de septiembre de 2026". Se ancla y
+ * formatea en UTC porque `new Date('2026-09-15')` es medianoche UTC y en
+ * Morelia se pintaría el día anterior; una fecha sin hora no tiene zona.
+ */
+export function formatDayLong(iso: string): string {
+  return new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(new Date(`${iso}T00:00:00Z`))
+}
+
+/**
  * Fecha ISO solo día: "2026-05-11"
  */
 export function formatISODate(date: Date = new Date()): string {
   return date.toISOString().split('T')[0]
+}
+
+/**
+ * Hoy en la zona del negocio (Morelia). `formatISODate` serializa en UTC y el
+ * server corre en UTC: de las 18:00 a la medianoche local ya sería mañana.
+ */
+export function todayInMexico(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date)
 }
 
 // ─── Strings ───────────────────────────────────────────────────────────

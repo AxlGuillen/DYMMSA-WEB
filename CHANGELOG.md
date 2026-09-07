@@ -3,6 +3,38 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-05
+
+### Nuevo
+- **Actividad: la bitácora del desarrollo, dentro de Novedades.** La pantalla ahora tiene
+  dos pestañas. **Novedades** sigue igual: lo que cambió para ti, en lenguaje llano.
+  **Actividad** es la línea del tiempo del trabajo técnico — qué se hizo cada día,
+  agrupado por mes, con el **motivo** de cada cambio y liga a la tarea correspondiente.
+  Ahí se ve el trabajo que antes no aparecía en ningún lado (conexiones con Odoo,
+  el asistente, pruebas, mantenimiento).
+
+### Corregido
+- En Novedades las **negritas** se veían con los asteriscos a la vista (`**así**`) y los
+  nombres técnicos con sus comillas. Ahora se leen como texto normal.
+
+## 2026-09-02
+
+### Nuevo
+- **Módulo Finanzas: facturas por pagar.** Nueva sección **Finanzas** en el menú con
+  dos pantallas:
+  - **Facturas por pagar**: registra los gastos pendientes (proveedor, concepto, monto,
+    fecha de factura y vencimiento). Al elegir el proveedor, el **vencimiento se
+    pre-llena solo** con su plazo de crédito — y sigue siendo editable. El botón ✓
+    marca la factura como pagada registrando la **fecha real** del pago.
+  - **Overview**: el mes de un vistazo — cuánto está **pendiente**, cuánto ya está
+    **vencido** (incluye arrastres de meses previos), qué **vence en los próximos 7
+    días** y cuánto se **pagó en el mes**, con los vencimientos agrupados por semana.
+    Navega entre meses con las flechas.
+- **Plazo de pago en Proveedores.** Cada proveedor ahora guarda sus días de crédito
+  (15, 30, 60… o vacío = contado); se ve en una columna nueva de la tabla y alimenta
+  el pre-llenado del vencimiento. Un proveedor con facturas registradas ya no se puede
+  eliminar por accidente.
+
 ## 2026-08-26
 
 ### Corregido

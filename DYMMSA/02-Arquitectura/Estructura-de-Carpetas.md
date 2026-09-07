@@ -70,10 +70,12 @@ src/
 │   └── page.tsx                  # Redirect a /dashboard
 │
 ├── components/
+│   ├── changelog/                # ChangelogTabs, RichText (Novedades + Actividad)
 │   ├── dashboard/                # DashboardMetrics, MetricCard, OrderStatusBreakdown
 │   ├── db/                       # ExcelImporter, ProductForm, ProductsTable
 │   ├── ColumnPicker.tsx          # Selector "Columnas" por tabla (checkbox + restablecer, issue #18)
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
+│   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
 │   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable, PurchasePlanner

@@ -161,6 +161,23 @@ CREATE TABLE public.suppliers (
   email text,
   address text,
   notes text,
+  payment_terms_days integer,      -- plazo de credito en dias; NULL = contado (issue #84)
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Facturas por pagar (Finanzas, issue #84). Registro simbolico de gastos —
+-- la facturacion oficial vive en Odoo; esto alimenta el overview de vencimientos.
+CREATE TABLE public.payables (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  supplier_id uuid NOT NULL,
+  concept text NOT NULL,
+  amount numeric NOT NULL,
+  invoice_date date NOT NULL,
+  due_date date NOT NULL,
+  status text DEFAULT 'pending' NOT NULL,
+  paid_at date,               -- fecha REAL de pago; puede diferir del vencimiento
+  notes text,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
   updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -241,6 +258,13 @@ ALTER TABLE app_settings ADD CONSTRAINT app_settings_pkey PRIMARY KEY (key);
 ALTER TABLE suppliers ADD CONSTRAINT suppliers_pkey PRIMARY KEY (id);
 ALTER TABLE suppliers ADD CONSTRAINT suppliers_name_key UNIQUE (name);
 ALTER TABLE suppliers ADD CONSTRAINT suppliers_name_not_blank CHECK ((btrim(name) <> ''));
+ALTER TABLE payables ADD CONSTRAINT payables_pkey PRIMARY KEY (id);
+-- SIN cascade a proposito: borrar un proveedor con facturas se bloquea (23503).
+ALTER TABLE payables ADD CONSTRAINT payables_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
+ALTER TABLE payables ADD CONSTRAINT payables_concept_not_blank CHECK ((btrim(concept) <> ''));
+ALTER TABLE payables ADD CONSTRAINT payables_amount_check CHECK ((amount > 0));
+ALTER TABLE payables ADD CONSTRAINT payables_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'cancelled'::text])));
+ALTER TABLE suppliers ADD CONSTRAINT suppliers_payment_terms_days_check CHECK (((payment_terms_days IS NULL) OR (payment_terms_days >= 0)));
 
 ALTER TABLE brands ADD CONSTRAINT brands_pkey PRIMARY KEY (id);
 ALTER TABLE brands ADD CONSTRAINT brands_name_key UNIQUE (name);
@@ -310,6 +334,8 @@ CREATE TRIGGER update_quotations_updated_at BEFORE UPDATE ON public.quotations F
 CREATE TRIGGER update_store_inventory_updated_at BEFORE UPDATE ON public.store_inventory FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER urrea_catalog_set_updated_at BEFORE UPDATE ON public.urrea_catalog FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
 CREATE TRIGGER suppliers_set_updated_at BEFORE UPDATE ON public.suppliers FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+CREATE TRIGGER payables_set_updated_at BEFORE UPDATE ON public.payables FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+CREATE INDEX idx_payables_status_due_date ON public.payables (status, due_date);
 CREATE TRIGGER update_app_settings_updated_at BEFORE UPDATE ON public.app_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ─── Row Level Security ─────────────────────────────────────────────────────
@@ -324,6 +350,7 @@ ALTER TABLE public.urrea_catalog ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_purchase_decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.brands ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.supplier_brands ENABLE ROW LEVEL SECURITY;
 
@@ -344,6 +371,7 @@ CREATE POLICY "Authenticated users can manage urrea_catalog" ON public.urrea_cat
 CREATE POLICY "Authenticated users can manage purchase decisions" ON public.order_purchase_decisions FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can manage app settings" ON public.app_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can manage suppliers" ON public.suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can manage payables" ON public.payables FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can manage brands" ON public.brands FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Authenticated users can manage supplier brands" ON public.supplier_brands FOR ALL TO authenticated USING (true) WITH CHECK (true);
 

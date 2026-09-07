@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-export type MetricColor = 'blue' | 'green' | 'orange' | 'purple'
+export type MetricColor = 'blue' | 'green' | 'orange' | 'purple' | 'red'
 
 const colorMap: Record<MetricColor, string> = {
   blue:   'bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
   green:  'bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400',
   orange: 'bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400',
   purple: 'bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-400',
+  red:    'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400',
 }
 
 interface MetricCardProps {

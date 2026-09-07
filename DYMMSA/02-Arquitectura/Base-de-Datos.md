@@ -253,7 +253,30 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `email` | text | Sí | — | | |
 | `address` | text | Sí | — | | |
 | `notes` | text | Sí | — | | Horarios, condiciones, quién atiende… |
+| `payment_terms_days` | integer | Sí | — | CHECK ≥ 0 | Días de crédito; NULL = contado (issue #84) |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+---
+
+## Tabla: `payables`
+
+**Propósito:** Facturas por pagar (módulo Finanzas fase 1 — registro simbólico de egresos; la facturación oficial vive en Odoo).
+**Módulo:** Finanzas (issue #84)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `supplier_id` | uuid | No | — | FK → `suppliers` **sin cascade** | Borrar proveedor con facturas se bloquea (23503 → 400) |
+| `concept` | text | No | — | CHECK no vacío | |
+| `amount` | numeric | No | — | CHECK > 0 | |
+| `invoice_date` | date | No | — | | |
+| `due_date` | date | No | — | | Pre-llenada en UI: `invoice_date + payment_terms_days`; editable |
+| `status` | text | No | `'pending'` | CHECK `pending·paid·cancelled` | |
+| `paid_at` | date | Sí | — | | Fecha REAL de pago; →paid default hoy, →pending se limpia |
+| `notes` | text | Sí | — | | |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+Índice: `idx_payables_status_due_date (status, due_date)`.
 
 ---
 
@@ -344,3 +367,4 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `allow_received_to_exceed_ordered` | (2026-07-16) | DROP `check_received_not_exceed_ordered` en `order_items`: lo recibido puede superar lo pedido (recepción con excedente → inventario, por delta). Se conserva `>= 0`. ADR-019 |
 | `create_suppliers_module` | (2026-07-16) | Tablas `suppliers`, `brands` (sembrada con las marcas existentes) y `supplier_brands` (M2M; brand_id sin cascade → borrar marca en uso se bloquea). RLS + policies. Issue #21 |
 | `add_separator_color` | (2026-08-21) | Columna `separator_color` (text, nullable) en `quotation_items` y `order_items`, CHECK solo-separadores. Override manual del color de sección; NULL = automático. Issue #73 |
+| `add_finance_payables` | (2026-09-02) | Columna `payment_terms_days` en `suppliers` y tabla `payables` (facturas por pagar: FK a suppliers sin cascade, concept/amount/fechas, status pending·paid·cancelled, `paid_at` fecha real). Índice (status, due_date), RLS + policy. Issue #84 |

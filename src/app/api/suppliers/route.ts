@@ -114,6 +114,11 @@ export async function POST(request: NextRequest) {
       return badRequest('brandIds debe ser un arreglo')
     }
 
+    const terms = body.payment_terms_days
+    if (terms != null && (!Number.isInteger(terms) || terms < 0)) {
+      return badRequest('El plazo de pago debe ser un entero de días (o vacío = contado)')
+    }
+
     const payload: SupplierInsert = {
       name,
       phone: body.phone?.trim() || null,
@@ -121,6 +126,7 @@ export async function POST(request: NextRequest) {
       email: body.email?.trim() || null,
       address: body.address?.trim() || null,
       notes: body.notes?.trim() || null,
+      payment_terms_days: terms ?? null,
     }
 
     const { data: supplier, error } = await supabase

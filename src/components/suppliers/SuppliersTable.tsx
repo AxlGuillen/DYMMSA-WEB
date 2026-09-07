@@ -56,6 +56,7 @@ export const SUPPLIERS_COLUMNS: readonly TableColumn[] = [
   { id: 'phone', label: 'Teléfono', width: 140 },
   { id: 'email', label: 'Correo', width: 220 },
   { id: 'address', label: 'Dirección', width: 260 },
+  { id: 'payment_terms', label: 'Plazo', width: 110 },
   { id: 'brands', label: 'Marcas', width: 200 },
   { id: 'updated_at', label: 'Última actualización', width: 170 },
   { id: 'actions', label: 'Acciones', hideable: false, width: 100 },
@@ -127,6 +128,7 @@ export function SuppliersTable({
         {cols.isVisible('phone') && <ResizableHead id="phone" label="Teléfono" widths={widths} />}
         {cols.isVisible('email') && <ResizableHead id="email" label="Correo" widths={widths} />}
         {cols.isVisible('address') && <ResizableHead id="address" label="Dirección" widths={widths} />}
+        {cols.isVisible('payment_terms') && <ResizableHead id="payment_terms" label="Plazo" widths={widths} />}
         {cols.isVisible('brands') && <ResizableHead id="brands" label="Marcas" widths={widths} />}
         {cols.isVisible('updated_at') && (
           <SortHeader label="Última actualización" field="updated_at" active={sortField === 'updated_at'} dir={sortDir} onSort={onSort} widths={widths} />
@@ -149,6 +151,7 @@ export function SuppliersTable({
                 {cols.isVisible('phone') && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
                 {cols.isVisible('email') && <TableCell><Skeleton className="h-4 w-36" /></TableCell>}
                 {cols.isVisible('address') && <TableCell><Skeleton className="h-4 w-44" /></TableCell>}
+                {cols.isVisible('payment_terms') && <TableCell><Skeleton className="h-4 w-16" /></TableCell>}
                 {cols.isVisible('brands') && <TableCell><Skeleton className="h-4 w-32" /></TableCell>}
                 {cols.isVisible('updated_at') && <TableCell><Skeleton className="h-4 w-28" /></TableCell>}
                 <TableCell><Skeleton className="size-8 rounded-md" /></TableCell>
@@ -213,6 +216,13 @@ export function SuppliersTable({
                     {supplier.address
                       ? <span className="block truncate" title={supplier.address}>{supplier.address}</span>
                       : dash}
+                  </TableCell>
+                )}
+                {cols.isVisible('payment_terms') && (
+                  <TableCell className="text-sm">
+                    {supplier.payment_terms_days != null
+                      ? `${supplier.payment_terms_days} días`
+                      : <span className="text-muted-foreground">Contado</span>}
                   </TableCell>
                 )}
                 {cols.isVisible('brands') && (
