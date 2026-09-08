@@ -46,9 +46,9 @@ export function TaskForm({ open, onOpenChange }: { open: boolean; onOpenChange: 
     if (!files?.length) return
     for (const file of Array.from(files)) {
       try {
-        const optimized = await compressImage(file) // reduce dimensiones + WebP antes de subir
+        const optimized = await compressImage(file) // downscale + WebP before uploading
         const { url } = await uploadImage.mutateAsync(optimized)
-        // Embebe la imagen al final de la descripción (markdown que GitHub renderiza).
+        // Appended as markdown, which GitHub renders.
         setDescription((prev) => `${prev}${prev && !prev.endsWith('\n') ? '\n\n' : ''}![${file.name}](${url})\n`)
       } catch (e) {
         toast.error('No se pudo subir la imagen', { description: e instanceof Error ? e.message : undefined })

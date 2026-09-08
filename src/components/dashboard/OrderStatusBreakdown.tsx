@@ -77,10 +77,8 @@ export function OrderStatusBreakdown({
           </div>
         ) : (
           <div className="flex flex-col items-center gap-5">
-            {/* Donut chart (recharts lazy-loaded) */}
             <OrderStatusDonut chartData={chartData} total={total} />
 
-            {/* Legend */}
             <div className="grid w-full grid-cols-2 gap-x-6 gap-y-2.5">
               {ALL_STATUSES.map((status) => {
                 const count = statusCounts[status]

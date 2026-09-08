@@ -36,17 +36,14 @@ import type { CutMaterialType, MaterialPresentation } from '@/types/database'
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 
-/**
- * Control de medidas (#71): el catálogo se arma solo al capturar — aquí se
- * corrige (alta manual + borrar capturas erróneas).
- */
+/** The catalog builds itself on capture (#71); this screen only corrects it. */
 export function MaterialsManager() {
   const { data, isLoading, error } = useMaterialPresentations()
   const savePresentation = useSavePresentation('standalone')
   const deletePresentation = useDeletePresentation()
 
   const [toDelete, setToDelete] = useState<MaterialPresentation | null>(null)
-  // Formularios de alta manual (inputs como string, patrón del CutPlanner).
+  // Manual entry forms; inputs stay strings, same as CutPlanner.
   const [tubeForm, setTubeForm] = useState({ diameter: '', length: '' })
   const [plateForm, setPlateForm] = useState({ thickness: '', width: '', length: '' })
 
@@ -62,7 +59,7 @@ export function MaterialsManager() {
   const tubes = data.presentations.filter((p) => p.material_type === 'tube')
   const plates = data.presentations.filter((p) => p.material_type === 'plate')
 
-  // Todo pasa por formatMm: un numeric con decimales no se muestra crudo (review PR #76).
+  // Everything goes through formatMm: a decimal numeric must not render raw (#76).
   const describe = (p: MaterialPresentation) =>
     p.material_type === 'tube'
       ? `barra Ø${formatMm(p.diameter_mm ?? 0)} × ${formatMm(p.length_mm)}`
@@ -128,7 +125,6 @@ export function MaterialsManager() {
         </div>
       </div>
 
-      {/* Tubos */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Barras de tubo ({tubes.length})</CardTitle>
@@ -185,7 +181,6 @@ export function MaterialsManager() {
         </CardContent>
       </Card>
 
-      {/* Placas */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Hojas de placa ({plates.length})</CardTitle>

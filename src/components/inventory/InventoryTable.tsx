@@ -32,7 +32,7 @@ import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { StoreInventory } from '@/types/database'
 import type { QuantitySort, StoreInventoryWithBrand } from '@/hooks/useInventory'
 
-// Columnas del inventario (issue #18). Código y acciones son fijas.
+// Código and acciones are fixed columns (#18).
 export const INVENTORY_COLUMNS: readonly TableColumn[] = [
   { id: 'model_code', label: 'Código Modelo', hideable: false, width: 220 },
   { id: 'brand', label: 'Marca', width: 140 },
@@ -103,7 +103,7 @@ export function InventoryTable({ items, isLoading, onEdit, onAdd, quantitySort, 
     return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">{quantity}</Badge>
   }
 
-  // Tonos OPACOS vía color-mix: la columna fija hereda con bg-inherit y el alfa transparentaría.
+  // OPAQUE tones via color-mix: the sticky column inherits with bg-inherit and alpha would show through.
   const getRowClass = (quantity: number) => {
     if (quantity === 0)
       return 'bg-[color-mix(in_oklab,var(--color-red-50)_50%,var(--background))] dark:bg-[color-mix(in_oklab,var(--color-red-950)_20%,var(--background))]'

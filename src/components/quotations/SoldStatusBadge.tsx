@@ -2,12 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import { Ban, Check } from '@/components/icons'
 import type { SoldValue } from '@/lib/sold-status'
 
-/**
- * Badge del estado "¿lo vendemos?".
- *  - false → "No se vende" (rojo)
- *  - true  → "Se vende" (verde)
- *  - null/undefined → guion discreto (la mayoría de las filas están sin definir)
- */
+/** null/undefined renders a discreet dash: most rows are still undefined. */
 export function SoldStatusBadge({ value }: { value: SoldValue }) {
   if (value === false) {
     return (

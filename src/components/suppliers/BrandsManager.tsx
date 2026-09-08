@@ -25,11 +25,8 @@ interface BrandsManagerProps {
   onOpenChange: (open: boolean) => void
 }
 
-/**
- * Submódulo de marcas (issue #21): crear, renombrar y eliminar marcas del
- * catálogo global. Eliminar una marca asignada a proveedores está bloqueado
- * (botón deshabilitado con hint; el 400 del server es el backstop).
- */
+/** Brands submodule (#21). Deleting a brand assigned to suppliers is blocked in
+ *  the UI; the server's 400 is the backstop. */
 export function BrandsManager({ open, onOpenChange }: BrandsManagerProps) {
   const { data: brands = [], isLoading } = useBrands()
   const createBrand = useCreateBrand()
@@ -85,7 +82,6 @@ export function BrandsManager({ open, onOpenChange }: BrandsManagerProps) {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Crear */}
         <div className="flex gap-2">
           <Input
             value={newName}
@@ -109,7 +105,6 @@ export function BrandsManager({ open, onOpenChange }: BrandsManagerProps) {
           </Button>
         </div>
 
-        {/* Lista */}
         <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
           {isLoading && <p className="py-4 text-center text-sm text-muted-foreground">Cargando…</p>}
           {!isLoading && brands.length === 0 && (

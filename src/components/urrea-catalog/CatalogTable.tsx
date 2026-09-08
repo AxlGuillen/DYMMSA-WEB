@@ -42,7 +42,7 @@ interface CatalogTableProps {
   onSort: (field: CatalogSortField) => void
 }
 
-// Columnas del catálogo URREA (issue #18). Código y acciones son fijas.
+// Código and acciones are fixed columns (#18).
 export const CATALOG_COLUMNS: readonly TableColumn[] = [
   { id: 'code', label: 'Código', hideable: false, width: 150 },
   { id: 'brand', label: 'Marca', width: 110 },
@@ -70,7 +70,7 @@ function SortHeader({
   className?: string
 }) {
   const Icon = active ? (dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
-  // `field` coincide con el id de columna del picker: sirve de llave del ancho.
+  // `field` matches the picker's column id, so it doubles as the width key.
   return (
     <ResizableHead id={field} label={label} widths={widths} className={className}>
       <button

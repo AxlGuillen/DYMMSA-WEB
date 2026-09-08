@@ -1,13 +1,10 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
-/**
- * Marcas en línea que los changelogs sí usan: `código`, **negritas**,
- * [[wikilinks]] de la bóveda y `#123` ligado a su tarea. No es un parser de
- * Markdown completo a propósito — nada más estas cuatro.
- */
+/** Only the four inline marks changelogs actually use; deliberately not a full
+ *  Markdown parser. */
 
-/** Nueva instancia por llamada: el `lastIndex` de un /g compartido se pisa al anidar. */
+/** A fresh instance per call: a shared /g regex has its `lastIndex` clobbered when nesting. */
 const inlineRe = () => /(`[^`]+`)|(\*\*[^*]+\*\*)|(\[\[[^\]]+\]\])|(#\d+)/g
 
 function render(text: string): ReactNode[] {
@@ -28,7 +25,7 @@ function render(text: string): ReactNode[] {
         </code>,
       )
     } else if (token.startsWith('**')) {
-      // El interior no puede traer `*`, así que esta recursión no se anida más.
+      // The inner text cannot hold `*`, so this recursion goes no deeper.
       out.push(
         <strong key={key++} className="font-semibold text-foreground">
           {render(token.slice(2, -2))}

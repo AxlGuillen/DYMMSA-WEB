@@ -54,7 +54,6 @@ export default function OrderStatusDonut({ chartData, total }: OrderStatusDonutP
         <Tooltip content={<CustomTooltip />} />
       </PieChart>
 
-      {/* Center label */}
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-3xl font-bold leading-none">{total}</span>
         <span className="mt-1 text-xs text-muted-foreground">ordenes</span>

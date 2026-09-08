@@ -36,7 +36,7 @@ interface ProductModalProps {
   onOpenChange: (open: boolean) => void
   onSave: (data: Omit<QuotationItemRow, '_id'>, id?: string) => void
   existingEtms?: string[]
-  // Opcional: notifica (code, descripción oficial) al caller para refrescar su mapa sin recargar.
+  // Reports (code, official description) so the caller refreshes its map without a reload.
   onCatalogResolved?: (code: string, description: string) => void
 }
 
@@ -71,15 +71,14 @@ export function ProductModal({
     formState: { errors },
   } = useForm<FormValues>()
 
-  // watch() de react-hook-form es incompatible conocido del React Compiler:
-  // este componente simplemente se queda sin auto-memoizar.
+  // react-hook-form's watch() is a known React Compiler incompatibility: this
+  // component just goes without auto-memoization.
   // eslint-disable-next-line react-hooks/incompatible-library
   const deliveryTimeValue = watch('delivery_time')
   const modelCodeValue    = watch('model_code')
   const brandValue        = watch('brand')
 
-  // Debounce del par (model_code, brand) para el lookup de catálogo: el match es
-  // por código Y marca, así que cambiar cualquiera de los dos re-resuelve.
+  // The catalog match is by code AND brand, so either one changing must re-resolve.
   const [debounced, setDebounced] = useState({ code: '', brand: '' })
   useEffect(() => {
     const t = setTimeout(
@@ -89,15 +88,15 @@ export function ProductModal({
     return () => clearTimeout(t)
   }, [modelCodeValue, brandValue])
 
-  // Descripción oficial del catálogo: si hay match, gana jerarquía y la
-  // curada no se edita aquí (se corrige reimportando el catálogo).
+  // On a catalog match the official description wins, and the curated one is not
+  // editable here (it is fixed by reimporting the catalog).
   const { data: catalogDesc } = useCatalogDescription(open ? debounced.code : '', debounced.brand)
 
   const [etmError, setEtmError]           = useState<string | null>(null)
   const [isCheckingEtm, setIsCheckingEtm] = useState(false)
-  // ETM encontrado en etm_products → se precargaron sus datos (issue #40).
+  // ETM found in etm_products, so its data was pre-filled (#40).
   const [foundInCatalog, setFoundInCatalog] = useState(false)
-  // is_sold es tri-estado ('sin definir' | 'sí' | 'no') → se maneja aparte de RHF.
+  // is_sold is tri-state, so it lives outside RHF.
   const [isSold, setIsSold] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -123,13 +122,13 @@ export function ProductModal({
 
   const notSold = isSold === false
 
-  // Solo ETM es bloqueante; duplicados NO bloquean a propósito (#40) — se avisa y se deja.
+  // Only ETM blocks; duplicates deliberately do not (#40) — warn and let it through.
   const validateEtm = (value: string): string | null => {
     if (!value.trim()) return 'El ETM es requerido'
     return null
   }
 
-  // Aviso (no error) de ETM repetido en la cotización — en vivo mientras escribe.
+  // Live warning (not an error) for an ETM already in the quotation.
   const etmValue = watch('etm')
   const trimmedEtm = (etmValue ?? '').trim()
   const isDuplicateInQuotation =
@@ -137,7 +136,7 @@ export function ProductModal({
     !(mode === 'edit' && trimmedEtm === item?.etm) &&
     existingEtms.includes(trimmedEtm)
 
-  /** Busca el ETM en etm_products; null si no está o si la red falla. */
+  /** Looks the ETM up in etm_products; null when missing or on network failure. */
   const lookupEtm = async (etm: string): Promise<EtmProduct | null> => {
     try {
       const resp = await fetch('/api/quotes/lookup', {
@@ -152,7 +151,7 @@ export function ProductModal({
     }
   }
 
-  /** Precarga los datos del producto del catálogo; el usuario ajusta lo necesario. */
+  /** Pre-fills the product data from the catalog; the user adjusts from there. */
   const applyCatalogProduct = (product: EtmProduct) => {
     setValue('description',    product.description    ?? '')
     setValue('description_es', product.description_es ?? '')
@@ -161,7 +160,7 @@ export function ProductModal({
     setValue('unit_price',     product.price != null ? String(product.price) : '')
     setValue('dymmsa_description', product.dymmsa_description ?? '')
     setIsSold(product.is_sold ?? null)
-    // Cantidad y tiempo de entrega no vienen del catálogo: se dejan como están.
+    // Quantity and delivery time are not catalog data: left untouched.
   }
 
   const handleEtmBlur = async () => {
@@ -172,7 +171,7 @@ export function ProductModal({
       setFoundInCatalog(false)
       return
     }
-    // ETM sin cambios en edit: nada que precargar.
+    // Unchanged ETM while editing: nothing to pre-fill.
     if (mode === 'edit' && value.trim() === item?.etm) return
 
     setIsCheckingEtm(true)
@@ -190,9 +189,8 @@ export function ProductModal({
     }
     setEtmError(null)
 
-    // Si el código matchea el catálogo, avisa al caller para que su mapa resuelva
-    // la columna "Desc. DYMMSA" al instante (best-effort: si el lookup aún no
-    // resolvió por el debounce, el backend igual resuelve al guardar).
+    // Best-effort: lets the caller resolve "Desc. DYMMSA" instantly; if the debounced
+    // lookup has not landed, the backend still resolves it on save.
     if (catalogDesc && data.model_code.trim()) {
       onCatalogResolved?.(normalizeCatalogCode(data.model_code), catalogDesc)
     }
@@ -204,7 +202,7 @@ export function ProductModal({
         etm:            data.etm.trim(),
         description:    data.description.trim(),
         description_es: data.description_es.trim(),
-        // Con match de catálogo la curada no es editable aquí: se preserva la existente.
+        // With a catalog match the curated description stays as it is.
         dymmsa_description: catalogDesc ? (item?.dymmsa_description ?? '') : data.dymmsa_description.trim(),
         model_code:     data.model_code.trim(),
         brand:          data.brand.trim(),

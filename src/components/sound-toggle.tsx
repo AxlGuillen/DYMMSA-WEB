@@ -8,8 +8,8 @@ import { setSoundEnabled, playSound } from '@/lib/sound'
 
 export function SoundToggle() {
   const { soundEnabled, toggleSound } = useSoundStore()
-  // SSR-safe: el server renderiza "activado" siempre — el branch en hidratación
-  // descuadraba el árbol y todos los useId de la página.
+  // SSR-safe: the server always renders "on"; branching at hydration shifted the
+  // tree and every useId on the page.
   const mounted = useMounted()
   const showEnabled = mounted ? soundEnabled : true
 
@@ -17,7 +17,7 @@ export function SoundToggle() {
     const next = !soundEnabled
     toggleSound()
     setSoundEnabled(next)
-    // Feedback inmediato al re-activar: "esto es lo que acabas de encender".
+    // Immediate feedback on re-enabling: "this is what you just turned on".
     if (next) playSound('toggle')
   }
 
