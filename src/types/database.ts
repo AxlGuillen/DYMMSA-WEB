@@ -5,17 +5,14 @@ export interface EtmProduct {
   etm: string
   description: string
   description_es: string
-  // Descripción curada por DYMMSA. Se mantiene vacía para productos con match
-  // en urrea_catalog: la oficial del catálogo tiene jerarquía mayor y se
-  // resuelve en lectura (nunca se copia aquí).
+  // Curated; stays empty when urrea_catalog matches — the official one wins (ADR-013).
   dymmsa_description: string | null
   model_code: string
   price: number
   brand: string
-  is_sold: boolean | null // tri-state: null = sin definir, true = lo vendemos, false = no lo vendemos
-  // Medidas nominales de corte (issue #59, solo productos DYMMSA que se mandan
-  // a hacer). SOLO pre-llenan la lista de corte; la verdad de cada plan vive en
-  // cut_plan_pieces. Unidades en mm.
+  is_sold: boolean | null // tri-state: null = undefined, true = we sell it, false = we don't
+  // Nominal cut measurements in mm (#59): they ONLY pre-fill the list; the
+  // truth of each plan lives in cut_plan_pieces.
   cut_kind: CutMaterialType | null
   cut_diameter_mm: number | null
   cut_thickness_mm: number | null
@@ -26,9 +23,7 @@ export interface EtmProduct {
   created_by: string | null
 }
 
-// Insert types (without auto-generated fields). is_sold, dymmsa_description y
-// las medidas de corte son opcionales: las columnas admiten NULL por defecto,
-// así que los inserts que no las especifican son válidos.
+// Insert types: nullable columns stay optional, so partial inserts are valid.
 export type EtmProductInsert =
   Omit<
     EtmProduct,
@@ -46,12 +41,11 @@ export type EtmProductInsert =
   }
 export type EtmProductUpdate = Partial<Omit<EtmProduct, 'id' | 'created_at' | 'updated_at'>>
 
-// ─── Módulo de corte (issue #59) ─────────────────────────────────────────
-// Tubos y placas DYMMSA que se mandan a hacer. Unidades SIEMPRE en mm.
+// Cut module (#59): units are ALWAYS mm.
 
 export type CutMaterialType = 'tube' | 'plate'
 
-/** Pieza de corte; la forma sigue el CHECK de BD: tubo → diameter, placa → thickness+width. */
+/** DB CHECK on shape: tube → diameter, plate → thickness+width. */
 export interface CutPlanPiece {
   id: string
   order_id: string
@@ -61,7 +55,7 @@ export interface CutPlanPiece {
   width_mm: number | null
   length_mm: number
   quantity: number
-  /** Lo que pidió el cliente originalmente (registro del match con la medida usada). */
+  /** What the customer asked for; records the match to the size actually used. */
   requested_label: string | null
   source_item_id: string | null
   sort_order: number
@@ -71,17 +65,14 @@ export interface CutPlanPiece {
 
 export type CutPlanPieceInsert = Omit<CutPlanPiece, 'id' | 'created_at' | 'updated_at'>
 
-/**
- * Presentación de materia prima del proveedor ("barras de 6 m de Ø30").
- * Catálogo que se arma solo: se guarda cada presentación capturada al planificar.
- */
+/** Supplier stock size ("6 m bars"); the catalog builds itself from what is captured. */
 export interface MaterialPresentation {
   id: string
   material_type: CutMaterialType
   diameter_mm: number | null
   thickness_mm: number | null
   width_mm: number | null
-  /** Largo comercial de la barra / tira. */
+  /** Commercial length of the bar / sheet. */
   length_mm: number
   last_used_at: string
   created_at: string
@@ -97,38 +88,34 @@ export interface ExcelProductRow {
   BRAND?: string
 }
 
-// Store Inventory
 export interface StoreInventory {
   id: string
   model_code: string
   quantity: number
-  location: string | null // ubicación física (gaveta), texto libre; se conserva aunque quantity=0
+  location: string | null // physical spot (drawer); kept even when quantity=0
   updated_at: string
 }
 
-// location es opcional en el insert (columna nullable en BD).
+// location is optional on insert (nullable column).
 export type StoreInventoryInsert =
   Omit<StoreInventory, 'id' | 'updated_at' | 'location'> & { location?: string | null }
 export type StoreInventoryUpdate = Partial<Omit<StoreInventory, 'id' | 'updated_at'>>
 
-// URREA Catalog (tabla aislada — sin relaciones con etm_products/órdenes por ahora)
+// URREA catalog: isolated table, cross-referenced by value (no FKs).
 export interface UrreaCatalogItem {
   id: string
   code: string
-  brand: string // marca/línea; normalizada trim+UPPER (URREA, SURTEK, FOY...). Identidad = (code, brand)
+  brand: string // line, normalized trim+UPPER. Identity = (code, brand)
   description: string | null
   std: number
   created_at: string
   updated_at: string
 }
 
-// brand es opcional en el insert: la columna tiene DEFAULT 'URREA', así que los
-// inserts que no la especifican son válidos.
+// brand is optional on insert: the column has DEFAULT 'URREA'.
 export type UrreaCatalogInsert =
   Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at' | 'brand'> & { brand?: string }
 export type UrreaCatalogUpdate = Partial<Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at'>>
-
-// ─── Proveedores de menudeo (issue #21) ─────────────────────────────────
 
 export interface Supplier {
   id: string
@@ -138,7 +125,7 @@ export interface Supplier {
   email: string | null
   address: string | null
   notes: string | null
-  /** Plazo de crédito en días; null = contado (issue #84). */
+  /** Credit terms in days; null = cash (#84). */
   payment_terms_days: number | null
   created_at: string
   updated_at: string
@@ -147,45 +134,43 @@ export interface Supplier {
 export type SupplierInsert = Omit<Supplier, 'id' | 'created_at' | 'updated_at'>
 export type SupplierUpdate = Partial<SupplierInsert>
 
-/** Catálogo global de marcas (submódulo). name normalizado trim+upper. */
+/** Global brand catalog; name normalized trim+upper. */
 export interface Brand {
   id: string
   name: string
   created_at: string
 }
 
-/** Marca con conteo de proveedores que la usan (GET /api/brands). */
+/** Brand with the count of suppliers using it (GET /api/brands). */
 export interface BrandWithCount extends Brand {
   suppliersCount: number
 }
 
-/** Proveedor con sus marcas aplanadas (GET /api/suppliers). */
+/** Supplier with its brands flattened (GET /api/suppliers). */
 export interface SupplierWithBrands extends Supplier {
   brands: Brand[]
 }
 
-// ─── Finanzas (issue #84) ───────────────────────────────────────────────
-
 export type PayableStatus = 'pending' | 'paid' | 'cancelled'
 
-/** Factura por pagar. Registro simbólico de egresos — la facturación oficial vive en Odoo. */
+/** Own expense record; official invoicing lives in Odoo (#84). */
 export interface Payable {
   id: string
   supplier_id: string
   concept: string
   amount: number
   invoice_date: string
-  /** Pre-llenado con invoice_date + payment_terms_days del proveedor; editable. */
+  /** Pre-filled with invoice_date + the supplier's payment_terms_days; editable. */
   due_date: string
   status: PayableStatus
-  /** Fecha REAL de pago; puede diferir del vencimiento. */
+  /** REAL payment date; may differ from the due date. */
   paid_at: string | null
   notes: string | null
   created_at: string
   updated_at: string
 }
 
-/** Factura con su proveedor embebido (GET /api/payables). */
+/** Payable with its supplier embedded (GET /api/payables). */
 export interface PayableWithSupplier extends Payable {
   supplier: Pick<Supplier, 'id' | 'name' | 'payment_terms_days'>
 }
@@ -198,10 +183,6 @@ export interface ExcelInventoryRow {
   MODEL_CODE: string
   QUANTITY: number | string
 }
-
-// ============================================
-// ORDERS SYSTEM
-// ============================================
 
 export type OrderStatus =
   | 'ordered'
@@ -244,7 +225,7 @@ export interface OrderItem {
   order_id: string
   item_type: 'product' | 'separator'
   section_label: string | null
-  /** Override del color de sección (issue #73); null = automático por índice. */
+  /** Section color override (#73); null = automatic by index. */
   separator_color: string | null
   sort_order: number
   etm: string
@@ -258,25 +239,24 @@ export interface OrderItem {
   urrea_status: UrreaStatus
   delivery_time: DeliveryTime
   unit_price: number
-  location: string | null // snapshot de store_inventory.location al crear la orden
+  location: string | null // snapshot of store_inventory.location when the order was created
   created_at: string
 }
 
-// location es opcional en el insert (columna nullable; separadores no la llevan).
+// location is optional on insert; separators never carry it.
 export type OrderItemInsert =
   Omit<OrderItem, 'id' | 'created_at' | 'location' | 'separator_color'> &
   { location?: string | null; separator_color?: string | null }
 export type OrderItemUpdate = Partial<Omit<OrderItem, 'id' | 'created_at' | 'order_id'>>
 
-// Decisión mayoreo/menudeo por orden a nivel GRUPO (model_code+brand
-// normalizados) — ADR-018. Nunca es verdad global del producto.
+// Wholesale/retail decision per order and GROUP (ADR-018); never global product truth.
 export interface OrderPurchaseDecision {
   id: string
   order_id: string
-  model_code: string // normalizado trim+upper (catalogKey)
-  brand: string // normalizado trim+upper
-  std_snapshot: number // STD del catálogo al decidir (staleness si cambia)
-  needed_qty: number // N consolidado al decidir (staleness si cambia)
+  model_code: string // normalized trim+upper (catalogKey)
+  brand: string // normalized trim+upper
+  std_snapshot: number // catalog STD when decided (stale if it changes)
+  needed_qty: number // consolidated N when decided (stale if it changes)
   packages_wholesale: number
   qty_retail: number
   decided_at: string
@@ -285,14 +265,13 @@ export interface OrderPurchaseDecision {
 export type OrderPurchaseDecisionInsert =
   Omit<OrderPurchaseDecision, 'id' | 'decided_at'> & { decided_at?: string }
 
-// Configuración key-value (app_settings) — umbrales del planificador, etc.
+// Key-value config: no seeds, a missing row means the default in code.
 export interface AppSetting {
   key: string
   value: unknown // jsonb
   updated_at: string
 }
 
-// Order with items for detail view
 export interface OrderWithItems extends Order {
   order_items: OrderItem[]
 }
@@ -301,7 +280,7 @@ export interface OrderWithCount extends Order {
   items_count: number
 }
 
-// Approved product from Excel (detected green rows)
+// Approved product from Excel (green rows)
 export interface ApprovedProduct {
   etm: string
   description: string
@@ -312,13 +291,11 @@ export interface ApprovedProduct {
   brand: string
 }
 
-// Create order input
 export interface CreateOrderInput {
   customer_name: string
   products: ApprovedProduct[]
 }
 
-// Confirm reception input
 export interface ConfirmReceptionInput {
   items: {
     id: string
@@ -327,24 +304,18 @@ export interface ConfirmReceptionInput {
   }[]
 }
 
-// Confirm reception response (ADR-019): warnings listos para toast
-// (clamp de inventario en 0, corrección sin fila de inventario, etc.)
+// Warnings ready to toast (ADR-019): inventory clamped at 0, etc.
 export interface ConfirmReceptionResult {
   success: boolean
   inventory_updated: number
   warnings: string[]
 }
 
-// Auto-learn result
 export interface AutoLearnResult {
   added: number
   skipped: number
   existing: number
 }
-
-// ============================================
-// QUOTATIONS SYSTEM
-// ============================================
 
 export type QuotationStatus =
   | 'draft'
@@ -362,7 +333,7 @@ export interface Quotation {
   total_amount: number
   notes: string | null
   original_file_url: string | null
-  approved_at: string | null // fecha/hora de aprobación (cliente finaliza o staff marca approved)
+  approved_at: string | null // sealed on approval; preserved in later phases, never cleared
   created_at: string
   updated_at: string
   created_by: string | null
@@ -376,20 +347,19 @@ export interface QuotationItem {
   quotation_id: string
   item_type: 'product' | 'separator'
   section_label: string | null
-  /** Override del color de sección (issue #73); null = automático por índice. */
+  /** Section color override (#73); null = automatic by index. */
   separator_color: string | null
   etm: string | null
   description: string | null
   description_es: string | null
-  // Snapshot del valor RESUELTO al guardar: catálogo URREA ?? curada DYMMSA ?? null.
-  // Congelado como el resto de campos del ítem (documento comercial).
+  // Snapshot of the RESOLVED value at save time, frozen like the rest (ADR-013).
   dymmsa_description: string | null
   model_code: string | null
   brand: string | null
   unit_price: number | null
   quantity: number | null
   is_approved: boolean | null
-  is_sold: boolean | null // tri-state heredado de etm_products; null = sin definir, false = no lo vendemos
+  is_sold: boolean | null // tri-state inherited from etm_products; false = we don't sell it
   notes: string | null
   delivery_time: DeliveryTime | null
   sort_order: number
@@ -404,19 +374,18 @@ export interface QuotationWithCount extends Quotation {
   items_count: number
 }
 
-// Row in the editable quotation table (local/draft state, not saved to DB yet)
+// Editable quotation row: local draft state, not persisted yet.
 export interface QuotationItemRow {
-  _id: string        // React key. For existing items it equals the DB id; for new items it's a local UUID
+  _id: string        // React key: the DB id for existing items, a local UUID for new ones
   _dbId?: string     // real DB id; present only on persisted items (undefined for newly added rows)
   item_type: 'product' | 'separator'
   section_label: string  // label for separator rows (may be empty)
-  /** Override del color de sección (issue #73); null/undefined = automático. */
+  /** Section color override (#73); null/undefined = automatic. */
   separator_color?: string | null
   etm: string        // required, read-only in edit mode
   description: string
   description_es: string
-  // Curada DYMMSA (editable solo sin match de catálogo). La oficial del
-  // catálogo NO vive aquí: se muestra desde el mapa de lookup y gana jerarquía.
+  // Curated only; the official one comes from the lookup map and wins (ADR-013).
   dymmsa_description: string
   model_code: string
   brand: string
@@ -424,8 +393,8 @@ export interface QuotationItemRow {
   quantity: number | null
   delivery_time: DeliveryTime
   _inDb: boolean     // true if ETM was matched in etm_products
-  is_approved?: boolean | null  // local approval state; null = pending, true = approved, false = rejected
-  is_sold?: boolean | null      // ¿lo vendemos? null = sin definir, true = sí, false = no lo vendemos
+  is_approved?: boolean | null  // local state; null = pending, true = approved, false = rejected
+  is_sold?: boolean | null      // null = undefined, true = we sell it, false = we don't
 }
 
 // Raw row extracted from Excel before DB lookup

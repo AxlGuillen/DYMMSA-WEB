@@ -12,8 +12,7 @@ import type {
   ConfirmReceptionInput,
 } from '@/types/database'
 
-// Exportada para que hooks hermanos (usePurchasePlan) aniden sus keys debajo
-// y las invalidaciones existentes de items/orden los alcancen gratis.
+// Exported so sibling hooks nest their keys under it and inherit invalidations.
 export const ORDERS_KEY = ['orders']
 
 interface OrdersParams {
@@ -429,7 +428,7 @@ export function useAutoLearn() {
       return response.json()
     },
     onSuccess: () => {
-      // Auto-learn updates etm_products; invalidate catalog so DB page stays fresh
+      // Auto-learn writes etm_products, so the catalog cache goes stale.
       queryClient.invalidateQueries({ queryKey: ['products'] })
     },
   })

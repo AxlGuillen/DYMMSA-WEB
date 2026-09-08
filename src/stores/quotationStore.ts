@@ -7,7 +7,7 @@ interface QuotationDraftState {
   name: string
   customer_name: string
   items: QuotationItemRow[]
-  // Descripciones oficiales indexadas por catalogKey (marca|código); derivado del lookup (ADR-013).
+  // Indexed by catalogKey (brand|code), not by code (ADR-013).
   catalogDescriptions: Record<string, string>
 }
 
@@ -21,7 +21,6 @@ interface QuotationStore extends QuotationDraftState {
   addSeparatorAfter: (afterId: string | null) => void
   removeItem: (id: string) => void
   reorderItems: (activeId: string, overId: string) => void
-  /** Mueve una fila un lugar arriba/abajo (reordenar con flechas en listas grandes). */
   moveItem: (id: string, direction: 'up' | 'down') => void
   reset: () => void
 }
@@ -124,16 +123,14 @@ export const useQuotationStore = create<QuotationStore>()(
     {
       name: 'dymmsa-quotation-draft',
       version: 1,
-      // Escrituras a localStorage con debounce: coalesce mutaciones seguidas
-      // (editar varias filas, reordenar) en una sola serialización en vez de
-      // una por acción. Flush en pagehide/hidden preserva el último cambio.
+      // Debounced writes coalesce bursts of edits into one serialization;
+      // the pagehide/hidden flush preserves the last change.
       storage: createJSONStorage(() =>
         createDebouncedStorage(
           typeof window !== 'undefined' ? window.localStorage : undefined,
         ),
       ),
-      // v0→v1: el índice pasó de código a marca|código — las llaves viejas se
-      // descartan (mostrarían otra marca); el mapa es derivado y se repuebla.
+      // v0→v1: old code-keyed entries would show another brand; the map is derived.
       migrate: (persisted): QuotationDraftState => ({
         ...(persisted as QuotationDraftState),
         catalogDescriptions: {},

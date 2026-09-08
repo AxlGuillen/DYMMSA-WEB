@@ -2,11 +2,11 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /**
- * Columnas ocultas por tabla (#18). Solo se persiste lo OCULTO: columnas nuevas
- * aparecen solas sin migración. Renombrar un id huerfanea la preferencia.
+ * Only HIDDEN columns are persisted (#18), so new columns show up without a migration.
+ * Renaming an id orphans the preference.
  */
 interface ColumnStore {
-  /** tableId → ids de columnas ocultas por el usuario. */
+  /** tableId → column ids hidden by the user. */
   hidden: Record<string, string[]>
   toggleColumn: (tableId: string, columnId: string) => void
   resetTable: (tableId: string) => void
@@ -26,7 +26,7 @@ export const useColumnStore = create<ColumnStore>()(
         }),
       resetTable: (tableId) =>
         set((state) => {
-          // Borra la key completa (no deja []) para no acumular entradas vacías.
+          // Drop the whole key instead of leaving [] behind.
           const { [tableId]: _removed, ...rest } = state.hidden
           return { hidden: rest }
         }),

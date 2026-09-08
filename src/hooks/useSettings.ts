@@ -6,7 +6,7 @@ import { ORDERS_KEY } from '@/hooks/useOrders'
 
 export const SETTINGS_KEY = ['settings']
 
-/** Actualiza app_settings (whitelist en el server); la lectura llega ya resuelta en cada consumidor. */
+/** Updates app_settings; the server enforces the key whitelist. */
 export function useUpdateSettings() {
   const queryClient = useQueryClient()
 
@@ -19,7 +19,7 @@ export function useUpdateSettings() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: SETTINGS_KEY })
-      // Un cambio de umbral re-puntúa todos los planes de compra cacheados.
+      // A threshold change re-scores every cached purchase plan.
       queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
     },
   })
