@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del cotizador (#74): cubre sus dos momentos; el ausente se salta solo. */
+/** Quoter overview (#74): covers both moments; the absent one skips itself. */
 export const QUOTER_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="quoter-upload"]',

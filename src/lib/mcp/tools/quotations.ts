@@ -1,7 +1,4 @@
-/**
- * Tools MCP del módulo Cotizaciones (solo lectura).
- * Reutiliza las mismas queries que /api/quotations y los totales de business-rules.
- */
+/** Quotation tools (read-only): same queries as /api/quotations, totals from business-rules. */
 
 import { calculateLineTotal, calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
 import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'
@@ -82,7 +79,7 @@ export async function getQuotation(db: Db, id: string) {
       model_code: i.model_code,
       brand: i.brand,
       description: i.description_es || i.description,
-      // Snapshot del valor resuelto al guardar (catálogo > curada > null, ADR-013)
+      // Snapshot resolved at save time (catalog > curated > null, ADR-013)
       dymmsa_description: i.dymmsa_description,
       quantity: i.quantity,
       unit_price: i.unit_price,

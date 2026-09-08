@@ -1,8 +1,4 @@
-/**
- * Parser puro del CHANGELOG.md para /dashboard/changelog:
- * `##` fecha[—versión] → release, `###` categoría, `- ` entrada (líneas
- * indentadas continúan la entrada); todo lo demás se ignora.
- */
+/** CHANGELOG.md parser: `##` date[—version] = release, `###` category, `- ` entry (indented lines continue it). */
 
 export type ChangelogCategory = 'nuevo' | 'mejorado' | 'corregido'
 
@@ -68,23 +64,21 @@ export function parseChangelog(raw: string): ChangelogRelease[] {
       continue
     }
 
-    // Categoría: "### Mejorado"
+    // Category: "### Mejorado"
     if (trimmed.startsWith('### ')) {
       category = normalizeCategory(trimmed.slice(4))
       continue
     }
 
-    // Top-level heading "# ..." u otra cosa fuera de un release → ignorar
     if (trimmed.startsWith('#')) continue
     if (!current || !category) continue
 
-    // Entrada nueva: "- texto"
     if (trimmed.startsWith('- ')) {
       current.entries.push({ category, text: trimmed.slice(2).trim() })
       continue
     }
 
-    // Continuación (wrap) de la última entrada de esta categoría
+    // Wrapped continuation of the last entry in this category.
     const last = current.entries[current.entries.length - 1]
     if (last && last.category === category) {
       last.text = `${last.text} ${trimmed}`.trim()

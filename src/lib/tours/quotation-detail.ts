@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del detalle de cotización (#74); los pasos condicionales por estado se saltan solos. */
+/** Quotation detail overview (#74); status-conditional steps skip themselves. */
 export const QUOTATION_DETAIL_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="qd-status"]',

@@ -1,7 +1,4 @@
-/**
- * Odoo F5 — detalle de documentos + timbrado CFDI (ADR-025): folio → id y
- * líneas por FK numérica (el traversal sigue vedado en las primitivas).
- */
+/** Odoo phase 5 — document detail + CFDI stamping (ADR-025): folio → id, lines by numeric FK (traversal stays banned in the primitives). */
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import { normalizeRecords } from '@/lib/odoo/normalize'
@@ -13,7 +10,7 @@ const CFDI_STATE: Record<string, string> = {
   sent: 'timbrada',
   cancel: 'cancelada',
 }
-// `skip` y `error` solo aparecen en l10n_mx_edi.document (Fase 6).
+// `skip` and `error` only show up on l10n_mx_edi.document (phase 6).
 export const SAT_STATE: Record<string, string> = {
   valid: 'vigente ante el SAT',
   cancelled: 'cancelada ante el SAT',
@@ -23,7 +20,7 @@ export const SAT_STATE: Record<string, string> = {
   error: 'error al verificar con el SAT',
 }
 
-/** Bloque de timbrado digerido; null-safe para facturas sin CFDI. */
+/** Digested stamping block; null-safe for invoices with no CFDI. */
 export function timbrado(header: Record<string, unknown>) {
   const uuid = header.l10n_mx_edi_cfdi_uuid
   if (typeof uuid !== 'string' || !uuid) {
@@ -39,10 +36,7 @@ export function timbrado(header: Record<string, unknown>) {
   }
 }
 
-/**
- * Busca el documento por folio: match exacto (normalizado a mayúsculas) o
- * parcial único; con varias coincidencias devuelve la lista para precisar.
- */
+/** Exact (upper-cased) or unique partial folio match; several hits return the list to disambiguate. */
 export async function findByFolio(
   odoo: OdooCaller,
   model: string,
@@ -75,8 +69,6 @@ export async function findByFolio(
     coincidencias: matches.map((m) => m.name),
   }
 }
-
-// ── odoo_invoice_detail ────────────────────────────────────────────────
 
 const INVOICE_FIELDS = [
   'name', 'partner_id', 'move_type', 'invoice_date', 'invoice_date_due',
@@ -127,8 +119,6 @@ export async function odooInvoiceDetail(odoo: OdooCaller, input: { folio: string
   }
 }
 
-// ── odoo_sale_detail ───────────────────────────────────────────────────
-
 const SALE_FIELDS = [
   'name', 'partner_id', 'date_order', 'amount_untaxed', 'amount_total',
   'state', 'invoice_status', 'user_id',
@@ -143,8 +133,8 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
 
   const lines = normalizeRecords(
     await odoo('sale.order.line', 'search_read', {
-      // Fuera secciones/notas. OJO: aquí display_type es false para líneas
-      // normales — el valor 'product' solo existe en account.move.line.
+      // Drop sections/notes. NOTE: display_type is false for normal lines here —
+      // 'product' only exists in account.move.line.
       domain: [['order_id', '=', header.id], ['display_type', '=', false]],
       fields: ['name', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal'],
       limit: LINES_LIMIT,

@@ -1,7 +1,4 @@
-/**
- * Odoo F3-F4 — inventario (stock.quant es la verdad; qty_available computado),
- * empleados y flotilla (ADR-025). Solo lectura.
- */
+/** Odoo phases 3-4 (ADR-025), read-only. Stock truth is stock.quant — qty_available is computed, not stored. */
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import { normalizeGroups, normalizeRecords } from '@/lib/odoo/normalize'
@@ -10,18 +7,16 @@ import { ToolError } from '../../shared'
 const STOCK_LIST_LIMIT = 20
 const DIRECTORY_LIMIT = 50
 
-/** Sin truncados silenciosos (regla del bloque): al llenar el límite se avisa. */
+/** No silent truncation (block rule): filling the limit is reported back. */
 const truncationNote = (shown: number, limit: number, what: string) =>
   shown === limit ? `Se devolvió el máximo (${limit}) de ${what} — puede haber más.` : undefined
-
-// ── odoo_stock_check (Fase 3) ──────────────────────────────────────────
 
 export async function odooStockCheck(odoo: OdooCaller, input: { producto: string }) {
   const query = input.producto?.trim()
   if (!query) throw new ToolError('Indica el nombre o código del producto a buscar')
 
-  // 1 llamada: agrupar quants por producto suma todas las ubicaciones, y el
-  // ilike sobre el many2one busca en el display (código + nombre) a la vez.
+  // 1 call: grouping quants by product sums every location, and ilike on the many2one
+  // searches the display name (code + name) at once.
   const groups = normalizeGroups(
     await odoo('stock.quant', 'read_group', {
       domain: [['product_id', 'ilike', query]],
@@ -37,15 +32,14 @@ export async function odooStockCheck(odoo: OdooCaller, input: { producto: string
       disponible: (g.available_quantity as number) ?? 0,
     }))
     .sort((a, b) => b.en_mano - a.en_mano)
-  // Respuesta digerida: solo lo que SÍ tiene existencia (los ceros van como
-  // conteo — 50 renglones de ceros son ruido, no información).
+  // Only rows with stock; zeros go as a count — 50 zero rows are noise, not information.
   const conExistencia = todas.filter((e) => e.en_mano > 0)
 
   return {
     busqueda: query,
     coincidencias: todas.length,
     en_cero: todas.length - conExistencia.length,
-    // undefined desaparece al serializar.
+    // undefined disappears on serialize.
     mensaje: todas.length === 0
       ? `Ningún producto con existencias registradas en Odoo coincide con "${query}"`
       : undefined,
@@ -55,8 +49,6 @@ export async function odooStockCheck(odoo: OdooCaller, input: { producto: string
     existencias: conExistencia.slice(0, STOCK_LIST_LIMIT),
   }
 }
-
-// ── odoo_employee_directory (Fase 4) ───────────────────────────────────
 
 export async function odooEmployeeDirectory(odoo: OdooCaller) {
   const employees = normalizeRecords(
@@ -78,8 +70,6 @@ export async function odooEmployeeDirectory(odoo: OdooCaller) {
     })),
   }
 }
-
-// ── odoo_fleet_status (Fase 4) ─────────────────────────────────────────
 
 export async function odooFleetStatus(odoo: OdooCaller) {
   const vehicles = normalizeRecords(

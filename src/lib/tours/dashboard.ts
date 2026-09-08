@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview de la entrada al sistema: sidebar sección por sección + panel de inicio. */
+/** Entry-point overview: sidebar section by section + home panel. */
 export const DASHBOARD_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="nav-main"]',

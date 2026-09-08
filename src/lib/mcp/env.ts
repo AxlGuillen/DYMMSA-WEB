@@ -1,10 +1,8 @@
 /**
- * Env del MCP (ADR-023): valida al importar — mal formado truena en boot, no en
- * silencio. APP_URL opcional (deriva de Vercel) y SOLO el origen: con ruta el
- * identificador del recurso queda roto y el conector falla sin decir por qué.
+ * MCP env (ADR-023): validated at import so a bad value fails at boot, not silently.
+ * APP_URL must be origin-only — a path breaks the resource identifier and the connector.
  */
 
-/** Lanza con mensaje accionable si APP_URL trae ruta/query/hash o no es URL. */
 function validateOrigin(value: string): string {
   let url: URL
   try {
@@ -29,7 +27,7 @@ function validateOrigin(value: string): string {
 
 const explicitAppUrl = process.env.APP_URL ? validateOrigin(process.env.APP_URL) : null
 
-/** Origen público de la app. Nunca sale del header Host (spoofeable). */
+/** Public app origin. Never taken from the Host header (spoofable). */
 export function appUrl(): string {
   if (explicitAppUrl) return explicitAppUrl
 
@@ -39,7 +37,7 @@ export function appUrl(): string {
   return 'http://localhost:3000'
 }
 
-/** Allowlist de client_id OAuth (CSV). Vacío = cualquier cliente del proyecto. */
+/** OAuth client_id allowlist (CSV). Empty = any client of the project. */
 export function allowedClientIds(): string[] {
   return (process.env.MCP_OAUTH_CLIENT_IDS ?? '')
     .split(',')

@@ -1,7 +1,4 @@
-/**
- * Odoo F1 — Contabilidad (ADR-025), solo lectura: caller inyectado, catálogo
- * como frontera y respuestas digeridas (el server digiere, el modelo interpreta).
- */
+/** Odoo phase 1 — accounting (ADR-025), read-only: injected caller, catalog as the boundary, digested responses. */
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import { allowedFields, assertDomainAllowed, catalogEntry, type DomainTriple } from '@/lib/odoo/catalog'
@@ -9,8 +6,6 @@ import { daysSince, normalizeGroups, normalizeRecords, todayIso } from '@/lib/od
 import { ToolError } from '../../shared'
 
 const MAX_LIMIT = 50
-
-// ── Primitivas genéricas (cola larga de preguntas) ─────────────────────
 
 export interface OdooQueryInput {
   model: string
@@ -21,7 +16,7 @@ export interface OdooQueryInput {
   offset?: number
 }
 
-/** Valida CADA columna del order — solo la primera dejaba pasar campos ocultos (PR #66). */
+/** Validates EVERY order column — checking only the first let hidden fields through (PR #66). */
 function assertOrderAllowed(model: string, order: string): void {
   const columns = order
     .split(',')
@@ -48,7 +43,7 @@ export async function odooQuery(odoo: OdooCaller, input: OdooQueryInput) {
   return {
     model: input.model,
     count: items.length,
-    // undefined desaparece al serializar: solo avisa cuando llenó el límite.
+    // undefined disappears on serialize: warn only when the limit was filled.
     nota: items.length === limit
       ? `Se devolvió el máximo (${limit}); usa offset o filtra más para ver el resto.`
       : undefined,
@@ -88,9 +83,7 @@ export async function odooAggregate(odoo: OdooCaller, input: OdooAggregateInput)
   return { model: input.model, agrupado_por: input.group_by, grupos: normalizeGroups(groups) }
 }
 
-// ── Tools curadas de contabilidad ──────────────────────────────────────
-
-/** Facturas de cliente contabilizadas con saldo pendiente y fecha vencida. */
+/** Posted customer invoices with an outstanding balance past their due date. */
 export const overdueDomain = (today: string): DomainTriple[] => [
   ['move_type', '=', 'out_invoice'],
   ['state', '=', 'posted'],
@@ -103,7 +96,7 @@ export async function odooOverdueInvoices(odoo: OdooCaller, input: { limit?: num
   const today = todayIso()
   const domain = overdueDomain(today)
 
-  // 2 llamadas exactas (rate limit): agregado por cliente + las más vencidas.
+  // Exactly 2 calls (rate limit): aggregate per customer + the most overdue ones.
   const byCustomer = normalizeGroups(
     await odoo('account.move', 'read_group', {
       domain,

@@ -1,7 +1,4 @@
-/**
- * Odoo F2 — Contactos + Ventas (ADR-025). date_order es DATETIME: los rangos
- * se expanden a los extremos del día para no perder registros.
- */
+/** Odoo phase 2 — contacts + sales (ADR-025). date_order is a DATETIME: ranges expand to day bounds so records aren't lost. */
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import type { DomainTriple } from '@/lib/odoo/catalog'
@@ -15,13 +12,11 @@ function assertDate(date: string | undefined): void {
   if (date && !DATE_RE.test(date)) throw new ToolError(`Fecha inválida "${date}" — usa YYYY-MM-DD`)
 }
 
-// ── odoo_sales_summary ─────────────────────────────────────────────────
-
 export interface SalesSummaryInput {
   date_from?: string
   date_to?: string
   group_by?: 'estado' | 'cliente' | 'vendedor' | 'mes'
-  /** confirmadas (default): solo sale/done. todas: incluye cotizaciones draft/sent. */
+  /** confirmadas (default): sale/done only. todas: also draft/sent quotations. */
   incluir?: 'confirmadas' | 'todas'
 }
 
@@ -63,8 +58,6 @@ export async function odooSalesSummary(odoo: OdooCaller, input: SalesSummaryInpu
   }
 }
 
-// ── odoo_customer_profile ──────────────────────────────────────────────
-
 const PARTNER_FIELDS = ['name', 'email', 'phone', 'vat', 'city', 'country_id', 'customer_rank']
 
 export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: string }) {
@@ -97,7 +90,7 @@ export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: st
   const partner = matches[0]
   const partnerId = partner.id as number
 
-  // 3 llamadas más (la cola las seria): ventas, facturación y vencidas del cliente.
+  // 3 more calls (the queue serializes them): the customer's sales, invoicing and overdue.
   const ventas = normalizeGroups(
     await odoo('sale.order', 'read_group', {
       domain: [['partner_id', '=', partnerId]],
@@ -121,8 +114,8 @@ export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: st
     }),
   )
 
-  // Las draft/sent de Odoo son cotizaciones, no ventas: el total solo suma
-  // confirmadas — el desglose por_estado conserva todo para contexto.
+  // Odoo draft/sent are quotations, not sales: the total sums confirmed only,
+  // while por_estado keeps everything for context.
   const CONFIRMED = new Set(['sale', 'done'])
   return {
     encontrado: true as const,
