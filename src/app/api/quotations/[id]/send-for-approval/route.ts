@@ -13,7 +13,6 @@ export async function POST(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    // Verify quotation exists and is in draft
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
       .select('id, status, approval_token')

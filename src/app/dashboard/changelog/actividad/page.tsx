@@ -27,7 +27,7 @@ async function readActivity(): Promise<ActivityMonth[]> {
   try {
     files = (await readdir(VAULT_DIR)).filter((f) => f.endsWith('.md'))
   } catch {
-    // Si el trace de Vercel no incluyera la bóveda, la página se degrada a vacío.
+    // Vault missing from the Vercel trace: degrade to an empty page.
     return []
   }
   const days: ActivityDay[] = []
@@ -51,7 +51,7 @@ function formatDay(iso: string): string {
   return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
 }
 
-/** Tinte por familia de trabajo; los módulos (Corte, Finanzas…) van neutros. */
+/** Tint by work family; module names stay neutral. */
 const AREA_TINT: Record<string, string> = {
   feature: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
   fix: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300',
@@ -65,7 +65,7 @@ const AREA_TINT: Record<string, string> = {
 }
 
 function areaClass(area: string): string {
-  // Misma normalizacion que el parser: las llaves de AREA_TINT dependen de que coincidan.
+  // Must match the parser's normalization; AREA_TINT keys depend on it.
   return AREA_TINT[normalizeLabel(area.split('/')[0])] ?? 'border text-muted-foreground'
 }
 

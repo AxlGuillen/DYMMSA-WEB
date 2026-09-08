@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest } from '@/lib/api-helpers'
 import { fetchGitHub, mapComment, buildIssueBody, handleGitHubError, type GitHubComment } from '@/lib/github'
 
-// POST comments: antepone "Reportado por: X" — todos los comentarios los crea el token del repo.
+// POST comments — prepends "Reportado por: X"; every comment is created by the repo token.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ number: string }> }

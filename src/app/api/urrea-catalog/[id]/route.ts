@@ -8,7 +8,7 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-// PATCH /api/urrea-catalog/[id] → actualizar producto
+// PATCH /api/urrea-catalog/[id] — update a catalog item
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const supabase = await createClient()
@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-// DELETE /api/urrea-catalog/[id] → eliminar producto
+// DELETE /api/urrea-catalog/[id] — delete a catalog item
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
     const supabase = await createClient()

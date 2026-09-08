@@ -28,12 +28,11 @@ type Step = 'upload' | 'editor'
 export default function QuoterPage() {
   const { push } = useRouter()
   const [step, setStep] = useState<Step>('upload')
-  /** _id de filas con error pre-flight o reportadas por el backend (offendingEtm). */
+  /** Row _ids flagged by pre-flight or by the backend (offendingEtm). */
   const [errorItemIds, setErrorItemIds] = useState<ReadonlySet<string>>(new Set())
-  /** Campos de encabezado (nombre/cliente) faltantes, para resaltarlos en rojo. */
+  /** Missing header fields, highlighted in red. */
   const [headerErrors, setHeaderErrors] = useState<ReadonlySet<HeaderField>>(new Set())
 
-  /** Limpia el resaltado de un campo de encabezado cuando el usuario lo edita. */
   const clearHeaderError = (field: HeaderField) => {
     setHeaderErrors((prev) => {
       if (!prev.has(field)) return prev
@@ -43,9 +42,7 @@ export default function QuoterPage() {
     })
   }
 
-  // Selectores acotados: la página se suscribe campo por campo en vez de al
-  // store entero. Así una mutación de `items` no re-renderiza por el binding de
-  // `name`, y las acciones (refs estables de Zustand) nunca disparan renders.
+  // Field-level store selectors: mutating `items` must not re-render through the `name` binding.
   const name                    = useQuotationStore((s) => s.name)
   const customer_name           = useQuotationStore((s) => s.customer_name)
   const items                   = useQuotationStore((s) => s.items)
@@ -70,7 +67,7 @@ export default function QuoterPage() {
   const handleFileSelected = async (file: File) => {
     try {
       const buffer = await file.arrayBuffer()
-      // Carga diferida: xlsx (~250 KB gzip) solo baja al subir un Excel, no al abrir el cotizador.
+      // Lazy load: xlsx (~250 KB gzip) only downloads when an Excel is uploaded.
       const { extractProductRowsFromExcel } = await import('@/lib/excel/parser')
       const { rows, sheetsProcessed, sheetsWithEtm } =
         extractProductRowsFromExcel(buffer)
@@ -100,8 +97,7 @@ export default function QuoterPage() {
 
       // Lookup against etm_products (deduplicate ETMs for the API call)
       const uniqueEtms = [...new Set(rows.map((r) => r.etm))]
-      // modelCodes del Excel: resuelven descripción de catálogo también en
-      // filas que aún no existen en etm_products
+      // Excel modelCodes also resolve catalog descriptions for rows not yet in etm_products.
       const excelModelCodes = [...new Set(rows.map((r) => r.model_code).filter(Boolean))]
       const { found, catalogDescriptions } = await lookupMutation.mutateAsync({
         etmCodes: uniqueEtms,
@@ -110,8 +106,7 @@ export default function QuoterPage() {
       mergeCatalogDescriptions(catalogDescriptions ?? {})
       const dbMap = new Map(found.map((p) => [p.etm, p]))
 
-      // Merge: Excel data + DB data → QuotationItemRow[]
-      // DB data takes priority for catalog fields; Excel quantity always wins
+      // DB data takes priority for catalog fields; Excel quantity always wins.
       const mergedItems: QuotationItemRow[] = rows.map((row) => {
         const db = dbMap.get(row.etm)
         return {
@@ -127,8 +122,8 @@ export default function QuoterPage() {
           quantity:       row.quantity,
           delivery_time:  'immediate',
           _inDb:          !!db,
-          is_sold:        db?.is_sold ?? null, // hereda el flag del catálogo; null si no está en catálogo
-          dymmsa_description: db?.dymmsa_description ?? '', // hereda la curada DYMMSA (vacía si tiene match de catálogo URREA)
+          is_sold:        db?.is_sold ?? null, // inherits the catalog flag; null when not in catalog
+          dymmsa_description: db?.dymmsa_description ?? '', // curated DYMMSA text; empty when the URREA catalog matches
         }
       })
 
@@ -160,7 +155,6 @@ export default function QuoterPage() {
   }
 
   const handleSave = async () => {
-    // ── 0. Encabezado: nombre de la cotización y del cliente (issue #26) ────
     const missingHeader = getMissingHeaderFields(name, customer_name)
     if (missingHeader.length > 0) {
       setHeaderErrors(new Set(missingHeader))
@@ -170,13 +164,11 @@ export default function QuoterPage() {
     }
     setHeaderErrors(new Set())
 
-    // ── 1. Debe haber al menos un producto ─────────────────────────────────
     if (hasNoProducts(items)) {
       toast.error('Agrega al menos un producto a la cotización.')
       return
     }
 
-    // ── 2. Pre-flight: atrapar errores conocidos antes de pegar al servidor ─
     const blocking = getBlockingIssues(items)
     if (blocking.length > 0) {
       const first = blocking[0]
@@ -192,11 +184,9 @@ export default function QuoterPage() {
     }
     setErrorItemIds(new Set())
 
-    // ── 3. Request al backend ───────────────────────────────────────────
     try {
       const result = await saveMutation.mutateAsync({ name, customer_name, items })
 
-      // Auto-learn feedback
       const { added, updated } = result.auto_learn
       const learnMsg = [
         added   > 0 ? `${added} producto${added !== 1 ? 's' : ''} nuevos agregados al catálogo`   : '',
@@ -208,7 +198,7 @@ export default function QuoterPage() {
       })
 
       reset()
-      // Abre la cotización recién creada; si por algo no vino el id, cae a la lista.
+      // Open the new quotation; fall back to the list if no id came back.
       push(result.quotation_id
         ? `/dashboard/quotations/${result.quotation_id}`
         : '/dashboard/quotations')
@@ -217,7 +207,7 @@ export default function QuoterPage() {
     }
   }
 
-  /** Manejo centralizado de errores: 401, red, validación con ETM, fallback. */
+  /** Central save-error handling: 401, network, ETM validation, fallback. */
   const handleSaveError = (error: unknown) => {
     if (error instanceof ApiError) {
       if (error.code === 'AUTH_EXPIRED') {
@@ -225,7 +215,7 @@ export default function QuoterPage() {
         push('/login')
         return
       }
-      // Resaltar el ítem ofensor reportado por el backend.
+      // Highlight the offending item reported by the backend.
       if (error.offendingEtm) {
         const offending = items.find((i) => i.etm === error.offendingEtm)
         if (offending) {
@@ -241,13 +231,11 @@ export default function QuoterPage() {
     })
   }
 
-  // Habilitado salvo mientras guarda: los requisitos (nombre/cliente/productos)
-  // ya no deshabilitan en silencio — se avisan en handleSave (issue #26).
+  // Enabled except while saving: missing name/customer/products are reported in handleSave, not disabled silently (#26).
   const canSave = !saveMutation.isPending
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Cotizador</h2>
@@ -266,7 +254,6 @@ export default function QuoterPage() {
         </div>
       </div>
 
-      {/* Step: upload */}
       {step === 'upload' && (
         <div data-tour="quoter-upload">
           <FileUploader
@@ -276,10 +263,8 @@ export default function QuoterPage() {
         </div>
       )}
 
-      {/* Step: editor */}
       {step === 'editor' && (
         <div className="space-y-6">
-          {/* Quotation name + Customer name */}
           <div data-tour="quoter-header" className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
             <div className="space-y-1.5">
               <Label htmlFor="quotation_name">
@@ -315,10 +300,8 @@ export default function QuoterPage() {
             </div>
           </div>
 
-          {/* Editable product table */}
           <QuotationEditor errorItemIds={errorItemIds} />
 
-          {/* Save */}
           <div data-tour="quoter-save" className="flex justify-end pt-2 border-t">
             <Button
               size="lg"

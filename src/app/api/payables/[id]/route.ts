@@ -7,7 +7,7 @@ import type { PayableStatus, PayableUpdate } from '@/types/database'
 const STATUSES: PayableStatus[] = ['pending', 'paid', 'cancelled']
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
-// PATCH /api/payables/[id] → updates sparse
+// PATCH /api/payables/[id] — sparse updates
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -55,8 +55,8 @@ export async function PATCH(
     if (body.status !== undefined) {
       if (!STATUSES.includes(body.status as PayableStatus)) return badRequest('Estado inválido')
       updates.status = body.status
-      // Regla de pago: marcar pagada registra la fecha REAL (default hoy si no
-      // viene); volver a pendiente/cancelada la limpia.
+      // Payment rule: marking it paid stores the REAL date (today by default);
+      // going back to pending/cancelled clears it.
       if (body.status === 'paid') {
         const paidAt = body.paid_at
         if (paidAt !== undefined && paidAt !== null && (typeof paidAt !== 'string' || !ISO_DATE.test(paidAt))) {
@@ -67,7 +67,7 @@ export async function PATCH(
         updates.paid_at = null
       }
     } else if (body.paid_at !== undefined) {
-      // Corregir la fecha de pago de una ya pagada, sin tocar el estado.
+      // Fix the payment date of an already-paid invoice without touching the status.
       if (body.paid_at !== null && (typeof body.paid_at !== 'string' || !ISO_DATE.test(body.paid_at))) {
         return badRequest('Fecha de pago inválida')
       }

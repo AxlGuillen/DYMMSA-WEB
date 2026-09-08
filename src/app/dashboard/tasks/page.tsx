@@ -29,7 +29,7 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-// Columnas de la lista de tareas (issue #18). Título es fija (es la navegación).
+// Task list columns (#18). Title is not hideable: it is the navigation.
 const TASKS_COLUMNS: readonly TableColumn[] = [
   { id: 'number', label: '#' },
   { id: 'title', label: 'Título', hideable: false },
@@ -71,7 +71,6 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Filtros */}
       <div data-tour="tk-filters" className="flex flex-wrap items-center gap-4">
         <div className="inline-flex rounded-lg border p-0.5">
           {STATE_TABS.map((tab) => (
@@ -110,7 +109,6 @@ export default function TasksPage() {
         <ColumnPicker tableId="tasks" columns={TASKS_COLUMNS} className="ml-auto" />
       </div>
 
-      {/* Contenido */}
       <div data-tour="tk-table">
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">

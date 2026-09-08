@@ -5,10 +5,7 @@ import { requireAuth, badRequest, notFound } from '@/lib/api-helpers'
 import { explainPgError } from '@/lib/supabase-errors'
 import type { ConfirmReceptionInput, ConfirmReceptionResult } from '@/types/database'
 
-/**
- * Recepción URREA (ADR-019): solo el EXCEDENTE entra a inventario, por DELTA —
- * re-confirmar es idempotente y corregir a la baja resta (clamp 0 + warning).
- */
+/** URREA reception (ADR-019): only the EXCESS enters inventory, as a DELTA — re-confirming is idempotent. */
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -31,7 +28,6 @@ export async function POST(
       }
     }
 
-    // Verify order exists and is in correct status
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, status')
@@ -49,7 +45,7 @@ export async function POST(
 
     // Sequential: items may share model_code — parallel reads would cause inventory race conditions
     for (const item of input.items) {
-      // Leer ANTES de escribir: el excedente previo sale de los valores persistidos.
+      // Read BEFORE writing: the previous excess comes from the persisted values.
       // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
       const { data: currentItem } = await supabase
         .from('order_items')
@@ -60,8 +56,7 @@ export async function POST(
       if (!currentItem) continue
       if (currentItem.item_type === 'separator') continue
 
-      // OJO: el delta asume quantity_to_order estable entre recepciones — si
-      // algún día se vuelve editable post-orden, revisar este modelo (ADR-019).
+      // Delta assumes quantity_to_order stays stable across receptions; revisit if it becomes editable (ADR-019).
       const oldExcess = receptionExcess(currentItem)
       const newExcess = receptionExcess({
         quantity_received: item.quantity_received,
@@ -85,7 +80,6 @@ export async function POST(
           : NextResponse.json({ message: 'Error al actualizar la recepción' }, { status: 500 })
       }
 
-      // Inventario: solo si el excedente cambió y el ítem tiene model_code.
       if (delta !== 0 && currentItem.model_code?.trim()) {
         const { data: inventory } = await supabase
           .from('store_inventory')
@@ -123,7 +117,7 @@ export async function POST(
           }
           inventoryUpdated++
         } else {
-          // delta < 0 sin fila de inventario: no hay de dónde restar.
+          // delta < 0 with no inventory row: nothing to subtract from.
           warnings.push(
             `${tag}: no existe fila de inventario de ${currentItem.model_code} para restar la corrección del excedente.`,
           )
@@ -131,9 +125,7 @@ export async function POST(
       }
     }
 
-    // Recalculate total amount based on what will actually be delivered
-    // - quantity_in_stock: always counts (already reserved)
-    // - min(recibido, pedido): only if not marked as not_supplied (excess is never billed)
+    // Total = quantity_in_stock (already reserved) + min(received, ordered) unless not_supplied; excess is never billed.
     const { data: allItems } = await supabase
       .from('order_items')
       .select('quantity_in_stock, quantity_received, quantity_to_order, urrea_status, unit_price, item_type')

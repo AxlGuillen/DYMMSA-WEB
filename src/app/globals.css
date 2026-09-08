@@ -190,18 +190,14 @@
   }
 }
 
-/* Panel de marca del login. Oscuro fijo en ambos temas (superficie de marca,
-   no de UI), por eso ninguna de estas clases lleva variante .dark.
-
-   Carbón, NO negro puro: los dos logos tienen contorno negro y sobre #000 se
-   funden con el fondo (se veían embarrados). Este piso los despega. */
+/* Dark in both themes (brand surface, not UI) — hence no .dark variants below.
+   Charcoal, NOT pure black: both logos have a black outline and vanish on #000. */
 .login-brand {
   background: linear-gradient(160deg, #17171b 0%, #0d0d10 55%, #08080a 100%);
 }
 
-/* Zoom lentísimo (Ken Burns): da vida sin el costo de un GIF/vídeo. Es una
-   transformación GPU, así que no cuesta nada. transform-origin arriba-derecha:
-   el movimiento se nota en las herramientas, no en el texto. */
+/* Ken Burns zoom: GPU transform, so it is free. Origin top-right so the motion
+   shows on the tools, not on the text. */
 .login-brand-photo {
   transform-origin: 70% 25%;
   animation: login-kenburns 28s ease-in-out infinite alternate;
@@ -216,10 +212,8 @@
   }
 }
 
-/* Scrim sobre la foto. El texto vive abajo-izquierda, así que el degradado
-   principal sube desde el piso; el lateral es solo un seguro suave (si tapara
-   más, mataría las llaves, que son lo bueno de la imagen). Sin esto, la
-   legibilidad dependería de la suerte del render. */
+/* Text sits bottom-left, so the main gradient rises from the floor; the side one
+   is a soft safety net — any stronger and it kills the wrenches. */
 .login-brand-scrim {
   background:
     linear-gradient(
@@ -234,9 +228,8 @@
     linear-gradient(90deg, rgba(6, 6, 8, 0.45) 0%, rgba(6, 6, 8, 0.12) 45%, transparent 70%);
 }
 
-/* Superficie del lado del formulario. Explícita, no `bg-muted/40`: ese quedaba
-   en ~0.99 de luminosidad y la tarjeta blanca no se despegaba del fondo.
-   Aquí el fondo baja un escalón real para que la tarjeta tenga contraste. */
+/* Explicit, not `bg-muted/40`: that landed near 0.99 luminance and the white card
+   never lifted off the background. */
 .login-form-bg {
   background-color: #f0f0f2;
 }
@@ -245,9 +238,7 @@
   background-color: #0b0b0d;
 }
 
-/* Tarjeta del login: se apoya en el borde giratorio (.login-card-border) y
-   necesita ganarle al fondo. En claro es blanca sobre gris; en oscuro sube por
-   encima del fondo (nunca al revés) para que lea como superficie elevada. */
+/* Must always sit ABOVE the background (never below) so it reads as an elevated surface. */
 .login-card-inner {
   border-radius: calc(var(--radius) + 4px);
   background: #ffffff;
@@ -258,8 +249,7 @@
 }
 
 .dark .login-card-inner {
-  /* Hex explícito, no oklch: el escalón sobre el fondo (#0b0b0d) debe ser
-     medible. Con oklch(0.23) la tarjeta quedaba casi fundida con el fondo. */
+  /* Explicit hex, not oklch: oklch(0.23) left the card nearly merged with #0b0b0d. */
   background: #202026;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.06),
@@ -267,10 +257,8 @@
     0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
-/* Eco de la retícula del panel en el lado claro: sin esto las dos mitades se
-   leen como dos pantallas pegadas en vez de un solo diseño. Muy tenue.
-   El prefijo -webkit- va primero: sin él, Safari ignora la máscara y la retícula
-   se dibuja de borde a borde, sin el desvanecido. */
+/* Echoes the panel grid so the two halves read as one design.
+   -webkit- prefix first: without it Safari ignores the mask and draws edge to edge. */
 .login-form-grid {
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px),
@@ -286,8 +274,7 @@
     linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
 }
 
-/* Entrada escalonada. `both` conserva el estado inicial antes de arrancar, así
-   nada parpadea visible en el primer frame. */
+/* `both` holds the initial state before start, so nothing flashes on the first frame. */
 @keyframes login-rise {
   from {
     opacity: 0;
@@ -307,8 +294,7 @@
 .login-delay-2 { animation-delay: 160ms; }
 .login-delay-3 { animation-delay: 240ms; }
 
-/* Sin movimiento para quien lo pidió: aparece, no se desliza. El borde giratorio
-   también se congela — una animación infinita es justo lo que molesta ahí. */
+/* The rotating border freezes too: an infinite animation is exactly what bothers here. */
 @media (prefers-reduced-motion: reduce) {
   .login-rise,
   .login-card-border,
@@ -317,8 +303,7 @@
   }
 }
 
-/* Nota: `.login-card-border` NO es solo del login — las páginas de docs y
-   changelog la reutilizan como marco decorativo. No renombrar ni borrar. */
+/* Not login-only: the docs and changelog pages reuse it. Do not rename or delete. */
 .login-card-border {
   border-radius: calc(var(--radius) + 6px);
   padding: 2px;
@@ -363,9 +348,8 @@
   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
 }
 
-/* ── Vistas guiadas (driver.js, ADR-024) ─────────────────────────────────
-   El CSS base de driver.js es claro; estas reglas lo visten con los tokens
-   del tema (popover/border/secondary) para que respete light y dark. */
+/* driver.js ships light-only CSS (ADR-024); these rules repaint it with theme tokens
+   so tours respect light and dark. */
 .driver-popover.dymmsa-tour {
   background-color: var(--popover);
   color: var(--popover-foreground);
@@ -403,7 +387,7 @@
   color: var(--accent-foreground);
 }
 
-/* La flecha del popover es un triángulo de bordes: cada lado hereda el fondo. */
+/* The popover arrow is a border triangle: each side must inherit the background. */
 .driver-popover.dymmsa-tour .driver-popover-arrow-side-top {
   border-top-color: var(--popover);
 }

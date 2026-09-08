@@ -26,7 +26,7 @@ export async function POST(
 
     console.log(`[create-order] START quotationId=${id} userId=${user.id}`)
 
-    // Fetch quotation with items — must be approved; any authenticated user can create the order
+    // The quotation must be approved; any authenticated user can create the order.
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
       .select('*, quotation_items(*)')
@@ -51,8 +51,8 @@ export async function POST(
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
 
-    // Excluye "no lo vendemos" (is_sold === false): nunca entran a la orden ni al Excel URREA.
-    // Defensa en profundidad — un item así tampoco debería estar is_approved===true.
+    // is_sold === false never reaches the order or the URREA Excel; defense in depth,
+    // since such an item should not be is_approved === true either.
     const approvedProducts = allItems.filter(
       (i) => (i.item_type === 'product' || !i.item_type) && i.is_approved === true && i.is_sold !== false
     )
@@ -68,13 +68,12 @@ export async function POST(
       )
     }
 
-    // Build order items: include all separators + approved products (preserving sort order)
+    // Order items: every separator + the approved products, preserving sort order.
     let totalAmount = 0
     let sortIndex = 0
     const inventoryUpdates: StockResult[] = []
     const orderItemsPayload: OrderItemPayload[] = []
 
-    // Approved product IDs for quick lookup
     const approvedIds = new Set(approvedProducts.map((i) => i.id))
 
     for (const item of allItems) {
@@ -154,7 +153,6 @@ export async function POST(
       })
     }
 
-    // Create the order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -174,7 +172,6 @@ export async function POST(
 
     console.log(`[create-order] order inserted orderId=${order.id} total=${totalAmount}`)
 
-    // Insert order items
     const { error: itemsError } = await supabase
       .from('order_items')
       .insert(orderItemsPayload.map((i) => ({ ...i, order_id: order.id })))
@@ -182,7 +179,7 @@ export async function POST(
     if (itemsError) {
       await supabase.from('orders').delete().eq('id', order.id)
       console.error(`[create-order] items insert error rolling back orderId=${order.id}`, itemsError)
-      // El payload de orderItemsPayload tiene etm/quantity_approved/unit_price → scaneable.
+      // The payload carries etm/quantity_approved/unit_price, so explainPgError can scan it.
       const info = explainPgError(itemsError, orderItemsPayload)
       return NextResponse.json(
         { message: info.userMessage, offendingEtm: info.offendingEtm },
@@ -190,7 +187,7 @@ export async function POST(
       )
     }
 
-    // Deduct inventory in parallel (independent writes per model_code)
+    // Stock is deducted when the order is created, not on reception; writes are independent per model_code.
     await Promise.all(
       inventoryUpdates.map(async (upd) => {
         await supabase
@@ -201,7 +198,6 @@ export async function POST(
       })
     )
 
-    // Mark quotation as converted
     await supabase
       .from('quotations')
       .update({ status: 'converted_to_order' })

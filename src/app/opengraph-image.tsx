@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
 
-// Tarjeta Open Graph en PNG 1200×630 dibujada con tipografía — WhatsApp no renderiza WebP.
+// Open Graph card drawn as a 1200x630 PNG — WhatsApp does not render WebP.
 export const runtime = 'edge'
 export const alt = 'DYMMSA — Sistema de Cotizaciones e Inventario'
 export const size = { width: 1200, height: 630 }
@@ -23,7 +23,6 @@ export default function Image() {
           fontFamily: 'sans-serif',
         }}
       >
-        {/* Etiqueta superior */}
         <div
           style={{
             display: 'flex',
@@ -39,7 +38,6 @@ export default function Image() {
           SISTEMA DE COTIZACIONES E INVENTARIO
         </div>
 
-        {/* Wordmark */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', fontSize: '190px', fontWeight: 800, color: '#ffffff', letterSpacing: '-4px', lineHeight: 1 }}>
             DYMMSA
@@ -49,7 +47,6 @@ export default function Image() {
           </div>
         </div>
 
-        {/* Pie */}
         <div
           style={{
             display: 'flex',

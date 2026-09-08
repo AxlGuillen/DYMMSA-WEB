@@ -3,8 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
 import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
 
-// POST lookup batch: { codes } → { descriptions: Record<catalogKey, desc> } —
-// query por código, respuesta indexada por MARCA|CODIGO con TODAS las marcas.
+// POST lookup — { codes } → { descriptions: Record<catalogKey, desc> }: queried by code,
+// answered keyed by BRAND|CODE across ALL brands.
 
 export async function POST(request: NextRequest) {
   try {

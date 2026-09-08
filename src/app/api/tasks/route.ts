@@ -12,7 +12,7 @@ import {
   type GitHubIssue,
 } from '@/lib/github'
 
-// GET /api/tasks?state=&priority=&page= — lista de issues; state=closed es el histórico.
+// GET /api/tasks?state=&priority=&page= — issue list; state=closed is the history.
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     if (priority && isTaskPriority(priority)) qs.set('labels', priorityToLabel(priority))
 
     const issues = await fetchGitHub<GitHubIssue[]>(`/issues?${qs.toString()}`)
-    // La API de issues incluye PRs → se excluyen.
+    // The issues API includes PRs → filter them out.
     const tasks = issues.filter((i) => !isPullRequest(i)).map(mapIssueToTask)
     return NextResponse.json({ tasks, page })
   } catch (e) {
@@ -43,9 +43,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ------------------------------------------------------------------ //
-// POST /api/tasks   { title, description?, priority? }                //
-// ------------------------------------------------------------------ //
+// POST /api/tasks — { title, description?, priority? }
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()

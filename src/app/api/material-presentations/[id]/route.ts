@@ -6,7 +6,7 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/** DELETE: borra una captura errónea (#71). Seguro — nada referencia presentaciones, solo muere la sugerencia. */
+/** DELETE — drop a mistyped capture (#71). Safe: nothing references presentations. */
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params

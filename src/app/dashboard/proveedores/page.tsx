@@ -63,7 +63,6 @@ export default function SuppliersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Proveedores</h1>
@@ -87,7 +86,6 @@ export default function SuppliersPage() {
         </div>
       </div>
 
-      {/* Search + brand filter */}
       <div data-tour="sup-filters" className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -123,7 +121,6 @@ export default function SuppliersPage() {
         <ColumnPicker tableId="suppliers" columns={SUPPLIERS_COLUMNS} />
       </div>
 
-      {/* Table */}
       <div data-tour="sup-table">
       <SuppliersTable
         suppliers={data?.data || []}
@@ -136,7 +133,6 @@ export default function SuppliersPage() {
       />
       </div>
 
-      {/* Pagination */}
       {data && data.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">

@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Check if ETM already exists
       // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
       const { data: existing } = await supabase
         .from('etm_products')
@@ -48,14 +47,13 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Insert new product
       const { error } = await supabase.from('etm_products').insert({
         etm: product.etm,
         description: product.description,
         description_es: product.description_es || '',
         model_code: product.model_code,
         price: product.price,
-        brand: 'URREA', // Default brand
+        brand: 'URREA',
         created_by: user.id,
       })
 

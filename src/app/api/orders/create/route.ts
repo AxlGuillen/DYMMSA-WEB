@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fetch all inventory records in parallel, then build order items
     const productAllocations = await Promise.all(
       input.products.map(async (product, sortIndex) => {
         const { data: inventory } = await supabase
@@ -73,7 +72,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Create order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -93,7 +91,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create order items
     const itemsWithOrderId = orderItems.map((item) => ({
       ...item,
       order_id: order.id,
@@ -124,7 +121,6 @@ export async function POST(request: NextRequest) {
       )
     )
 
-    // Get items that need to be ordered from URREA
     const itemsToOrder = orderItems.filter((item) => item.quantity_to_order > 0)
 
     return NextResponse.json({

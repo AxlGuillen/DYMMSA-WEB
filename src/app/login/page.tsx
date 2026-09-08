@@ -32,7 +32,7 @@ export default function LoginPage() {
     }
 
     toast.success('Sesión iniciada')
-    // Honra ?next= (ADR-023) con el guard isSafeNext; window.location evita exigir Suspense.
+    // Honor ?next= (ADR-023) behind the isSafeNext guard; window.location avoids requiring Suspense.
     const next = new URLSearchParams(window.location.search).get('next')
     push(isSafeNext(next) ? next : '/dashboard')
     refresh()
@@ -40,22 +40,12 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen">
-      {/* ── Panel de marca ─────────────────────────────────────────────────
-          Sin tope de ancho: con `max-w-2xl` se quedaba en 672px y en pantallas
-          anchas el formulario heredaba un vacío enorme. Ahora escala con la
-          pantalla. Oscuro fijo en ambos temas: es superficie de marca, no de UI. */}
+      {/* No hard width cap: `max-w-2xl` froze it at 672px and left a huge gap on wide screens.
+          Dark in both themes on purpose — this is a brand surface, not UI. */}
       <aside className="login-brand relative hidden w-[46%] max-w-[920px] flex-col justify-end overflow-hidden px-14 pb-28 pt-16 lg:flex">
-        {/* La foto trae las herramientas arriba y el vacío abajo: por eso el
-            contenido se ancla al fondo (justify-end) en vez de centrarse — así
-            el texto cae en la zona oscura y no encima de las llaves. */}
-        {/* `priority` se queda: la foto es el LCP del desktop (46% de la pantalla),
-            y dejarla `lazy` sería un anti-patrón de rendimiento en el hero.
-            El fix del desperdicio móvil va por `sizes`: en px, NO en vw. Un valor
-            `vw` fija el piso del srcset en 384w, así que en móvil (panel `hidden`)
-            el preload bajaba 14.7 KB de una foto que nunca se ve. Con px el srcset
-            conserva las variantes chicas → el preload móvil (`sizes`→0px) toma la
-            mínima (~0.5 KB). En desktop, 920px = ancho máx. del panel (max-w-[920px]);
-            en 1920px pide la misma 1080w que con 46vw. Mismo patrón que el logo. */}
+        {/* justify-end: the photo's tools sit up top, so centered text would land on them. */}
+        {/* `priority` stays (desktop LCP). `sizes` in px, NOT vw: a vw value floors the
+            srcset at 384w and mobile — where the panel is hidden — preloaded 14.7 KB for nothing. */}
         <Image
           src="/login-brand.webp"
           alt=""
@@ -64,23 +54,16 @@ export default function LoginPage() {
           sizes="(min-width: 1024px) 920px, 0px"
           className="login-brand-photo object-cover"
         />
-        {/* Scrim: garantiza el contraste del texto pase lo que pase con la foto.
-            La foto ya aporta toda la textura — encima llevaba una retícula que
-            solo ensuciaba (se veían las líneas cruzando las herramientas). */}
+        {/* Scrim guarantees text contrast whatever the photo does behind it. */}
         <div className="login-brand-scrim pointer-events-none absolute inset-0" aria-hidden />
-        {/* Filo rojo: separa del formulario sin una línea dura */}
         <div
           className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-red-600/70 to-transparent"
           aria-hidden
         />
 
-        {/* Bloque único: logo, nombre y descripción respiran juntos. Antes iban
-            repartidos con justify-between y dejaban un hueco muerto en medio. */}
         <div className="relative">
-          {/* self-start: el aside es flex-column y `stretch` (default) deformaría
-              la imagen ignorando w-auto. */}
-          {/* sizes: el panel está oculto en móvil, pero la imagen se descarga
-              igual. Sin esto Next pedía w=1080 (45 KB) para no mostrarla nunca. */}
+          {/* self-start: the aside is flex-column, and the default `stretch` deforms the image, ignoring w-auto. */}
+          {/* sizes: the panel is hidden on mobile but still downloads; without this Next fetched w=1080 (45 KB). */}
           <Image
             src="/dymmsa.webp"
             alt=""
@@ -91,8 +74,7 @@ export default function LoginPage() {
             priority
           />
 
-          {/* Nombre tipográfico, no el logo raster: el logo es gris acero con
-              contorno negro y se pierde sobre oscuro. La Y roja conserva la marca. */}
+          {/* Typographic name, not the raster logo: that one is steel gray with a black outline and vanishes on dark. */}
           <p className="login-rise login-delay-1 mt-10 text-6xl font-semibold tracking-tight text-zinc-50 xl:text-7xl">
             D<span className="text-red-600">Y</span>MMSA
           </p>
@@ -109,24 +91,13 @@ export default function LoginPage() {
         </p>
       </aside>
 
-      {/* ── Formulario ─────────────────────────────────────────────────────
-          Superficie propia (no blanco puro) + tarjeta elevada: el formulario deja
-          de ser texto flotando y pasa a ser un objeto con peso y contraste. */}
       <main className="login-form-bg relative flex flex-1 items-center justify-center overflow-hidden px-6 py-8 sm:py-12">
         <div className="login-form-grid pointer-events-none absolute inset-0" aria-hidden />
 
         <div className="relative w-full max-w-md">
-          {/* En móvil no hay panel de marca: el logo entra aquí, sobre fondo
-              claro, que es donde está diseñado para vivir. */}
-          {/* width/height = las dimensiones REALES (1024×1024, cuadrado). Antes
-              decían 320×160 (ratio 2:1), así que Next reservaba un hueco con la
-              proporción equivocada.
-
-              `sizes` en px, NO en vw: si contiene un valor `vw`, next/image filtra
-              los tamaños chicos fuera del srcset (el candidato mínimo pasa a 640w).
-              En desktop, donde este logo está oculto, el navegador no tendría nada
-              pequeño que elegir y bajaría 36 KB para nada. Con px, el srcset
-              conserva las variantes chicas y aquí pide la mínima. */}
+          {/* Mobile has no brand panel, so the logo lands here on the light background it was designed for. */}
+          {/* width/height are the REAL 1024x1024 (wrong ratio reserves the wrong box); `sizes` in px,
+              NOT vw — a vw value drops the small srcset candidates and desktop fetched 36 KB it never shows. */}
           <Image
             src="/dymmsa-logo.webp"
             alt="DYMMSA"
@@ -137,8 +108,7 @@ export default function LoginPage() {
             priority
           />
 
-          {/* Borde giratorio (el mismo que usan docs/changelog): sutil, y de paso
-              le da al canto de la tarjeta el contraste que un borde plano no tiene. */}
+          {/* Rotating border, same one docs/changelog use. */}
           <div className="login-rise login-delay-1 login-card-border">
             <div className="login-card-inner p-8 sm:p-10">
               <div className="mb-8">

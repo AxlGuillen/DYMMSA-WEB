@@ -14,9 +14,7 @@ import {
   type GitHubComment,
 } from '@/lib/github'
 
-// ------------------------------------------------------------------ //
-// GET /api/tasks/[number]  → task + comentarios                       //
-// ------------------------------------------------------------------ //
+// GET /api/tasks/[number] — task + comments
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ number: string }> }
@@ -44,7 +42,7 @@ export async function GET(
   }
 }
 
-// PATCH: edita/cierra/reabre preservando reporter y labels ajenos a priority:*.
+// PATCH — edits/closes/reopens preserving the reporter and any non-priority:* labels.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ number: string }> }
@@ -63,7 +61,7 @@ export async function PATCH(
       description?: string
       priority?: string | null
       state?: string
-      stateReason?: string // 'completed' | 'not_planned' (solo al cerrar)
+      stateReason?: string // 'completed' | 'not_planned' (only when closing)
     }
 
     const patch: Record<string, unknown> = {}
@@ -73,8 +71,8 @@ export async function PATCH(
     }
     if (body.state === 'open' || body.state === 'closed') {
       patch.state = body.state
-      // Al cerrar: distingue "completada" de "descartada" (falso positivo).
-      // Al reabrir, GitHub fija state_reason='reopened' solo.
+      // Closing distinguishes "completed" from "discarded"; on reopen GitHub sets
+      // state_reason='reopened' by itself.
       if (body.state === 'closed') {
         patch.state_reason = body.stateReason === 'not_planned' ? 'not_planned' : 'completed'
       }
@@ -83,8 +81,8 @@ export async function PATCH(
     const changesDescription = typeof body.description === 'string'
     const changesPriority = body.priority !== undefined
 
-    // Descripción y prioridad requieren leer el issue actual: conservar el
-    // reporter original y no pisar labels ajenos a la prioridad.
+    // Description and priority need the current issue: keep the original reporter
+    // and do not clobber labels unrelated to priority.
     if (changesDescription || changesPriority) {
       const current = await fetchGitHub<GitHubIssue>(`/issues/${n}`)
       if (changesDescription) {

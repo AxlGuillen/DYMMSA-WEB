@@ -5,10 +5,7 @@ import Image from 'next/image'
 
 const SPLASH_KEY = 'dymmsa-approval-splash'
 
-/**
- * Intro del logo (#24): vuela al header y aterriza sobre [data-approval-logo].
- * Solo una vez por sesión; respeta reduced-motion; SSR-safe.
- */
+/** Logo intro (#24) landing on [data-approval-logo]: once per session, respects reduced-motion, SSR-safe. */
 export function SplashIntro() {
   const [active, setActive] = useState(false)
   const logoRef = useRef<HTMLImageElement>(null)
@@ -20,8 +17,7 @@ export function SplashIntro() {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (seen || reduced) return
     sessionStorage.setItem(SPLASH_KEY, '1')
-    // setState diferido (rAF) para no disparar render en cascada dentro del
-    // efecto — mismo patrón que useMounted.
+    // Deferred setState (rAF) avoids a cascading render inside the effect; same pattern as useMounted.
     const id = requestAnimationFrame(() => setActive(true))
     return () => cancelAnimationFrame(id)
   }, [])
@@ -51,7 +47,7 @@ export function SplashIntro() {
         ],
         { duration: 1400, easing: 'cubic-bezier(.66,0,.24,1)', fill: 'forwards' },
       )
-      // Backdrop opaco hasta 0.86 (≈aterrizaje): desvanecerlo antes muestra DOS logos.
+      // Backdrop stays opaque until 0.86 (landing); fading it earlier shows TWO logos.
       backdropRef.current?.animate(
         [{ opacity: 1 }, { opacity: 1, offset: 0.86 }, { opacity: 0 }],
         { duration: 1400, easing: 'ease-in-out', fill: 'forwards' },
@@ -76,8 +72,7 @@ export function SplashIntro() {
         width={280}
         height={112}
         priority
-        // Centrado con transform INLINE: las clases translate de Tailwind v4 se
-        // COMPONEN con el transform de los keyframes → doble desplazamiento.
+        // Inline transform: Tailwind v4 translate classes compose with the keyframe transform (double shift).
         className="absolute left-1/2 top-1/2 h-auto w-[220px] object-contain drop-shadow-[0_12px_50px_rgba(163,3,5,0.35)]"
         style={{ transform: 'translate(-50%,-50%)', opacity: 0 }}
       />

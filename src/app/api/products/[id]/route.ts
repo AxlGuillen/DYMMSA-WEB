@@ -7,12 +7,12 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/** Columnas TEXT NOT NULL: se normalizan a cadena recortada (nunca null). */
+/** TEXT NOT NULL columns: normalized to a trimmed string, never null. */
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-// PATCH /api/products/[id] → actualizar producto del catálogo ETM
+// PATCH /api/products/[id] — update an ETM catalog product
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const supabase = await createClient()
@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
     if (body.description !== undefined) updates.description = text(body.description)
     if (body.description_es !== undefined) updates.description_es = text(body.description_es)
-    // Única columna de texto nullable: '' se guarda como null (celda vacía).
+    // The only nullable text column: '' is stored as null (empty cell).
     if (body.dymmsa_description !== undefined) {
       updates.dymmsa_description = text(body.dymmsa_description) || null
     }
@@ -43,9 +43,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       }
       updates.price = body.price
     }
-    // is_sold es TRI-ESTADO: null (sin definir) / true / false. `undefined` =
-    // no se toca; null explícito sí se persiste, así que no se puede usar
-    // truthiness aquí.
+    // is_sold is TRI-STATE: `undefined` leaves it alone, but an explicit null IS
+    // persisted — truthiness checks would drop it.
     if (body.is_sold !== undefined) {
       if (body.is_sold !== null && typeof body.is_sold !== 'boolean') {
         return badRequest('is_sold debe ser true, false o null')
@@ -76,7 +75,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-// DELETE /api/products/[id] → eliminar producto del catálogo ETM
+// DELETE /api/products/[id] — delete an ETM catalog product
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
     const supabase = await createClient()

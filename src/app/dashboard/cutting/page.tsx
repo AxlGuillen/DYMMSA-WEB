@@ -5,10 +5,7 @@ import { CutPlanner } from '@/components/orders/CutPlanner'
 import { useCutMargin, useMaterialPresentations, type CutPlanResponse } from '@/hooks/useCutPlan'
 import { useCutDraftStore } from '@/stores/cutDraftStore'
 
-/**
- * Corte rápido (#71): standalone y EFÍMERO — piezas en localStorage, jamás en
- * BD; solo las presentaciones del proveedor persisten (ADR-022).
- */
+/** Quick cut (#71): ephemeral — pieces live in localStorage, never in the DB; only presentations persist (ADR-022). */
 export default function QuickCuttingPage() {
   const presentations = useMaterialPresentations()
   const margin = useCutMargin()
@@ -24,8 +21,7 @@ export default function QuickCuttingPage() {
     )
   }
 
-  // CutPlanResponse sintético: el CutPlanner opera igual; el id 'standalone'
-  // jamás llega a un PUT (el guardado de lista está apagado en este modo).
+  // Synthetic CutPlanResponse; the 'standalone' id never reaches a PUT (list saving is off here).
   const data: CutPlanResponse = {
     order: { id: 'standalone', name: 'Corte rápido', customer_name: 'Corte rápido', status: 'ordered' },
     pieces: [],

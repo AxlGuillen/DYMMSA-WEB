@@ -14,10 +14,7 @@ interface ApprovalDockProps {
   onSend: () => void
 }
 
-/**
- * Dock flotante sticky con el progreso GLOBAL de aprobación (no filtrado) y las
- * acciones definitivas. Siempre visible al hacer scroll (issue #24).
- */
+/** Progress here is GLOBAL, never the filtered subset (#24). */
 export function ApprovalDock({
   approvedCount,
   totalCount,
@@ -33,9 +30,8 @@ export function ApprovalDock({
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center px-4">
-      {/* data-tour en la píldora (no en el wrapper full-width invisible). */}
+      {/* data-tour goes on the pill, not on the invisible full-width wrapper. */}
       <div data-tour="approval-dock" className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-3 rounded-[26px] border border-border/70 bg-card/85 px-4 py-3 shadow-2xl backdrop-blur-2xl sm:rounded-full sm:px-5">
-        {/* Anillo de progreso + conteo */}
         <div className="flex items-center gap-3">
           <div
             className="relative size-11 shrink-0 rounded-full"

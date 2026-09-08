@@ -19,8 +19,8 @@ function isNonNegativeInt(value: unknown): value is number {
 }
 
 /**
- * Replace-all de decisiones (ADR-018): upsert ANTES del delete a propósito —
- * si la limpieza falla sobran huérfanas inofensivas, no se pierden decisiones.
+ * Replace-all (ADR-018): upsert BEFORE the delete — a failed cleanup leaves
+ * harmless orphans instead of losing decisions.
  */
 export async function PUT(
   request: NextRequest,
@@ -49,7 +49,6 @@ export async function PUT(
       return badRequest('El body debe incluir un array "decisions"')
     }
 
-    // ── Validación + normalización por fila ────────────────────────────
     const seen = new Set<string>()
     const rows: OrderPurchaseDecisionInsert[] = []
 
@@ -68,7 +67,7 @@ export async function PUT(
       if (!isNonNegativeInt(d.packages_wholesale) || !isNonNegativeInt(d.qty_retail)) {
         return badRequest(`Decisión de "${model_code}": cantidades inválidas`)
       }
-      // Pre-flight del CHECK check_decision_covers_needed, con mensaje claro.
+      // Pre-flight for the check_decision_covers_needed CHECK, with a clear message.
       if (d.packages_wholesale * d.std_snapshot + d.qty_retail < d.needed_qty) {
         return badRequest(
           `Decisión de "${model_code}": no cubre la necesidad (${d.packages_wholesale} paq × ${d.std_snapshot} + ${d.qty_retail} < ${d.needed_qty})`,
@@ -93,7 +92,6 @@ export async function PUT(
       })
     }
 
-    // ── Upsert (no destructivo primero) ────────────────────────────────
     let saved: unknown[] = []
     if (rows.length > 0) {
       const { data, error: upsertError } = await supabase
@@ -111,7 +109,6 @@ export async function PUT(
       saved = data ?? []
     }
 
-    // ── Limpieza de decisiones que ya no vienen en el set ──────────────
     const { data: existing } = await supabase
       .from('order_purchase_decisions')
       .select('id, model_code, brand')
@@ -128,7 +125,7 @@ export async function PUT(
         .in('id', removedIds)
 
       if (deleteError) {
-        // Filas sobrantes son inofensivas (aparecen como huérfanas en el plan).
+        // Leftover rows are harmless (they show up as orphans in the plan).
         console.warn('purchase-decisions cleanup error (ignored):', deleteError)
       }
     }
