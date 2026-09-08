@@ -8,7 +8,8 @@ import { MetricCard } from '@/components/dashboard/MetricCard'
 import { ChevronLeft, ChevronRight, DollarSign, AlertTriangle, Clock, Check, Receipt } from '@/components/icons'
 import { usePayablesOverview } from '@/hooks/usePayables'
 import { useCurrency } from '@/hooks/useCurrency'
-import { formatDayLong, todayInMexico } from '@/lib/format'
+import { todayInMexico } from '@/lib/format'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { monthOf, weekOfMonth } from '@/lib/payables'
 
 const MONTH_LABELS = [
@@ -16,7 +17,7 @@ const MONTH_LABELS = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
-/** 'YYYY-MM' ± n meses. */
+/** 'YYYY-MM' ± n months. */
 function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number)
   const total = y * 12 + (m - 1) + delta
@@ -32,11 +33,12 @@ export function FinanceOverview() {
   const [month, setMonth] = useState(() => todayInMexico().slice(0, 7))
   const { data, isLoading } = usePayablesOverview(month)
   const fmt = useCurrency()
+  const fmtDay = useDateFormat()
 
   const summary = data?.summary
   const pieces = (n: number) => `${n} factura${n !== 1 ? 's' : ''}`
 
-  // Pendientes del mes seleccionado, para el desglose por semana.
+  // Pending items of the selected month, for the weekly breakdown.
   const monthPending = useMemo(
     () => (data?.payables ?? [])
       .filter((p) => p.status === 'pending' && monthOf(p.due_date) === month)
@@ -46,7 +48,6 @@ export function FinanceOverview() {
 
   return (
     <div className="space-y-6">
-      {/* Selector de mes */}
       <div className="flex items-center gap-2">
         <Button variant="outline" size="icon" className="size-8" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Mes anterior">
           <ChevronLeft className="size-4" />
@@ -62,7 +63,6 @@ export function FinanceOverview() {
         )}
       </div>
 
-      {/* Métricas */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Pendiente del mes"
@@ -98,7 +98,6 @@ export function FinanceOverview() {
         />
       </div>
 
-      {/* Vencimientos por semana */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -133,7 +132,7 @@ export function FinanceOverview() {
                         <span className="text-muted-foreground"> · {p.concept}</span>
                       </span>
                       <span className="ml-3 shrink-0 tabular-nums">
-                        {formatDayLong(p.due_date)} · {fmt(p.amount)}
+                        {fmtDay(p.due_date)} · {fmt(p.amount)}
                       </span>
                     </div>
                   ))}
