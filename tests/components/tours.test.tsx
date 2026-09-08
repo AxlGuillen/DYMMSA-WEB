@@ -1,9 +1,4 @@
-/**
- * Vista guiada del dashboard (issue #52, ADR-024): anti-drift de los anclajes
- * `data-tour` del sidebar + panel de inicio, y arranque vía TourButton. El
- * tour de corte se prueba en CutPlanner.test.tsx y el de aprobación en
- * ApprovalClient.test.tsx — cada uno junto a su página.
- */
+/** Dashboard tour (#52, ADR-024): anti-drift of the sidebar + home `data-tour` anchors. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -64,8 +59,7 @@ describe('Vista guiada — dashboard y sidebar', () => {
     expect(config.steps.map((s: { element: Element }) => s.element)).toEqual(
       DASHBOARD_TOUR.map((s) => document.querySelector(s.selector)),
     )
-    // Los pasos del sidebar se posicionan a la derecha (el menú vive pegado
-    // al borde izquierdo).
+    // Sidebar steps sit on the right: the menu hugs the left edge.
     expect(config.steps[0].popover.side).toBe('right')
   })
 })

@@ -12,8 +12,6 @@ describe('explainPgError', () => {
     expect(explainPgError(undefined).isConstraintViolation).toBe(false)
   })
 
-  // ── 23514 CHECK ─────────────────────────────────────────────────
-
   test('quotation_items_quantity_check sin items → mensaje genérico', () => {
     const r = explainPgError(checkErr('quotation_items_quantity_check'))
     expect(r.isConstraintViolation).toBe(true)
@@ -25,7 +23,7 @@ describe('explainPgError', () => {
   test('quotation_items_quantity_check con items → identifica el ETM con quantity = 0', () => {
     const items = [
       { etm: 'OK-1', quantity: 5, unit_price: 100 },
-      { etm: 'BAD-1', quantity: 0, unit_price: 50 }, // ofensor
+      { etm: 'BAD-1', quantity: 0, unit_price: 50 }, // offender
       { etm: 'OK-2', quantity: 3, unit_price: 200 },
     ]
     const r = explainPgError(checkErr('quotation_items_quantity_check'), items)
@@ -90,8 +88,6 @@ describe('explainPgError', () => {
     expect(r.isConstraintViolation).toBe(true)
   })
 
-  // ── 23505 UNIQUE ────────────────────────────────────────────────
-
   test('etm_products_etm_unique → mensaje de ETM duplicado en catálogo', () => {
     const r = explainPgError({
       code: '23505',
@@ -109,8 +105,6 @@ describe('explainPgError', () => {
     expect(r.userMessage).toMatch(/modelo.*inventario/i)
   })
 
-  // ── 23503 FK ────────────────────────────────────────────────────
-
   test('FK violation → mensaje genérico de relación', () => {
     const r = explainPgError({
       code: '23503',
@@ -120,8 +114,6 @@ describe('explainPgError', () => {
     expect(r.isConstraintViolation).toBe(true)
   })
 
-  // ── 23502 NOT NULL ──────────────────────────────────────────────
-
   test('NOT NULL violation → mensaje de campo requerido', () => {
     const r = explainPgError({
       code: '23502',
@@ -129,8 +121,6 @@ describe('explainPgError', () => {
     })
     expect(r.userMessage).toMatch(/requerido/i)
   })
-
-  // ── Fallback ────────────────────────────────────────────────────
 
   test('error sin código y sin constraint → usa el message tal cual', () => {
     const r = explainPgError({ message: 'random error from db' })

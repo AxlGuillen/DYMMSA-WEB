@@ -1,7 +1,6 @@
 /**
- * Integración (Tier 1) — imports de Excel contra el Supabase LOCAL. El
- * `ON CONFLICT` real es EXACTAMENTE lo que el mock finge, y un import malo
- * corrompe todo el inventario de golpe → alto valor probarlo de verdad.
+ * Excel imports against local Supabase (ADR-021): the real `ON CONFLICT` is
+ * exactly what the mock fakes, and a bad import corrupts all inventory at once.
  */
 import { describe, test, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -30,7 +29,6 @@ describe('POST /inventory/import (integración local)', () => {
     const [row] = await sql<{ quantity: number; location: string | null }>(
       "SELECT quantity, location FROM store_inventory WHERE model_code = '60001'",
     )
-    // Cantidad actualizada, gaveta CONSERVADA (una carga de solo cantidades no la borra).
     expect(row).toMatchObject({ quantity: 20, location: 'Gaveta S1' })
   })
 
@@ -49,7 +47,7 @@ describe('POST /inventory/import (integración local)', () => {
     const res = await invImport.POST(makeExcelRequest([{ MODEL_CODE: '77777', QUANTITY: 1 }], { mode: 'replace' }))
     expect(res.status).toBe(200)
     const rows = await sql<{ model_code: string }>('SELECT model_code FROM store_inventory')
-    expect(rows).toEqual([{ model_code: '77777' }]) // el fixture 60001 desapareció
+    expect(rows).toEqual([{ model_code: '77777' }])
   })
 })
 
@@ -60,7 +58,7 @@ describe('POST /urrea-catalog/import (integración local)', () => {
   })
 
   test('upsert por (code,brand) normalizado actualiza la fila existente del catálogo', async () => {
-    // Fixture: 60001|URREA existe. codigo/marca en minúsculas → normaliza y matchea.
+    // Fixture 60001|URREA exists; lowercase input normalizes into a match.
     const res = await catImport.POST(
       makeExcelRequest([{ codigo: ' 60001 ', marca: 'urrea', descripcion: 'ACTUALIZADA', std: 8 }], { mode: 'upsert' }),
     )

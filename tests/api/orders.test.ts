@@ -1,14 +1,3 @@
-/**
- * Fase 3 — Órdenes.
- *
- * Cubre los flujos críticos de órdenes:
- *   - create:            validación, allocateInventory, deduce stock al CREAR, rollback.
- *   - [id] PATCH:        actualiza odoo_id, 404, 400 sin cambios.
- *   - [id] DELETE:       restaura inventario + borra items y orden.
- *   - [id]/cancel:       guardas de estado, restaura inventario, marca cancelled.
- *   - [id]/confirm-reception: actualiza items, suma a inventario, recalcula total.
- */
-
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, hasFilter } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
@@ -23,8 +12,6 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
 injectSupabaseServer(() => activeClient)
-
-// ─── orders/create ───────────────────────────────────────────────────────
 
 describe('POST /orders/create', () => {
   test('400 sin customer_name o sin productos', async () => {
@@ -51,10 +38,10 @@ describe('POST /orders/create', () => {
     const body = await res.json()
     expect(body.order_id).toBe('o1')
     expect(body.total_amount).toBe(400)        // 100 * 4
-    expect(body.items_to_order).toBe(0)         // stock cubre todo
+    expect(body.items_to_order).toBe(0)         // stock covers everything
     expect(body.inventory_updated).toBe(1)
 
-    // se descontó stock: 10 - 4 = 6
+    // stock deducted: 10 - 4 = 6
     const upd = activeClient.updatePayload('store_inventory')
     expect(upd.quantity).toBe(6)
 
@@ -82,7 +69,7 @@ describe('POST /orders/create', () => {
     const items = activeClient.insertPayload('order_items')
     expect(items[0].quantity_in_stock).toBe(3)
     expect(items[0].quantity_to_order).toBe(7)   // 10 - 3
-    // invariante in_stock + to_order = approved
+    // invariant: in_stock + to_order = approved
     expect((items[0].quantity_in_stock as number) + (items[0].quantity_to_order as number)).toBe(10)
   })
 
@@ -101,13 +88,13 @@ describe('POST /orders/create', () => {
     }))
     expect(res.status).toBe(500)
     expect(activeClient.didCall('orders', 'delete')).toBe(true)
-    // garantía de rollback: el stock NO se descontó (el fallo ocurre antes del update de inventario)
+    // Rollback guarantee: stock was NOT deducted (the failure happens before the inventory update).
     expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
   })
 
   test('REGLA: constraint unit_price_check (precio negativo) → 400 con offendingEtm', async () => {
-    // Nota: orders/create hace `quantity || 1` (fallback) → quantity=0 no llega a la BD.
-    // El precio sí se preserva, así que probamos con precio negativo.
+    // orders/create does `quantity || 1`, so quantity=0 never reaches the DB;
+    // price is preserved, so we test with a negative price instead.
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
@@ -133,8 +120,6 @@ describe('POST /orders/create', () => {
     expect(activeClient.didCall('orders', 'delete')).toBe(true)
   })
 })
-
-// ─── orders/[id] PATCH (odoo_id) ──────────────────────────────────────────
 
 describe('PATCH /orders/[id]', () => {
   test('404 si la orden no existe', async () => {
@@ -172,8 +157,6 @@ describe('PATCH /orders/[id]', () => {
   })
 })
 
-// ─── orders/[id] DELETE ────────────────────────────────────────────────────
-
 describe('DELETE /orders/[id]', () => {
   test('404 si la orden no existe', async () => {
     activeClient = createMockSupabase({
@@ -189,7 +172,7 @@ describe('DELETE /orders/[id]', () => {
       user: AUTH,
       responses: {
         'orders.select': { data: { id: 'o1' }, error: null },
-        // restoreOrderInventory lee order_items
+        // restoreOrderInventory reads order_items
         'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 3, quantity_received: 0, quantity_to_order: 0 }], error: null },
         'store_inventory.select': { data: { id: 'inv1', quantity: 5 }, error: null },
         'store_inventory.update': { data: null, error: null },
@@ -201,15 +184,13 @@ describe('DELETE /orders/[id]', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.success).toBe(true)
-    // restauró stock: 5 + 3 = 8
+    // stock restored: 5 + 3 = 8
     const upd = activeClient.updatePayload('store_inventory')
     expect(upd.quantity).toBe(8)
     expect(activeClient.didCall('order_items', 'delete')).toBe(true)
     expect(activeClient.didCall('orders', 'delete')).toBe(true)
   })
 })
-
-// ─── orders/[id]/cancel ────────────────────────────────────────────────────
 
 describe('POST /orders/[id]/cancel', () => {
   test('404 si no existe', async () => {
@@ -252,7 +233,7 @@ describe('POST /orders/[id]/cancel', () => {
     const body = await res.json()
     expect(body.success).toBe(true)
     expect(body.inventory_restored).toBe(1)
-    // restauró 4 + (2+1) = 7
+    // restored 4 + (2+1) = 7
     const upd = activeClient.updatePayload('store_inventory')
     expect(upd.quantity).toBe(7)
     const ordUpd = activeClient.updatePayload('orders')
@@ -264,7 +245,7 @@ describe('POST /orders/[id]/cancel', () => {
       user: AUTH,
       responses: {
         'orders.select': { data: { id: 'o1', status: 'received' }, error: null },
-        // recibió 10, pedía 1: los 9 de excedente YA entraron al confirmar recepción
+        // received 10, ordered 1: the 9 excess already entered on reception
         'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 2, quantity_received: 10, quantity_to_order: 1 }], error: null },
         'store_inventory.select': { data: { id: 'inv1', quantity: 4 }, error: null },
         'store_inventory.update': { data: null, error: null },
@@ -273,12 +254,10 @@ describe('POST /orders/[id]/cancel', () => {
     })
     const res = await cancel.POST(makeRequest(), makeParams({ id: 'o1' }))
     expect(res.status).toBe(200)
-    // restaura in_stock 2 + min(10, 1) = 3 → 4 + 3 = 7 (NO 4 + 12)
+    // restores in_stock 2 + min(10, 1) = 3 → 4 + 3 = 7 (NOT 4 + 12)
     expect(activeClient.updatePayload('store_inventory').quantity).toBe(7)
   })
 })
-
-// ─── orders/[id]/confirm-reception ─────────────────────────────────────────
 
 describe('POST /orders/[id]/confirm-reception', () => {
   test('400 sin items', async () => {
@@ -310,9 +289,8 @@ describe('POST /orders/[id]/confirm-reception', () => {
     expect(res.status).toBe(400)
   })
 
-  // Fixture del ítem persistido, ANTES de la recepción que se está confirmando.
-  // order_items.select se usa por-item (eq id) y al final (eq order_id) → ramificar por filtro.
-  // hasFilter() busca por columna, no por posición: robusto a reordenamientos del handler.
+  // Persisted item BEFORE the reception being confirmed; order_items.select runs
+  // per item (eq id) and once at the end (eq order_id), so we branch by filter.
   function receptionMock(opts: {
     persisted: { quantity_received: number; quantity_to_order: number; model_code?: string | null; item_type?: string }
     inventory?: { quantity: number } | null
@@ -367,7 +345,7 @@ describe('POST /orders/[id]/confirm-reception', () => {
       persisted: { quantity_received: 0, quantity_to_order: 3 },
       finalItems: [{ quantity_in_stock: 2, quantity_received: 3, quantity_to_order: 3, urrea_status: 'supplied', unit_price: 100, item_type: 'product' }],
     })
-    const res = await confirm(3) // recibió exactamente lo pedido
+    const res = await confirm(3) // received exactly what was ordered
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.inventory_updated).toBe(0)
@@ -375,7 +353,7 @@ describe('POST /orders/[id]/confirm-reception', () => {
     expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
     expect(activeClient.didCall('store_inventory', 'insert')).toBe(false)
 
-    // ítem actualizado y total recalculado: (2 + min(3,3)) × 100 = 500
+    // item updated and total recomputed: (2 + min(3,3)) × 100 = 500
     expect(activeClient.updatePayload('order_items').quantity_received).toBe(3)
     expect(activeClient.updatePayload('orders').total_amount).toBe(500)
   })
@@ -390,15 +368,15 @@ describe('POST /orders/[id]/confirm-reception', () => {
     expect(res.status).toBe(200)
     expect((await res.json()).inventory_updated).toBe(1)
 
-    // inventario: 5 + excedente 8 = 13 (no 5 + 10)
+    // inventory: 5 + excess 8 = 13 (not 5 + 10)
     expect(activeClient.updatePayload('store_inventory').quantity).toBe(13)
-    // total topado: (in_stock 1 + min(10, 2)) × 100 = 300
+    // total capped: (in_stock 1 + min(10, 2)) × 100 = 300
     expect(activeClient.updatePayload('orders').total_amount).toBe(300)
   })
 
   test('REGLA (ADR-019): re-confirmar con el mismo valor es idempotente (delta 0)', async () => {
     activeClient = receptionMock({
-      persisted: { quantity_received: 10, quantity_to_order: 2 }, // excedente 8 ya aplicado
+      persisted: { quantity_received: 10, quantity_to_order: 2 }, // excess 8 already applied
       inventory: { quantity: 13 },
     })
     const res = await confirm(10)
@@ -409,10 +387,10 @@ describe('POST /orders/[id]/confirm-reception', () => {
 
   test('corrección a la baja resta el delta del inventario', async () => {
     activeClient = receptionMock({
-      persisted: { quantity_received: 10, quantity_to_order: 2 }, // excedente previo 8
+      persisted: { quantity_received: 10, quantity_to_order: 2 }, // previous excess 8
       inventory: { quantity: 13 },
     })
-    const res = await confirm(4) // excedente nuevo 2 → delta −6
+    const res = await confirm(4) // new excess 2 → delta −6
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.warnings).toEqual([])
@@ -421,8 +399,8 @@ describe('POST /orders/[id]/confirm-reception', () => {
 
   test('corrección a la baja con stock insuficiente → clamp en 0 + warning', async () => {
     activeClient = receptionMock({
-      persisted: { quantity_received: 10, quantity_to_order: 2 }, // excedente previo 8
-      inventory: { quantity: 4 }, // ya se vendió parte
+      persisted: { quantity_received: 10, quantity_to_order: 2 }, // previous excess 8
+      inventory: { quantity: 4 }, // part of it was already sold
     })
     const res = await confirm(2) // delta −8, 4 − 8 = −4 → 0
     expect(res.status).toBe(200)
@@ -435,7 +413,7 @@ describe('POST /orders/[id]/confirm-reception', () => {
   test('corrección a la baja sin fila de inventario → warning, sin crash', async () => {
     activeClient = receptionMock({
       persisted: { quantity_received: 10, quantity_to_order: 2 },
-      inventory: null, // la fila no existe
+      inventory: null, // the row does not exist
     })
     const res = await confirm(2)
     expect(res.status).toBe(200)

@@ -1,8 +1,6 @@
 /**
- * Vistas guiadas de almacén y catálogos (issue #74, ADR-024): anti-drift de
- * los anclajes `data-tour` de inventario, base de datos ETM y catálogo URREA.
- * Las tablas/forms hijos se mockean a null: los anclajes viven en las páginas
- * y así el test no arrastra los hooks de cada tabla.
+ * Warehouse/catalog tours (#74, ADR-024): `data-tour` anti-drift. Child tables and forms are
+ * mocked to null — the anchors live on the pages, so the test skips each table's hooks.
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
@@ -43,8 +41,8 @@ vi.mock('@/components/urrea-catalog/CatalogForm', () => ({ CatalogForm: () => nu
 vi.mock('@/components/urrea-catalog/CatalogImporter', () => ({ CatalogImporter: () => null }))
 
 vi.mock('@/hooks/useInventory', () => ({
-  // La página también importa las constantes del filtro por marca (#53);
-  // sin ellas el mock del módulo las deja undefined y revienta el render.
+  // The page also imports the brand-filter constants (#53); without them the module
+  // mock leaves them undefined and the render blows up.
   ALL_BRANDS: '__all__',
   NO_BRAND: '__none__',
   useInventory: () => ({

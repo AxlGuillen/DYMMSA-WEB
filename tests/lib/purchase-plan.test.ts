@@ -56,8 +56,6 @@ function catalog(entries: Record<string, CatalogEntry>): Map<string, CatalogEntr
   return new Map(Object.entries(entries))
 }
 
-// ─── resolveThresholds ───────────────────────────────────────────────────
-
 describe('resolveThresholds', () => {
   test('sin filas → defaults', () => {
     expect(resolveThresholds({})).toEqual({ money: 100, pct: 0.8 })
@@ -78,8 +76,6 @@ describe('resolveThresholds', () => {
   })
 })
 
-// ─── consolidateOrderItems ───────────────────────────────────────────────
-
 describe('consolidateOrderItems', () => {
   test('duplicados entre secciones se funden en un grupo (5+5)', () => {
     const groups = consolidateOrderItems([
@@ -95,7 +91,7 @@ describe('consolidateOrderItems', () => {
     const groups = consolidateOrderItems([
       item({ model_code: ' urr-1 ', brand: 'urrea' }),
       item({ model_code: 'URR-1', brand: 'URREA' }),
-      item({ model_code: 'URR-1', brand: '' }), // marca vacía → DEFAULT_BRAND
+      item({ model_code: 'URR-1', brand: '' }), // empty brand → DEFAULT_BRAND
     ])
     expect(groups).toHaveLength(1)
     expect(groups[0].modelCode).toBe('URR-1')
@@ -153,8 +149,6 @@ describe('consolidateOrderItems', () => {
   })
 })
 
-// ─── computeGroupMath ────────────────────────────────────────────────────
-
 describe('computeGroupMath', () => {
   test('encaje exacto: N=20, STD=10 → 2 paquetes, sin resto ni parado', () => {
     const m = computeGroupMath(20, 10, 100)
@@ -189,8 +183,6 @@ describe('computeGroupMath', () => {
   })
 })
 
-// ─── recommendPurchase ───────────────────────────────────────────────────
-
 describe('recommendPurchase', () => {
   test('resto 0 → wholesale_exact con los paquetes completos', () => {
     const r = recommendPurchase(computeGroupMath(20, 10, 100), T)
@@ -206,7 +198,7 @@ describe('recommendPurchase', () => {
   })
 
   test('dinero parado exactamente $100 NO dispara menudeo (estricto)', () => {
-    // excess 5 × $20 = $100 → no pasa el umbral; pct 0.5 < 0.8 → redondear
+    // excess 5 × $20 = $100 → below the threshold; pct 0.5 < 0.8 → round up
     const r = recommendPurchase(computeGroupMath(25, 10, 20), T)
     expect(r.type).toBe('wholesale_rounded')
   })
@@ -224,7 +216,7 @@ describe('recommendPurchase', () => {
   })
 
   test('precedencia: la regla de dinero gana a la de % (no llega a review)', () => {
-    // N=2, STD=10, $20: parked $160 > 100 Y pct 0.8 → mixed, no review
+    // N=2, STD=10, $20: parked $160 > 100 AND pct 0.8 → mixed, no review
     const r = recommendPurchase(computeGroupMath(2, 10, 20), T)
     expect(r.type).toBe('mixed')
   })
@@ -238,7 +230,7 @@ describe('recommendPurchase', () => {
   })
 
   test('sin precio: se salta la regla de dinero, aplica solo el % (review)', () => {
-    // N=2, STD=10, sin precio: pct 0.8 → review aunque no haya dinero calculable
+    // N=2, STD=10, no price: pct 0.8 → review even with no money to compute
     const r = recommendPurchase(computeGroupMath(2, 10, null), T)
     expect(r.type).toBe('review')
   })
@@ -249,16 +241,14 @@ describe('recommendPurchase', () => {
   })
 
   test('umbrales personalizados se respetan', () => {
-    // excess 5 × $30 = $150: con umbral $200 ya no dispara mixto; pct 0.5 < 0.6
+    // excess 5 × $30 = $150: a $200 threshold no longer triggers mixed; pct 0.5 < 0.6
     const r = recommendPurchase(computeGroupMath(25, 10, 30), { money: 200, pct: 0.6 })
     expect(r.type).toBe('wholesale_rounded')
   })
 })
 
-// ─── applyChoice ─────────────────────────────────────────────────────────
-
 describe('applyChoice', () => {
-  const math = computeGroupMath(25, 10, 40) // floor 2, resto 5
+  const math = computeGroupMath(25, 10, 40) // floor 2, remainder 5
 
   test('wholesale → ceil paquetes, 0 menudeo', () => {
     expect(applyChoice(math, 'wholesale')).toEqual({ packagesWholesale: 3, qtyRetail: 0 })
@@ -286,8 +276,6 @@ describe('applyChoice', () => {
   })
 })
 
-// ─── isDecisionStale ─────────────────────────────────────────────────────
-
 describe('isDecisionStale', () => {
   test('misma N y mismo std → fresca', () => {
     expect(isDecisionStale(decision(), 10, 10)).toBe(false)
@@ -305,8 +293,6 @@ describe('isDecisionStale', () => {
     expect(isDecisionStale(decision(), 10, null)).toBe(true)
   })
 })
-
-// ─── buildPurchasePlan ───────────────────────────────────────────────────
 
 describe('buildPurchasePlan', () => {
   test('clasifica en buckets: catálogo+precio → urrea; catálogo sin precio → no_data; sin catálogo → local', () => {
@@ -331,7 +317,7 @@ describe('buildPurchasePlan', () => {
     expect(byCode.get('OTRA-9')?.bucket).toBe('local')
     expect(byCode.get('OTRA-9')?.math).toBeNull()
     expect(byCode.get('OTRA-9')?.recommendation).toBeNull()
-    // Los grupos con math van antes que los locales
+    // Groups with math come before the local ones.
     expect(plan.groups[plan.groups.length - 1].bucket).toBe('local')
   })
 
@@ -363,7 +349,7 @@ describe('buildPurchasePlan', () => {
     const plan = buildPurchasePlan(
       [item({ model_code: 'URR-1', quantity_to_order: 12 })],
       catalog({ 'URREA|URR-1': { std: 10, description: null } }),
-      [decision({ needed_qty: 10 })], // se decidió cuando N era 10
+      [decision({ needed_qty: 10 })], // decided when N was 10
       T,
     )
     expect(plan.groups[0].decision?.isStale).toBe(true)
@@ -411,7 +397,7 @@ describe('buildPurchasePlan', () => {
 })
 
 describe('summarizePlanDecisions', () => {
-  /** Grupo mínimo con math; `needed`/`std`/`unitPrice` mandan la matemática. */
+  /** Minimal group with math; `needed`/`std`/`unitPrice` drive the arithmetic. */
   const g = (
     key: string,
     needed: number,
@@ -436,13 +422,13 @@ describe('summarizePlanDecisions', () => {
     (group: PurchaseGroupPlan) => map[group.key] ?? null
 
   test('mayoreo con resto: para piezas y dinero', () => {
-    // needed 14, STD 12 → 1 paq + resto 2; redondear deja 10 pzs paradas.
+    // needed 14, STD 12 → 1 pack + remainder 2; rounding parks 10 pieces.
     const totals = summarizePlanDecisions([g('A', 14, 12, 200)], pick({ A: 'wholesale' }))
     expect(totals.parkedPieces).toBe(10)
     expect(totals.parkedMoney).toBe(2000)
     expect(totals.parkedGroups).toBe(1)
     expect(totals.savedMoney).toBe(0)
-    // Mayoreo redondea al paquete extra: 2 paq = 24 pzs, nada a menudeo.
+    // Wholesale rounds to the extra pack: 2 packs = 24 pcs, nothing retail.
     expect(totals.wholesalePackages).toBe(2)
     expect(totals.wholesalePieces).toBe(24)
     expect(totals.retailPieces).toBe(0)
@@ -507,7 +493,7 @@ describe('summarizePlanDecisions', () => {
       [g('A', 14, 12, 200), g('B', 13, 10, 150), g('C', 12, 6, 50)],
       pick({ A: 'wholesale', B: 'mixed', C: 'wholesale' }),
     )
-    expect(totals.parkedMoney).toBe(2000)   // solo A (C es exacto)
+    expect(totals.parkedMoney).toBe(2000)   // only A (C is exact)
     expect(totals.savedMoney).toBe(1050)    // B: excess 7 × 150
     expect(totals.wholesalePackages).toBe(2 + 1 + 2)
   })

@@ -1,7 +1,4 @@
-/**
- * Store de columnas visibles (issue #18). Solo se persisten las OCULTAS:
- * default = todo visible, columnas nuevas aparecen solas.
- */
+/** Visible-columns store (#18): only HIDDEN ones persist, so new columns show up on their own. */
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import { useColumnStore } from '@/stores/columnStore'

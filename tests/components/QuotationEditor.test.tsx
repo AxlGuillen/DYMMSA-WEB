@@ -7,16 +7,14 @@ import { useColumnStore } from '@/stores/columnStore'
 import { resetStores, seedQuotationItems } from './helpers/stores'
 import { quotationItemRow } from './helpers/fixtures'
 
-// TanStack hook mockeado a nivel de módulo (convención del proyecto): sin
-// QueryClient en jsdom; el lookup de catálogo se cubre en tests/api.
+// TanStack hook mocked per module: no QueryClient in jsdom; the catalog lookup lives in tests/api.
 vi.mock('@/hooks/useUrreaCatalog', () => ({
   useCatalogDescription: () => ({ data: null }),
 }))
 
-/** Valor numérico dentro de la card de resumen cuya etiqueta es `label`. */
+/** Numeric value of the summary card labelled `label`. */
 function cardValue(label: string): string {
-  // Las cards viven en el grid de resumen; la leyenda de la tabla repite algunas
-  // etiquetas ("Sin datos"/"Sin cantidad"), así que scopeamos al grid.
+  // The table legend repeats some labels ("Sin datos"/"Sin cantidad"), so scope to the grid.
   const grid = screen.getByText('Total productos').closest('div.grid') as HTMLElement
   const card = within(grid).getByText(label).closest('div')!
   const ps = card.querySelectorAll('p')
@@ -37,9 +35,9 @@ describe('QuotationEditor', () => {
 
   test('cards de resumen cuentan completos / sin cantidad / sin datos', () => {
     seedQuotationItems([
-      quotationItemRow({ etm: 'A', model_code: 'MC1', quantity: 2, unit_price: 100, description: 'x' }), // completo
-      quotationItemRow({ etm: 'B', model_code: 'MC2', quantity: null, unit_price: 50, description: 'y' }), // sin cantidad
-      quotationItemRow({ etm: 'C', model_code: '', quantity: null, unit_price: null, description: '' }),   // sin datos
+      quotationItemRow({ etm: 'A', model_code: 'MC1', quantity: 2, unit_price: 100, description: 'x' }), // complete
+      quotationItemRow({ etm: 'B', model_code: 'MC2', quantity: null, unit_price: 50, description: 'y' }), // no quantity
+      quotationItemRow({ etm: 'C', model_code: '', quantity: null, unit_price: null, description: '' }),   // no data
     ])
     render(<QuotationEditor />)
 
@@ -55,7 +53,7 @@ describe('QuotationEditor', () => {
       quotationItemRow({ etm: 'D', model_code: 'MC3', quantity: 1, unit_price: 30, description: 'z' }),  // 30
     ])
     render(<QuotationEditor />)
-    // total 230 es único (los subtotales por fila son 200 y 30).
+    // 230 is unique (row subtotals are 200 and 30).
     expect(screen.getByText('$230.00')).toBeInTheDocument()
   })
 
@@ -68,7 +66,7 @@ describe('QuotationEditor', () => {
     render(<QuotationEditor />)
 
     const removeButtons = screen.getAllByRole('button', { name: 'Eliminar' })
-    await user.click(removeButtons[1]) // elimina 'GONE'
+    await user.click(removeButtons[1]) // removes 'GONE'
 
     expect(useQuotationStore.getState().items).toHaveLength(1)
     expect(screen.queryByText('GONE')).not.toBeInTheDocument()
@@ -103,7 +101,7 @@ describe('QuotationEditor', () => {
     const sep = useQuotationStore.getState().items.find((i) => i.item_type === 'separator')
     expect(sep?.separator_color).toBe('rose')
 
-    // "Automático" regresa al color por índice (override = null).
+    // "Automático" falls back to the color by index (override = null).
     await user.click(screen.getByRole('button', { name: 'Color de la sección' }))
     await user.click(screen.getByRole('button', { name: 'Color automático' }))
     expect(
@@ -119,7 +117,7 @@ describe('QuotationEditor', () => {
     render(<QuotationEditor />)
 
     await user.click(screen.getByRole('button', { name: /Agregar producto/ }))
-    // Modal abierto (el título es un heading; evita colisión con el botón).
+    // Title as heading avoids colliding with the button of the same name.
     expect(await screen.findByRole('heading', { name: 'Agregar producto' })).toBeInTheDocument()
 
     await user.type(screen.getByPlaceholderText('Ej: H7-ET400'), 'NUEVO')
@@ -138,7 +136,7 @@ describe('QuotationEditor', () => {
       quotationItemRow({ _id: 'a', etm: 'E1', model_code: 'MC1', brand: 'URREA', dymmsa_description: 'curada que pierde' }),
       quotationItemRow({ _id: 'b', etm: 'E2', model_code: 'MC2', brand: 'URREA', dymmsa_description: 'Martillo curado' }),
     ])
-    // Mapa indexado por catalogKey (MARCA|CODIGO)
+    // Map indexed by catalogKey (BRAND|CODE)
     useQuotationStore.setState({ catalogDescriptions: { 'URREA|MC1': 'Oficial URREA 14"' } })
 
     render(<QuotationEditor />)
@@ -150,7 +148,7 @@ describe('QuotationEditor', () => {
   })
 
   test('REGLA: el catálogo de OTRA marca no aplica → usa la curada', () => {
-    // MC1 solo está en el catálogo bajo URREA; el ítem es SURTEK → no hereda.
+    // MC1 exists in the catalog only under URREA; the item is SURTEK → no inheritance.
     seedQuotationItems([
       quotationItemRow({ _id: 'a', etm: 'E1', model_code: 'MC1', brand: 'SURTEK', dymmsa_description: 'curada Surtek' }),
     ])
@@ -162,8 +160,7 @@ describe('QuotationEditor', () => {
     expect(screen.queryByText('Oficial URREA 14"')).not.toBeInTheDocument()
   })
 
-  // ─── Columnas visibles (issue #18) ─────────────────────────────────────
-
+  // Visible columns (#18)
   test('ocultar una columna quita header y celdas, y el separador ajusta su colSpan', async () => {
     useColumnStore.setState({ hidden: { 'quoter-editor': ['brand'] } })
     seedQuotationItems([
@@ -172,21 +169,20 @@ describe('QuotationEditor', () => {
     ])
     render(<QuotationEditor />)
 
-    // Tras el frame de useMounted la columna Marca desaparece
+    // The Marca column disappears after the useMounted frame
     await waitFor(() =>
       expect(screen.queryByRole('columnheader', { name: 'Marca' })).not.toBeInTheDocument(),
     )
     expect(screen.getByRole('columnheader', { name: 'ETM' })).toBeInTheDocument()
     expect(screen.queryByText('URREA', { selector: 'td' })).not.toBeInTheDocument()
 
-    // 13 columnas − 1 oculta = 12 visibles; el label del separador abarca 12 − 2
+    // 13 columns − 1 hidden = 12 visible; the separator label spans 12 − 2
     const sepInput = screen.getByPlaceholderText(/nombre de la sección/i)
     const sepCell = sepInput.closest('td')!
     expect(sepCell.colSpan).toBe(10)
   })
 
-  // ─── Rendimiento: umbral drag ↔ virtualización (issue #29) ─────────────
-
+  // Drag vs virtualization threshold (#29)
   test('modo normal (≤300 ítems): reordena con drag (grips), sin aviso de flechas', () => {
     seedQuotationItems([
       quotationItemRow({ etm: 'A', model_code: 'MC1', quantity: 1, unit_price: 10, description: 'x' }),
@@ -204,7 +200,7 @@ describe('QuotationEditor', () => {
     seedQuotationItems(many)
     render(<QuotationEditor />)
 
-    // El aviso de flechas aparece y el grip de arrastre desaparece.
+    // The arrows notice shows up and the drag grip goes away.
     expect(screen.getByText(/Reordena con las flechas/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Arrastrar para reordenar' })).not.toBeInTheDocument()
   })
@@ -219,8 +215,8 @@ describe('QuotationEditor', () => {
     const input = screen.getByPlaceholderText(/nombre de la sección/i)
     await user.clear(input)
     await user.type(input, 'Proyecto B')
-    // Sin blur: desmontamos directo — simula el scroll que en modo virtualizado
-    // saca la fila del overscan y la desmonta con el input aún enfocado.
+    // No blur: unmounting directly mimics the virtualized scroll that drops the row
+    // out of overscan while its input is still focused.
     unmount()
 
     const sep = useQuotationStore.getState().items.find((i) => i._id === 'sep')

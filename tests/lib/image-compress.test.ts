@@ -1,7 +1,4 @@
-/**
- * shouldCompress — decisión pura de qué tipos se comprimen. El re-encodeo por
- * canvas (compressImage) es DOM/browser y se prueba manualmente / E2E.
- */
+/** shouldCompress: which types get compressed. Canvas re-encoding is browser-only (manual / E2E). */
 
 import { describe, test, expect } from 'vitest'
 import { shouldCompress } from '@/lib/image-compress'

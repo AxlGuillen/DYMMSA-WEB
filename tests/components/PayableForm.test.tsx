@@ -1,8 +1,4 @@
-/**
- * PayableForm (issue #84): la regla que da valor al plazo del proveedor — el
- * vencimiento se pre-llena (invoice_date + payment_terms_days) y deja de
- * pre-llenarse en cuanto el usuario lo toca a mano.
- */
+/** PayableForm (#84): the due date is prefilled from the supplier terms until the user edits it. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -74,11 +70,11 @@ describe('PayableForm — pre-llenado del vencimiento', () => {
     await user.click(await screen.findByRole('option', { name: /Con Crédito SA/ }))
     expect(screen.getByLabelText('Vencimiento')).toHaveValue('2026-10-01')
 
-    // Editar la fecha de factura re-calcula (el usuario no ha tocado el vencimiento).
+    // Editing the invoice date recalculates while the due date is untouched.
     await setInvoiceDate('2026-09-10')
     expect(screen.getByLabelText('Vencimiento')).toHaveValue('2026-10-10')
 
-    // Override manual → los cambios posteriores YA NO lo pisan.
+    // Manual override → later changes no longer overwrite it.
     const due = screen.getByLabelText('Vencimiento')
     await user.clear(due)
     await user.type(due, '2026-11-15')

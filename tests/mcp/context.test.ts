@@ -1,8 +1,5 @@
-/**
- * contextFrom (ADR-023): resuelve el cliente Supabase por request a partir del
- * AuthInfo verificado. Sin identidad válida → ToolError legible para el
- * usuario del conector (no "error interno").
- */
+/** contextFrom (ADR-023): resolves the per-request Supabase client from the
+ *  verified AuthInfo; no valid identity → readable ToolError, not "internal error". */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 

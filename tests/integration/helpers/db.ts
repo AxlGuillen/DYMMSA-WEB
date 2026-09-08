@@ -1,8 +1,4 @@
-/**
- * Acceso directo a la BD LOCAL de pruebas (pg) para setup/reset/aserciones
- * de los tests de integración (Fase C1). Corre contra el Supabase local
- * (`bunx supabase start`); NUNCA contra la nube.
- */
+/** Direct pg access to the LOCAL test DB for setup/reset/assertions. Never the cloud. */
 import { Pool } from 'pg'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -35,15 +31,10 @@ export async function closePool(): Promise<void> {
 }
 
 /**
- * Fixtures de negocio — fuente ÚNICA: `supabase/seed.sql`. En vez de duplicar
- * los INSERT (drift silencioso: los tests afirmarían contra valores viejos sin
- * fallar), leemos el mismo archivo que aplica `supabase db reset`. Tomamos solo
- * el bloque de fixtures (tras el marcador) — el bloque de auth NO se re-ejecuta
- * aquí (el usuario de prueba se conserva) — y le anteponemos los DELETE para
- * poder re-aplicarlo en cada test (auto-learn y create-order mutan
- * etm_products/store_inventory).
+ * Fixtures are read from `supabase/seed.sql` itself: duplicating the INSERTs
+ * would drift silently. Only the block after the marker; auth is not re-run.
  */
-// Ambos runners (Vitest ESM · Playwright CJS) corren desde la raíz del repo.
+// Both runners (Vitest ESM, Playwright CJS) start from the repo root.
 const SEED_PATH = join(process.cwd(), 'supabase/seed.sql')
 const FIXTURES_MARKER = '-- ─── Fixtures de negocio'
 
@@ -61,11 +52,6 @@ function loadFixturesSql(): string {
 
 const FIXTURES_SQL = loadFixturesSql()
 
-/**
- * Restaura la BD al estado del seed para las tablas que los tests mutan:
- * borra lo transaccional (cotizaciones/órdenes/decisiones) y reaplica los
- * fixtures de catálogo/inventario. El usuario de auth y el resto se conservan.
- */
 export interface SeedItem {
   item_type?: 'product' | 'separator'
   etm?: string
@@ -78,11 +64,7 @@ export interface SeedItem {
   section_label?: string | null
 }
 
-/**
- * Inserta una cotización + sus ítems vía SQL directo (arreglo de estado para
- * los tests de capas 2-5). Devuelve id, approval_token y los ids de ítems en
- * orden. sort_order = índice del array.
- */
+/** Inserts a quotation + items via raw SQL. sort_order = array index. */
 export async function seedQuotation(opts: {
   name?: string
   customer?: string
@@ -122,6 +104,7 @@ export async function seedQuotation(opts: {
   return { id: q.id, token: q.approval_token, itemIds }
 }
 
+/** Truncates the transactional tables and reapplies the seed fixtures; the auth user survives. */
 export async function resetDb(): Promise<void> {
   await getPool().query(`
     TRUNCATE public.quotations, public.orders, public.order_purchase_decisions,

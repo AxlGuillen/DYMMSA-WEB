@@ -46,7 +46,7 @@ describe('QuotePreview', () => {
   test('expande la lista de ETMs no encontrados al hacer click', async () => {
     const user = userEvent.setup()
     setup()
-    // Colapsado: los badges de ETMs aún no están visibles.
+    // Collapsed: the ETM badges are not visible yet.
     expect(screen.queryByText('E9')).not.toBeInTheDocument()
     await user.click(screen.getByText('2 ETMs no encontrados'))
     expect(screen.getByText('E9')).toBeInTheDocument()
@@ -85,7 +85,7 @@ describe('QuotePreview', () => {
 
   test('renderiza la tabla de productos encontrados', () => {
     setup()
-    // Validamos por contenido dentro de la tabla de productos.
+    // Assert by content inside the products table.
     expect(within(screen.getByRole('table')).getByText('E1')).toBeInTheDocument()
   })
 })

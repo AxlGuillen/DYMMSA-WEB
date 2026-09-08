@@ -1,9 +1,5 @@
-/**
- * Tools del bloque Odoo — Fase 1: Contabilidad (issue #65, ADR-025).
- * El caller se inyecta por parámetro (sin vi.mock, como el resto de tests/mcp)
- * y devuelve las FORMAS REALES capturadas de la instancia (2026-08-11):
- * many2one como [id, "nombre"], false para vacíos, __domain en read_group.
- */
+/** Odoo block, phase 1: accounting (#65, ADR-025). The caller is injected and
+ *  returns REAL captured shapes: many2one as [id, "name"], false for empties. */
 
 import { describe, test, expect } from 'vitest'
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -16,7 +12,7 @@ import {
 
 type Call = { model: string; method: string; payload: Record<string, unknown> }
 
-/** Caller falso: registra llamadas y despacha respuestas por modelo.método. */
+/** Fake caller: records calls and dispatches responses per model.method. */
 function fakeOdoo(script: Record<string, unknown[]>) {
   const calls: Call[] = []
   const pending = Object.fromEntries(Object.entries(script).map(([k, v]) => [k, [...v]]))
@@ -30,7 +26,6 @@ function fakeOdoo(script: Record<string, unknown[]>) {
   return { odoo, calls }
 }
 
-// Formas reales de la exploración del 2026-08-11.
 const INVOICE_RAW = {
   id: 780,
   name: 'F00387',
@@ -47,7 +42,7 @@ const INVOICE_RAW = {
 describe('odoo_query', () => {
   test('modelo fuera del catálogo → error claro con los disponibles', async () => {
     const { odoo } = fakeOdoo({})
-    // hr.payslip (nómina) es el ejemplo canónico de lo que JAMÁS entra (ADR-025).
+    // hr.payslip (payroll) is the canonical example of what NEVER gets in (ADR-025).
     await expect(odooQuery(odoo, { model: 'hr.payslip' })).rejects.toThrow(/no está en el catálogo.*account\.move/)
   })
 
@@ -62,8 +57,8 @@ describe('odoo_query', () => {
   })
 
   test('traversal por relación en el dominio → rechazado aunque el base esté permitido (PR #66)', async () => {
-    // partner_id está en la whitelist, pero partner_id.vat filtraría por un
-    // campo oculto (oracle de inferencia) — verificado que Odoo SÍ lo filtra.
+    // partner_id is whitelisted, but partner_id.vat would filter by a hidden
+    // field (inference oracle) — verified that Odoo does filter by it.
     const { odoo } = fakeOdoo({})
     await expect(
       odooQuery(odoo, { model: 'account.move', domain: [['partner_id.vat', 'ilike', 'AHY']] }),
@@ -135,7 +130,7 @@ describe('odoo_overdue_invoices', () => {
     const result = await odooOverdueInvoices(odoo, {})
 
     expect(calls).toHaveLength(2)
-    // El dominio de vencidas: posted + pendiente + vencida al corte de hoy.
+    // The overdue domain: posted + unpaid + past due as of today.
     for (const call of calls) {
       const domain = call.payload.domain as unknown[][]
       expect(domain).toContainEqual(['payment_state', 'in', ['not_paid', 'partial']])

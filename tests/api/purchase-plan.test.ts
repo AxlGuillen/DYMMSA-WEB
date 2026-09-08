@@ -1,11 +1,5 @@
-/**
- * Planificador de compra (ADR-018) — rutas de plan y decisiones.
- *
- *   - GET /orders/[id]/purchase-plan: plan calculado al vuelo; catálogo y
- *     settings degradan a defaults, ítems/decisiones son fatales.
- *   - PUT /orders/[id]/purchase-decisions: replace-all con normalización,
- *     pre-flight del CHECK de cobertura y limpieza de keys removidas.
- */
+/** Purchase planner (ADR-018): the plan is computed on the fly (catalog and
+ *  settings degrade to defaults), and decisions are replace-all. */
 
 import { describe, test, expect, vi } from 'vitest'
 import {
@@ -57,8 +51,6 @@ const getPlan = (id = 'o1') => planRoute.GET(makeRequest(), makeParams({ id }))
 const putDecisions = (body: unknown, id = 'o1') =>
   decisionsRoute.PUT(makeRequest(body, { method: 'PUT' }), makeParams({ id }))
 
-// ─── GET /orders/[id]/purchase-plan ──────────────────────────────────────
-
 describe('GET /orders/[id]/purchase-plan', () => {
   test('404 si la orden no existe', async () => {
     activeClient = createMockSupabase({ user: AUTH })
@@ -72,10 +64,10 @@ describe('GET /orders/[id]/purchase-plan', () => {
         'orders.select': { data: ORDER, error: null },
         'order_items.select': {
           data: [
-            // duplicado consolidable: 5 + 5 con STD 10 → encaje exacto
+            // consolidable duplicate: 5 + 5 with STD 10 → exact fit
             orderItem({ model_code: 'URR-1', quantity_to_order: 5 }),
             orderItem({ model_code: 'URR-1', quantity_to_order: 5 }),
-            // no está en catálogo → local
+            // not in the catalog → local
             orderItem({ model_code: 'OTRA-9' }),
           ],
           error: null,
@@ -174,13 +166,11 @@ describe('GET /orders/[id]/purchase-plan', () => {
       },
     })
     const { plan } = await readJson<{ plan: PurchasePlan }>(await getPlan())
-    // Se decidió con N=10 pero ahora se necesitan 12 → stale
+    // Decided with N=10 but 12 are needed now → stale
     expect(plan.groups[0].decision?.isStale).toBe(true)
     expect(plan.summary).toMatchObject({ decided: 1, stale: 1 })
   })
 })
-
-// ─── PUT /orders/[id]/purchase-decisions ─────────────────────────────────
 
 describe('PUT /orders/[id]/purchase-decisions', () => {
   test('404 orden inexistente; 400 orden completada/cancelada', async () => {
@@ -204,26 +194,26 @@ describe('PUT /orders/[id]/purchase-decisions', () => {
       })
 
     activeClient = withOrder()
-    expect((await putDecisions({})).status).toBe(400) // sin array
+    expect((await putDecisions({})).status).toBe(400) // no array
 
     activeClient = withOrder()
     expect(
       (await putDecisions({ decisions: [decisionInput({ model_code: '  ' })] })).status,
-    ).toBe(400) // sin código
+    ).toBe(400) // no code
 
     activeClient = withOrder()
     expect(
       (await putDecisions({ decisions: [decisionInput({ needed_qty: 0 })] })).status,
-    ).toBe(400) // necesidad 0
+    ).toBe(400) // needed 0
 
     activeClient = withOrder()
-    // 1 paq × 10 + 0 = 10 < 15 → no cubre (pre-flight del CHECK)
+    // 1 pack × 10 + 0 = 10 < 15 → does not cover (CHECK pre-flight)
     const res = await putDecisions({ decisions: [decisionInput({ needed_qty: 15 })] })
     expect(res.status).toBe(400)
     expect((await readJson<{ message: string }>(res)).message).toContain('URR-1')
 
     activeClient = withOrder()
-    // Duplicado tras normalización: ' urr-1 ' y 'URR-1'
+    // Duplicate after normalization: ' urr-1 ' and 'URR-1'
     expect(
       (
         await putDecisions({
@@ -240,7 +230,7 @@ describe('PUT /orders/[id]/purchase-decisions', () => {
         'orders.select': { data: { id: 'o1', status: 'ordered' }, error: null },
         'order_purchase_decisions.upsert': { data: [{ id: 'd1' }], error: null },
         'order_purchase_decisions.select': {
-          // existente que ya no viene en el set → debe borrarse
+          // existing key no longer in the set → must be deleted
           data: [
             { id: 'd1', model_code: 'URR-1', brand: 'URREA' },
             { id: 'd-old', model_code: 'VIEJA-1', brand: 'URREA' },
@@ -256,18 +246,18 @@ describe('PUT /orders/[id]/purchase-decisions', () => {
     })
     expect(res.status).toBe(200)
 
-    // Normalización antes de persistir
+    // Normalized before persisting
     const rows = activeClient.upsertPayload('order_purchase_decisions')
     expect(rows[0].model_code).toBe('URR-1')
     expect(rows[0].brand).toBe('URREA')
     expect(rows[0].order_id).toBe('o1')
     expect(rows[0].decided_at).toBeTruthy()
 
-    // onConflict = identidad del grupo
+    // onConflict = the group identity
     const upsertCall = activeClient.callsTo('order_purchase_decisions', 'upsert')[0]
     expect(upsertCall.options).toEqual({ onConflict: 'order_id,model_code,brand' })
 
-    // Limpieza: borra solo la key removida, y DESPUÉS del upsert
+    // Cleanup: deletes only the removed key, and AFTER the upsert
     const deleteCall = activeClient.callsTo('order_purchase_decisions', 'delete')[0]
     expect(filterValue(deleteCall, 'id', 'in')).toEqual(['d-old'])
     const ops = activeClient

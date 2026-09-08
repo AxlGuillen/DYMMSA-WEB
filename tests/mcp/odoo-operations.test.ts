@@ -1,8 +1,5 @@
-/**
- * Tools del bloque Odoo — Fases 3 y 4 (issue #65, ADR-025): inventario del
- * almacén de Odoo, directorio laboral y flotilla. Formas reales capturadas
- * de la instancia (2026-08-11).
- */
+/** Odoo block, phases 3 and 4 (#65, ADR-025): Odoo warehouse inventory, staff
+ *  directory and fleet. Shapes captured from the real instance. */
 
 import { describe, test, expect } from 'vitest'
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -74,8 +71,8 @@ describe('odoo_stock_check', () => {
 
     expect(calls).toHaveLength(1)
     expect(calls[0].payload.domain).toEqual([['product_id', 'ilike', 'punta']])
-    // Ordenado por en_mano desc; el display trae el código embebido; los
-    // ceros NO se listan (van como conteo en_cero).
+    // Sorted by on-hand desc; the display carries the embedded code and zeros
+    // are not listed (they go as the en_cero count).
     expect(result.existencias[0]).toEqual({
       producto: '[510023782] Punta de cobre 25 x 300 mm',
       en_mano: 12,

@@ -1,8 +1,5 @@
-/**
- * Tools del bloque Odoo — Fase 5: detalle de documentos + CFDI (issue #65,
- * ADR-025). Formas reales de la instancia (2026-08-13): F00167 timbrada y
- * vigente, líneas con display_type='product', sale.order.line con qty_*.
- */
+/** Odoo block, phase 5: document detail + CFDI (#65, ADR-025). Real shapes from
+ *  the instance: F00167 stamped and valid, lines with display_type='product'. */
 
 import { describe, test, expect } from 'vitest'
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -72,7 +69,7 @@ describe('odoo_invoice_detail', () => {
 
     const result = await odooInvoiceDetail(odoo, { folio: 'f00167' })
 
-    // Las líneas se filtran por la FK numérica y solo display_type=product.
+    // Lines are filtered by the numeric FK and only display_type=product.
     expect(calls[1].payload.domain).toEqual([['move_id', '=', 220], ['display_type', '=', 'product']])
     expect(result.encontrado).toBe(true)
     if (result.encontrado) {
@@ -134,8 +131,8 @@ describe('odoo_sale_detail', () => {
 
     const result = await odooSaleDetail(odoo, { folio: 'S00247' })
 
-    // display_type=false (no 'product': ese valor solo existe en account.move.line)
-    // saca secciones y notas de la orden.
+    // display_type=false (not 'product': that value only exists in
+    // account.move.line) drops sections and notes from the order.
     expect(calls[1].payload.domain).toEqual([['order_id', '=', 247], ['display_type', '=', false]])
     expect(result.encontrado).toBe(true)
     if (result.encontrado) {

@@ -1,9 +1,4 @@
-/**
- * PurchasePlanner (ADR-018): render de buckets/grupos desde un plan fijo,
- * staleness, selección de decisión y payload del guardado (consistente con
- * applyChoice). Los hooks de datos se mockean a nivel módulo; el flujo E2E
- * (guardar de verdad + regenerar Excel) queda fuera del alcance jsdom.
- */
+/** PurchasePlanner (ADR-018): buckets, staleness and save payload. Data hooks mocked per module. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
@@ -31,8 +26,7 @@ vi.mock('driver.js/dist/driver.css', () => ({}))
 
 vi.mock('@/hooks/usePurchasePlan', () => ({
   useSavePurchaseDecisions: () => ({ mutateAsync: saveMutateAsync, isPending: false }),
-  // El popover de umbrales refetchea el plan para contar cuántas
-  // recomendaciones cambiaron (issue #54).
+  // The thresholds popover refetches the plan to count changed recommendations (#54).
   usePurchasePlan: () => ({ refetch: refetchPlan }),
 }))
 vi.mock('@/hooks/useSettings', () => ({
@@ -88,7 +82,7 @@ describe('PurchasePlanner', () => {
     expect(screen.getByText('Candidatos a pedido URREA (1)')).toBeInTheDocument()
     expect(screen.getByText('Compra local — sin catálogo URREA (1)')).toBeInTheDocument()
     expect(screen.getByText('Martillo oficial')).toBeInTheDocument()
-    // N=25, STD=10 → excedente 5 × $40 = $200 > $100 → recomendación mixto
+    // N=25, STD=10 → 5 left over × $40 = $200 > $100 → recommends mixed.
     expect(screen.getByText('Mixto')).toBeInTheDocument()
   })
 
@@ -111,11 +105,11 @@ describe('PurchasePlanner', () => {
   test('guardar manda las cantidades de applyChoice según la selección', async () => {
     saveMutateAsync.mockResolvedValue({ decisions: [] })
     const user = userEvent.setup()
-    // N=25, STD=10, $40 → recomendación mixto (floor 2 + 5 menudeo)
+    // N=25, STD=10, $40 → mixed (floor 2 packages + 5 retail).
     const data = makeData([item()], { 'URREA|URR-1': { std: 10, description: null } })
     renderWithProviders(<PurchasePlanner data={data} />)
 
-    // La recomendación (mixto) ya viene pre-seleccionada → guardar directo
+    // The recommendation comes pre-selected → save straight away.
     await user.click(screen.getByRole('button', { name: /guardar decisiones/i }))
     expect(saveMutateAsync).toHaveBeenCalledWith([
       {
@@ -124,7 +118,7 @@ describe('PurchasePlanner', () => {
       },
     ])
 
-    // Override a mayoreo → ceil(25/10)=3 paquetes, 0 menudeo
+    // Override to wholesale → ceil(25/10)=3 packages, 0 retail.
     await user.click(screen.getByRole('radio', { name: /mayoreo/i }))
     await user.click(screen.getByRole('button', { name: /guardar decisiones/i }))
     expect(saveMutateAsync).toHaveBeenLastCalledWith([
@@ -139,26 +133,26 @@ describe('PurchasePlanner', () => {
     saveMutateAsync.mockResolvedValue({ decisions: [] })
     const writeText = vi.fn().mockResolvedValue(undefined)
     const user = userEvent.setup()
-    // DESPUÉS de setup(): userEvent instala su propio stub de clipboard y
-    // pisaría el nuestro. getter-only en jsdom → defineProperty.
+    // After setup(): userEvent installs its own clipboard stub and would win.
+    // Getter-only in jsdom → defineProperty.
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
 
-    // N=25, STD=10 → mixto: 2 paquetes (20 pzs) a URREA.
+    // N=25, STD=10 → mixed: 2 packages (20 pcs) to URREA.
     const data = makeData([item()], { 'URREA|URR-1': { std: 10, description: null } })
     renderWithProviders(<PurchasePlanner data={data} />)
 
     await user.click(screen.getByRole('button', { name: /copiar para excel/i }))
 
-    // Tab-separado: al pegar en el Excel viejo de URREA cae en 2 columnas.
-    // (waitFor: el copiado ocurre tras el await del guardado.)
+    // Tab-separated so it lands in 2 columns of URREA's old Excel.
+    // (waitFor: the copy happens after the save resolves.)
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('URR-1\t20'))
-    // Mismo contrato que la descarga: lo copiado refleja lo GUARDADO.
+    // Same contract as the download: what is copied reflects what was SAVED.
     expect(saveMutateAsync).toHaveBeenCalled()
   })
 
   test('grupo en "review" bloquea el guardado hasta decidir', async () => {
     const user = userEvent.setup()
-    // N=2, STD=10, $10 → parked $80 ≤ 100 y pct 0.8 → review (sin selección)
+    // N=2, STD=10, $10 → parked $80 ≤ 100 and pct 0.8 → review (nothing selected).
     const data = makeData(
       [item({ quantity_to_order: 2, unit_price: 10 })],
       { 'URREA|URR-1': { std: 10, description: null } },
@@ -171,7 +165,6 @@ describe('PurchasePlanner', () => {
     await user.click(screen.getByRole('button', { name: /guardar decisiones/i }))
     expect(saveMutateAsync).not.toHaveBeenCalled()
 
-    // Decidir menudeo desbloquea
     await user.click(screen.getByRole('radio', { name: /menudeo/i }))
     await user.click(screen.getByRole('button', { name: /guardar decisiones/i }))
     expect(saveMutateAsync).toHaveBeenCalledWith([
@@ -182,16 +175,15 @@ describe('PurchasePlanner', () => {
     ])
   })
 
-  // El filtro por marca (issue #53) es SOLO visual. Este test cubre el contador
-  // y el mensaje de vacío: ambos se leían de las listas completas y mostraban
-  // "(1 de )" y una card sin filas ni texto al filtrar.
+  // Brand filter (#53) is visual only; the counter and the empty message used to
+  // read the full lists and rendered "(1 de )" plus a blank card.
   test('filtrar por marca acota las cards, con contador y mensaje propios', async () => {
     const user = userEvent.setup()
     const data = makeData(
       [
         item({ model_code: 'URR-1', brand: 'URREA' }),
         item({ model_code: 'SUR-1', brand: 'SURTEK' }),
-        // Fuera del catálogo → compra local, y de otra marca que la filtrada.
+        // Outside the catalog → local purchase, and a brand other than the filtered one.
         item({ model_code: 'FUERA-1', brand: 'URREA' }),
       ],
       {
@@ -206,9 +198,8 @@ describe('PurchasePlanner', () => {
     await user.click(screen.getAllByRole('combobox')[0])
     await user.click(screen.getByRole('option', { name: 'SURTEK' }))
 
-    // El total no se pierde: "1 de 2", nunca "1 de ".
+    // The total survives: "1 de 2", never "1 de ".
     expect(screen.getByText(/Candidatos a pedido URREA \(1 de 2\)/)).toBeInTheDocument()
-    // Y la sección sin coincidencias explica por qué está vacía.
     expect(screen.getByText(/Nada de compra local para la marca SURTEK/)).toBeInTheDocument()
   })
 
@@ -223,7 +214,7 @@ describe('PurchasePlanner', () => {
     )
     renderWithProviders(<PurchasePlanner data={data} />)
 
-    // Agrupada: un solo grupo consolidado (5+5 exacto)
+    // Consolidated into a single group (5+5 exact).
     expect(screen.getByText('Exacto')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Vista plana' }))
@@ -232,10 +223,7 @@ describe('PurchasePlanner', () => {
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 
-  /**
-   * Fixture con los 8 bloques del tour presentes: un grupo con matemática
-   * (URR-1 en catálogo) y un grupo de compra local (LOC-1 fuera de él).
-   */
+  /** Fixture with all 8 tour blocks: a group with math (URR-1) and a local-purchase one (LOC-1). */
   const tourData = () =>
     makeData(
       [item(), item({ model_code: 'LOC-1', brand: 'TRUPER', etm: 'ETM-2' })],
@@ -243,8 +231,7 @@ describe('PurchasePlanner', () => {
     )
 
   test('vista guiada: todos los selectores del tour existen en la página (anti-drift)', () => {
-    // Si un data-tour se renombra o se borra en el componente, este test
-    // truena ANTES de que el paso desaparezca del tour en silencio.
+    // Fails here if a data-tour is renamed or dropped, before the step vanishes silently.
     renderWithProviders(<PurchasePlanner data={tourData()} />)
     for (const step of PURCHASE_PLANNER_TOUR) {
       expect(document.querySelector(step.selector), step.selector).not.toBeNull()
@@ -259,7 +246,7 @@ describe('PurchasePlanner', () => {
 
     expect(driveMock).toHaveBeenCalledOnce()
     const config = driverMock.mock.calls[0][0]
-    // Cada paso con su ELEMENTO ya resuelto (no el selector).
+    // Each step carries its resolved ELEMENT, not the selector.
     expect(config.steps.map((s: { element: Element }) => s.element)).toEqual(
       PURCHASE_PLANNER_TOUR.map((s) => document.querySelector(s.selector)),
     )

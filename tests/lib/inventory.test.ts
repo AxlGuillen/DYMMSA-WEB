@@ -1,8 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { computeRestoration } from '@/lib/inventory'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function makeItem(overrides: Partial<{
   model_code: string | null
   quantity_in_stock: number
@@ -15,7 +13,7 @@ function makeItem(overrides: Partial<{
     quantity_received: 0,
     ...overrides,
   }
-  // Default: lo pedido cubre lo recibido (sin excedente) — el caso legacy.
+  // Default: what was ordered covers what was received (no excess) — legacy case.
   return { quantity_to_order: base.quantity_received, ...base } as {
     model_code: string | null
     quantity_in_stock: number
@@ -23,8 +21,6 @@ function makeItem(overrides: Partial<{
     quantity_to_order: number
   }
 }
-
-// ─── computeRestoration ───────────────────────────────────────────────────────
 
 describe('computeRestoration', () => {
   test('sums quantity_in_stock + min(recibido, pedido)', () => {
@@ -113,14 +109,14 @@ describe('computeRestoration', () => {
   })
 
   test('REGLA (ADR-019): el excedente NO se restaura — ya entró al confirmar recepción', () => {
-    // in_stock 3 + min(10, 2) = 5; los 8 de excedente ya están en inventario
+    // in_stock 3 + min(10, 2) = 5; the 8 excess units are already in inventory.
     const items = [makeItem({ quantity_in_stock: 3, quantity_received: 10, quantity_to_order: 2 })]
     const result = computeRestoration(items)
     expect(result[0].quantityToRestore).toBe(5)
   })
 
   test('to_order 0 con received > 0 → solo restaura in_stock', () => {
-    // Ítem cubierto por stock: cualquier received sería excedente puro
+    // Item covered by stock: any received amount would be pure excess.
     const items = [makeItem({ quantity_in_stock: 4, quantity_received: 3, quantity_to_order: 0 })]
     const result = computeRestoration(items)
     expect(result[0].quantityToRestore).toBe(4)

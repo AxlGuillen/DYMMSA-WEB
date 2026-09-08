@@ -1,8 +1,4 @@
-/**
- * Health checks (GET /api/health). Los checks de módulos ejecutan las queries
- * reales (funciones compartidas de los tools MCP) — se prueban con el mock de
- * Supabase; GitHub con fetch stub. Sin red ni BD real.
- */
+/** Health checks (GET /api/health) over the Supabase mock + a fetch stub: no real network or DB. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -20,7 +16,7 @@ import {
 
 type Fetcher = typeof fetch
 
-/** Mock del proyecto + storage stub (el mock base no modela storage). */
+/** Project mock + storage stub (the base mock has no storage). */
 function db(responses: MockConfig['responses'], storageError: unknown = null): SupabaseClient {
   const mock = createMockSupabase({ responses }) as unknown as { storage: unknown }
   mock.storage = {
@@ -35,7 +31,7 @@ const ALL_OK: MockConfig['responses'] = {
   store_inventory: { data: [], count: 0 },
 }
 
-// runHealthChecks usa appUrl() (localhost:3000 en tests) y la URL de Supabase.
+// runHealthChecks uses appUrl() (localhost:3000 in tests) and the Supabase URL.
 const SUPA = 'https://test.supabase.co'
 const ISSUER = `${SUPA}/auth/v1`
 
@@ -46,7 +42,7 @@ type StubResponse = {
   headers?: Record<string, string>
 }
 
-/** Fetch stub por-URL: cada check pega a un endpoint distinto. */
+/** Per-URL fetch stub: each check hits a different endpoint. */
 function fetchRouter(routes: Record<string, StubResponse>): Fetcher {
   return (async (input: string | URL | Request) => {
     const url = String(input)
@@ -61,7 +57,7 @@ function fetchRouter(routes: Record<string, StubResponse>): Fetcher {
   }) as unknown as Fetcher
 }
 
-/** Todo el mundo OAuth sano + GitHub 200 (para los tests de agregación). */
+/** Healthy OAuth world + GitHub 200, for the aggregation tests. */
 function healthyFetch(overrides: Record<string, StubResponse> = {}): Fetcher {
   return fetchRouter({
     'oauth-authorization-server': { json: { issuer: ISSUER } },
@@ -100,8 +96,7 @@ describe('checks de módulos (queries reales con admin client)', () => {
   test('query colgada → fail por timeout (no espera al límite de la plataforma)', async () => {
     vi.useFakeTimers()
     try {
-      // Query builder que encadena pero jamás resuelve (thenable sin callback):
-      // el cap de 5s del check debe cortarla y reportar fail.
+      // Builder that chains but never resolves: the check's 5s cap must cut it.
       type HungQuery = { [k in 'or' | 'eq' | 'order' | 'range']: () => HungQuery } & { then: () => void }
       const hungQuery: HungQuery = {
         or: () => hungQuery,
@@ -243,6 +238,6 @@ describe('runHealthChecks (agregación)', () => {
     })
     expect(report.status).toBe('down')
     expect(report.checks.orders.status).toBe('fail')
-    expect(report.checks.quotations.status).toBe('ok') // checks aislados
+    expect(report.checks.quotations.status).toBe('ok') // checks stay isolated
   })
 })

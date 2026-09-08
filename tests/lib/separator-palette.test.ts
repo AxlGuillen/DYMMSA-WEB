@@ -1,7 +1,4 @@
-/**
- * Paleta de separadores (issue #73): rotación automática por índice de
- * sección, override manual y tolerancia a valores desconocidos en BD.
- */
+/** Separator palette (#73): auto rotation by index, manual override, unknown DB values. */
 
 import { describe, test, expect } from 'vitest'
 import {
@@ -47,11 +44,11 @@ describe('separator-palette', () => {
   test('cada tono trae fondo opaco (color-mix) con variante dark y hover fijado', () => {
     for (const key of SEPARATOR_COLOR_KEYS) {
       const row = SEPARATOR_PALETTE[key].row
-      // Opaco vía color-mix, nunca alfa: la columna fija de acciones hereda
-      // el fondo con bg-inherit (misma regla que notSoldRowClass).
+      // Opaque via color-mix, never alpha: the sticky actions column inherits the
+      // background with bg-inherit (same rule as notSoldRowClass).
       expect(row, key).toContain('bg-[color-mix')
       expect(row, key).toContain('dark:bg-[color-mix')
-      // El TableRow de shadcn trae hover:bg-muted/50 — cada tono lo pisa.
+      // shadcn's TableRow ships hover:bg-muted/50 — each tone overrides it.
       expect(row, key).toContain('hover:bg-[color-mix')
       expect(row, key).toContain('border-l-4')
     }

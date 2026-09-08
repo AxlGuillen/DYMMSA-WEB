@@ -1,19 +1,12 @@
-/**
- * Fase 1 — Auth / guards.
- *
- * Verifica la regla 10 del CLAUDE.md: TODA ruta protegida debe exigir
- * `requireAuth()` y devolver 401 sin usuario autenticado.
- *
- * La excepción es /approve/[token], que es pública (usa createAdminClient,
- * sin auth) y se valida por separado.
- */
+/** Every protected route must require requireAuth() and answer 401 with no user.
+ *  /approve/[token] is the public exception and is covered separately. */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
 import { injectSupabaseServer, injectSupabaseAdmin } from '../helpers/setup'
 import { makeRequest, makeParams } from '../helpers/request'
 
-// ── Import estático de TODOS los handlers (vi.mock se hoista por encima) ──
+// Static import of every handler (vi.mock hoists above it).
 import * as quotationsSave from '@/app/api/quotations/save/route'
 import * as quotationDelete from '@/app/api/quotations/[id]/route'
 import * as quotationUpdate from '@/app/api/quotations/[id]/update/route'
@@ -40,7 +33,6 @@ import * as payablesRoute from '@/app/api/payables/route'
 import * as payableById from '@/app/api/payables/[id]/route'
 import * as payablesOverview from '@/app/api/payables/overview/route'
 
-// ── Mocks de los módulos de Supabase ────────────────────────────────────
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 
@@ -50,7 +42,6 @@ let adminClient: MockSupabaseClient
 injectSupabaseServer(() => activeClient)
 injectSupabaseAdmin(() => adminClient)
 
-// ── Tabla de rutas protegidas: nombre + invocación con user:null ─────────
 const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
   { name: 'POST   /quotations/save',                  call: () => quotationsSave.POST(makeRequest({})) },
   { name: 'DELETE /quotations/[id]',                  call: () => quotationDelete.DELETE(makeRequest(), makeParams({ id: 'q1' })) },
@@ -99,7 +90,7 @@ describe('Auth guards — rutas protegidas exigen requireAuth (401 sin usuario)'
 describe('Ruta pública /approve/[token] — NO requiere auth', () => {
   test('GET devuelve la cotización por token sin usuario autenticado', async () => {
     adminClient = createMockSupabase({
-      user: null, // sin auth: debe funcionar igual
+      user: null, // no auth: must still work
       responses: {
         'quotations.select': {
           data: { id: 'q1', customer_name: 'ACME', status: 'sent_for_approval', total_amount: 100, created_at: '2026-05-25', quotation_items: [] },

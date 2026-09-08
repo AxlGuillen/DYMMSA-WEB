@@ -1,13 +1,5 @@
-/**
- * SMOKE TEST (Fase 0) — valida que el approach de testing de backend funciona:
- *   1. vi.mock() intercepta @/lib/supabase/server
- *   2. el alias @/ resuelve los handlers reales
- *   3. NextResponse / NextRequest funcionan bajo Vitest
- *   4. el mock de Supabase inyecta auth y resuelve queries
- *
- * Si esto pasa, el resto de las fases (auth-guards, quotations, orders, inventory)
- * se construyen sobre la misma base.
- */
+/** Smoke test (phase 0): vi.mock intercepts @/lib/supabase/server, the @/ alias
+ *  resolves the real handlers, and NextRequest/NextResponse work under Vitest. */
 
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, type MockSupabaseClient } from '../helpers/supabase-mock'
@@ -18,7 +10,7 @@ import { POST } from '@/app/api/quotations/save/route'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
-// El cliente activo se intercambia por test; el mock lee la variable viva.
+// The active client is swapped per test; the mock reads the live variable.
 let activeClient: MockSupabaseClient
 injectSupabaseServer(() => activeClient)
 
@@ -33,7 +25,7 @@ describe('smoke: infraestructura de testing de backend', () => {
 
   test('pasa el guard de auth con usuario y llega a la validación (400 sin productos)', async () => {
     activeClient = createMockSupabase({ user: AUTH })
-    // items vacío → no hay producto → 400. Demuestra que superó requireAuth().
+    // empty items → no product → 400, which proves requireAuth() passed.
     const res = await POST(
       makeRequest({ name: 'Test', customer_name: 'Cliente', items: [] }),
     )
@@ -46,7 +38,7 @@ describe('smoke: infraestructura de testing de backend', () => {
       responses: {
         'quotations.insert':      { data: { id: 'quote-1' }, error: null },
         'quotation_items.insert': { data: null, error: null },
-        // processAutoLearn consulta etm_products; lo dejamos sin match (no-op)
+        // processAutoLearn queries etm_products; left without a match (no-op)
       },
     })
     const res = await POST(

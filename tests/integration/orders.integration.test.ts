@@ -1,7 +1,6 @@
 /**
- * Integración (Fase C1 · capa 4 — órdenes) contra el Supabase LOCAL.
- * El núcleo transaccional: split de inventario al crear la orden, recepción con
- * excedente (ADR-019: delta idempotente, cobro topado) y restauración al cancelar.
+ * Orders against local Supabase (ADR-021): inventory split on create,
+ * reception excess (ADR-019) and inventory restore on cancel.
  */
 import { describe, test, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -22,10 +21,7 @@ beforeAll(async () => { activeClient = await authedClient() })
 beforeEach(async () => { await resetDb() })
 afterAll(async () => { await closePool() })
 
-/**
- * Cotización APROBADA estándar: 60001 (stock 5) aprobado qty 12, un "no lo
- * vendemos" aprobado (debe excluirse) y un separador. Devuelve su id.
- */
+/** Approved quotation: 60001 (stock 5) qty 12, an approved not-sold item and a separator. */
 async function approvedQuotation() {
   return seedQuotation({
     status: 'approved',
@@ -48,22 +44,19 @@ describe('create-order → split de inventario (integración local)', () => {
     expect(res.status).toBe(200)
     const { order_id } = await readJson<{ order_id: string }>(res)
 
-    // El producto aprobado se dividió con el stock real (allocateInventory).
     const [p1] = await sql<{ quantity_in_stock: number; quantity_to_order: number; location: string | null }>(
       "SELECT quantity_in_stock, quantity_to_order, location FROM order_items WHERE order_id = $1 AND etm = 'P1'",
       [order_id],
     )
     expect(p1).toMatchObject({ quantity_in_stock: 5, quantity_to_order: 7, location: 'Gaveta S1' })
 
-    // "No lo vendemos" NO entra a la orden; el separador SÍ.
+    // Not-sold stays out of the order; the separator goes in.
     expect(await sql("SELECT 1 FROM order_items WHERE order_id = $1 AND etm = 'NO'", [order_id])).toHaveLength(0)
     expect(await sql("SELECT 1 FROM order_items WHERE order_id = $1 AND item_type = 'separator'", [order_id])).toHaveLength(1)
 
-    // Inventario deducido: 5 → 0.
     const [inv] = await sql<{ quantity: number }>("SELECT quantity FROM store_inventory WHERE model_code = '60001'")
     expect(inv.quantity).toBe(0)
 
-    // La cotización quedó convertida.
     const [q] = await sql<{ status: string }>('SELECT status FROM quotations WHERE id = $1', [id])
     expect(q.status).toBe('converted_to_order')
   })
@@ -88,15 +81,15 @@ describe('confirm-reception → excedente al inventario (ADR-019, integración l
     const stock = async () =>
       Number((await sql<{ quantity: number }>("SELECT quantity FROM store_inventory WHERE model_code = '60001'"))[0].quantity)
 
-    // Pedidas 7, llegan 10 → excedente 3 al inventario (partía de 0 tras el split).
+    // 7 ordered, 10 arrive → excess 3 to inventory (0 after the split).
     expect((await confirm(10)).status).toBe(200)
     expect(await stock()).toBe(3)
 
-    // Re-confirmar con el MISMO número → delta 0 → idempotente.
+    // Re-confirming the SAME number → delta 0 → idempotent.
     expect((await confirm(10)).status).toBe(200)
     expect(await stock()).toBe(3)
 
-    // Corregir a la baja (7 = lo pedido) → excedente 0 → resta los 3.
+    // Correcting down to what was ordered → excess 0 → subtracts the 3.
     expect((await confirm(7)).status).toBe(200)
     expect(await stock()).toBe(0)
   })
@@ -112,7 +105,7 @@ describe('confirm-reception → excedente al inventario (ADR-019, integración l
     )
     expect(res.status).toBe(200)
     const [inv] = await sql<{ quantity: number }>("SELECT quantity FROM store_inventory WHERE model_code = '60001'")
-    expect(inv.quantity).toBe(0) // sigue en 0: lo pedido es del cliente, no stock
+    expect(inv.quantity).toBe(0) // still 0: what was ordered is the customer's, not stock
   })
 })
 
@@ -120,13 +113,13 @@ describe('cancel → restaura inventario (integración local)', () => {
   test('cancelar una orden recién creada restaura el stock reservado', async () => {
     const { id } = await approvedQuotation()
     const { order_id } = await readJson<{ order_id: string }>(await createFromQuote(id))
-    // Tras el split el inventario está en 0 (se reservaron 5).
+    // After the split inventory sits at 0 (5 reserved).
     expect(Number((await sql<{ quantity: number }>("SELECT quantity FROM store_inventory WHERE model_code = '60001'"))[0].quantity)).toBe(0)
 
     const res = await cancel.POST(makeRequest(undefined, { method: 'POST' }), makeParams({ id: order_id }))
     expect(res.status).toBe(200)
 
-    // in_stock (5) + min(recibido 0, pedido 7)=0 → restaura 5.
+    // in_stock (5) + min(received 0, ordered 7) = 0 → restores 5.
     const [inv] = await sql<{ quantity: number }>("SELECT quantity FROM store_inventory WHERE model_code = '60001'")
     expect(inv.quantity).toBe(5)
     const [o] = await sql<{ status: string }>('SELECT status FROM orders WHERE id = $1', [order_id])

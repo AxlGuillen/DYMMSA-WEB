@@ -1,11 +1,4 @@
-/**
- * OrderDetail — recepción con excedente (ADR-019, issue #19).
- *
- * Cubre lo nuevo del flujo de recepción: input sin tope, hint "+N a tienda",
- * total de línea topado (excedente no se factura) y el diálogo de confirmación
- * anti-dedazo (la mutación solo corre tras el resumen). La matemática vive en
- * business-rules (tests puros); el flujo completo con BD queda para E2E.
- */
+/** OrderDetail reception with excess (ADR-019, #19). The math lives in business-rules. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -126,8 +119,8 @@ describe('OrderDetail — recepción con excedente', () => {
         ])}
       />,
     )
-    // (in_stock 1 + min(10, 2)) × $100 = $300 — no $1,100
-    // (aparece también en la card de total de la orden → getAllByText)
+    // (in_stock 1 + min(10, 2)) × $100 = $300, not $1,100.
+    // Also shown on the order total card → getAllByText.
     expect(screen.getAllByText('$300.00').length).toBeGreaterThan(0)
     expect(screen.queryByText('$1,100.00')).not.toBeInTheDocument()
   })
@@ -136,23 +129,21 @@ describe('OrderDetail — recepción con excedente', () => {
     const user = userEvent.setup()
     renderWithProviders(<OrderDetail order={order([orderItem()])} />)
 
-    // Capturar 10 recibidos (pedido = 2)
     const input = screen.getByRole('spinbutton')
     await user.clear(input)
     await user.type(input, '10')
 
-    // El botón abre el diálogo — la mutación NO corre todavía
+    // The button opens the dialog; the mutation does NOT run yet.
     await user.click(screen.getByRole('button', { name: /confirmar recepción/i }))
     expect(confirmAsync).not.toHaveBeenCalled()
 
-    // Resumen: fila con el excedente y el total de piezas a inventario
+    // Summary: the excess row and the total of pieces going to inventory.
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent('+8 a tienda')
     expect(dialog).toHaveTextContent('8 piezas de excedente')
-    // Cantidad inusual (10 > 2×2) marcada
+    // Unusual quantity (10 > 2×2) flagged.
     expect(screen.getByLabelText('Cantidad inusual')).toBeInTheDocument()
 
-    // Confirmar ejecuta la mutación con lo capturado
     await user.click(screen.getByRole('button', { name: /sí, confirmar recepción/i }))
     expect(confirmAsync).toHaveBeenCalledWith({
       orderId: 'o1',

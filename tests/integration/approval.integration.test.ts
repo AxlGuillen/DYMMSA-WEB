@@ -1,9 +1,4 @@
-/**
- * Integración (Fase C1 · capa 3 — aprobación pública) contra el Supabase LOCAL.
- * La ruta /approve/[token] usa el ADMIN client (service role): se inyecta uno
- * real. Cubre guardar-avance vs finalizar, exclusión de "no lo vendemos" y el
- * sellado de approved_at.
- */
+/** Public approval against local Supabase (ADR-021): the route uses the admin client, so a real one is injected. */
 import { describe, test, expect, beforeEach, afterAll, vi } from 'vitest'
 import { injectSupabaseAdmin } from '../helpers/setup'
 import { makeRequest, makeParams, readJson } from '../helpers/request'
@@ -20,7 +15,7 @@ afterAll(async () => { await closePool() })
 const post = (token: string, body: unknown) =>
   approve.POST(makeRequest(body, { method: 'POST' }), makeParams({ token }))
 
-/** Cotización en revisión con 2 productos aprobables + 1 "no lo vendemos". */
+/** Quotation under review: 2 approvable products + 1 not-sold. */
 async function seedForApproval() {
   return seedQuotation({
     status: 'sent_for_approval',
@@ -44,12 +39,12 @@ describe('POST /approve/[token] (integración local)', () => {
       'SELECT etm, is_approved FROM quotation_items ORDER BY sort_order',
     )
     expect(items).toEqual([
-      { etm: 'P1', is_approved: true },   // seleccionado
-      { etm: 'P2', is_approved: null },   // pendiente
-      { etm: 'NO', is_approved: null },   // "no lo vendemos": nunca se toca
+      { etm: 'P1', is_approved: true },
+      { etm: 'P2', is_approved: null },
+      { etm: 'NO', is_approved: null },   // not-sold: never touched
     ])
     const [q] = await sql<{ status: string }>('SELECT status FROM quotations')
-    expect(q.status).toBe('sent_for_approval') // el link sigue vivo
+    expect(q.status).toBe('sent_for_approval') // the link stays alive
   })
 
   test('finalizar con aprobaciones → status=approved, resto=false, approved_at sellado, no-sell intacto', async () => {
@@ -64,8 +59,8 @@ describe('POST /approve/[token] (integración local)', () => {
     )
     expect(items).toEqual([
       { etm: 'P1', is_approved: true },
-      { etm: 'P2', is_approved: false },  // rechazado al finalizar
-      { etm: 'NO', is_approved: null },   // excluido (is_sold=false)
+      { etm: 'P2', is_approved: false },
+      { etm: 'NO', is_approved: null },   // excluded (is_sold=false)
     ])
     const [q] = await sql<{ status: string; approved_at: string | null }>('SELECT status, approved_at FROM quotations')
     expect(q.status).toBe('approved')

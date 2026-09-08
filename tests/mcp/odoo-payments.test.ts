@@ -1,9 +1,5 @@
-/**
- * Tools del bloque Odoo — Fase 6: complementos de pago REP (issue #70,
- * ADR-025). Formas reales de la instancia (2026-08-20): PAY00068 con 6
- * facturas conciliadas y su REP payment_sent/valid en l10n_mx_edi.document;
- * los l10n_mx_edi_* de account.payment computan false aunque haya REP.
- */
+/** Odoo block, phase 6: REP payment complements (#70, ADR-025). Real shapes:
+ *  the REP lives in l10n_mx_edi.document — account.payment's l10n_mx_edi_* compute false. */
 
 import { describe, test, expect } from 'vitest'
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -119,7 +115,7 @@ describe('odoo_payment_detail', () => {
     const result = await odooPaymentDetail(odoo, { folio: 'pay00068' })
 
     expect(calls).toHaveLength(3)
-    // El puente pago↔REP: documentos payment% que tocan SUS facturas.
+    // The payment↔REP bridge: payment% documents touching ITS invoices.
     expect(calls[1].payload.domain).toEqual([['invoice_ids', 'in', [436, 433]], ['state', 'like', 'payment%']])
     expect(calls[2].payload.domain).toEqual([['id', 'in', [436, 433]]])
 
@@ -202,7 +198,7 @@ describe('odoo_rep_audit', () => {
         REP_DOC,
         { ...REP_DOC, id: 550, invoice_ids: [600], state: 'payment_sent_failed', sat_state: 'not_defined', datetime: '2026-08-14 10:00:00' },
       ]],
-      // 3ª llamada (solo hay porque quedó un pago sin REP): política PUE/PPD.
+      // 3rd call (only there because a payment was left without REP): PUE/PPD policy.
       'account.move.search_read': [[{ id: 500, l10n_mx_edi_payment_policy: 'PPD' }]],
     })
 
@@ -216,8 +212,8 @@ describe('odoo_rep_audit', () => {
       ['date', '>=', '2026-08-01'],
       ['date', '<=', '2026-08-31'],
     ])
-    // Los docs se buscan por la unión de facturas SIN filtro de fecha:
-    // el REP puede timbrarse días después del pago.
+    // Docs are searched over the union of invoices with NO date filter: the REP
+    // can be stamped days after the payment.
     expect(calls[1].payload.domain).toEqual([
       ['invoice_ids', 'in', [436, 433, 500, 600]],
       ['state', 'like', 'payment%'],
@@ -242,7 +238,7 @@ describe('odoo_rep_audit', () => {
   test('un REP cubre al pago solo si abarca TODAS sus facturas', async () => {
     const { odoo } = fakeOdoo({
       'account.payment.search_read': [[pago({ reconciled_invoice_ids: [436, 700] })]],
-      // El doc solo cubre la 436 — la 700 quedó fuera: el pago NO está en regla.
+      // The doc only covers 436 — 700 was left out: the payment is NOT in order.
       'l10n_mx_edi.document.search_read': [[REP_DOC]],
       'account.move.search_read': [[
         { id: 436, l10n_mx_edi_payment_policy: 'PPD' },
@@ -264,7 +260,7 @@ describe('odoo_rep_audit', () => {
       'account.move.search_read': [[
         { id: 800, l10n_mx_edi_payment_policy: 'PUE' },
         { id: 801, l10n_mx_edi_payment_policy: 'PUE' },
-        // Mixto PUE+PPD: la PPD sí exige REP → el pago sigue pendiente.
+        // Mixed PUE+PPD: the PPD one does require a REP → the payment stays pending.
         { id: 802, l10n_mx_edi_payment_policy: 'PPD' },
       ]],
     })
@@ -299,8 +295,8 @@ describe('odoo_rep_audit', () => {
   })
 
   test('al llenar el límite de docs REP avisa (sin caps silenciosos, review PR #75)', async () => {
-    // 200 docs que no cubren al pago: sin la nota, ese "sin REP" podría ser
-    // puro truncamiento.
+    // 200 docs that do not cover the payment: without the note, that "no REP"
+    // could be plain truncation.
     const docs = Array.from({ length: 200 }, (_, i) => ({ ...REP_DOC, id: 1000 + i, invoice_ids: [i] }))
     const { odoo } = fakeOdoo({
       'account.payment.search_read': [[pago({ reconciled_invoice_ids: [436] })]],

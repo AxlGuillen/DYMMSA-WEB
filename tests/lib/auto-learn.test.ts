@@ -6,8 +6,6 @@ import {
 } from '@/lib/auto-learn'
 import type { QuotationItemRow } from '@/types/database'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function makeItem(overrides: Partial<QuotationItemRow> = {}): QuotationItemRow {
   return {
     _id:            'test-id',
@@ -51,8 +49,6 @@ function makeExisting(overrides: Partial<{
   }
 }
 
-// ─── isEligibleForAutoLearn ──────────────────────────────────────────────────
-
 describe('isEligibleForAutoLearn', () => {
   test('eligible: product with etm + model_code', () => {
     expect(isEligibleForAutoLearn(makeItem())).toBe(true)
@@ -67,7 +63,7 @@ describe('isEligibleForAutoLearn', () => {
       model_code:  '',
       description: '',
       description_es: 'Solo descripción ES',
-    }))).toBe(false) // description is checked, not description_es — isEligible checks description only
+    }))).toBe(false) // isEligible checks description, not description_es
   })
 
   test('NOT eligible: separator item', () => {
@@ -91,7 +87,7 @@ describe('isEligibleForAutoLearn', () => {
   })
 
   test('eligible: etm-only (sin model_code/description) pero is_sold explícito', () => {
-    // Un "no lo vendemos" suele traer solo ETM → debe persistir el flag igual.
+    // A "not sold" row usually carries only the ETM; the flag must persist anyway.
     expect(isEligibleForAutoLearn(makeItem({
       model_code: '', description: '', description_es: '', is_sold: false,
     }))).toBe(true)
@@ -104,8 +100,6 @@ describe('isEligibleForAutoLearn', () => {
   })
 })
 
-// ─── computeNewEtmFields ─────────────────────────────────────────────────────
-
 describe('computeNewEtmFields', () => {
   test('maps all fields from item correctly', () => {
     const item = makeItem({
@@ -116,7 +110,7 @@ describe('computeNewEtmFields', () => {
       unit_price:     250,
       brand:          'URREA',
     })
-    // Cast needed since computeNewEtmFields expects EligibleItem (etm truthy)
+    // Cast: computeNewEtmFields expects EligibleItem (etm truthy)
     const result = computeNewEtmFields(item as Parameters<typeof computeNewEtmFields>[0])
 
     expect(result.etm).toBe('ETM-XYZ')
@@ -166,8 +160,6 @@ describe('computeNewEtmFields', () => {
     expect(computeNewEtmFields(asArg(makeItem())).is_sold).toBeNull() // undefined → null
   })
 })
-
-// ─── mergeEtmFields ──────────────────────────────────────────────────────────
 
 describe('mergeEtmFields', () => {
   test('hasChanges is false when no field changed', () => {
@@ -236,7 +228,6 @@ describe('mergeEtmFields', () => {
     expect(updates.model_code).toBe('NEW-MC')
   })
 
-  // ─── is_sold tri-estado ────────────────────────────────────────────────
   test('is_sold: valor explícito (false) sobre existente null → actualiza', () => {
     const existing = makeExisting({ is_sold: null })
     const incoming = makeItem({ is_sold: false })
@@ -259,8 +250,6 @@ describe('mergeEtmFields', () => {
     expect(updates.is_sold).toBeUndefined()
   })
 })
-
-// ─── dymmsa_description (curada CRUDA — nunca la resuelta del catálogo) ──────
 
 describe('auto-learn de dymmsa_description', () => {
   const asArg = (i: QuotationItemRow) => i as Parameters<typeof computeNewEtmFields>[0]
