@@ -35,6 +35,7 @@ import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import { toast } from 'sonner'
 import { formatRelative, formatAbsolute } from '@/lib/format'
+import { paymentTermsLabel } from '@/lib/payables'
 import type { SupplierWithBrands } from '@/types/database'
 
 type SortDir = 'asc' | 'desc'
@@ -49,7 +50,7 @@ interface SuppliersTableProps {
   onSort: (field: SupplierSortField) => void
 }
 
-// Columnas de proveedores (issue #18). Nombre y acciones son fijas.
+// Nombre and acciones are fixed columns (#18).
 export const SUPPLIERS_COLUMNS: readonly TableColumn[] = [
   { id: 'name', label: 'Nombre', hideable: false, width: 220 },
   { id: 'whatsapp', label: 'WhatsApp', width: 150 },
@@ -62,10 +63,7 @@ export const SUPPLIERS_COLUMNS: readonly TableColumn[] = [
   { id: 'actions', label: 'Acciones', hideable: false, width: 100 },
 ]
 
-/**
- * Link de chat de WhatsApp. Los números locales de 10 dígitos se prefijan con
- * 52 (MX) — wa.me exige código de país.
- */
+/** wa.me requires a country code, so 10-digit local numbers get the 52 (MX) prefix. */
 function waLink(whatsapp: string): string {
   const digits = whatsapp.replace(/\D/g, '')
   return `https://wa.me/${digits.length === 10 ? `52${digits}` : digits}`
@@ -83,7 +81,7 @@ function SortHeader({
   className?: string
 }) {
   const Icon = active ? (dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
-  // `field` coincide con el id de columna del picker: sirve de llave del ancho.
+  // `field` matches the picker's column id, so it doubles as the width key.
   return (
     <ResizableHead id={field} label={label} widths={widths} className={className}>
       <button
@@ -221,7 +219,7 @@ export function SuppliersTable({
                 {cols.isVisible('payment_terms') && (
                   <TableCell className="text-sm">
                     {supplier.payment_terms_days != null
-                      ? `${supplier.payment_terms_days} días`
+                      ? paymentTermsLabel(supplier.payment_terms_days)
                       : <span className="text-muted-foreground">Contado</span>}
                   </TableCell>
                 )}
