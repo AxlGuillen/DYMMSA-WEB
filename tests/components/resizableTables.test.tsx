@@ -1,14 +1,4 @@
-/**
- * Anti-drift de columnas redimensionables (issue #55).
- *
- * El hueco que motivó este test: el arrastre se implementó en 4 tablas y las
- * de órdenes/cotizaciones —lista y detalle— se quedaron fuera; nada lo detectó
- * porque `columnWidths.test.ts` prueba el hook, no el cableado.
- *
- * Aquí se verifica lo que ese test no ve:
- *  1. que cada definición de columnas declare su `width` por defecto, y
- *  2. que las tablas rendericen una manija por columna visible.
- */
+/** Anti-drift for resizable columns (#55): columnWidths.test.ts covers the hook, not the wiring. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
@@ -53,7 +43,7 @@ describe('defaults de ancho declarados', () => {
   })
 })
 
-/** Una manija por columna visible: `role="separator"` de ColumnResizer. */
+/** One handle per visible column: ColumnResizer's `role="separator"`. */
 const resizers = () => screen.getAllByRole('separator')
 
 describe('OrdersTable', () => {
@@ -72,7 +62,7 @@ describe('OrdersTable', () => {
 
   test('cada columna visible trae manija de ajuste, incluida Acciones', () => {
     renderWithProviders(
-      // @ts-expect-error -- fixture mínimo: la tabla solo lee estos campos
+      // @ts-expect-error -- minimal fixture: the table only reads these fields
       <OrdersTable orders={[order]} isLoading={false} />,
     )
     expect(resizers()).toHaveLength(ORDERS_COLUMNS.length)
@@ -86,7 +76,7 @@ describe('OrdersTable', () => {
 
   test('la columna de acciones queda fija a la derecha', () => {
     renderWithProviders(
-      // @ts-expect-error -- fixture mínimo
+      // @ts-expect-error -- minimal fixture
       <OrdersTable orders={[order]} isLoading={false} />,
     )
     const header = screen.getByRole('columnheader', { name: /Acciones/ })
@@ -110,7 +100,7 @@ describe('QuotationsTable', () => {
 
   test('cada columna visible trae manija de ajuste, incluida Acciones', () => {
     renderWithProviders(
-      // @ts-expect-error -- fixture mínimo: la tabla solo lee estos campos
+      // @ts-expect-error -- minimal fixture: the table only reads these fields
       <QuotationsTable quotations={[quotation]} isLoading={false} />,
     )
     expect(resizers()).toHaveLength(QUOTATIONS_COLUMNS.length)
@@ -119,12 +109,11 @@ describe('QuotationsTable', () => {
 
   test('la fila lleva fondo OPACO (la columna fija lo hereda con bg-inherit)', () => {
     renderWithProviders(
-      // @ts-expect-error -- fixture mínimo
+      // @ts-expect-error -- minimal fixture
       <QuotationsTable quotations={[quotation]} isLoading={false} />,
     )
     const row = screen.getByRole('row', { name: /Cotización 1/ })
-    // Sin `bg-background` el hover semitransparente deja ver las columnas que
-    // pasan por debajo de la columna fija al hacer scroll lateral.
+    // Without `bg-background` the sticky column shows what scrolls under it.
     expect(row.className).toContain('bg-background')
     const actions = within(row).getByTitle('Eliminar cotización').closest('td')
     expect(actions?.className).toContain('sticky')

@@ -10,8 +10,7 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    // modelCodes (opcional): códigos del Excel para resolver descripciones de
-    // catálogo también en filas que aún no existen en etm_products.
+    // modelCodes (optional): resolves catalog descriptions for Excel rows not yet in etm_products.
     const { etmCodes, modelCodes } = await request.json()
 
     if (!Array.isArray(etmCodes) || etmCodes.length === 0) {
@@ -21,7 +20,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Busqueda masiva con filtro .in()
     const { data, error } = await supabase
       .from('etm_products')
       .select('*')
@@ -35,11 +33,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Determinar cuales ETMs no se encontraron
     const foundEtms = new Set(data?.map((p) => p.etm) || [])
     const notFound = etmCodes.filter((etm) => !foundEtms.has(etm))
 
-    // Descripciones oficiales por catalogKey (todas las marcas de esos códigos, ADR-013).
+    // Official descriptions keyed by catalogKey — every brand of those codes (ADR-013).
     const codesForCatalog = [
       ...(data?.map((p) => p.model_code) ?? []),
       ...(Array.isArray(modelCodes) ? modelCodes : []),

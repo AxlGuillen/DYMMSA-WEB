@@ -56,7 +56,6 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Órdenes</h1>
@@ -75,7 +74,6 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Stats cards */}
       <div data-tour="ol-stats" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {STAT_CARDS.map((card) => (
           <button type="button"
@@ -99,7 +97,6 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      {/* Filters */}
       <div data-tour="ol-filters" className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -143,12 +140,10 @@ export default function OrdersPage() {
         <ColumnPicker tableId="orders-list" columns={ORDERS_COLUMNS} />
       </div>
 
-      {/* Table */}
       <div data-tour="ol-table">
         <OrdersTable orders={data?.data ?? []} isLoading={isLoading} />
       </div>
 
-      {/* Pagination */}
       {data && data.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">

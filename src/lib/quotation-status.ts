@@ -1,6 +1,6 @@
 import type { QuotationStatus } from '@/types/database'
 
-/** Etiquetas en español de cada estado de cotización. Fuente única para badge + dropdown. */
+/** Single source for the badge and the status dropdown. */
 export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   draft: 'Borrador',
   sent_for_approval: 'En aprobación',
@@ -9,10 +9,7 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   converted_to_order: 'Convertida',
 }
 
-/**
- * Estados que el usuario puede asignar manualmente desde el dropdown.
- * `converted_to_order` se excluye: solo se asigna al generar la orden.
- */
+/** `converted_to_order` is excluded: it is only set by generating the order. */
 export const MANUAL_QUOTATION_STATUSES: QuotationStatus[] = [
   'draft',
   'sent_for_approval',

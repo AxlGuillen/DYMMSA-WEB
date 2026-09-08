@@ -18,7 +18,7 @@ import type { TaskPriority } from '@/lib/github'
 const NO_PRIORITY = 'none'
 const IMG_RE = /!\[[^\]]*\]\(([^)]+)\)/
 
-/** Render mínimo del body: imágenes markdown como <img>, el resto como texto. */
+/** Minimal body render: markdown images as <img>, everything else as text. */
 function TaskBody({ text }: { text: string }) {
   if (!text.trim()) return <p className="text-sm italic text-muted-foreground">Sin descripción.</p>
   const blocks = text.split(/\n{2,}/)
@@ -86,7 +86,6 @@ export function TaskDetail({ number }: { number: number }) {
         <ArrowLeft className="size-4" /> Tareas
       </Link>
 
-      {/* Encabezado */}
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-4">
           {editing ? (
@@ -109,7 +108,6 @@ export function TaskDetail({ number }: { number: number }) {
         </div>
       </div>
 
-      {/* Acciones */}
       <div className="flex flex-wrap items-center gap-2 border-y py-3">
         <Select
           value={task.priority ?? NO_PRIORITY}
@@ -148,7 +146,6 @@ export function TaskDetail({ number }: { number: number }) {
         )}
       </div>
 
-      {/* Descripción */}
       {editing ? (
         <div className="space-y-2">
           <textarea
@@ -169,7 +166,6 @@ export function TaskDetail({ number }: { number: number }) {
         <TaskBody text={task.description} />
       )}
 
-      {/* Comentarios */}
       <div className="space-y-4 border-t pt-6">
         <h2 className="font-medium">Comentarios {comments.length > 0 && <span className="text-muted-foreground">({comments.length})</span>}</h2>
         {comments.length === 0 ? (

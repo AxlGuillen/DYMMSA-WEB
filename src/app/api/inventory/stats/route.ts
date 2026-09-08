@@ -24,8 +24,7 @@ export async function GET() {
       console.error('Error counting store_inventory:', error)
       return serverError('Error al obtener las métricas')
     }
-    // El selector de marca es un extra: si la RPC falla, la página sigue viva
-    // con sus tarjetas de stock (mismo criterio que el catálogo URREA).
+    // The brand selector is an extra: if the RPC fails the page still renders its stock cards.
     if (brandError) console.warn('inventory_brand_counts error (ignored):', brandError)
 
     const items = (data ?? []) as { quantity: number }[]

@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendApprovalNotification } from '@/lib/email/send-approval-notification'
 import { calculateQuotationTotal } from '@/lib/business-rules'
 
-// GET público: la cotización por su approval token.
+// GET (public) — the quotation behind its approval token.
 
 export async function GET(
   _req: NextRequest,
@@ -31,9 +31,8 @@ export async function GET(
   }
 }
 
-// POST público: persiste las decisiones del cliente. finalize=false = guardar
-// avance (resto → null, el link sigue vivo); finalize=true = enviar (resto →
-// false, status → approved/rejected + approved_at). 2-3 queries fijas.
+// POST (public) — persists the client's decisions. finalize=false saves progress (rest → null,
+// link stays alive); finalize=true sends (rest → false, status → approved/rejected + approved_at).
 
 interface ApprovePayload {
   approvedIds?: string[]
@@ -67,8 +66,8 @@ export async function POST(
       return NextResponse.json({ message: 'Payload inválido' }, { status: 400 })
     }
 
-    // 1. Reset de productos aprobables: pendiente (guardar) o rechazado (finalizar).
-    //    Excluye los "No disponible" (is_sold=false) para no marcarlos.
+    // Reset approvable products to pending (save) or rejected (finalize);
+    // is_sold=false is excluded — it is never approvable.
     const resetValue = finalize ? false : null
     const { error: resetError } = await supabase
       .from('quotation_items')
@@ -82,7 +81,6 @@ export async function POST(
       return NextResponse.json({ message: 'Error al guardar las decisiones' }, { status: 500 })
     }
 
-    // 2. Aprobar los seleccionados.
     if (approvedIds.length > 0) {
       const { error: approveError } = await supabase
         .from('quotation_items')
@@ -96,13 +94,12 @@ export async function POST(
       }
     }
 
-    // 3. Guardar avance → no toca el status.
+    // Saving progress must not touch the status.
     if (!finalize) {
       return NextResponse.json({ saved: true, finalized: false, approvedCount: approvedIds.length })
     }
 
-    // 4. Finalizar con guarda optimista: el .eq('status', ...) hace que solo UN
-    //    request finalice — el segundo matchea 0 filas y responde 409.
+    // Optimistic guard: only ONE request can finalize — the second matches 0 rows → 409.
     const newStatus = approvedIds.length > 0 ? 'approved' : 'rejected'
     const { data: finalized, error: statusError } = await supabase
       .from('quotations')
@@ -123,13 +120,10 @@ export async function POST(
       return NextResponse.json({ message: 'Esta cotización ya fue procesada' }, { status: 409 })
     }
 
-    // 5. Notificar a DYMMSA sólo cuando el cliente aprueba (status approved).
-    //    Aislado: un fallo de correo nunca revierte la aprobación (ADR-012).
+    // Notify DYMMSA only on approval; isolated so an email failure never reverts it (ADR-012).
     if (newStatus === 'approved') {
       try {
-        // Total de lo REALMENTE aprobado: en una aprobación parcial,
-        // quotation.total_amount (toda la cotización) reportaría de más.
-        // calculateQuotationTotal ya excluye separadores e is_sold=false.
+        // Total of what was ACTUALLY approved: total_amount would over-report a partial approval.
         const { data: approvedItems, error: approvedItemsError } = await supabase
           .from('quotation_items')
           .select('unit_price, quantity, item_type, is_approved, is_sold')
@@ -143,7 +137,7 @@ export async function POST(
           quotationName: quotation.name,
           total: hasApprovedItems
             ? calculateQuotationTotal(approvedItems, { onlyApproved: true })
-            : quotation.total_amount, // fallback si la lectura falla
+            : quotation.total_amount, // fallback if the read fails
           approvedCount: hasApprovedItems ? approvedItems.length : approvedIds.length,
           quotationId: quotation.id,
         })

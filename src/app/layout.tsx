@@ -17,8 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  // Necesario para que Next resuelva URLs absolutas (og:image que comparten
-  // Slack/WhatsApp requieren URL absoluta, no relativa).
+  // Needed for Next to resolve absolute URLs: og:image shared on Slack/WhatsApp must be absolute.
   metadataBase: new URL("https://dymmsa-web.vercel.app"),
   title: {
     default: "DYMMSA - Sistema de Cotizaciones",
@@ -58,8 +57,7 @@ export const metadata: Metadata = {
     description:
       "Sistema de cotizaciones y gestión de inventario para DYMMSA, distribuidor autorizado de herramientas URREA.",
   },
-  // La imagen (og:image / twitter:image) la aporta automáticamente
-  // src/app/opengraph-image.tsx; summary_large_image la muestra en grande.
+  // og:image / twitter:image come from src/app/opengraph-image.tsx automatically.
   twitter: {
     card: "summary_large_image",
     title: "DYMMSA - Sistema Modular",

@@ -46,7 +46,6 @@ export default function ProductosPage() {
     setPage(1)
   }
 
-  // Debounced live search
   // oxlint-disable-next-line react-doctor/no-cascading-set-state -- intentional pattern; structural refactor tracked separately
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)

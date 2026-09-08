@@ -1,12 +1,3 @@
-/**
- * Inventory — list / stats / CRUD handlers (store_inventory).
- * Migrado a server side: el cliente ya no toca Supabase directo.
- *   - auth en todas las rutas
- *   - list: shape paginado, búsqueda (ilike), filtros de stock, orden por cantidad
- *   - stats: conteos por rango de stock
- *   - create/update/delete: payload, .eq('id'), validación de cantidad ≥ 0
- */
-
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, findFilter, filterValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
@@ -64,9 +55,8 @@ describe('GET /inventory (list)', () => {
     expect(filterValue(rec, 'quantity')).toBe(0)
   })
 
-  // ── Filtro por marca (issue #53) ───────────────────────────────────────
-  // La marca NO vive en store_inventory: se resuelve contra etm_products en la
-  // vista, y por eso el listado lee de ahí — filtrar antes de paginar.
+  // Brand does not live in store_inventory: the view resolves it against
+  // etm_products (#53), so the list reads from there to filter before paginating.
   const emptyList = { 'store_inventory_with_brand.select': { data: [], error: null, count: 0 } }
 
   test('marca concreta → eq sobre brand, normalizada a mayúsculas', async () => {
@@ -80,7 +70,7 @@ describe('GET /inventory (list)', () => {
     activeClient = createMockSupabase({ user: AUTH, responses: emptyList })
     await listRoute.GET(makeRequest(undefined, url('?brand=__none__')))
     const rec = activeClient.callsTo('store_inventory_with_brand', 'select')[0]
-    // Son ~40 productos con stock real: se filtran, no se esconden.
+    // ~40 products with real stock: they get filtered, not hidden.
     expect(findFilter(rec, 'brand', 'is')).toBeTruthy()
     expect(findFilter(rec, 'brand', 'eq')).toBeUndefined()
   })
@@ -139,7 +129,7 @@ describe('GET /inventory/stats', () => {
     })
     const res = await statsRoute.GET()
     const body = await res.json()
-    // with_stock (>0) es el default de la página: agrupa low_stock + in_stock.
+    // with_stock (>0) is the page default: it groups low_stock + in_stock.
     expect(body).toMatchObject({ total: 4, sin_stock: 1, low_stock: 2, in_stock: 1, with_stock: 3 })
   })
 
@@ -158,7 +148,7 @@ describe('GET /inventory/stats', () => {
       },
     })
     const body = await (await statsRoute.GET()).json()
-    // La marca null se conserva: el front la muestra como "Sin marca".
+    // A null brand is kept: the front shows it as "Sin marca".
     expect(body.brands).toEqual([
       { brand: 'URREA', total: 171, with_stock: 57 },
       { brand: null, total: 40, with_stock: 26 },

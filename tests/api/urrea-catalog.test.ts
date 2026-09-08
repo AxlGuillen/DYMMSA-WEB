@@ -1,13 +1,3 @@
-/**
- * URREA Catalog — import handler (tabla aislada urrea_catalog).
- *   - validación de archivo/columnas
- *   - upsert por (code, brand) (onConflict)
- *   - replace (delete all + insert)
- *   - parseo de std (entero ≥ 1, default)
- *   - acepta encabezados en español (codigo/descripcion/marca)
- *   - marca: normalizada trim+upper; ausente → URREA
- */
-
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
@@ -98,8 +88,6 @@ describe('POST /urrea-catalog/import', () => {
   })
 })
 
-// ─── Normalización del code (llave de cruce Descripción DYMMSA) ──────────────
-
 describe('POST /urrea-catalog/import — normalización de code', () => {
   test('REGLA: code se guarda normalizado (trim + mayúsculas)', async () => {
     activeClient = createMockSupabase({
@@ -114,8 +102,6 @@ describe('POST /urrea-catalog/import — normalización de code', () => {
     expect(rows[0].code).toBe('MC-123')
   })
 })
-
-// ─── POST /urrea-catalog/lookup ───────────────────────────────────────────────
 
 describe('POST /urrea-catalog/lookup', () => {
   test('400 si codes no es arreglo o está vacío', async () => {
@@ -141,12 +127,12 @@ describe('POST /urrea-catalog/lookup', () => {
     const res = await catalogLookup.POST(makeRequest({ codes: [' mc1 ', 'mc2', ''] }))
     expect(res.status).toBe(200)
     const body = await res.json()
-    // El mismo código en 2 marcas convive: cada uno con su llave.
+    // The same code lives under 2 brands: each with its own key.
     expect(body.descriptions).toEqual({
       'URREA|MC1': 'Oficial 1',
       'SURTEK|MC1': 'Oficial 1 (Surtek)',
     })
-    // la query usó los codes normalizados y sin vacíos
+    // the query used the normalized codes, with no blanks
     const call = activeClient.callsTo('urrea_catalog', 'select')[0]
     const inFilter = call.filters.find((f) => f.method === 'in')
     expect(inFilter?.args[1]).toEqual(['MC1', 'MC2'])

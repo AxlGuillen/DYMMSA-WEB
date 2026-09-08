@@ -46,7 +46,7 @@ export function NewOrderForm() {
 
     try {
       const buffer = await uploadedFile.arrayBuffer()
-      // Carga diferida: exceljs (~130 KB gzip) solo baja al subir el Excel aprobado.
+      // Lazy: exceljs (~130 KB gzip) only downloads when the approved Excel is uploaded.
       const { detectApprovedProducts } = await import('@/lib/excel/detect-approved')
       const result = await detectApprovedProducts(buffer)
 
@@ -92,14 +92,12 @@ export function NewOrderForm() {
     }
 
     try {
-      // First, run auto-learn to add new products to catalog
       const autoLearnResult = await autoLearn.mutateAsync(detectionResult.products)
 
       if (autoLearnResult.added > 0) {
         toast.success(`${autoLearnResult.added} nuevos productos agregados al catálogo`)
       }
 
-      // Then create the order
       const orderResult = await createOrder.mutateAsync({
         customer_name: customerName.trim(),
         products: detectionResult.products,
@@ -117,7 +115,6 @@ export function NewOrderForm() {
 
   return (
     <div className="space-y-6">
-      {/* Customer Name */}
       <Card>
         <CardHeader>
           <CardTitle>Datos del Cliente</CardTitle>
@@ -136,7 +133,6 @@ export function NewOrderForm() {
         </CardContent>
       </Card>
 
-      {/* File Upload */}
       <Card>
         <CardHeader>
           <CardTitle>Archivo Excel</CardTitle>
@@ -187,7 +183,6 @@ export function NewOrderForm() {
         </CardContent>
       </Card>
 
-      {/* Detection Results */}
       {detectionResult && (
         <Card>
           <CardHeader>
@@ -248,7 +243,6 @@ export function NewOrderForm() {
         </Card>
       )}
 
-      {/* Submit Button */}
       <div className="flex justify-end gap-2">
         <Button
           variant="outline"

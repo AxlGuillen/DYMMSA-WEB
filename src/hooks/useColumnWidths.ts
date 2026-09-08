@@ -5,25 +5,19 @@ import { useColumnWidthStore } from '@/stores/columnWidthStore'
 import { useMounted } from '@/hooks/useMounted'
 import type { TableColumn } from '@/hooks/useVisibleColumns'
 
-/** Piso duro del arrastre: por debajo la columna deja de ser usable. */
+/** Drag floor: below this the column stops being usable. */
 export const MIN_COLUMN_WIDTH = 60
-/** Ancho cuando la columna no declara `width` propio. */
+/** Fallback when the column declares no `width`. */
 export const DEFAULT_COLUMN_WIDTH = 160
 
-/**
- * Clases de tabla redimensionable: table-fixed (el <th> manda, sin arrastre
- * "elástico") + w-max min-w-full (crece con scroll-x sin encogerse).
- */
+/** table-fixed so the <th> rules (no elastic drag); w-max min-w-full grows with scroll-x. */
 export const RESIZABLE_TABLE_CLASS =
   'table-fixed w-max min-w-full [&_td]:overflow-hidden [&_td]:text-ellipsis'
 
-/** Celda de la columna fija de acciones: bg-inherit hereda el fondo de SU fila (resaltados y hover). */
+/** bg-inherit so the sticky cell keeps ITS row background (highlight, hover). */
 export const STICKY_ACTIONS_CELL = 'sticky right-0 z-10 bg-inherit border-l'
 
-/**
- * Anchos por tabla (#55). SSR-safe: hasta el primer frame reporta el default
- * (hidratación); el clamp vive aquí para acotar cualquier entrada.
- */
+/** Per-table widths (#55). SSR-safe: reports the default until hydrated. */
 export type ColumnWidths = ReturnType<typeof useColumnWidths>
 
 export function useColumnWidths(tableId: string, columns: readonly TableColumn[]) {

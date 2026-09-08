@@ -1,13 +1,10 @@
-/**
- * Auto-learn: cada cotización/orden guardada enriquece etm_products.
- * Reglas en CLAUDE.md; cálculos puros + una función impura que los usa.
- */
+/** Auto-learn: every saved quotation/order enriches etm_products (rules in CLAUDE.md). */
 
 import { isProductItem } from '@/lib/business-rules'
 import type { createClient } from '@/lib/supabase/server'
 import type { QuotationItemRow } from '@/types/database'
 
-/** Resultado del auto-learn (distinto del AutoLearnResult legacy de types/database.ts). */
+/** Distinct from the legacy AutoLearnResult in types/database.ts. */
 export interface QuotationAutoLearnResult {
   added: number
   updated: number
@@ -15,8 +12,6 @@ export interface QuotationAutoLearnResult {
 }
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
-
-// ─── Tipos internos ────────────────────────────────────────────────────
 
 type ExistingEtm = {
   etm: string
@@ -31,9 +26,7 @@ type ExistingEtm = {
 
 type EligibleItem = QuotationItemRow & { etm: string }
 
-// ─── Funciones puras ───────────────────────────────────────────────────
-
-/** Elegible: producto con etm y (model_code o description) — o un is_sold explícito solo. */
+/** Eligible: product with etm plus model_code/description — or an explicit is_sold alone. */
 export function isEligibleForAutoLearn(item: QuotationItemRow): item is EligibleItem {
   return (
     isProductItem(item) &&
@@ -42,7 +35,7 @@ export function isEligibleForAutoLearn(item: QuotationItemRow): item is Eligible
   )
 }
 
-/** Campos del INSERT nuevo. Regla: brand default URREA SOLO si hay model_code. */
+/** INSERT fields. Brand defaults to URREA ONLY when a model_code exists. */
 export function computeNewEtmFields(item: EligibleItem): {
   etm: string
   description: string
@@ -57,8 +50,8 @@ export function computeNewEtmFields(item: EligibleItem): {
     etm:            item.etm,
     description:    item.description    || '',
     description_es: item.description_es || '',
-    // Curada DYMMSA CRUDA de la UI — nunca la resuelta con catálogo: la oficial
-    // de URREA no debe copiarse a etm_products (jerarquía en lectura, ADR-013).
+    // Raw curated value, never the catalog-resolved one: the official URREA
+    // description must not be copied into etm_products (ADR-013).
     dymmsa_description: item.dymmsa_description || null,
     model_code:     item.model_code     || '',
     price:          item.unit_price     ?? 0,
@@ -67,7 +60,7 @@ export function computeNewEtmFields(item: EligibleItem): {
   }
 }
 
-/** Merge del UPDATE: solo campos no vacíos que cambiaron — jamás pisa con vacío. */
+/** UPDATE merge: only non-empty changed fields — never overwrites with empty. */
 export function mergeEtmFields(
   existing: ExistingEtm,
   incoming: EligibleItem
@@ -78,7 +71,7 @@ export function mergeEtmFields(
     updates.description = incoming.description
   if (incoming.description_es && incoming.description_es !== existing.description_es)
     updates.description_es = incoming.description_es
-  // Curada cruda: solo valor no vacío, nunca pisa con vacío (misma regla que el resto).
+  // Raw curated value, only when non-empty — same rule as the rest.
   if (incoming.dymmsa_description && incoming.dymmsa_description !== existing.dymmsa_description)
     updates.dymmsa_description = incoming.dymmsa_description
   if (incoming.model_code     && incoming.model_code     !== existing.model_code)
@@ -87,17 +80,14 @@ export function mergeEtmFields(
     updates.brand = incoming.brand
   if (incoming.unit_price != null && incoming.unit_price !== existing.price)
     updates.price = incoming.unit_price
-  // is_sold es tri-estado: solo propagamos un valor EXPLÍCITO (true/false).
-  // Un `null` entrante = "sin definir" → nunca pisa lo que ya haya en el catálogo.
+  // Tri-state: only an EXPLICIT true/false propagates; an incoming `null`
+  // ("undefined") must never overwrite the catalog.
   if (incoming.is_sold != null && incoming.is_sold !== existing.is_sold)
     updates.is_sold = incoming.is_sold
 
   return { updates, hasChanges: Object.keys(updates).length > 0 }
 }
 
-// ─── Función impura (orchestración) ────────────────────────────────────
-
-/** Inserta o actualiza cada ítem elegible; retorna { added, updated, skipped }. */
 export async function processAutoLearn(
   supabase: SupabaseServerClient,
   userId: string,
@@ -122,7 +112,6 @@ export async function processAutoLearn(
     const existing = existingMap.get(item.etm)
 
     if (!existing) {
-      // ── INSERT ─────────────────────────────────────────────────────
       // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
       const { error } = await supabase
         .from('etm_products')
@@ -135,7 +124,6 @@ export async function processAutoLearn(
         result.added++
       }
     } else {
-      // ── UPDATE ─────────────────────────────────────────────────────
       const { updates, hasChanges } = mergeEtmFields(existing, item)
 
       if (!hasChanges) {

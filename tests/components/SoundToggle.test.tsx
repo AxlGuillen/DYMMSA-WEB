@@ -1,8 +1,4 @@
-/**
- * Toggle de sonidos de UI (issue #28). El wrapper @/lib/sound se mockea:
- * jsdom no tiene Web Audio y el componente solo debe ORQUESTAR (store + wrapper),
- * no sintetizar audio.
- */
+/** UI sound toggle (#28): @/lib/sound is mocked — jsdom has no Web Audio and this only orchestrates. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -46,8 +42,8 @@ describe('SoundToggle', () => {
     useSoundStore.setState({ soundEnabled: false })
     render(<SoundToggle />)
 
-    // findBy: hasta el primer frame (useMounted) el botón muestra el estado
-    // SSR-safe "activado" aunque el store diga silenciado.
+    // findBy: until the first frame (useMounted) the button shows the SSR-safe
+    // "on" state even when the store says muted.
     await user.click(await screen.findByRole('button', { name: 'Activar sonidos' }))
 
     expect(useSoundStore.getState().soundEnabled).toBe(true)

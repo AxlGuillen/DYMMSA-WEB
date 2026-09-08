@@ -33,12 +33,12 @@ import { SeparatorColorPicker } from '@/components/SeparatorColorPicker'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import type { QuotationItemRow } from '@/types/database'
 
-// Umbral DnD↔virtualización (#29): nunca coexisten — dnd-kit necesita la fila
-// montada para soltar y virtualizar desmonta las fuera de viewport.
+// DnD and virtualization never coexist (#29): dnd-kit needs the row mounted to
+// drop on it, and virtualizing unmounts everything off-viewport.
 const DRAG_MAX_ITEMS = 300
 
-// Columnas del editor (issue #18). Los ids son API persistida (localStorage).
-// drag/ETM/Acciones son fijas: sin identificador ni acciones la fila queda inoperable.
+// Ids are a persisted API (localStorage) (#18). drag/ETM/Acciones stay fixed:
+// without an identifier or actions the row is unusable.
 const EDITOR_COLUMNS: readonly TableColumn[] = [
   { id: 'drag', label: 'Reordenar', hideable: false },
   { id: 'etm', label: 'ETM', hideable: false },
@@ -55,8 +55,8 @@ const EDITOR_COLUMNS: readonly TableColumn[] = [
   { id: 'actions', label: 'Acciones', hideable: false },
 ]
 
-// Anchos para el modo virtualizado (table-fixed): sin ellos las columnas saltan
-// al scrollear porque solo ~20 filas definen su ancho. El contenido se trunca.
+// Widths for virtualized mode (table-fixed): without them columns jump while
+// scrolling, since only the ~20 mounted rows would define their width.
 const COLUMN_WIDTHS: Record<string, string> = {
   control: '3rem',
   etm: '7.5rem',
@@ -73,7 +73,6 @@ const COLUMN_WIDTHS: Record<string, string> = {
   actions: '7rem',
 }
 
-// --- helpers ----------------------------------------------------------
 
 const isMissingData = (item: QuotationItemRow): boolean =>
   isProductItem(item) && !item.description && !item.model_code
@@ -88,7 +87,7 @@ const isComplete = (item: QuotationItemRow): boolean =>
   !!item.model_code && item.quantity != null && item.unit_price != null
 
 const getRowClass = (item: QuotationItemRow): string => {
-  // "No lo vendemos" tiene prioridad: no importa que falten datos, se salta.
+  // "Not sold" wins over missing data: the row is skipped anyway.
   if (isNotSold(item)) return notSoldRowClass(item.is_sold)
   if (isMissingData(item))
     return 'bg-orange-50 dark:bg-orange-950/20 hover:bg-orange-100 dark:hover:bg-orange-950/30'
@@ -106,9 +105,8 @@ const rowClassName = (item: QuotationItemRow, hasError: boolean, isDragging: boo
     hasError ? 'outline outline-2 -outline-offset-1 outline-red-500 bg-red-50 dark:bg-red-950/30' : ''
   }`
 
-// --- shared cells (ETM → Acciones) ------------------------------------
-// Compartidas por la fila de drag y la virtualizada: la única diferencia entre
-// modos es la PRIMERA celda (grip vs flechas), todo lo demás es idéntico.
+// Shared by the drag row and the virtualized one: the only difference between
+// modes is the FIRST cell (grip vs arrows).
 
 interface RowCellsProps {
   item: QuotationItemRow
@@ -230,7 +228,6 @@ const RowCells = memo(function RowCells({
   )
 })
 
-// --- reorder-by-arrows control cell (modo virtualizado) ---------------
 
 interface ReorderCellProps {
   onMoveUp: () => void
@@ -266,16 +263,15 @@ function ReorderCell({ onMoveUp, onMoveDown, isFirst, isLast }: ReorderCellProps
   )
 }
 
-// --- sortable separator row (modo drag) -------------------------------
 
 interface SortableSeparatorRowProps {
   item: QuotationItemRow
   onLabelChange: (id: string, label: string) => void
   onColorChange: (id: string, color: string | null) => void
   onRemove: (id: string) => void
-  /** Columnas que abarca el label = visibles − 2 (drag y Acciones son fijas). */
+  /** Columns the label spans = visible − 2 (drag and Acciones are fixed). */
   labelSpan: number
-  /** Posición del separador entre los separadores (color automático, issue #73). */
+  /** Index among separators; drives the automatic color (#73). */
   sectionIndex: number
 }
 
@@ -318,7 +314,6 @@ const SortableSeparatorRow = memo(function SortableSeparatorRow({
   )
 })
 
-// Celdas compartidas del separador (label editable + color + eliminar).
 interface SeparatorLabelCellsProps {
   item: QuotationItemRow
   labelSpan: number
@@ -330,7 +325,7 @@ interface SeparatorLabelCellsProps {
 const SeparatorLabelCells = memo(function SeparatorLabelCells({
   item, labelSpan, onLabelChange, onColorChange, onRemove,
 }: SeparatorLabelCellsProps) {
-  // Input local con commit en blur: cada keystroke re-renderizaría todas las filas.
+  // Local input committed on blur: every keystroke would re-render all rows.
   const [localLabel, setLocalLabel] = useState(item.section_label ?? '')
   const [prevLabel, setPrevLabel] = useState(item.section_label)
   if (prevLabel !== item.section_label) {
@@ -338,8 +333,8 @@ const SeparatorLabelCells = memo(function SeparatorLabelCells({
     setLocalLabel(item.section_label ?? '')
   }
 
-  // Commit también al desmontar: la virtualización desmonta la fila con foco y
-  // el onBlur puede no disparar — sin esto se perdería el nombre de sección.
+  // Also commit on unmount: virtualization can unmount the focused row before
+  // onBlur fires, losing the section name.
   const commitRef = useRef({ localLabel, committed: item.section_label ?? '', onLabelChange, id: item._id })
   useEffect(() => {
     commitRef.current = { localLabel, committed: item.section_label ?? '', onLabelChange, id: item._id }
@@ -385,7 +380,6 @@ const SeparatorLabelCells = memo(function SeparatorLabelCells({
   )
 })
 
-// --- sortable product row (modo drag) ---------------------------------
 
 interface SortableRowProps {
   item: QuotationItemRow
@@ -393,9 +387,9 @@ interface SortableRowProps {
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
   hasError?: boolean
-  /** Descripción DYMMSA resuelta (catálogo > curada > null) + su origen. */
+  /** Resolved DYMMSA description (catalog > curated > null) plus its origin. */
   dymmsaDesc?: { value: string | null; source: DymmsaDescriptionSource }
-  /** Visibilidad de columnas (identidad estable — no rompe el memo). */
+  /** Column visibility; stable identity so the memo holds. */
   isVisible: (columnId: string) => boolean
 }
 
@@ -435,7 +429,6 @@ const SortableRow = memo(function SortableRow({
   )
 })
 
-// --- virtualized rows (modo >300 ítems, reordenar con flechas) --------
 
 interface VirtualRowProps extends RowCellsProps {
   hasError?: boolean
@@ -445,12 +438,12 @@ interface VirtualRowProps extends RowCellsProps {
   onLabelChange: (id: string, label: string) => void
   onColorChange: (id: string, color: string | null) => void
   labelSpan: number
-  /** Índice de sección del separador (0 en filas de producto). */
+  /** Separator section index; 0 on product rows. */
   sectionIndex: number
 }
 
-// forwardRef: react-virtual mide cada fila por su nodo (`measureElement`) para
-// soportar alturas mixtas (producto vs separador).
+// forwardRef: react-virtual measures each row node (`measureElement`) to support
+// mixed heights (product vs separator).
 const VirtualRow = memo(forwardRef<HTMLTableRowElement, VirtualRowProps & { dataIndex: number }>(
   function VirtualRow(props, ref) {
     const { item, hasError = false, isFirst, isLast, onMove, dataIndex } = props
@@ -500,7 +493,6 @@ const VirtualRow = memo(forwardRef<HTMLTableRowElement, VirtualRowProps & { data
   },
 ))
 
-// --- table header (compartido) ----------------------------------------
 
 interface HeaderProps {
   isVisible: (id: string) => boolean
@@ -530,7 +522,7 @@ function TableHeader({ isVisible, sticky = false }: HeaderProps) {
   )
 }
 
-/** <colgroup> para el modo virtualizado (table-fixed): evita el salto de columnas. */
+/** <colgroup> for virtualized mode (table-fixed): keeps columns from jumping. */
 function ColGroup({ isVisible }: { isVisible: (id: string) => boolean }) {
   const bodyCols = EDITOR_COLUMNS.filter((c) => c.id !== 'drag' && (c.hideable === false || isVisible(c.id)))
   return (
@@ -543,17 +535,15 @@ function ColGroup({ isVisible }: { isVisible: (id: string) => boolean }) {
   )
 }
 
-// --- component --------------------------------------------------------
 
 interface QuotationEditorProps {
-  /** _id de filas con error pre-flight para resaltarlas. */
+  /** _ids of rows flagged pre-flight, to highlight them. */
   errorItemIds?: ReadonlySet<string>
 }
 
 function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
-  // Selectores slice: el editor solo re-renderiza cuando cambia su slice;
-  // tipear en name/customer_name no lo afecta. Las acciones de Zustand son
-  // refs estables, así que los selectores de acción no causan re-renders.
+  // Slice selectors: typing in name/customer_name must not re-render the editor.
+  // Zustand actions are stable refs, so action selectors never trigger renders.
   const items = useQuotationStore((s) => s.items)
   const addItem = useQuotationStore((s) => s.addItem)
   const updateItem = useQuotationStore((s) => s.updateItem)
@@ -564,8 +554,7 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
   const catalogDescriptions = useQuotationStore((s) => s.catalogDescriptions)
   const mergeCatalogDescriptions = useQuotationStore((s) => s.mergeCatalogDescriptions)
 
-  // Map para resolveDymmsaDescription (catálogo > curada > null).
-  // Indexado por catalogKey (MARCA|CODIGO): el resolver cruza con la marca del ítem.
+  // Indexed by catalogKey (BRAND|CODE): the resolver matches on the item's brand too.
   const catalogMap = useMemo(
     () => new Map(Object.entries(catalogDescriptions ?? {})),
     [catalogDescriptions]
@@ -575,8 +564,8 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
   const productItems = useMemo(() => items.filter(isProductItem), [items])
   const cols = useVisibleColumns('quoter-editor', EDITOR_COLUMNS)
 
-  // Descripción DYMMSA memoizada por _id: resolverla inline rompía el memo por
-  // fila y repintaba las 1000 filas en cada render.
+  // Memoized per _id: resolving inline broke the per-row memo and repainted all
+  // 1000 rows on every render.
   const dymmsaByRow = useMemo(() => {
     const map = new Map<string, { value: string | null; source: DymmsaDescriptionSource }>()
     for (const item of items) map.set(item._id, resolveDymmsaDescription(item, catalogMap))
@@ -589,12 +578,11 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
 
   const sensors = useSensors(useSensor(PointerSensor))
 
-  // Arriba del umbral: virtualizar + reordenar con flechas (sin DnD).
+  // Above the threshold: virtualize and reorder with arrows instead of DnD.
   const virtualized = items.length > DRAG_MAX_ITEMS
 
-  // Callbacks memoizados — habilita React.memo en las filas: sin ref estable de
-  // los handlers, memo no evita re-render alguno. Los setters van en deps: son
-  // estables y el React Compiler exige listar toda dependencia inferida.
+  // Stable handler refs are what makes React.memo on the rows worth anything.
+  // Setters stay in deps: stable, but the React Compiler requires listing them.
   const handleEdit = useCallback((item: QuotationItemRow) => {
     setSelectedItem(item)
     setModalMode('edit')
@@ -630,7 +618,7 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
     updateItem(id, { separator_color: color })
   }, [updateItem])
 
-  // Índice de sección por separador (color automático que rota, issue #73).
+  // Section index per separator; drives the rotating automatic color (#73).
   const sectionIndexById = useMemo(() => {
     const map = new Map<string, number>()
     let n = 0
@@ -640,12 +628,11 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
     return map
   }, [items])
 
-  // IDs estables para SortableContext: items.map(...) creaba un array nuevo cada
-  // render → @dnd-kit reinicializaba los sortables. Con useMemo solo cambia
-  // cuando items cambia.
+  // Stable IDs for SortableContext: a fresh array each render made @dnd-kit
+  // reinitialize every sortable.
   const itemIds = useMemo(() => items.map((i) => i._id), [items])
 
-  // --- stats (only product rows) --- un solo paso sobre productItems.
+  // Stats in a single pass over productItems.
   const { noDataCount, noQuantityCount, completeCount, partialTotal } = useMemo(() => {
     let noData = 0, noQty = 0, complete = 0
     for (const item of productItems) {
@@ -663,7 +650,7 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
 
   const allComplete = productItems.length > 0 && noDataCount === 0 && noQuantityCount === 0
 
-  // ETMs presentes (excluye la fila en edición) para el aviso de duplicado del modal.
+  // Existing ETMs (minus the row being edited) for the modal's duplicate warning.
   const existingEtms = useMemo(
     () => items.flatMap((i) =>
       isProductItem(i) && i._id !== selectedItem?._id ? [i.etm] : []
@@ -676,7 +663,6 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
   return (
     <div className="space-y-4">
 
-      {/* Summary cards */}
       {items.length > 0 && (
         <div data-tour="quoter-stats" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border bg-card px-4 py-3 space-y-0.5">
@@ -716,7 +702,6 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
         </div>
       )}
 
-      {/* Toolbar */}
       <div data-tour="quoter-toolbar" className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm">
           {partialTotal > 0 && (
@@ -740,7 +725,6 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
         </div>
       </div>
 
-      {/* Table */}
       {items.length === 0 ? (
         <div data-tour="quoter-table" className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
           <p className="text-sm">No hay productos. Carga un Excel o agrega uno manualmente.</p>
@@ -838,7 +822,6 @@ function QuotationEditorComponent({ errorItemIds }: QuotationEditorProps = {}) {
   )
 }
 
-// --- virtualized table body -------------------------------------------
 
 interface VirtualizedTableProps {
   items: QuotationItemRow[]
@@ -862,7 +845,7 @@ function VirtualizedTable({
   const scrollRef = useRef<HTMLDivElement>(null)
   const totalCols = cols.visibleCount // control + body cols
 
-  // useVirtualizer es incompatible con el React Compiler (solo pierde auto-memo).
+  // useVirtualizer is incompatible with the React Compiler (only loses auto-memo).
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -918,7 +901,6 @@ function VirtualizedTable({
   )
 }
 
-// memo: el editor lee sus datos del store con selectores propios, así que solo
-// re-renderiza cuando cambia su slice o su única prop (errorItemIds, identidad
-// estable). Sin esto, tipear el nombre/cliente en la página padre lo repintaba.
+// memo: without it, typing the name/customer in the parent page repainted the
+// whole editor, which otherwise only reacts to its own store slice.
 export const QuotationEditor = memo(QuotationEditorComponent)

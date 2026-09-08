@@ -23,7 +23,7 @@ export async function GET() {
       console.error('Error counting urrea_catalog:', error)
       return serverError('Error al obtener el total')
     }
-    // El desglose por marca es informativo (filtro): si falla, degrada a lista vacía.
+    // The brand breakdown only feeds the filter: on failure it degrades to an empty list.
     if (brandError) console.warn('urrea_catalog_brand_counts error (ignored):', brandError)
 
     const brands: BrandCount[] = (brandRows ?? []).map((r: BrandCount) => ({

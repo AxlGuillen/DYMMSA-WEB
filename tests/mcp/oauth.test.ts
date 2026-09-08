@@ -1,10 +1,6 @@
-/**
- * verifyToken del MCP remoto (ADR-023) — las puertas y la caché de identidad.
- *
- * GoTrue se mockea a nivel módulo (vi.mock de ./supabase). Los "tokens" son
- * JWTs sintéticos (header.payload.firma en base64url) — verifyToken solo lee
- * claims DESPUÉS de que getUser (mockeado) los avala, igual que en producción.
- */
+/** verifyToken of the remote MCP (ADR-023): the gates and the identity cache.
+ *  GoTrue is mocked at module level and the tokens are synthetic JWTs — claims
+ *  are read only AFTER the mocked getUser vouches for them, as in production. */
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -18,7 +14,7 @@ import { verifyToken, resetIdentityCache } from '@/lib/mcp/oauth'
 
 const b64 = (obj: unknown) => Buffer.from(JSON.stringify(obj)).toString('base64url')
 
-/** JWT sintético con los claims dados (la firma no se valida aquí — GoTrue lo hace). */
+/** Synthetic JWT with the given claims (the signature is not checked here). */
 function makeToken(claims: Record<string, unknown>): string {
   return `${b64({ alg: 'HS256' })}.${b64(claims)}.firma`
 }
@@ -117,8 +113,8 @@ describe('verifyToken — caché de identidad', () => {
   })
 
   test('REGLA: la identidad de un token JAMÁS se sirve a otro (aislamiento de la caché)', async () => {
-    // El análogo dymmsa del test de caché-por-tenant: una instancia caliente de
-    // Node se comparte entre usuarios; la clave (hash del token) impide fugas.
+    // A hot Node instance is shared across users; the key (token hash) is what
+    // keeps identities from leaking between them.
     const tokenA = makeToken({ client_id: 'c1', sub: 'user-a' })
     const tokenB = makeToken({ client_id: 'c1', sub: 'user-b' })
 
@@ -130,7 +126,7 @@ describe('verifyToken — caché de identidad', () => {
 
     expect((infoA?.extra as { userId: string }).userId).toBe('user-a')
     expect((infoB?.extra as { userId: string }).userId).toBe('user-b')
-    expect(getUser).toHaveBeenCalledTimes(2) // una validación por token, sin cruce
+    expect(getUser).toHaveBeenCalledTimes(2) // one validation per token, no crossover
   })
 
   test('no cachea errores: un fallo transitorio no se pega 60s', async () => {

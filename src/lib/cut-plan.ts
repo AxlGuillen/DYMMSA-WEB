@@ -1,39 +1,28 @@
-/**
- * Módulo de corte — matemática pura en mm (ADR-022): momento 1 = necesidad
- * neta para pedir; momento 2 = acomodo en barras/hojas del proveedor.
- * El caller coerce los numeric-string de supabase-js ANTES de llamar aquí.
- */
+/** Pure mm math (ADR-022). Callers coerce supabase-js numeric strings first. */
 
-// ─── Margen de corte (ajuste) ──────────────────────────────────────────
-
-/** Margen que consume cada partición (el "1 o 2 cm" del taller). */
+/** Margin consumed by every cut. */
 export const DEFAULT_CUT_MARGIN_MM = 20
 export const SETTING_CUT_MARGIN_MM = 'cut_margin_mm'
 
-/** Margen desde settings; 0 es válido, inválidos caen al default — la config nunca rompe el cálculo. */
+/** 0 is valid; invalid values fall back to the default so config never breaks the math. */
 export function resolveCutMargin(settings: Record<string, unknown>): number {
   const raw = settings[SETTING_CUT_MARGIN_MM]
   const value = typeof raw === 'number' ? raw : Number(raw)
   return Number.isFinite(value) && value >= 0 ? value : DEFAULT_CUT_MARGIN_MM
 }
 
-/**
- * mm legibles: bajo el metro se queda en mm ("300 mm"); desde 1 m usa metros
- * con hasta 2 decimales sin ceros de cola ("6 m", "2.5 m", "1.02 m").
- */
+/** Readable mm: below 1 m stays in mm, from 1 m switches to metres. */
 export function formatMm(mm: number): string {
   if (mm < 1000) return `${Math.round(mm * 10) / 10} mm`
   const meters = Math.round((mm / 1000) * 100) / 100
   return `${meters} m`
 }
 
-/** mm² legibles: bajo el m² usa cm² ("600 cm²"); desde 1 m² usa m². */
+/** Readable mm²: below 1 m² uses cm². */
 export function formatMm2(mm2: number): string {
   if (mm2 < 1_000_000) return `${Math.round(mm2 / 100)} cm²`
   return `${Math.round((mm2 / 1_000_000) * 100) / 100} m²`
 }
-
-// ─── Entradas ──────────────────────────────────────────────────────────
 
 export interface TubePieceInput {
   id: string
@@ -45,23 +34,20 @@ export interface TubePieceInput {
 export interface PlatePieceInput {
   id: string
   thicknessMm: number
-  /** Ancho de la PIEZA (el de la tira lo pone la presentación del proveedor). */
+  /** Width of the PIECE; the stock width comes from the supplier presentation. */
   widthMm: number
   lengthMm: number
   quantity: number
 }
 
-// ─── Momento 1: necesidad neta ─────────────────────────────────────────
-
 export interface TubeNeedGroup {
   diameterMm: number
   pieces: TubePieceInput[]
   totalUnits: number
-  /** Σ (longitud + margen) × cantidad — lo que se le pide al proveedor. */
+  /** Σ (length + margin) × quantity — the figure to order. */
   netLengthMm: number
 }
 
-/** Agrupa por diámetro (orden ascendente) y suma la necesidad con margen. */
 export function tubeNetNeeds(pieces: readonly TubePieceInput[], marginMm: number): TubeNeedGroup[] {
   const groups = new Map<number, TubeNeedGroup>()
   for (const piece of pieces) {
@@ -81,13 +67,13 @@ export interface PlateNeedGroup {
   thicknessMm: number
   pieces: PlatePieceInput[]
   totalUnits: number
-  /** Área total pedida (sin margen — referencia, no cifra de compra). */
+  /** Total area, no margin — reference only, not a purchase figure. */
   areaMm2: number
-  /** Ancho mínimo que debe tener la tira del proveedor (la pieza más ancha). */
+  /** Minimum supplier stock width: the widest piece. */
   minWidthMm: number
 }
 
-/** Necesidad por espesor: antes del proveedor lo útil es área + ancho mínimo, no metros. */
+/** Per thickness: before picking a supplier what matters is area + min width, not metres. */
 export function plateNetNeeds(pieces: readonly PlatePieceInput[]): PlateNeedGroup[] {
   const groups = new Map<number, PlateNeedGroup>()
   for (const piece of pieces) {
@@ -104,8 +90,6 @@ export function plateNetNeeds(pieces: readonly PlatePieceInput[]): PlateNeedGrou
   return [...groups.values()].sort((a, b) => a.thicknessMm - b.thicknessMm)
 }
 
-// ─── Momento 2: acomodo de barras (tubos, 1D) ──────────────────────────
-
 export interface PackedSegment {
   pieceId: string
   lengthMm: number
@@ -113,12 +97,12 @@ export interface PackedSegment {
 
 export interface PackedBar {
   segments: PackedSegment[]
-  /** Material consumido: piezas + un margen por partición (clamp al largo). */
+  /** Pieces + one margin per cut, clamped to the bar length. */
   usedMm: number
   leftoverMm: number
 }
 
-/** Pieza que no cabe NI SOLA en la presentación elegida. */
+/** Piece that does not fit even alone in the chosen presentation. */
 export interface ImpossiblePiece {
   pieceId: string
   lengthMm: number
@@ -130,10 +114,8 @@ export interface BarPackResult {
   impossible: ImpossiblePiece[]
 }
 
-/**
- * First-fit decreasing en barras. Modelo del margen: [p][corte][p]…[sobrante];
- * la última partición puede caer a ras, por eso su margen no se exige al entrar.
- */
+/** First-fit decreasing. Margin model [p][cut][p]…[leftover]: the last cut may end flush, so its
+ *  margin is not required on entry. */
 export function packBars(
   pieces: readonly { id: string; lengthMm: number; quantity: number }[],
   barLengthMm: number,
@@ -143,7 +125,6 @@ export function packBars(
     .filter((piece) => piece.lengthMm > barLengthMm)
     .map((piece) => ({ pieceId: piece.id, lengthMm: piece.lengthMm, quantity: piece.quantity }))
 
-  // Expandir a unidades físicas y ordenar de mayor a menor (FFD).
   const units = pieces
     .filter((piece) => piece.lengthMm <= barLengthMm)
     .flatMap((piece) =>
@@ -174,46 +155,44 @@ export function packBars(
   }
 }
 
-// ─── Momento 2: acomodo en hojas (placas, carriles por ancho) ──────────
-
 export interface PackedPlateItem {
   pieceId: string
   widthMm: number
   lengthMm: number
-  /** true si la pieza se colocó girada 90° (ancho↔largo invertidos). */
+  /** true when placed rotated 90°. */
   rotated: boolean
-  /** Posición a lo LARGO de la hoja (X, para dibujar). */
+  /** Position along the sheet length (X). */
   xMm: number
-  /** Posición a lo ANCHO de la hoja (Y = offset del carril). */
+  /** Position across the sheet width (Y = lane offset). */
   yMm: number
 }
 
-/** Banda a lo ancho de la hoja; las piezas corren a lo largo, punta con punta. */
+/** Band across the sheet width; pieces run end to end along the length. */
 export interface PackedLane {
-  /** Ancho del carril (la pieza más ancha lo define). */
+  /** Lane width, set by its widest piece. */
   widthMm: number
-  /** Offset del carril a lo ancho de la hoja. */
+  /** Lane offset across the sheet width. */
   yMm: number
-  /** Largo consumido: piezas + margen entre cada par. */
+  /** Length used: pieces + margin between each pair. */
   usedLengthMm: number
   items: PackedPlateItem[]
 }
 
 export interface PackedSheet {
   lanes: PackedLane[]
-  /** Ancho consumido: carriles + margen entre cada par. */
+  /** Width used: lanes + margin between each pair. */
   usedWidthMm: number
-  /** Máximo largo consumido entre carriles (para el sobrante global). */
+  /** Longest lane, for the global leftover. */
   usedLengthMm: number
 }
 
 export interface SheetPackResult {
   sheets: PackedSheet[]
-  /** Piezas que no caben en NINGUNA orientación permitida. */
+  /** Pieces that fit in NO allowed orientation. */
   impossible: ImpossiblePiece[]
 }
 
-/** Orientación colocable de una unidad (la rotada invierte ancho↔largo). */
+/** Placeable orientation; the rotated one swaps width and length. */
 interface Orientation {
   widthMm: number
   lengthMm: number
@@ -231,18 +210,15 @@ function orientationsFor(
   if (widthMm <= sheetWidthMm && lengthMm <= sheetLengthMm) {
     out.push({ widthMm, lengthMm, rotated: false })
   }
-  // La cuadrada no duplica; la rotada solo si cabe girada.
+  // A square piece must not duplicate; rotate only when it fits rotated.
   if (allowRotation && widthMm !== lengthMm && lengthMm <= sheetWidthMm && widthMm <= sheetLengthMm) {
     out.push({ widthMm: lengthMm, lengthMm: widthMm, rotated: true })
   }
   return out
 }
 
-/**
- * Acomodo en HOJAS por CARRILES (#81): FFD por ancho; dentro del carril las
- * piezas van punta con punta a lo largo. Con `allowRotation` cada pieza puede
- * girarse 90° si así cabe (desactivable cuando la veta/acabado manda).
- */
+/** Sheet packing by LANES (#81): FFD by width, pieces end to end inside a lane. `allowRotation` is
+ *  off when grain/finish dictates the orientation. */
 export function packSheets(
   pieces: readonly { id: string; widthMm: number; lengthMm: number; quantity: number }[],
   sheetWidthMm: number,
@@ -265,8 +241,8 @@ export function packSheets(
     for (let i = 0; i < piece.quantity; i++) units.push({ pieceId: piece.id, orientations })
   }
 
-  // Orientación "preferida" = la más angosta (conserva ancho de hoja); las
-  // unidades se ordenan por ese ancho desc — las difíciles definen carriles.
+  // Preferred orientation = narrowest (saves sheet width); units sort by it
+  // descending so the hardest ones define the lanes.
   const preferred = (u: { orientations: Orientation[] }) =>
     [...u.orientations].sort((a, b) => a.widthMm - b.widthMm || a.lengthMm - b.lengthMm)[0]
   units.sort((a, b) => {
@@ -276,8 +252,7 @@ export function packSheets(
 
   const sheets: PackedSheet[] = []
   for (const unit of units) {
-    // 1) Carril existente (first-fit sobre todas las hojas): dentro del carril
-    //    gana la orientación de MENOR largo — conserva largo del carril.
+    // 1) Existing lane (first-fit across sheets): shortest orientation wins, saving lane length.
     let placed = false
     for (const sheet of sheets) {
       for (const lane of sheet.lanes) {
@@ -297,7 +272,7 @@ export function packSheets(
     }
     if (placed) continue
 
-    // 2) Carril nuevo en hoja abierta: gana la orientación más ANGOSTA que quepa.
+    // 2) New lane on an open sheet: narrowest fitting orientation wins.
     const byWidth = [...unit.orientations].sort((a, b) => a.widthMm - b.widthMm)
     for (const o of byWidth) {
       const sheet = sheets.find((s) => s.usedWidthMm + marginMm + o.widthMm <= sheetWidthMm)
@@ -317,7 +292,7 @@ export function packSheets(
     }
     if (placed) continue
 
-    // 3) Hoja nueva con la orientación preferida (la más angosta).
+    // 3) New sheet with the preferred (narrowest) orientation.
     const o = byWidth[0]
     sheets.push({
       lanes: [{

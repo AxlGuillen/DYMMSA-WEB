@@ -34,7 +34,7 @@ describe('validateQuotationItems', () => {
   })
 
   test('ítem "no lo vendemos" (is_sold=false) queda exento aunque falten datos', () => {
-    // Sin cantidad, sin precio y hasta sin ETM: no debe generar ningún issue.
+    // No quantity, no price, not even ETM: must not raise any issue.
     const issues = validateQuotationItems([
       row({ is_sold: false, quantity: null, unit_price: null, etm: '', model_code: '' }),
     ])
@@ -119,8 +119,8 @@ describe('validateQuotationItems', () => {
   test('onlyApproved: filtra a is_approved=true', () => {
     const items = [
       row({ etm: 'YES', quantity: 0, is_approved: true }),       // error
-      row({ etm: 'NO', quantity: 0, is_approved: false }),       // ignorado
-      row({ etm: 'PEND', quantity: 0, is_approved: null }),      // ignorado
+      row({ etm: 'NO', quantity: 0, is_approved: false }),       // ignored
+      row({ etm: 'PEND', quantity: 0, is_approved: null }),      // ignored
     ]
     const issues = validateQuotationItems(items, { onlyApproved: true })
     expect(issues.map((i) => i.etm)).toEqual(['YES'])
@@ -153,8 +153,6 @@ describe('getErrorItemIds', () => {
     expect(ids.size).toBe(2)
   })
 })
-
-// ─── Encabezado (issue #26) ─────────────────────────────────────────────
 
 describe('getMissingHeaderFields', () => {
   test('ambos presentes → sin faltantes', () => {

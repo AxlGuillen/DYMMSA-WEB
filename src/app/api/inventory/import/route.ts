@@ -8,7 +8,7 @@ interface ExcelRow {
   QUANTITY?: number | string
 }
 
-/** Lee la ubicación por varios alias, case-insensitive. `null` si no viene. */
+/** The location column arrives under several aliases, matched case-insensitively. */
 function pickLocation(row: Record<string, unknown>): string | null {
   const lower = new Map(Object.keys(row).map((k) => [k.trim().toLowerCase(), row[k]]))
   for (const key of ['ubicacion', 'ubicación', 'location', 'gaveta']) {
@@ -36,7 +36,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Read Excel file
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'array' })
     const sheetName = workbook.SheetNames[0]
@@ -50,7 +49,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate required columns
     const firstRow = rows[0]
     if (!('MODEL_CODE' in firstRow)) {
       return NextResponse.json(
@@ -59,12 +57,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // If replace mode, delete all existing inventory first
     if (mode === 'replace') {
       const { error: deleteError } = await supabase
         .from('store_inventory')
         .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
+        .neq('id', '00000000-0000-0000-0000-000000000000') // neq a nil UUID matches every row
 
       if (deleteError) {
         console.error('Error deleting inventory:', deleteError)
@@ -95,7 +92,6 @@ export async function POST(request: NextRequest) {
       const location = pickLocation(row as Record<string, unknown>)
 
       if (mode === 'replace') {
-        // In replace mode, just insert all
         // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { error } = await supabase
           .from('store_inventory')
@@ -108,7 +104,6 @@ export async function POST(request: NextRequest) {
           imported++
         }
       } else {
-        // Upsert mode
         const { data: existing } = await supabase
           .from('store_inventory')
           .select('id')
@@ -116,8 +111,8 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (existing) {
-          // Update. La ubicación solo se toca si el archivo la trae → una carga
-          // de solo cantidades NO borra la gaveta existente.
+          // Location is only touched when the file brings it: a quantity-only load
+          // must not wipe the existing drawer.
           const upd: { quantity: number; location?: string } = { quantity: safeQuantity }
           if (location !== null) upd.location = location
           const { error } = await supabase
@@ -131,7 +126,6 @@ export async function POST(request: NextRequest) {
             updated++
           }
         } else {
-          // Insert
           const { error } = await supabase
             .from('store_inventory')
             .insert({ model_code: modelCode, quantity: safeQuantity, location })

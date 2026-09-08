@@ -8,17 +8,14 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/** numeric de supabase-js llega como string → se coerce en la frontera. */
+/** Postgres numerics arrive as strings from supabase-js; coerce at the boundary, never in the lib. */
 function num(value: unknown): number | null {
   if (value == null) return null
   const n = Number(value)
   return Number.isFinite(n) ? n : null
 }
 
-/**
- * Piezas DYMMSA de la cotización para sembrar el corte rápido (#71) — misma
- * forma que los candidatos de orden; separadores e is_sold=false fuera.
- */
+/** DYMMSA pieces that seed quick cutting (#71); separators and is_sold=false excluded. */
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
@@ -31,8 +28,8 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       .select('id, quotation_number, customer_name')
       .eq('id', id)
       .single()
-    // PGRST116 = cero filas (el 404 legítimo); cualquier otro error es de
-    // infraestructura y no debe disfrazarse de "no existe" (review PR #76).
+    // PGRST116 = zero rows (the legit 404); any other error is infrastructure
+    // and must not masquerade as "not found" (PR #76).
     if (quotationError && quotationError.code !== 'PGRST116') {
       console.error('cut-candidates quotation error:', quotationError)
       return serverError('Error al cargar la cotización')

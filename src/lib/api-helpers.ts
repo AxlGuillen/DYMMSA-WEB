@@ -1,7 +1,4 @@
-/**
- * Helpers de route handlers: auth y respuestas estándar.
- * Uso: `const auth = await requireAuth(supabase); if ('error' in auth) return auth.error`
- */
+/** Route handler helpers. Use: `const auth = await requireAuth(supabase); if ('error' in auth) return auth.error` */
 
 import { NextResponse } from 'next/server'
 import type { User } from '@supabase/supabase-js'
@@ -9,9 +6,7 @@ import type { createClient } from '@/lib/supabase/server'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
-// ─── Auth ──────────────────────────────────────────────────────────────
-
-/** Retorna { user } o { error } con el 401 listo — errores como valores, sin excepciones. */
+/** Returns { user } or { error } with the 401 ready — errors as values, not exceptions. */
 export async function requireAuth(
   supabase: SupabaseServerClient
 ): Promise<{ user: User } | { error: NextResponse }> {
@@ -21,8 +16,6 @@ export async function requireAuth(
   if (!user) return { error: unauthorized() }
   return { user }
 }
-
-// ─── Respuestas estándar ───────────────────────────────────────────────
 
 export const unauthorized = (msg = 'No autorizado') =>
   NextResponse.json({ message: msg }, { status: 401 })

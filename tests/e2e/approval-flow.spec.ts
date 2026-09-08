@@ -1,11 +1,6 @@
 /**
- * E2E de navegador (Tier 2) — la página pública de aprobación `/approve/[token]`.
- * Es la ÚNICA pantalla que usa un cliente externo sin supervisión: si se rompe,
- * no te enteras hasta que un cliente se queja. Cubre el flujo #24: filtrar por
- * marca → aprobar → enviar (con confirmación) → pantalla de éxito, y verifica la
- * transición de estado en la BD real.
- *
- * Requiere `bunx supabase start`. Correr con: bun run test:e2e
+ * Browser E2E of the public approval page: the only screen an outside customer
+ * uses unsupervised, so a break there surfaces as a complaint, not a failure.
  */
 import { test, expect } from '@playwright/test'
 import { seedQuotation, sql, closePool } from '../integration/helpers/db'
@@ -13,7 +8,7 @@ import { seedQuotation, sql, closePool } from '../integration/helpers/db'
 test.afterAll(async () => { await closePool() })
 
 test('aprobación: filtrar por marca → aprobar todos → enviar → pantalla de éxito', async ({ page }) => {
-  // ── Arreglo: cotización en revisión con 2 marcas bajo un proyecto ───────
+  // Fixture: quotation under review with two brands.
   const { id, token } = await seedQuotation({
     status: 'sent_for_approval',
     items: [
@@ -24,33 +19,29 @@ test('aprobación: filtrar por marca → aprobar todos → enviar → pantalla d
     ],
   })
 
-  // Salta el splash intro (1.9s) para un test determinista.
+  // Skip the 1.9s intro splash to keep the test deterministic.
   await page.addInitScript(() => sessionStorage.setItem('dymmsa-approval-splash', '1'))
   await page.goto(`/approve/${token}`)
 
-  // Página pública (sin login) cargó con los productos.
   await expect(page.getByText('AP-URREA-1')).toBeVisible()
   await expect(page.getByText('AP-SURTEK-1')).toBeVisible()
 
-  // ── Filtro por marca (issue #24): SURTEK oculta las filas URREA ─────────
+  // Brand filter (#24): SURTEK hides the URREA rows.
   await page.getByRole('combobox').first().click()
   await page.getByRole('option', { name: 'SURTEK' }).click()
   await expect(page.getByText('AP-SURTEK-1')).toBeVisible()
-  await expect(page.getByText('AP-URREA-1')).toHaveCount(0) // filtrada fuera
+  await expect(page.getByText('AP-URREA-1')).toHaveCount(0)
 
-  // Limpiar el filtro → vuelven todas.
   await page.getByRole('combobox').first().click()
   await page.getByRole('option', { name: 'Todas las marcas' }).click()
   await expect(page.getByText('AP-URREA-1')).toBeVisible()
 
-  // ── Aprobar todos → enviar (con confirmación) ───────────────────────────
   await page.getByRole('button', { name: 'Aprobar todos' }).click()
   await page.getByRole('button', { name: 'Enviar aprobación' }).click()
-  // Popup de confirmación anti-envío-por-error.
+  // Confirmation popup guards against sending by accident.
   await expect(page.getByText('¿Enviar tu aprobación?')).toBeVisible()
   await page.getByRole('button', { name: 'Sí, enviar aprobación' }).click()
 
-  // ── Pantalla de éxito + estado real en la BD ────────────────────────────
   await expect(page.getByText('¡Aprobación enviada!')).toBeVisible()
   const [q] = await sql<{ status: string; approved_at: string | null }>(
     'SELECT status, approved_at FROM quotations WHERE id = $1', [id],

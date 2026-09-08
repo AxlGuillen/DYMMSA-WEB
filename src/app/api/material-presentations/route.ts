@@ -6,14 +6,14 @@ import type { CutMaterialType } from '@/types/database'
 const isPositive = (v: unknown): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v > 0
 
-/** numeric de supabase-js llega como string → se coerce en la frontera. */
+/** Postgres numerics arrive as strings from supabase-js; coerce at the boundary. */
 function num(value: unknown): number | null {
   if (value == null) return null
   const n = Number(value)
   return Number.isFinite(n) ? n : null
 }
 
-/** GET: catálogo completo de medidas por último uso (corte rápido + página de control, #71). */
+/** GET — full size catalog, most recently used first (#71). */
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -53,7 +53,7 @@ interface PresentationInput {
   length_mm: number
 }
 
-/** POST: upsert contra el UNIQUE NULLS NOT DISTINCT refrescando last_used_at — el catálogo se arma solo. */
+/** POST — upsert on the UNIQUE NULLS NOT DISTINCT key + refresh last_used_at; the catalog builds itself. */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()

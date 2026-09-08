@@ -78,7 +78,7 @@ const etmUrreaLinks: LinkItem[] = [
 const dymmsaLinks: LinkItem[] = [
   { href: '/dashboard/inventory',   label: 'Inventario',  icon: Warehouse },
   { href: '/dashboard/proveedores', label: 'Proveedores', icon: Truck },
-  // Corte rápido standalone + control de medidas registradas (issue #71).
+  // Standalone quick cutting plus the registered-sizes control (#71).
   { href: '/dashboard/cutting',     label: 'Planificar corte',    icon: Scissors },
   { href: '/dashboard/materials',   label: 'Medidas de material', icon: Ruler },
 ]
@@ -148,7 +148,7 @@ function NavSection({
   links: LinkItem[]
   collapsed?: boolean
   onNavigate?: () => void
-  /** Ancla de la vista guiada del dashboard (ADR-024). */
+  /** Anchor for the dashboard guided tour (ADR-024). */
   tour?: string
 }) {
   return (
@@ -183,7 +183,6 @@ function SidebarContent({
   return (
     <TooltipProvider delayDuration={200}>
     <div className="flex h-full flex-col">
-      {/* Header: logo (expandido) + botón de colapso */}
       <div
         className={cn(
           'flex h-16 shrink-0 items-center border-b',
@@ -232,7 +231,6 @@ function SidebarContent({
           ))}
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-6">
           <NavSection links={mainLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-main" />
@@ -244,7 +242,6 @@ function SidebarContent({
         </div>
       </nav>
 
-      {/* Footer */}
       <div className="shrink-0 border-t px-3 py-4 space-y-2" data-tour="nav-prefs">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
@@ -317,12 +314,11 @@ export function Sidebar() {
   const collapsed = useSidebarStore((s) => s.collapsed)
   const toggleCollapsed = useSidebarStore((s) => s.toggleCollapsed)
 
-  // Animar el ancho solo tras la primera pintura (evita el "salto" al rehidratar localStorage).
+  // Animate the width only after the first paint, or rehydrating localStorage jumps.
   const mounted = useMounted()
 
   return (
     <>
-      {/* Mobile top bar */}
       <div className="md:hidden fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 print:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -335,7 +331,6 @@ export function Sidebar() {
             <SheetHeader className="sr-only">
               <SheetTitle>Navegacion</SheetTitle>
             </SheetHeader>
-            {/* Móvil: siempre expandido */}
             <SidebarContent onNavigate={() => setOpen(false)} />
           </SheetContent>
         </Sheet>
@@ -350,7 +345,6 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* Desktop sidebar */}
       <aside
         className={cn(
           'hidden md:flex fixed inset-y-0 left-0 z-40 flex-col border-r bg-card print:hidden',

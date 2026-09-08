@@ -84,7 +84,6 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Dropzone */}
           <div
             {...getRootProps()}
             className={cn(
@@ -113,7 +112,6 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
             )}
           </div>
 
-          {/* Import mode */}
           <div className="space-y-3">
             <Label className="text-base">Modo de importacion</Label>
             <RadioGroup value={mode} onValueChange={(v: string) => setMode(v as 'upsert' | 'replace')}>
@@ -143,7 +141,6 @@ export function InventoryImporter({ open, onOpenChange }: InventoryImporterProps
             </RadioGroup>
           </div>
 
-          {/* Actions */}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={handleClose}>
               Cancelar

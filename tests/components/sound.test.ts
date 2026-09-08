@@ -1,9 +1,6 @@
 /**
- * Wrapper de sonidos (@/lib/sound) — el único módulo que importa cuelume.
- * cuelume se mockea: aquí se prueba la ORQUESTACIÓN (listener delegado,
- * throttle, disabled, idempotencia), no la síntesis de audio.
- *
- * Vive en tests/components (jsdom) porque el listener necesita `document`.
+ * Sound wrapper (@/lib/sound): cuelume is mocked, so this covers orchestration, not audio.
+ * Lives in tests/components (jsdom) because the delegated listener needs `document`.
  */
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
@@ -26,9 +23,8 @@ describe('sound wrapper', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     document.body.innerHTML = ''
-    // initSounds es idempotente vía flag de módulo; el módulo ya quedó
-    // inicializado por el primer test que lo llamó — está bien: los tests
-    // de click solo requieren que el listener exista.
+    // initSounds is idempotent via a module flag, already set by the first test that
+    // called it — fine here: the click tests only need the listener to exist.
     initSounds(true)
   })
   afterEach(() => vi.useRealTimers())
@@ -48,8 +44,7 @@ describe('sound wrapper', () => {
   })
 
   test('click en botón disabled o aria-disabled NO suena', () => {
-    // jsdom no dispara click en [disabled] nativo, así que se valida la rama
-    // aria-disabled (la que cubre los controles custom).
+    // jsdom fires no click on native [disabled], so this covers the aria-disabled branch.
     document.body.innerHTML = '<a role="button" aria-disabled="true" id="a">No</a>'
     vi.setSystemTime(3_000_000)
     clickOn(document.getElementById('a')!)
@@ -66,7 +61,7 @@ describe('sound wrapper', () => {
     clickOn(btn)
     expect(play).toHaveBeenCalledTimes(1)
 
-    vi.setSystemTime(4_000_200) // > 80ms después
+    vi.setSystemTime(4_000_200) // > 80ms later
     clickOn(btn)
     expect(play).toHaveBeenCalledTimes(2)
   })

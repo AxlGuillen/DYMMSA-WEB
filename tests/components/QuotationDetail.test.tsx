@@ -8,7 +8,7 @@ import { QuotationDetail } from '@/components/quotations/QuotationDetail'
 import { useCutDraftStore } from '@/stores/cutDraftStore'
 import { QUOTATION_DETAIL_TOUR } from '@/lib/tours/quotation-detail'
 
-// Spies de los mutation hooks (hoisted para usarlos dentro de vi.mock).
+// Mutation hook spies, hoisted so vi.mock can use them.
 const { updateAsync, sendAsync, createAsync, deleteAsync, changeStatusAsync, pushMock, fetchJsonMock } = vi.hoisted(() => ({
   updateAsync: vi.fn().mockResolvedValue(undefined),
   sendAsync: vi.fn().mockResolvedValue(undefined),
@@ -24,7 +24,7 @@ vi.mock('@/lib/fetch-json', () => ({
   ApiError: class ApiError extends Error {},
 }))
 
-// TourButton importa driver.js (y su CSS) — mock como en el resto de suites de tours.
+// TourButton imports driver.js (and its CSS) — mocked as in the other tour suites.
 vi.mock('driver.js', () => ({ driver: vi.fn(() => ({ drive: vi.fn() })) }))
 vi.mock('driver.js/dist/driver.css', () => ({}))
 
@@ -45,14 +45,14 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: pushMock }),
 }))
 
-/** Valor mostrado en la card-filtro de contador (Aprobados/Rechazados/Pendientes). */
+/** Value shown on the counter filter card (Aprobados/Rechazados/Pendientes). */
 function counter(label: string): string {
   const btn = screen.getByRole('button', { name: new RegExp(label) })
   const ps = btn.querySelectorAll('p')
   return ps[ps.length - 1].textContent ?? ''
 }
 
-/** Cotización aprobada con 2 productos pendientes + 1 separador. */
+/** Approved quotation with 2 pending products + 1 separator. */
 function approvedQuotation() {
   return quotationWithItems({
     status: 'approved',
@@ -79,7 +79,7 @@ describe('QuotationDetail — aprobación de items', () => {
 
   test('los separadores no exponen botones de aprobación', () => {
     renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
-    // Solo los 2 productos tienen toggle ✓/✗, no el separador.
+    // Only the 2 products get the ✓/✗ toggle, not the separator.
     expect(screen.getAllByRole('button', { name: 'Aprobar' })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: 'Rechazar' })).toHaveLength(2)
   })
@@ -92,7 +92,6 @@ describe('QuotationDetail — aprobación de items', () => {
 
     expect(counter('Aprobados')).toBe('1')
     expect(counter('Pendientes')).toBe('1')
-    // El item aprobado ahora ofrece "Quitar aprobación".
     expect(screen.getByRole('button', { name: 'Quitar aprobación' })).toBeInTheDocument()
   })
 
@@ -104,7 +103,7 @@ describe('QuotationDetail — aprobación de items', () => {
     expect(counter('Rechazados')).toBe('1')
     expect(counter('Pendientes')).toBe('1')
 
-    // Re-click en el rechazo activo lo resetea a pendiente.
+    // Re-clicking an active rejection resets it to pending.
     await user.click(screen.getByRole('button', { name: 'Quitar rechazo' }))
     expect(counter('Rechazados')).toBe('0')
     expect(counter('Pendientes')).toBe('2')
@@ -114,7 +113,7 @@ describe('QuotationDetail — aprobación de items', () => {
     const user = userEvent.setup()
     renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
 
-    // Cambiar aprobación marca el draft como dirty → aparece "Guardar cambios".
+    // Changing approval marks the draft dirty → "Guardar cambios" appears.
     await user.click(screen.getAllByRole('button', { name: 'Aprobar' })[0])
     await user.click(screen.getByRole('button', { name: /Guardar cambios/ }))
 
@@ -170,7 +169,7 @@ describe('QuotationDetail — planificar corte (issue #71)', () => {
       },
     ]
     fetchJsonMock.mockResolvedValue({ candidates })
-    // ' dymmsa ' con basura: misma normalización trim+upper que el resto del flujo.
+    // ' dymmsa ' with noise: same trim+upper normalization as the rest of the flow.
     const q = quotationWithItems({
       quotation_items: [quotationItem({ id: 'p1', brand: ' dymmsa ' })],
     })
@@ -193,7 +192,7 @@ describe('QuotationDetail — vista guiada (issue #74)', () => {
   })
 
   test('anti-drift: en sent_for_approval existen los 5 bloques del tour', () => {
-    // El estado más rico para el tour: con link de aprobación Y filter cards.
+    // Richest state for the tour: approval link AND filter cards.
     const q = quotationWithItems({
       status: 'sent_for_approval',
       approval_token: 'tok-1',
@@ -210,7 +209,6 @@ describe('QuotationDetail — vista guiada (issue #74)', () => {
     const q = quotationWithItems({ status: 'draft', quotation_items: [quotationItem({ id: 'p1' })] })
     renderWithProviders(<QuotationDetail quotation={q} />)
     expect(document.querySelector('[data-tour="qd-approval-link"]')).toBeNull()
-    // El resto sí está.
     expect(document.querySelector('[data-tour="qd-status"]')).not.toBeNull()
     expect(document.querySelector('[data-tour="qd-items"]')).not.toBeNull()
   })

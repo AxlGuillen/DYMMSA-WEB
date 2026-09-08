@@ -88,7 +88,6 @@ export function Navbar() {
             />
           </Link>
 
-          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-1">
             {mainLinks.map((link) => {
               const Icon = link.icon
@@ -107,7 +106,6 @@ export function Navbar() {
               )
             })}
 
-            {/* ETM - URREA Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button type="button"
@@ -144,7 +142,6 @@ export function Navbar() {
           </nav>
         </div>
 
-        {/* Desktop User Menu */}
         <div className="hidden md:flex items-center gap-2">
           <ThemeToggle />
           <Button variant="ghost" size="icon" asChild>
@@ -159,7 +156,6 @@ export function Navbar() {
           </Button>
         </div>
 
-        {/* Mobile Menu Button */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="md:hidden">
             <Button variant="ghost" size="icon">
@@ -172,7 +168,6 @@ export function Navbar() {
               <SheetTitle>Menu</SheetTitle>
             </SheetHeader>
             <nav className="flex flex-col gap-2 mt-6 p-4">
-              {/* Main Links */}
               {mainLinks.map((link) => {
                 const Icon = link.icon
                 return (
@@ -203,7 +198,6 @@ export function Navbar() {
                 Documentacion
               </Link>
 
-              {/* ETM - URREA Section */}
               <div className="mt-4 pt-4 border-t">
                 <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                   ETM - Catálogo
@@ -227,7 +221,6 @@ export function Navbar() {
                 })}
               </div>
 
-              {/* User Section */}
               <div className="mt-4 pt-4 border-t flex flex-col gap-3">
                 <div className="flex items-center justify-between px-3">
                   <span className="text-sm text-muted-foreground">Tema</span>

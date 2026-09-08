@@ -7,12 +7,8 @@ import type { Payable } from '@/types/database'
 
 const ISO_MONTH = /^\d{4}-\d{2}$/
 
-/**
- * GET /api/payables/overview?month=YYYY-MM → resumen del mes + filas crudas
- * para la lista por semana. Trae TODAS las pendientes (las vencidas de meses
- * previos cuentan en el overview) + las pagadas del mes; la matemática vive
- * en src/lib/payables.ts.
- */
+// GET /api/payables/overview?month=YYYY-MM — month summary + raw rows for the weekly list.
+// Pulls ALL pending (overdue from earlier months count here) + the month's paid; math in lib/payables.ts.
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()

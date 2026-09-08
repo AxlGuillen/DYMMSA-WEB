@@ -73,7 +73,6 @@ export function QuotePreview({
 
   return (
     <div className="space-y-6">
-      {/* Estadisticas */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
@@ -121,7 +120,6 @@ export function QuotePreview({
         </Card>
       </div>
 
-      {/* ETMs no encontrados */}
       {unmatchedEtms.length > 0 && (
         <Card className="border-yellow-200 bg-yellow-50/50">
           <CardHeader className="pb-2">
@@ -162,7 +160,6 @@ export function QuotePreview({
         </Card>
       )}
 
-      {/* Tabla de productos */}
       {matchedProducts.length > 0 && (
         <Card>
           <CardHeader>
@@ -204,7 +201,6 @@ export function QuotePreview({
         </Card>
       )}
 
-      {/* Acciones */}
       <div className="flex justify-end gap-4">
         <Button variant="outline" onClick={onReset}>
           <RotateCcw className="mr-2 size-4" />

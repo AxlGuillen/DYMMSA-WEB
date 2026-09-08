@@ -1,6 +1,4 @@
-/**
- * Helpers para construir requests y leer respuestas en tests de route handlers.
- */
+/** Request builders and response readers for route-handler tests. */
 
 import { NextRequest } from 'next/server'
 import * as XLSX from 'xlsx'
@@ -10,10 +8,7 @@ interface RequestOptions {
   url?: string
 }
 
-/**
- * Construye un NextRequest con body JSON, listo para pasar a un handler.
- * Si `body` es undefined no se adjunta cuerpo (útil para GET/DELETE).
- */
+/** NextRequest with a JSON body; `body` undefined attaches none (GET/DELETE). */
 export function makeRequest(body?: unknown, opts: RequestOptions = {}): NextRequest {
   const url = opts.url ?? 'http://localhost/api/test'
   const method = opts.method ?? (body !== undefined ? 'POST' : 'GET')
@@ -25,27 +20,24 @@ export function makeRequest(body?: unknown, opts: RequestOptions = {}): NextRequ
   })
 }
 
-/** Envuelve params dinámicos como la Promise que Next 16 pasa a los handlers. */
+/** Wraps dynamic params as the Promise Next 16 hands to handlers. */
 export function makeParams<T extends Record<string, string>>(params: T): { params: Promise<T> } {
   return { params: Promise.resolve(params) }
 }
 
-/** Lee el JSON de una Response devuelta por un handler. */
+/** Reads the JSON of a handler Response. */
 export async function readJson<T = unknown>(res: Response): Promise<T> {
   return (await res.json()) as T
 }
 
 interface ExcelRequestOptions {
-  /** Valor del campo `mode` (upsert | replace). */
+  /** `mode` field value (upsert | replace). */
   mode?: string
-  /** Si true, no adjunta el archivo (para probar el 400 "sin archivo"). */
+  /** Skip the file, to exercise the "no file" 400. */
   omitFile?: boolean
 }
 
-/**
- * Construye un NextRequest multipart con un .xlsx real generado a partir de
- * `rows`. Usado por los handlers de import que llaman `request.formData()`.
- */
+/** Multipart NextRequest with a real .xlsx built from `rows`, for import handlers. */
 export function makeExcelRequest(
   rows: Record<string, unknown>[],
   opts: ExcelRequestOptions = {},

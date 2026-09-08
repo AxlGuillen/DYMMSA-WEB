@@ -1,7 +1,5 @@
-/**
- * API de Tareas (GitHub Issues como backend). GitHub se mockea con
- * vi.spyOn(fetch); Supabase (auth + admin storage) con los mocks del proyecto.
- */
+/** Tasks API (GitHub Issues as backend): GitHub via vi.spyOn(fetch), Supabase
+ *  (auth + admin storage) via the project mocks. */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -23,7 +21,7 @@ injectSupabaseServer(() => activeClient)
 const AUTH = { id: 'u1', email: 'axl@test.com' } as { id: string }
 const authed = () => { activeClient = createMockSupabase({ user: AUTH }) }
 
-/** Respuesta estilo fetch para la API de GitHub. */
+/** fetch-style response for the GitHub API. */
 function gh(status: number, body: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response
 }
@@ -42,8 +40,6 @@ beforeEach(() => {
   fetchSpy = vi.spyOn(globalThis, 'fetch')
 })
 afterEach(() => vi.restoreAllMocks())
-
-// ─── GET /api/tasks ──────────────────────────────────────────────────────────
 
 describe('GET /api/tasks', () => {
   test('401 sin auth', async () => {
@@ -78,8 +74,6 @@ describe('GET /api/tasks', () => {
   })
 })
 
-// ─── POST /api/tasks ─────────────────────────────────────────────────────────
-
 describe('POST /api/tasks', () => {
   test('400 sin título', async () => {
     authed()
@@ -106,8 +100,6 @@ describe('POST /api/tasks', () => {
   })
 })
 
-// ─── GET /api/tasks/[number] ───────────────────────────────────────────────────
-
 describe('GET /api/tasks/[number]', () => {
   test('400 número inválido', async () => {
     authed()
@@ -127,8 +119,6 @@ describe('GET /api/tasks/[number]', () => {
     expect(body.comments).toEqual([{ id: 1, author: 'bot', reporter: 'María', body: 'Hola', createdAt: '2026-07-09T11:00:00Z' }])
   })
 })
-
-// ─── PATCH /api/tasks/[number] ─────────────────────────────────────────────────
 
 describe('PATCH /api/tasks/[number]', () => {
   test('400 sin cambios', async () => {
@@ -165,7 +155,7 @@ describe('PATCH /api/tasks/[number]', () => {
   test('editar descripción: lee el issue y preserva el reporter original', async () => {
     authed()
     fetchSpy
-      .mockResolvedValueOnce(gh(200, issue({ body: 'Reportado por: María\n\nviejo' }))) // GET actual
+      .mockResolvedValueOnce(gh(200, issue({ body: 'Reportado por: María\n\nviejo' }))) // current GET
       .mockResolvedValueOnce(gh(200, issue())) // PATCH
     await taskDetail.PATCH(makeRequest({ description: 'nuevo' }, { method: 'PATCH' }), makeParams({ number: '5' }))
     const patchBody = JSON.parse(String(fetchSpy.mock.calls[1][1]?.body))
@@ -182,8 +172,6 @@ describe('PATCH /api/tasks/[number]', () => {
   })
 })
 
-// ─── POST /api/tasks/[number]/comments ─────────────────────────────────────────
-
 describe('POST /api/tasks/[number]/comments', () => {
   test('400 comentario vacío', async () => {
     authed()
@@ -199,8 +187,6 @@ describe('POST /api/tasks/[number]/comments', () => {
     expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)).body).toBe('Reportado por: axl@test.com\n\nok')
   })
 })
-
-// ─── POST /api/tasks/upload ────────────────────────────────────────────────────
 
 describe('POST /api/tasks/upload', () => {
   function uploadReq(file?: File): NextRequest {

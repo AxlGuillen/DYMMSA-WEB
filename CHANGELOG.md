@@ -3,6 +3,18 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-07
+
+### Mejorado
+- **Plazo de pago del proveedor como lista.** En vez de teclear los días, eliges
+  Contado, 1 semana, 15 días, 1 mes, 2 meses o 3 meses. Si un proveedor maneja
+  otro plazo, la opción **Otro…** abre el campo libre — y si ya tenía guardado un
+  número fuera de la lista, el formulario abre ahí con ese número, no en blanco.
+- **Formato de fecha a tu gusto en Facturas por pagar.** Un selector nuevo junto
+  al de columnas permite ver las fechas como `15-09-2026`, `15/09/2026`,
+  `2026-09-15`, `15 sep 2026` o en largo. La elección se recuerda en este
+  navegador y aplica también a los vencimientos del overview.
+
 ## 2026-09-05
 
 ### Nuevo

@@ -1,11 +1,9 @@
-/** Inventario: cálculos puros separados de las operaciones de DB (testeables sin mock). */
+/** Inventory: pure math kept apart from the DB operations (testable without a mock). */
 
 import { receivedForCustomer } from '@/lib/business-rules'
 import type { createClient } from '@/lib/supabase/server'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
-
-// ─── Cálculos puros ────────────────────────────────────────────────────
 
 type RestorableItem = {
   model_code: string | null
@@ -14,10 +12,8 @@ type RestorableItem = {
   quantity_to_order: number
 }
 
-/**
- * Restauración al cancelar/eliminar orden: stock tomado + min(recibido, pedido).
- * El excedente NO se restaura — ya entró en la recepción; sumarlo lo duplicaría (ADR-019).
- */
+/** Restore on cancel/delete: stock taken + min(received, ordered). The excess is NOT restored —
+ *  it already entered on reception and adding it back would duplicate it (ADR-019). */
 export function computeRestoration<T extends RestorableItem>(
   items: T[]
 ): Array<{ model_code: string; quantityToRestore: number }> {
@@ -32,9 +28,7 @@ export function computeRestoration<T extends RestorableItem>(
     )
 }
 
-// ─── Operaciones de DB ─────────────────────────────────────────────────
-
-/** Aplica computeRestoration con upserts (suma si existe, crea si no); retorna filas restauradas. */
+/** Applies computeRestoration with upserts: adds to the row if it exists, creates it otherwise. */
 export async function restoreOrderInventory(
   supabase: SupabaseServerClient,
   orderId: string

@@ -37,8 +37,8 @@ import { SoldStatusToggle } from '@/components/quotations/SoldStatusToggle'
 import { toast } from 'sonner'
 import type { EtmProduct } from '@/types/database'
 
-// Columnas del catálogo ETM (issue #18). ETM y acciones son fijas.
-// `width` = ancho por defecto; el usuario lo ajusta arrastrando (issue #55).
+// ETM and acciones are fixed columns (#18); `width` is only the default, the
+// user drags to adjust (#55).
 export const PRODUCTS_COLUMNS: readonly TableColumn[] = [
   { id: 'etm', label: 'ETM', hideable: false, width: 140 },
   { id: 'description_es', label: 'Descripcion', width: 280 },
@@ -60,11 +60,8 @@ interface ProductsTableProps {
   onSort?: (col: ProductSortBy) => void
 }
 
-/**
- * Encabezado con ancho ajustable (issue #55) y, si recibe `sortCol`, control de
- * ordenamiento. Unifica ambos casos para no repetir el cableado de la manija
- * en cada columna.
- */
+/** Resizable header (#55), sortable when given `sortCol`; unified so the handle
+ *  wiring is not repeated per column. */
 function Head({
   id,
   label,
@@ -125,7 +122,7 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
 
   const sortProps = { currentSort: sortBy, currentDir: sortDir, onSort }
 
-  // Header compartido entre skeleton / vacío / tabla real (guards una sola vez).
+  // Shared by the skeleton, empty and real table so the guards run once.
   const tableHeaders = (
     <TableHeader>
       <TableRow>
@@ -148,9 +145,8 @@ export function ProductsTable({ products, isLoading, onEdit, sortBy, sortDir, on
     </TableHeader>
   )
 
-  // El cambio se pinta al instante (update optimista) y el hook revierte si el
-  // PATCH falla; el toast solo aparece en el error, para no interrumpir cuando
-  // se marcan muchos productos seguidos.
+  // Optimistic: the hook reverts if the PATCH fails, and the toast is error-only
+  // so marking many products in a row is not interrupted.
   const handleSoldChange = async (product: EtmProduct, is_sold: boolean | null) => {
     try {
       await setSold.mutateAsync({ id: product.id, is_sold })

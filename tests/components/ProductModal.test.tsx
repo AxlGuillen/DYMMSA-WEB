@@ -5,15 +5,14 @@ import { ProductModal } from '@/components/quoter/ProductModal'
 import { useCatalogDescription } from '@/hooks/useUrreaCatalog'
 import type { QuotationItemRow } from '@/types/database'
 
-// TanStack hook mockeado a nivel de módulo (convención del proyecto): sin
-// QueryClient en jsdom; el lookup de catálogo se cubre en tests/api.
-// vi.fn controlable por test: default sin match (data: null).
+// TanStack hook mocked per module: no QueryClient in jsdom; the catalog lookup
+// lives in tests/api. Default is no match (data: null).
 vi.mock('@/hooks/useUrreaCatalog', () => ({
   useCatalogDescription: vi.fn(() => ({ data: null })),
 }))
 const mockCatalogDesc = vi.mocked(useCatalogDescription)
 
-/** Mockea fetch /api/quotes/lookup devolviendo `found` (filas de etm_products). */
+/** Mocks fetch /api/quotes/lookup returning `found` (etm_products rows). */
 function mockLookup(found: unknown[]) {
   return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
     json: async () => ({ found }),
@@ -36,7 +35,7 @@ describe('ProductModal', () => {
 
   test('submit válido (create) → onSave con payload transformado + cierra', async () => {
     const user = userEvent.setup()
-    mockLookup([]) // ETM no existe en catálogo
+    mockLookup([]) // ETM not in the catalog
     const onSave = vi.fn()
     const onOpenChange = vi.fn()
 
@@ -49,7 +48,7 @@ describe('ProductModal', () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
     const [payload, id] = onSave.mock.calls[0]
-    expect(id).toBeUndefined() // create → sin id
+    expect(id).toBeUndefined() // create → no id
     expect(payload).toMatchObject({
       item_type: 'product',
       section_label: '',
@@ -64,7 +63,7 @@ describe('ProductModal', () => {
 
   test('ETM duplicado en la cotización → aviso informativo y SÍ guarda (issue #40)', async () => {
     const user = userEvent.setup()
-    mockLookup([]) // duplicado dentro de la cotización, pero no en el catálogo
+    mockLookup([]) // duplicated inside the quotation, but not in the catalog
     const onSave = vi.fn()
 
     render(
@@ -78,8 +77,8 @@ describe('ProductModal', () => {
     )
 
     await fillRequired(user, 'DUP-1')
-    // Aviso en vivo (no error): repetir ETMs es válido — proyectos distintos
-    // dentro de la misma cotización pueden pedir el mismo producto.
+    // Live notice, not an error: repeating ETMs is valid — different projects in
+    // the same quotation can ask for the same product.
     expect(
       await screen.findByText('Este ETM ya está en la cotización — se agregará repetido.'),
     ).toBeInTheDocument()
@@ -107,15 +106,15 @@ describe('ProductModal', () => {
     render(<ProductModal mode="create" open onOpenChange={vi.fn()} onSave={onSave} />)
 
     await user.type(screen.getByPlaceholderText('Ej: H7-ET400'), 'CAT-1')
-    await user.tab() // blur → lookup → precarga
+    await user.tab() // blur → lookup → prefill
 
-    // Aviso informativo (no error) + campos precargados del catálogo
+    // Informational notice (not an error) + fields prefilled from the catalog
     expect(await screen.findByText(/datos precargados/)).toBeInTheDocument()
     expect(screen.getByDisplayValue('Extractor de baleros')).toBeInTheDocument()
     expect(screen.getByDisplayValue('MC77')).toBeInTheDocument()
     expect(screen.getByDisplayValue('250')).toBeInTheDocument()
 
-    // La cantidad no viene del catálogo: la captura el usuario
+    // Quantity does not come from the catalog: the user types it
     await user.type(screen.getByPlaceholderText('0'), '3')
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
@@ -128,13 +127,13 @@ describe('ProductModal', () => {
       brand: 'URREA',
       unit_price: 250,
       quantity: 3,
-      _inDb: true, // ya existe en el catálogo → la fila muestra "En catálogo"
+      _inDb: true, // already in the catalog → the row shows "En catálogo"
     })
   })
 
   test('con match de catálogo → onCatalogResolved(code normalizado, descripción) al guardar', async () => {
     const user = userEvent.setup()
-    mockLookup([]) // ETM no duplicado
+    mockLookup([]) // ETM not duplicated
     mockCatalogDesc.mockReturnValue({ data: 'Pinza oficial URREA' } as ReturnType<typeof useCatalogDescription>)
     const onSave = vi.fn()
     const onCatalogResolved = vi.fn()
@@ -149,7 +148,7 @@ describe('ProductModal', () => {
       />,
     )
 
-    // model_code en minúsculas/espacios: el callback debe recibirlo normalizado.
+    // Lowercase/spaced model_code: the callback must receive it normalized.
     await user.type(screen.getByPlaceholderText('Ej: H7-ET400'), 'NEW-2')
     await user.type(screen.getByPlaceholderText('Ej: 95040'), '  mc9  ')
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
@@ -170,7 +169,7 @@ describe('ProductModal', () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
     const [payload] = onSave.mock.calls[0]
-    expect(payload).toMatchObject({ etm: 'NET-1', _inDb: false }) // sin precarga, sin error
+    expect(payload).toMatchObject({ etm: 'NET-1', _inDb: false }) // no prefill, no error
     expect(screen.queryByText(/datos precargados/)).not.toBeInTheDocument()
   })
 
@@ -197,18 +196,17 @@ describe('ProductModal', () => {
 
     render(<ProductModal mode="edit" item={item} open onOpenChange={vi.fn()} onSave={onSave} />)
 
-    // reset() popula los campos en un useEffect. react-hook-form no valida el
-    // campo required hasta recibir un evento de cambio, así que reescribimos el
-    // MISMO ETM (clear+type) — sigue "sin cambios" respecto al item original.
+    // react-hook-form won't validate the required field until it sees a change event,
+    // so we retype the SAME ETM (clear+type) — still "unchanged" for the item.
     const etm = await screen.findByDisplayValue('KEEP-1')
     await user.clear(etm)
     await user.type(etm, 'KEEP-1')
-    // submit vía form: hacer click en el botón justo tras editar el ETM dispara
-    // su onBlur (isCheckingEtm → botón disabled) y se tragaría el click.
+    // Submit via the form: clicking the button right after editing the ETM fires its
+    // onBlur (isCheckingEtm → disabled) and the click gets swallowed.
     fireEvent.submit(etm.closest('form')!)
 
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
-    expect(onSave.mock.calls[0][1]).toBe('row-1') // edit → pasa el id
-    expect(fetchSpy).not.toHaveBeenCalled()        // ETM sin cambios → skip DB
+    expect(onSave.mock.calls[0][1]).toBe('row-1') // edit → passes the id
+    expect(fetchSpy).not.toHaveBeenCalled()        // unchanged ETM → skip DB
   })
 })

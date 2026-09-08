@@ -7,7 +7,7 @@ interface UpdateSupplierBody extends SupplierUpdate {
   brandIds?: string[]
 }
 
-// PATCH /api/suppliers/[id] → updates sparse + brandIds (replace por diff)
+// PATCH /api/suppliers/[id] — sparse updates + brandIds (replace by diff)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -46,8 +46,8 @@ export async function PATCH(
       return badRequest('No hay cambios para guardar')
     }
 
-    // El update de la fila confirma existencia (PGRST116 → 404). Si no hay
-    // campos que actualizar (solo llegan brandIds), aún no lo hemos verificado.
+    // The row update doubles as the existence check (PGRST116 → 404);
+    // with only brandIds in the body it never runs.
     let existenceConfirmed = false
 
     if (Object.keys(updates).length > 0) {
@@ -67,10 +67,10 @@ export async function PATCH(
       existenceConfirmed = true
     }
 
-    // ── Marcas: replace por DIFF (no destructivo — nunca hay ventana sin links) ──
+    // Brands: replace by DIFF (non-destructive — never a window without links).
     if (body.brandIds !== undefined) {
-      // Sin update previo, verifica que el proveedor exista → 404 preciso en vez
-      // del 23503 genérico que dispararía el FK del insert de links.
+      // Confirm the supplier exists → precise 404 instead of the generic 23503
+      // the links insert would raise.
       if (!existenceConfirmed) {
         const { data: exists, error } = await supabase
           .from('suppliers')
@@ -125,7 +125,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/suppliers/[id] → elimina (los links caen por CASCADE)
+// DELETE /api/suppliers/[id] — brand links fall by CASCADE
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -139,7 +139,7 @@ export async function DELETE(
     const { error } = await supabase.from('suppliers').delete().eq('id', id)
 
     if (error) {
-      // FK de payables SIN cascade (issue #84): el proveedor tiene facturas.
+      // payables FK WITHOUT cascade (#84): the supplier still has invoices.
       if (error.code === '23503') {
         return badRequest('El proveedor tiene facturas por pagar registradas — elimínalas o reasígnalas primero')
       }

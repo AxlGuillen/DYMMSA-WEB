@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del detalle de orden (#74); los bloques ausentes en cerradas se saltan solos. */
+/** Order detail overview (#74); blocks missing on closed orders skip themselves. */
 export const ORDER_DETAIL_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="od-status"]',

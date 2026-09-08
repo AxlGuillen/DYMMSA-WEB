@@ -11,7 +11,7 @@ const STATUSES: QuotationStatus[] = [
   'converted_to_order',
 ]
 
-/** Quita los caracteres que rompen la sintaxis del filtro `.or()` de PostgREST. */
+/** Strips the characters that break PostgREST's `.or()` filter syntax. */
 function sanitizeSearch(raw: string): string {
   return raw.replace(/[,()%]/g, ' ').trim()
 }

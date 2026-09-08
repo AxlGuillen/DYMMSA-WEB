@@ -137,7 +137,7 @@ export function useImportUrreaCatalog() {
   })
 }
 
-/** Descripción oficial por (código, marca) estricto — indexada por catalogKey; cache 5 min. */
+/** Official description by strict (code, brand): indexed by catalogKey (ADR-013). */
 export function useCatalogDescription(code: string, brand?: string | null) {
   const normalized = normalizeCatalogCode(code)
   const key = catalogKey(code, brand)

@@ -1,10 +1,7 @@
 'use client'
 
-/**
- * Adaptador de iconos: reexpone los animados de @animateicons con los nombres
- * de lucide (o uno RELACIONADO si falta), traduce clases size-N/h-N al prop
- * `size`, y dispara la animación desde el ancestro interactivo en hover.
- */
+/** Re-exposes @animateicons under lucide names (or a RELATED one when missing),
+ *  maps size-N/h-N classes to the `size` prop, animating from the hovered ancestor. */
 
 import { useEffect, useRef, type HTMLAttributes, type ForwardRefExoticComponent, type RefAttributes } from 'react'
 import {
@@ -66,7 +63,6 @@ import {
   XIcon as _X,
 } from '@animateicons/react/lucide'
 
-// ─── Tipos / wrapper ────────────────────────────────────────────────────
 
 interface AnimatedIconProps extends Omit<HTMLAttributes<HTMLDivElement>, 'color'> {
   size?: number
@@ -85,7 +81,7 @@ type AnimatedIcon = ForwardRefExoticComponent<AnimatedIconProps & RefAttributes<
 export type IconProps = Omit<HTMLAttributes<HTMLDivElement>, 'color'> & {
   size?: number
   color?: string
-  /** Aceptado por compat con lucide; la librería animada no lo usa. */
+  /** Accepted for lucide compat; the animated library ignores it. */
   strokeWidth?: number
 }
 
@@ -94,7 +90,7 @@ const SIZE_PX: Record<string, number> = {
   '8': 32, '9': 36, '10': 40, '12': 48, '14': 56, '16': 64,
 }
 
-/** Traduce la primera clase `size-N` / `h-N` / `w-N` a píxeles. Default 16. */
+/** Maps the first `size-N` / `h-N` / `w-N` class to pixels. Default 16. */
 function sizeFromClass(cls?: string): number {
   if (!cls) return 16
   const m = cls.match(/(?:^|\s)(?:size|h|w)-(\d+(?:\.5)?)/)
@@ -104,18 +100,17 @@ function sizeFromClass(cls?: string): number {
 
 function wrap(Cmp: AnimatedIcon) {
   return function Icon({ className, size, strokeWidth: _sw, ...rest }: IconProps) {
-    void _sw // descartado: la librería animada no acepta strokeWidth
+    void _sw // dropped: the animated library takes no strokeWidth
     const handleRef = useRef<IconHandle | null>(null)
     const spanRef = useRef<HTMLSpanElement | null>(null)
 
-    // Dispara la animación desde el control interactivo que contiene al icono
-    // (botón/enlace); si está suelto, desde el propio icono. Pasar el ref al
-    // componente desactiva su auto-hover interno, así que no hay doble disparo.
+    // Animate from the interactive ancestor (button/link), or from the icon when
+    // loose. Passing the ref disables its internal auto-hover, so no double fire.
     useEffect(() => {
       const span = spanRef.current
       if (!span) return
-      // El <span> es display:contents (sin caja propia) → para el caso "suelto"
-      // escuchamos en el <div> del icono (su primer hijo), que sí tiene caja.
+      // The <span> is display:contents (no box), so the loose case listens on the
+      // icon's <div> child, which does have one.
       const trigger =
         (span.closest('button, a, [role="button"], label') as HTMLElement | null) ??
         (span.firstElementChild as HTMLElement | null) ??
@@ -130,7 +125,7 @@ function wrap(Cmp: AnimatedIcon) {
       }
     }, [])
 
-    // Props al componente animado, no al <span>: éste es solo ancla DOM para el hover.
+    // Props go to the animated component; the <span> is only a DOM anchor for hover.
     return (
       <span ref={spanRef} style={{ display: 'contents' }}>
         <Cmp
@@ -144,8 +139,7 @@ function wrap(Cmp: AnimatedIcon) {
   }
 }
 
-// ─── Exports (mismos nombres que lucide-react) ──────────────────────────
-// Exactos
+// Exact lucide names
 export const BookOpen = wrap(_BookOpen)
 export const Brain = wrap(_Brain)
 export const Check = wrap(_Check)
@@ -178,7 +172,7 @@ export const TriangleAlert = wrap(_TriangleAlert)
 export const Upload = wrap(_Upload)
 export const X = wrap(_X)
 
-// Relacionados (sin equivalente exacto en la librería)
+// Related: no exact equivalent in the library
 export const AlertCircle = wrap(_TriangleAlert)
 export const AlertTriangle = wrap(_TriangleAlert)
 export const ArrowDown = wrap(_ChevronDown)
@@ -211,17 +205,17 @@ export const PackageCheck = wrap(_CircleCheck)
 export const PackageSearch = wrap(_PackageOpen)
 export const PanelLeftClose = wrap(_ChevronsLeft)
 export const PanelLeftOpen = wrap(_ChevronsRight)
-// Lucide directo: los animados no traen lápiz genérico y el engrane se leía como "ajustes" (#55).
+// Straight from lucide: no generic pencil in the animated set, and its gear read as "settings" (#55).
 export { Pencil } from 'lucide-react'
-// Mismo caso que Pencil: la librería animada no trae tijeras (issue #59).
+// Same as Pencil: no scissors in the animated library (#59).
 export { Scissors } from 'lucide-react'
-// Ídem: sin impresora en los 248 animados (issue #64).
+// Same: no printer among the 248 animated icons (#64).
 export { Printer } from 'lucide-react'
-// Ídem: sin regla en los animados (issue #71 — página de medidas de material).
+// Same: no ruler among the animated icons (#71).
 export { Ruler } from 'lucide-react'
-// Ídem: sin recibo en los animados (issue #84 — facturas por pagar).
+// Same: no receipt among the animated icons (#84).
 export { Receipt } from 'lucide-react'
-// Ídem: sin historial en los animados (pestaña Actividad de Novedades).
+// Same: no history icon among the animated ones.
 export { History } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
@@ -232,7 +226,7 @@ export const Warehouse = wrap(_Boxes)
 export const Wrench = wrap(_Bolt)
 export const XCircle = wrap(_X)
 
-// Alias con sufijo Icon (algunos archivos importan estos nombres)
+// Icon-suffixed aliases: some files import these names.
 export const CheckIcon = wrap(_Check)
 export const ChevronDownIcon = wrap(_ChevronDown)
 export const ChevronRightIcon = wrap(_ChevronRight)

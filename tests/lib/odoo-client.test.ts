@@ -1,9 +1,5 @@
-/**
- * Cliente JSON-2 de Odoo (issue #65, ADR-025): la cola serializada (1 request
- * en vuelo + espaciado — el rate limit de Odoo Online no admite paralelas),
- * el backoff ante 429 y el mapeo de errores. Transporte y reloj inyectados:
- * sin red y sin esperas reales.
- */
+/** Odoo JSON-2 client (#65, ADR-025): serialized queue, 429 backoff, error mapping.
+ *  Transport and clock are injected — no network, no real waits. */
 
 import { describe, test, expect } from 'vitest'
 import { createOdooCaller, OdooError } from '@/lib/odoo/client'
@@ -47,8 +43,7 @@ function caller(opts: {
       inFlight++
       maxInFlight = Math.max(maxInFlight, inFlight)
       opts.onFetch?.(String(url), init!)
-      // Un tick asíncrono real para que dos llamadas PUDIERAN traslaparse si
-      // la cola no serializara.
+      // A real async tick so two calls COULD overlap if the queue didn't serialize.
       await Promise.resolve()
       inFlight--
       return (queue.shift() ?? response(200)) as unknown as Response
@@ -88,7 +83,7 @@ describe('createOdooCaller', () => {
     const c = caller({ responses: [response(200), response(200)], spacingMs: 1100 })
     await c.call('account.move', 'search_count', {})
     await c.call('account.move', 'search_count', {})
-    // La segunda llamada esperó (hasta) el espaciado configurado.
+    // The second call waited (up to) the configured spacing.
     expect(c.sleeps.length).toBeGreaterThan(0)
     expect(Math.max(...c.sleeps)).toBeLessThanOrEqual(1100)
   })

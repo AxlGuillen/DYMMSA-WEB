@@ -1,11 +1,11 @@
 import { OdooError } from './client'
 
-/** Env de Odoo — NO valida al importar: el bloque es opcional (ADR-025). */
+/** Not validated at import: the Odoo block is optional (ADR-025). */
 export interface OdooEnv {
-  /** Solo el origen, sin diagonal final. */
+  /** Origin only, no trailing slash. */
   url: string
   apiKey: string
-  /** Opcional: solo aplica si un dominio sirve varias bases (Odoo Online: una). */
+  /** Only relevant when a domain serves several databases (Odoo Online has one). */
   db: string | null
 }
 

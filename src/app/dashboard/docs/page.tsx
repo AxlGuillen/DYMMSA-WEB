@@ -229,7 +229,6 @@ export default function DocsPage() {
         </p>
       </div>
 
-      {/* Quick index */}
       <div className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -255,7 +254,6 @@ export default function DocsPage() {
       </Card>
       </div>
 
-      {/* Section 1: Excel para Cotizar */}
       <div id="cotizar" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -395,7 +393,6 @@ export default function DocsPage() {
       </Card>
       </div>
 
-      {/* Section 2: Cotizaciones y Flujo */}
       <div id="cotizaciones" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -409,7 +406,6 @@ export default function DocsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
 
-          {/* Crear cotizacion */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base">Crear una cotizacion</p>
             <p className="text-muted-foreground">
@@ -433,7 +429,6 @@ export default function DocsPage() {
             </p>
           </div>
 
-          {/* Guardar */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
               <Brain className="size-4 text-muted-foreground" />
@@ -454,7 +449,6 @@ export default function DocsPage() {
             </ul>
           </div>
 
-          {/* ¿Lo vendemos? */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
               <DollarSign className="size-4 text-muted-foreground" />
@@ -475,7 +469,6 @@ export default function DocsPage() {
             </ul>
           </div>
 
-          {/* Estados */}
           <div className="space-y-3 text-sm">
             <p className="font-medium text-base">Estados de una cotizacion</p>
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -500,7 +493,6 @@ export default function DocsPage() {
             </div>
           </div>
 
-          {/* Capacidades por estado */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base">Que puedes hacer en cada estado</p>
             <div className="overflow-auto">
@@ -582,7 +574,6 @@ export default function DocsPage() {
             </p>
           </div>
 
-          {/* Cambio manual de estado / reabrir */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
               <RefreshCw className="size-4 text-muted-foreground" />
@@ -606,7 +597,6 @@ export default function DocsPage() {
             </ul>
           </div>
 
-          {/* Aprobacion por link */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
               <ExternalLink className="size-4 text-muted-foreground" />
@@ -635,7 +625,6 @@ export default function DocsPage() {
       </Card>
       </div>
 
-      {/* Section 3: Excel Aprobado (Filas Verdes) */}
       <div id="aprobado" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -775,7 +764,6 @@ export default function DocsPage() {
       </Card>
       </div>
 
-      {/* Section 3: Excel de Inventario */}
       <div id="inventario" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -862,7 +850,6 @@ export default function DocsPage() {
       </Card>
       </div>
 
-      {/* Section: Catalogo URREA */}
       <div id="catalogo-urrea" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -876,7 +863,6 @@ export default function DocsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
 
-          {/* El modulo */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base">El modulo Catalogo (URREA)</p>
             <p className="text-muted-foreground">
@@ -887,7 +873,6 @@ export default function DocsPage() {
             </p>
           </div>
 
-          {/* Import Excel */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base">Formato Excel del catalogo</p>
             <p className="text-muted-foreground">La primera fila son los encabezados. Columnas:</p>
@@ -924,7 +909,6 @@ export default function DocsPage() {
             </p>
           </div>
 
-          {/* Descripcion DYMMSA */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
               <BookOpen className="size-4 text-muted-foreground" />
@@ -963,7 +947,6 @@ export default function DocsPage() {
       </Card>
       </div>
 
-      {/* Section 5: Detalle de Orden */}
       <div id="ordenes" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -977,7 +960,6 @@ export default function DocsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
 
-          {/* Overview */}
           <div className="space-y-2 text-sm">
             <p className="text-muted-foreground">
               La pagina de detalle agrupa toda la informacion y acciones de una orden desde que se genera
@@ -985,7 +967,6 @@ export default function DocsPage() {
             </p>
           </div>
 
-          {/* Encabezado y acciones globales */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base">Encabezado y acciones globales</p>
             <p className="text-muted-foreground">El encabezado muestra el nombre del cliente, ID de orden, fecha de creacion y el estado actual. Desde ahi puedes:</p>
@@ -1010,7 +991,6 @@ export default function DocsPage() {
             </ul>
           </div>
 
-          {/* Resumen */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base">Resumen (4 tarjetas)</p>
             <Table>
@@ -1041,7 +1021,6 @@ export default function DocsPage() {
             </Table>
           </div>
 
-          {/* Tabla de productos */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base">Columnas de la tabla de productos</p>
             <div className="overflow-auto">
@@ -1090,7 +1069,6 @@ export default function DocsPage() {
             </p>
           </div>
 
-          {/* Acciones por producto */}
           <div className="space-y-3 text-sm">
             <p className="font-medium text-base">Acciones sobre productos individuales</p>
             <p className="text-muted-foreground text-xs mb-1">Disponibles solo cuando la orden no esta Completada ni Cancelada.</p>
@@ -1122,7 +1100,6 @@ export default function DocsPage() {
             </div>
           </div>
 
-          {/* Confirmar recepcion */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base flex items-center gap-2">
               <CheckCircle2 className="size-4 text-muted-foreground" />
@@ -1139,7 +1116,6 @@ export default function DocsPage() {
             </ul>
           </div>
 
-          {/* Estados */}
           <div className="space-y-3 text-sm">
             <p className="font-medium text-base">Estados de la orden</p>
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1180,7 +1156,6 @@ export default function DocsPage() {
             </Table>
           </div>
 
-          {/* Capacidades por estado */}
           <div className="space-y-2 text-sm">
             <p className="font-medium text-base">Que puedes hacer en cada estado</p>
             <div className="overflow-auto">
@@ -1239,7 +1214,6 @@ export default function DocsPage() {
       </Card>
       </div>
 
-      {/* Section: Tareas */}
       <div id="tareas" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -1275,7 +1249,6 @@ export default function DocsPage() {
       </Card>
       </div>
 
-      {/* Section 6: Flujo del Sistema */}
       <div id="flujo" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
@@ -1292,7 +1265,6 @@ export default function DocsPage() {
             {flowSteps.map((step, i) => (
               <div key={step.number}>
                 <div className="flex gap-4">
-                  {/* Step number + connector */}
                   <div className="flex flex-col items-center">
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
                       {step.number}
@@ -1304,14 +1276,12 @@ export default function DocsPage() {
                     )}
                   </div>
 
-                  {/* Step content */}
                   <div className="pb-6 flex-1 min-w-0">
                     <p className="font-medium leading-8">{step.title}</p>
                     <p className="text-sm text-muted-foreground mb-2">
                       {step.description}
                     </p>
 
-                    {/* Variants */}
                     {step.variants && (
                       <div className="space-y-2">
                         {step.variants.map((v) => (

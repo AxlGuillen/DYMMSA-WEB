@@ -1,8 +1,4 @@
-/**
- * Vistas guiadas del flujo de venta (issue #74, ADR-024): anti-drift de los
- * anclajes `data-tour` del cotizador (sus DOS momentos: upload y editor) y de
- * la lista de cotizaciones. El tour del detalle vive en QuotationDetail.test.tsx.
- */
+/** Sales-flow tours (#74, ADR-024): `data-tour` anti-drift for the quoter (upload + editor) and the list. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -28,7 +24,7 @@ vi.mock('@/hooks/useQuotes', () => ({
 }))
 vi.mock('@/hooks/useQuotations', () => ({
   useSaveQuotation: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  // QuotationsTable lo llama a nivel de componente aunque no haya filas.
+  // QuotationsTable calls it at component level even with no rows.
   useDeleteQuotation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useQuotations: () => ({
     data: { data: [], count: 0, page: 1, pageSize: 20, totalPages: 1 },
@@ -55,7 +51,7 @@ describe('Vista guiada — cotizador', () => {
   })
 
   test('anti-drift: los pasos del editor existen con borrador sembrado', () => {
-    // Con items en el store, la página arranca directo en el editor.
+    // With items in the store the page opens straight into the editor.
     seedQuotationItems([
       quotationItemRow({ etm: 'A', model_code: 'MC1', quantity: 2, unit_price: 100, description: 'x' }),
     ])
@@ -77,7 +73,7 @@ describe('Vista guiada — cotizador', () => {
 
     expect(driveMock).toHaveBeenCalledOnce()
     const config = driverMock.mock.calls[0][0]
-    // 6 pasos menos el de upload (no visible en el editor) = 5.
+    // 6 steps minus the upload one (not visible in the editor) = 5.
     expect(config.steps).toHaveLength(QUOTER_TOUR.length - 1)
   })
 })

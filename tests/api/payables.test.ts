@@ -1,10 +1,5 @@
-/**
- * Finanzas — facturas por pagar (issue #84).
- *
- * Reglas cubiertas: proveedor obligatorio y existente (404 preciso antes del
- * FK), regla de pago (status→paid registra paid_at, →pending lo limpia),
- * filtro por mes de VENCIMIENTO, y validaciones de monto/fechas.
- */
+/** Payables routes (#84): precise 404 before the FK, status→paid stamps paid_at
+ *  and →pending clears it, month filter goes by DUE date. */
 
 import { describe, test, expect, vi } from 'vitest'
 import {
@@ -125,7 +120,7 @@ describe('POST /api/payables', () => {
     const res = await payables.POST(makeRequest({ ...VALID_BODY, status: 'paid', paid_at: '2026-09-05' }))
     expect(res.status).toBe(201)
     const payload = activeClient.insertPayload('payables')
-    // El estado NO se acepta del cliente al crear: siempre nace pendiente.
+    // Status is not taken from the client on create: it always starts pending.
     expect(payload).toMatchObject({ status: 'pending', paid_at: null, concept: 'Material eléctrico' })
   })
 })
@@ -187,9 +182,7 @@ describe('GET /api/payables/overview', () => {
     expect(res.status).toBe(200)
     const body = await readJson(res)
     expect(body.month).toBe('2026-10')
-    // El mock responde el MISMO fixture a los dos selects del route (pendientes
-    // y pagadas del mes), así que la fila de $1,500 cuenta dos veces. La
-    // matemática real está cubierta en tests/lib/payables.test.ts.
+    // The mock answers both selects with the same fixture, so the row counts twice.
     expect(body.summary.pendingTotal).toBe(3000)
     expect(Array.isArray(body.payables)).toBe(true)
   })
@@ -202,8 +195,8 @@ describe('GET /api/payables/overview', () => {
     const res = await overview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview?month=2026-09' }))
     expect(res.status).toBe(200)
 
-    // El select de pagadas es el segundo: '2026-09-31' no existe y Postgres
-    // habria respondido 22008 con el `lte` anterior.
+    // The paid select is the second one: '2026-09-31' does not exist and the old
+    // `lte` got a 22008 from Postgres.
     const paidCall = activeClient.callsTo('payables', 'select')[1]
     expect(filterValue(paidCall, 'paid_at', 'gte')).toBe('2026-09-01')
     expect(filterValue(paidCall, 'paid_at', 'lt')).toBe('2026-10-01')

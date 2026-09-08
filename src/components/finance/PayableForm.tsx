@@ -31,7 +31,7 @@ import {
 import { Loader2 } from '@/components/icons'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { useCreatePayable, useUpdatePayable } from '@/hooks/usePayables'
-import { dueDateFrom } from '@/lib/payables'
+import { dueDateFrom, paymentTermsLabel } from '@/lib/payables'
 import { parseNumber, todayInMexico } from '@/lib/format'
 import { ApiError } from '@/lib/fetch-json'
 import type { PayableWithSupplier } from '@/types/database'
@@ -63,7 +63,7 @@ export function PayableForm({ open, onOpenChange, payable }: PayableFormProps) {
         <DialogHeader>
           <DialogTitle>{payable ? 'Editar factura' : 'Registrar factura por pagar'}</DialogTitle>
         </DialogHeader>
-        {/* key: los defaults salen de props sin efectos (patrón SupplierForm). */}
+        {/* key: defaults come from props without effects (SupplierForm pattern). */}
         <PayableFormBody key={payable?.id ?? 'new'} payable={payable} onOpenChange={onOpenChange} />
       </DialogContent>
     </Dialog>
@@ -83,8 +83,7 @@ function PayableFormBody({
   const createPayable = useCreatePayable()
   const updatePayable = useUpdatePayable()
 
-  // El vencimiento se pre-llena (proveedor.plazo + fecha de factura) SOLO
-  // mientras el usuario no lo haya editado a mano.
+  // Due date is pre-filled from the supplier's term ONLY until the user edits it.
   const [dueTouched, setDueTouched] = useState(isEditing)
 
   const form = useForm<PayableFormValues>({
@@ -157,7 +156,7 @@ function PayableFormBody({
                   {suppliers.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
-                      {s.payment_terms_days != null ? ` · ${s.payment_terms_days} días` : ' · contado'}
+                      {` · ${paymentTermsLabel(s.payment_terms_days)}`}
                     </SelectItem>
                   ))}
                 </SelectContent>

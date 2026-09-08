@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del planificador de corte: los dos momentos del módulo (ADR-022). */
+/** Cut planner overview: the module's two moments (ADR-022). */
 export const CUT_PLANNER_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="cut-candidates"]',
@@ -37,7 +37,7 @@ export const CUT_PLANNER_TOUR: OverviewStep[] = [
     title: 'Margen por corte',
     description:
       'Los mm que se come cada corte de sierra (se cobra por partición). Cambiarlo recalcula todos los acomodos y queda guardado como ajuste global del sistema.',
-    // En el header: abajo explícito para no tapar la barra de acciones (PR #62).
+    // In the header: bottom placement so it doesn't cover the action bar (PR #62).
     side: 'bottom',
   },
   {

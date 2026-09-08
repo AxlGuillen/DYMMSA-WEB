@@ -14,7 +14,6 @@ export async function POST(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    // Get order with items
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, status')
@@ -42,10 +41,8 @@ export async function POST(
       )
     }
 
-    // Restore inventory using shared helper (computeRestoration + DB writes)
     const { restored: inventoryRestored } = await restoreOrderInventory(supabase, orderId)
 
-    // Update order status to cancelled
     await supabase
       .from('orders')
       .update({ status: 'cancelled' })

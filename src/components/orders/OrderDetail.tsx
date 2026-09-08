@@ -145,15 +145,12 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const fmt = useCurrency()
   const [itemEdits, setItemEdits] = useState<Record<string, ItemEdit>>({})
 
-  // Add item dialog
   const [addItemOpen, setAddItemOpen] = useState(false)
   const [addForm, setAddForm] = useState(EMPTY_ADD_FORM)
 
-  // Edit price per row
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
   const [editingPrice, setEditingPrice] = useState('')
 
-  // Delete confirmation
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null)
   const [deleteOrderDialogOpen, setDeleteOrderDialogOpen] = useState(false)
 
@@ -167,7 +164,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const removeOrderItem = useRemoveOrderItem()
   const updateOdooId = useUpdateOrderOdooId()
 
-  // Odoo ID inline edit state
   const [editingOdooId, setEditingOdooId] = useState(false)
   const [odooIdValue, setOdooIdValue] = useState(order.odoo_id ?? '')
 
@@ -194,7 +190,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
-  // Solo los productos DYMMSA se mandan a hacer: sin ellos, el corte no aplica.
+  // Only DYMMSA products get manufactured; without them cutting does not apply.
   const hasDymmsaItems = order.order_items.some(
     (item) =>
       (!item.item_type || item.item_type === 'product') &&
@@ -217,7 +213,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
     setIsDownloadingDelivery(true)
     try {
-      // Carga diferida: xlsx solo baja al descargar el formato de entrega.
+      // Lazy: xlsx only downloads with the delivery format.
       const { generateDeliveryExcel, downloadDeliveryExcel } = await import('@/lib/excel/generator')
       const blob = generateDeliveryExcel(order.order_items, order.customer_name)
       downloadDeliveryExcel(blob, order.customer_name)
@@ -247,11 +243,11 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }))
   }
 
-  // ── Recepción con confirmación (ADR-019): la mutación solo corre tras el
-  // resumen — sin tope, un typo mandaría excedente fantasma al inventario. ──
+  // Reception runs only after the summary (ADR-019): a typo would otherwise push
+  // phantom excess into inventory.
   const [receptionDialogOpen, setReceptionDialogOpen] = useState(false)
 
-  /** Filas del resumen: edición + datos del ítem para mostrar el efecto. */
+  /** Summary rows: the edit plus item data, to show its effect. */
   const receptionSummary = Object.values(itemEdits).flatMap((edit) => {
     const item = order.order_items.find((i) => i.id === edit.id)
     if (!item) return []
@@ -265,7 +261,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       ordered: item.quantity_to_order,
       received: edit.quantity_received,
       excess,
-      // Dedazo probable: recibir más del doble de lo pedido
+      // Likely typo: receiving more than twice what was ordered.
       suspicious: item.quantity_to_order > 0 && edit.quantity_received > item.quantity_to_order * 2,
     }]
   })
@@ -385,8 +381,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
   const hasChanges = Object.keys(itemEdits).length > 0
 
-  // Columnas de la tabla de ítems (issue #18). Acciones solo entra a las defs
-  // con la orden abierta; ETM y Acciones son fijas.
+  // Acciones enters the defs only while the order is open; ETM and Acciones are fixed (#18).
   const isOrderActive = order.status !== 'completed' && order.status !== 'cancelled'
   const itemColumns = useMemo<TableColumn[]>(() => [
     { id: 'etm', label: 'ETM', hideable: false, width: 120 },
@@ -407,7 +402,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const cols = useVisibleColumns('order-detail-items', itemColumns)
   const widths = useColumnWidths('order-detail-items', itemColumns)
 
-  // Índice de sección por separador (color automático que rota, issue #73).
+  // Section index per separator; drives the rotating automatic color (#73).
   const sectionIndexById = useMemo(() => {
     const map = new Map<string, number>()
     let n = 0
@@ -424,9 +419,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
   return (
     <div className="space-y-6">
 
-      {/* Header. flex-wrap + min-w del título: las acciones (5+ botones) son
-          shrink-0 — sin wrap, en pantallas medianas exprimían el título a una
-          columna de letras; ahora bajan a su propia línea. */}
+      {/* flex-wrap + min-w on the title: the shrink-0 actions squeezed it into a
+          one-letter column on medium screens. */}
       <div className="flex items-start gap-4 flex-wrap">
         <Button
           variant="ghost"
@@ -452,7 +446,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
             })}
           </p>
 
-          {/* Odoo ID inline edit */}
           <div className="flex items-center gap-2 mt-2 print:hidden">
             <span className="text-xs font-medium text-muted-foreground shrink-0">Odoo ID:</span>
             {editingOdooId ? (
@@ -500,7 +493,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
           </div>
         </div>
 
-        {/* Actions — ml-auto: alineadas a la derecha también cuando bajan de línea */}
+        {/* ml-auto keeps the actions right-aligned even after they wrap. */}
         <div data-tour="od-actions" className="flex items-center gap-2 flex-wrap justify-end shrink-0 ml-auto print:hidden">
           <TourButton tour="order-detail" />
           {!isCancelled && (
@@ -594,7 +587,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
             </AlertDialog>
           )}
 
-          {/* Delete — always available */}
           <Button
             type="button"
             variant="ghost"
@@ -635,7 +627,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </div>
       </div>
 
-      {/* Cancelled banner */}
       {isCancelled && (
         <Card className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800">
           <CardContent className="pt-4 pb-4">
@@ -649,7 +640,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </Card>
       )}
 
-      {/* Completed banner */}
       {isCompleted && (
         <Card className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
           <CardContent className="pt-4 pb-4">
@@ -661,7 +651,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </Card>
       )}
 
-      {/* Info notes — only when order is active */}
       {!isCancelled && !isCompleted && (
         <div data-tour="od-notes" className="flex flex-col gap-1.5 text-xs text-muted-foreground px-1 print:hidden">
           <div className="flex items-start gap-1.5">
@@ -683,13 +672,12 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </div>
       )}
 
-      {/* Summary cards */}
       <div data-tour="od-stats" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-lg border p-4 bg-card">
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
             <Package className="size-3" /> Productos
           </p>
-          {/* REGLA: separadores fuera de los conteos — contaba order_items.length. */}
+          {/* RULE: separators stay out of the counts. */}
           <p className="text-2xl font-bold">{filterProductItems(order.order_items).length}</p>
         </div>
         <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
@@ -720,7 +708,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </Card>
       </div>
 
-      {/* Order Items */}
       <Card data-tour="od-items">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -781,7 +768,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </TableHeader>
               <TableBody>
                 {order.order_items.map((item) => {
-                  // Render separator as a visual divider
                   if (item.item_type === 'separator') {
                     const rowClass = separatorRowClass(
                       item.separator_color,
@@ -806,8 +792,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
                   const canEditUrreaStatus = isOrderOpen && hasUrreaOrder
 
                   return (
-                    // Fondos OPACOS: la columna fija de acciones los hereda con
-                    // `bg-inherit`, y con alfa se vería el contenido pasando debajo.
+                    // OPAQUE backgrounds: the sticky actions column inherits them with
+                    // `bg-inherit`, and alpha would leak the content underneath.
                     <TableRow key={item.id} className="bg-background hover:bg-muted">
                       <TableCell className="font-mono text-sm">{item.etm}</TableCell>
                       {cols.isVisible('model_code') && <TableCell>{item.model_code}</TableCell>}
@@ -982,7 +968,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                       )}
                       {cols.isVisible('total') && (
                         <TableCell className="text-right font-medium">
-                          {/* Total de línea con la misma regla del backend (excedente no se factura) */}
+                          {/* Same rule as the backend: excess is never invoiced. */}
                           {fmt(calculateDeliveredTotal([item]))}
                         </TableCell>
                       )}
@@ -1014,8 +1000,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <TableFooter>
                 <TableRow>
                   {(() => {
-                    // Alineado a las columnas VISIBLES; si Total está oculta,
-                    // una sola celda fusionada con el monto.
+                    // Aligned to the VISIBLE columns; with Total hidden, one merged cell.
                     const totalIdx = cols.visibleColumns.findIndex((c) => c.id === 'total')
                     if (totalIdx < 0) {
                       return (
@@ -1045,7 +1030,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </CardContent>
       </Card>
 
-      {/* Add item dialog */}
       <Dialog open={addItemOpen} onOpenChange={(o) => { setAddItemOpen(o); if (!o) setAddForm(EMPTY_ADD_FORM) }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -1129,7 +1113,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation dialog */}
       <AlertDialog open={!!deletingItemId} onOpenChange={(o) => { if (!o) setDeletingItemId(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1155,7 +1138,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Resumen de recepción antes de confirmar (anti-dedazo, ADR-019) */}
+      {/* Reception summary before confirming (typo guard, ADR-019) */}
       <AlertDialog open={receptionDialogOpen} onOpenChange={setReceptionDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

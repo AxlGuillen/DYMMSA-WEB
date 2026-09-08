@@ -1,7 +1,4 @@
-/**
- * TasksPage — lista de tareas. Hooks de useTasks mockeados a nivel de módulo
- * (convención del proyecto); la lógica de red se cubre en tests/api.
- */
+/** TasksPage: useTasks hooks mocked per module; the network side is covered in tests/api. */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { renderWithProviders, screen, setupUser } from './helpers/render'
@@ -38,7 +35,7 @@ describe('TasksPage', () => {
     mockUseTasks.mockReturnValue({ data: { tasks: [task()], page: 1 }, isLoading: false, error: null } as never)
     renderWithProviders(<TasksPage />)
     expect(screen.getByText('Falla el total')).toBeInTheDocument()
-    // "Alta" aparece en el filtro de prioridad y en el badge de la fila.
+    // "Alta" shows up both in the priority filter and in the row badge.
     expect(screen.getAllByText('Alta').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Abierta')).toBeInTheDocument()
   })

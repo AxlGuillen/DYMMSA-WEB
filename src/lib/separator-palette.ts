@@ -1,15 +1,12 @@
-/**
- * Paleta de separadores (#73): rota por índice, override manual en separator_color
- * (TEXT libre — la validación vive SOLO aquí; valores desconocidos caen a automático).
- * Fondos OPACOS vía color-mix: la columna fija hereda con bg-inherit y el alfa transparentaría.
- */
+/** Separator palette (#73): rotates by index, `separator_color` overrides it and is validated ONLY
+ *  here. Backgrounds are OPAQUE via color-mix — the pinned column uses bg-inherit and alpha would leak. */
 
 export interface SeparatorTone {
-  /** Nombre visible en el picker. */
+  /** Label shown in the picker. */
   label: string
-  /** Fondo + acento izquierdo de la fila del separador (light y dark). */
+  /** Row background + left accent (light and dark). */
   row: string
-  /** Muestra del color en el picker. */
+  /** Color swatch in the picker. */
   swatch: string
 }
 
@@ -51,20 +48,20 @@ export const SEPARATOR_PALETTE: Record<string, SeparatorTone> = {
   },
 }
 
-/** Orden de rotación del color automático. */
+/** Rotation order of the automatic color. */
 export const SEPARATOR_COLOR_KEYS = Object.keys(SEPARATOR_PALETTE)
 
 export function isSeparatorColor(value: unknown): value is string {
   return typeof value === 'string' && value in SEPARATOR_PALETTE
 }
 
-/** Color automático del N-ésimo separador del documento (0-indexado). */
+/** Automatic color for the Nth separator (0-indexed). */
 export function autoSeparatorColor(sectionIndex: number): string {
   const safe = Number.isInteger(sectionIndex) && sectionIndex >= 0 ? sectionIndex : 0
   return SEPARATOR_COLOR_KEYS[safe % SEPARATOR_COLOR_KEYS.length]
 }
 
-/** Override válido ?? automático — un valor desconocido en BD nunca revienta. */
+/** Valid override ?? automatic — an unknown DB value never blows up. */
 export function resolveSeparatorColor(
   stored: string | null | undefined,
   sectionIndex: number,
@@ -72,7 +69,7 @@ export function resolveSeparatorColor(
   return isSeparatorColor(stored) ? stored : autoSeparatorColor(sectionIndex)
 }
 
-/** Clases de la fila del separador (fondo + acento) para las 4 pantallas. */
+/** Row classes (background + accent) shared by the 4 screens. */
 export function separatorRowClass(
   stored: string | null | undefined,
   sectionIndex: number,

@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del inventario de tienda (issue #74). */
+/** Store inventory overview (#74). */
 export const INVENTORY_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="inv-stats"]',

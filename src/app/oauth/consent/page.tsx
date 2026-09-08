@@ -1,6 +1,6 @@
 /**
- * Consentimiento OAuth (ADR-023), DETRÁS del login a propósito. El redirect a
- * /login conserva ?authorization_id — sin él la pantalla no sabe qué autorizaba.
+ * OAuth consent (ADR-023), behind the login on purpose. The /login redirect keeps
+ * ?authorization_id — without it the screen has no idea what it was authorizing.
  */
 
 import Image from 'next/image'
@@ -43,7 +43,7 @@ export default async function ConsentPage({
     data: { user },
   } = await supabase.auth.getUser()
 
-  // El proxy ya redirige; esto es defensa en profundidad — y conserva la query.
+  // The proxy already redirects; this is defense in depth, and it preserves the query.
   if (!user) {
     const next = `/oauth/consent?authorization_id=${encodeURIComponent(authorizationId)}`
     redirect(`/login?next=${encodeURIComponent(next)}`)
@@ -55,8 +55,7 @@ export default async function ConsentPage({
     return <ConsentError message={error?.message ?? 'La solicitud no es válida o ya expiró.'} />
   }
 
-  // Sin `authorization_id` en la respuesta, el consentimiento ya estaba dado y
-  // Supabase devuelve directo la URL de vuelta al cliente.
+  // No `authorization_id` in the response means consent was already granted and Supabase returns the redirect URL.
   if (!('authorization_id' in data)) redirect(data.redirect_url)
 
   const clientName = data.client?.name ?? 'La aplicación'
@@ -87,8 +86,8 @@ export default async function ConsentPage({
           <li>• Puedes revocar el acceso cuando quieras desde el panel de Supabase.</li>
         </ul>
 
-        {/* Dos formularios en vez de un submitter con name/value: la intención va
-            en qué acción corre, no en un campo que el navegador controla. */}
+        {/* Two forms instead of one submitter with name/value: intent lives in which action runs,
+            not in a field the browser controls. */}
         <div className="mt-8 flex gap-2">
           <form action={denyAction} className="flex-1">
             <input type="hidden" name="authorization_id" value={authorizationId} />

@@ -4,21 +4,18 @@ import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import { SETTING_THRESHOLD_MONEY, SETTING_THRESHOLD_PCT } from '@/lib/purchase-plan'
 import { SETTING_CUT_MARGIN_MM } from '@/lib/cut-plan'
 
-/**
- * app_settings sin seeds (fila ausente → default en código). PATCH con
- * whitelist estricta: cada key nueva se registra aquí con su validador.
- */
+/** app_settings has no seeds (missing row → code default); every new key needs its validator here. */
 const SETTING_VALIDATORS: Record<string, (value: unknown) => boolean> = {
-  // Dinero parado (MXN) — número finito > 0
+  // Idle money (MXN) — finite number > 0
   [SETTING_THRESHOLD_MONEY]: (v) => typeof v === 'number' && Number.isFinite(v) && v > 0,
-  // Fracción del paquete extra — número finito en (0, 1]
+  // Extra-package fraction — finite number in (0, 1]
   [SETTING_THRESHOLD_PCT]: (v) =>
     typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 1,
-  // Margen de corte por partición (mm) — 0 es legítimo (issue #59)
+  // Cut margin per partition (mm) — 0 is legitimate (#59)
   [SETTING_CUT_MARGIN_MM]: (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0,
 }
 
-/** GET /api/settings?keys=a,b — filas crudas (Record key→value). */
+/** GET /api/settings?keys=a,b — raw rows as Record key→value. */
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -46,7 +43,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** PATCH /api/settings — body { settings: { key: value } }, upsert por key. */
+/** PATCH /api/settings — body { settings: { key: value } }, upsert by key. */
 export async function PATCH(request: NextRequest) {
   try {
     const supabase = await createClient()

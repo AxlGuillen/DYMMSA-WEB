@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview de la lista de órdenes (issue #74): el tablero post-aprobación. */
+/** Orders list overview (#74): the post-approval board. */
 export const ORDERS_LIST_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="ol-stats"]',

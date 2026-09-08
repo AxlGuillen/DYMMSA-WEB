@@ -15,7 +15,7 @@ export interface ExtractionProductResult {
   sheetsWithEtm: number
 }
 
-// Maps logical field names to possible column headers in the Excel (case insensitive)
+// Logical field name → accepted column headers (case insensitive)
 const COLUMN_ALIASES: Record<string, string[]> = {
   etm: ['etm'],
   description: ['description', 'descripcion', 'desc'],
@@ -39,7 +39,7 @@ function findColumnHeader(headers: string[], aliases: string[]): string | null {
   return null
 }
 
-/** Filas de producto de un Excel multi-hoja; solo ETM obligatorio, duplicados permitidos. */
+/** Product rows across a multi-sheet Excel; only ETM is required and duplicates are allowed. */
 export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProductResult {
   const workbook = XLSX.read(buffer, { type: 'array' })
   const rows: ExcelExtractedRow[] = []
@@ -75,7 +75,7 @@ export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProd
       let etm = String(etmRaw).trim()
       if (!etm) continue
 
-      // Replace "new" (any casing) with a unique temp placeholder
+      // "new" (any casing) becomes a unique temporary placeholder
       if (etm.toLowerCase() === 'new') {
         etm = `DYMMSA-TEMP-${++newEtmCounter}`
       }
@@ -99,10 +99,7 @@ export function extractProductRowsFromExcel(buffer: ArrayBuffer): ExtractionProd
   }
 }
 
-/**
- * Extrae codigos ETM unicos de todas las hojas de un archivo Excel
- * Busca la columna "ETM" (case insensitive) en cada hoja
- */
+/** Unique ETM codes across every sheet, from the "ETM" column (case insensitive). */
 export function extractEtmCodesFromExcel(buffer: ArrayBuffer): ExtractionResult {
   const workbook = XLSX.read(buffer, { type: 'array' })
   const etmSet = new Set<string>()
@@ -115,7 +112,6 @@ export function extractEtmCodesFromExcel(buffer: ArrayBuffer): ExtractionResult 
 
     if (rows.length === 0) continue
 
-    // Buscar columna ETM (case insensitive)
     const headers = Object.keys(rows[0])
     let etmColumn: string | undefined
     for (const h of headers) {
@@ -130,7 +126,6 @@ export function extractEtmCodesFromExcel(buffer: ArrayBuffer): ExtractionResult 
       totalRows++
       const etmValue = row[etmColumn]
       if (etmValue !== null && etmValue !== undefined && etmValue !== '') {
-        // Normalizar el valor ETM (string, sin espacios)
         const normalizedEtm = String(etmValue).trim()
         if (normalizedEtm) {
           etmSet.add(normalizedEtm)

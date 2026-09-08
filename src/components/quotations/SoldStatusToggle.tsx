@@ -3,16 +3,14 @@
 import { Check, Ban } from '@/components/icons'
 
 interface SoldStatusToggleProps {
-  /** Tri-estado: null = sin definir, true = lo vendemos, false = no lo vendemos. */
+  /** Tri-state: null = undefined, true = sold, false = not sold. */
   value: boolean | null
   onChange: (next: boolean | null) => void
   disabled?: boolean
 }
 
-/**
- * Toggle de "¿lo vendemos?" (#55): click marca, re-click en el activo vuelve a
- * null — el único camino para deshacer una marca errónea (solo true/false pisan catálogo).
- */
+/** Re-clicking the active option returns to null (#55): the only way to undo a
+ *  wrong mark, since only true/false reach the catalog. */
 export function SoldStatusToggle({ value, onChange, disabled }: SoldStatusToggleProps) {
   const base = 'rounded p-1 transition-colors disabled:opacity-50 disabled:pointer-events-none'
 

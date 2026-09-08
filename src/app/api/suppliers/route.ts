@@ -6,12 +6,12 @@ import type { Brand, SupplierInsert, SupplierWithBrands } from '@/types/database
 const SORT_FIELDS = ['name', 'updated_at'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
-/** Quita los caracteres que rompen la sintaxis del filtro `.or()` de PostgREST. */
+/** Removes the characters that break PostgREST's `.or()` filter syntax. */
 function sanitizeSearch(raw: string): string {
   return raw.replace(/[,()%]/g, ' ').trim()
 }
 
-/** Fila cruda del embed supplier_brands(brands(...)) → brands aplanadas y ordenadas. */
+/** Raw row of the supplier_brands(brands(...)) embed, flattened into `brands`. */
 type SupplierRow = Omit<SupplierWithBrands, 'brands'> & {
   supplier_brands: { brands: Brand | null }[] | null
 }
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Filtro por marca: ids de proveedores que la tienen asignada.
+    // Brand filter: ids of the suppliers it is assigned to.
     if (brandId) {
       const { data: links, error: linksError } = await supabase
         .from('supplier_brands')
@@ -100,7 +100,7 @@ interface CreateSupplierBody extends Partial<SupplierInsert> {
   brandIds?: string[]
 }
 
-// POST /api/suppliers → crear proveedor (+ links de marcas)
+// POST /api/suppliers — create supplier (+ brand links)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
         .insert(brandIds.map((brand_id) => ({ supplier_id: supplier.id, brand_id })))
 
       if (linksError) {
-        // Rollback: sin sus marcas el registro queda a medias — se elimina el padre.
+        // Rollback: without its brands the record is half-created — drop the parent.
         await supabase.from('suppliers').delete().eq('id', supplier.id)
         console.error('Error linking supplier brands (rolled back):', linksError)
         return serverError('Error al asignar las marcas del proveedor')

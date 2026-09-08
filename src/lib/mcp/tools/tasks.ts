@@ -1,7 +1,4 @@
-/**
- * Tools de tareas — misma fuente que /api/tasks (GitHub Issues, ADR-014).
- * Escrituras acotadas de ADR-015: createTask y updateTask.
- */
+/** Task tools — same source as /api/tasks (GitHub Issues, ADR-014). */
 
 import {
   buildIssueBody,
@@ -16,7 +13,7 @@ import {
 } from '@/lib/github'
 import { ToolError } from '../shared'
 
-/** Reporter fijo de las tasks creadas por el MCP: no hay usuario logueado (auth = token compartido). */
+/** Fixed reporter: the MCP has no logged-in user (auth is a shared token). */
 const MCP_REPORTER = 'Asistente (MCP)'
 
 export interface ListTasksInput {
@@ -41,7 +38,7 @@ export async function listTasks(input: ListTasksInput) {
   }
 
   const issues = await fetchGitHub<GitHubIssue[]>(`/issues?${qs.toString()}`)
-  // La API de issues incluye PRs → se excluyen.
+  // The issues API includes PRs, so exclude them.
   const tasks = issues.filter((i) => !isPullRequest(i)).map(mapIssueToTask)
   return { tasks, page, state }
 }
@@ -68,7 +65,7 @@ export interface CreateTaskInput {
   priority?: string
 }
 
-/** Espeja POST /api/tasks con reporter fijo (el MCP no tiene sesión); prioridad inválida se ignora. */
+/** Mirrors POST /api/tasks; an invalid priority is ignored. */
 export async function createTask(input: CreateTaskInput) {
   const title = input.title?.trim()
   if (!title) throw new ToolError('El título es obligatorio')
@@ -95,10 +92,7 @@ export interface UpdateTaskInput {
   state_reason?: string
 }
 
-/**
- * Comentar / priorizar / cerrar-reabrir (#72, ADR-015). NO edita título ni
- * descripción: reescribir texto humano es el riesgo que esta tool evita.
- */
+/** Comment / prioritize / close-reopen (#72, ADR-015). Never edits title or body: rewriting human text is the risk this tool avoids. */
 export async function updateTask(input: UpdateTaskInput) {
   const n = input.task_number
   if (!Number.isInteger(n) || n < 1) throw new ToolError('Número de tarea inválido')
@@ -113,14 +107,12 @@ export async function updateTask(input: UpdateTaskInput) {
   if (wantsState && input.state !== 'open' && input.state !== 'closed') {
     throw new ToolError('state inválido — usa "open" o "closed"')
   }
-  // Prioridad estricta (a diferencia de crear, aquí un typo "quitaría" la
-  // prioridad en silencio): válida o "none" para removerla.
+  // Strict here (unlike create): a typo would silently drop the priority.
   if (wantsPriority && input.priority !== 'none' && !isTaskPriority(input.priority)) {
     throw new ToolError('priority inválida — usa low | medium | high | highest, o "none" para quitarla')
   }
 
-  // Sin rollback deliberado: si el PATCH posterior falla, el comentario ya
-  // publicado se queda (borrarlo sería peor) y el error delata el parcial.
+  // No rollback on purpose: deleting an already-published comment would be worse than a partial.
   let createdComment = null
   if (comment) {
     const raw = await fetchGitHub<GitHubComment>(`/issues/${n}/comments`, {
@@ -134,14 +126,13 @@ export async function updateTask(input: UpdateTaskInput) {
     const patch: Record<string, unknown> = {}
     if (wantsState) {
       patch.state = input.state
-      // Al cerrar: "completada" vs "descartada"; al reabrir GitHub fija
-      // state_reason='reopened' solo (mismo contrato que la ruta HTTP).
+      // On reopen GitHub sets state_reason='reopened' itself (same contract as the HTTP route).
       if (input.state === 'closed') {
         patch.state_reason = input.state_reason === 'not_planned' ? 'not_planned' : 'completed'
       }
     }
     if (wantsPriority) {
-      // Leer los labels actuales para no pisar los ajenos a la prioridad.
+      // Read current labels so non-priority ones survive.
       const current = await fetchGitHub<GitHubIssue>(`/issues/${n}`)
       const others = (current.labels ?? []).map((l) => l.name).filter((name) => !name.startsWith('priority:'))
       patch.labels = input.priority !== 'none' && isTaskPriority(input.priority)
@@ -155,7 +146,7 @@ export async function updateTask(input: UpdateTaskInput) {
     return { task: mapIssueToTask(updated), comentario: createdComment ?? undefined }
   }
 
-  // Solo comentario: releer la tarea confirma el destino y da contexto fresco.
+  // Comment-only: re-reading confirms the target and returns fresh context.
   const issue = await fetchGitHub<GitHubIssue>(`/issues/${n}`)
   return { task: mapIssueToTask(issue), comentario: createdComment ?? undefined }
 }

@@ -1,11 +1,8 @@
 import Link from 'next/link'
 import { Sparkles, History } from '@/components/icons'
 
-/**
- * Novedades y Actividad son dos rutas (no pestañas con estado): así ambas
- * quedan del lado del servidor y la bitácora técnica —108 KB de texto— nunca
- * viaja al cliente.
- */
+/** Two routes, not stateful tabs: both stay server-side so the 108 KB technical
+ *  log never ships to the client. */
 
 const TABS = [
   { key: 'novedades', href: '/dashboard/changelog', label: 'Novedades', icon: Sparkles },

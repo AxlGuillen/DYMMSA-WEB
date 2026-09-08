@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createDebouncedStorage } from '@/lib/debounced-storage'
 
-/** Backing en memoria que registra las escrituras reales. */
+/** In-memory backing that records the real writes. */
 function makeBacking() {
   const map = new Map<string, string>()
   return {
@@ -23,11 +23,11 @@ describe('createDebouncedStorage', () => {
     storage.setItem('k', 'a')
     storage.setItem('k', 'b')
     storage.setItem('k', 'c')
-    expect(backing.setItem).not.toHaveBeenCalled() // aún nada escrito
+    expect(backing.setItem).not.toHaveBeenCalled() // nothing written yet
 
     vi.advanceTimersByTime(500)
     expect(backing.setItem).toHaveBeenCalledTimes(1)
-    expect(backing.setItem).toHaveBeenCalledWith('k', 'c') // solo el último valor
+    expect(backing.setItem).toHaveBeenCalledWith('k', 'c') // only the last value
   })
 
   test('getItem sirve el valor pendiente (read-your-writes) antes del flush', () => {
@@ -36,7 +36,7 @@ describe('createDebouncedStorage', () => {
 
     backing.map.set('k', 'viejo')
     storage.setItem('k', 'nuevo')
-    expect(storage.getItem('k')).toBe('nuevo') // pendiente, sin tocar backing
+    expect(storage.getItem('k')).toBe('nuevo') // pending, backing untouched
     expect(backing.setItem).not.toHaveBeenCalled()
   })
 
@@ -48,7 +48,7 @@ describe('createDebouncedStorage', () => {
     storage.flush()
     expect(backing.setItem).toHaveBeenCalledExactlyOnceWith('k', 'v')
 
-    // Tras flush no queda timer que dispare otra escritura.
+    // After flush no timer is left to fire another write.
     vi.advanceTimersByTime(500)
     expect(backing.setItem).toHaveBeenCalledTimes(1)
   })
@@ -61,7 +61,7 @@ describe('createDebouncedStorage', () => {
     storage.removeItem('k')
     vi.advanceTimersByTime(500)
 
-    expect(backing.setItem).not.toHaveBeenCalled() // la pendiente se canceló
+    expect(backing.setItem).not.toHaveBeenCalled() // the pending write was cancelled
     expect(backing.removeItem).toHaveBeenCalledWith('k')
   })
 
@@ -71,13 +71,13 @@ describe('createDebouncedStorage', () => {
 
     storage.setItem('a', '1')
     storage.setItem('b', '2')
-    storage.removeItem('a') // cancela 'a', pero 'b' sigue pendiente
+    storage.removeItem('a') // cancels 'a', but 'b' is still pending
 
     expect(backing.removeItem).toHaveBeenCalledWith('a')
-    expect(backing.setItem).not.toHaveBeenCalled() // aún dentro del debounce
+    expect(backing.setItem).not.toHaveBeenCalled() // still inside the debounce
 
     vi.advanceTimersByTime(500)
-    expect(backing.setItem).toHaveBeenCalledExactlyOnceWith('b', '2') // 'b' se escribió
+    expect(backing.setItem).toHaveBeenCalledExactlyOnceWith('b', '2')
   })
 
   test('sin backing (SSR) no truena y descarta lo pendiente en el flush', () => {

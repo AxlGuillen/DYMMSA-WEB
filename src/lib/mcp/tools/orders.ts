@@ -1,4 +1,4 @@
-/** Tools de órdenes (lectura). La query de lista vive aquí: no existe GET /api/orders aún. */
+/** Order tools (read). The list query lives here: there is no GET /api/orders yet. */
 
 import { calculateOrderTotal, isProductItem } from '@/lib/business-rules'
 import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'

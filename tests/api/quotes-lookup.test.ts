@@ -1,11 +1,5 @@
-/**
- * POST /quotes/lookup — búsqueda masiva de ETMs + descripciones de catálogo.
- *   - found/notFound por etm
- *   - catalogDescriptions: mapa catalogKey(MARCA|CODIGO)→descripción para la
- *     unión de model_codes (productos encontrados + códigos del Excel),
- *     normalizados; se omiten filas sin descripción. Incluye todas las marcas
- *     de esos códigos → el cotizador resuelve con la marca de cada ítem.
- */
+/** POST /quotes/lookup: catalogDescriptions is keyed by catalogKey(BRAND|CODE)
+ *  over found products + Excel codes, so the quoter resolves per item brand. */
 
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
@@ -45,7 +39,7 @@ describe('POST /quotes/lookup', () => {
     })
     const res = await lookup.POST(makeRequest({
       etmCodes: ['ETM-1', 'ETM-2'],
-      // mc9 viene del Excel (fila aún sin registro en etm_products)
+      // mc9 comes from the Excel (row with no etm_products record yet)
       modelCodes: [' mc9 '],
     }))
     expect(res.status).toBe(200)
@@ -57,7 +51,7 @@ describe('POST /quotes/lookup', () => {
       'FOY|MC9': 'Oficial 9',
     })
 
-    // la query al catálogo usó la union normalizada (MC1 del found + MC9 del Excel)
+    // the catalog query used the normalized union (MC1 from found + MC9 from the Excel)
     const call = activeClient.callsTo('urrea_catalog', 'select')[0]
     const inFilter = call.filters.find((f) => f.method === 'in')
     expect(inFilter?.args[1]).toEqual(['MC1', 'MC9'])
@@ -71,7 +65,7 @@ describe('POST /quotes/lookup', () => {
           data: [{ etm: 'ETM-1', model_code: 'MC1', description: 'P1' }],
           error: null,
         },
-        // sin respuesta para urrea_catalog → default { data: null } (catálogo vacío)
+        // no stub for urrea_catalog → default { data: null } (empty catalog)
       },
     })
     const res = await lookup.POST(makeRequest({ etmCodes: ['ETM-1'] }))

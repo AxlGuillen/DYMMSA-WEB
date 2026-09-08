@@ -1,7 +1,4 @@
-/**
- * Página pública de aprobación (issue #24): filtros por marca/proyecto y
- * "aprobar visibles" contextual. El API no se toca aquí — no disparamos envío.
- */
+/** Public approval page (#24): brand/project filters and contextual "approve visible". No API calls. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
@@ -30,7 +27,7 @@ function item(overrides: Partial<QuotationItem>): QuotationItem {
   return quotationItem({ dymmsa_description: null, is_sold: null, ...overrides })
 }
 
-/** Cotización en revisión con 2 marcas y 2 secciones. */
+/** Quotation under review with 2 brands and 2 sections. */
 function sentQuotation() {
   return quotationWithItems({
     status: 'sent_for_approval',
@@ -65,14 +62,13 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
     const user = userEvent.setup()
     renderWithProviders(<ApprovalClient quotation={sentQuotation()} token="tok-1" />)
 
-    // Abre el Select de marca (el primero) y elige FLUKE
+    // Opens the brand Select (the first one) and picks FLUKE
     await user.click(screen.getAllByRole('combobox')[0])
     await user.click(await screen.findByRole('option', { name: 'FLUKE' }))
 
     expect(screen.getByText('E-FLUKE')).toBeInTheDocument()
     expect(screen.queryByText('E-URREA')).not.toBeInTheDocument()
     expect(screen.queryByText('E-URREA2')).not.toBeInTheDocument()
-    // Botón contextual
     expect(screen.getByRole('button', { name: /aprobar 1 visible/i })).toBeInTheDocument()
   })
 
@@ -83,7 +79,7 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
     await user.click(screen.getAllByRole('combobox')[0])
     await user.click(await screen.findByRole('option', { name: 'FLUKE' }))
 
-    // FLUKE solo vive en "Obra Norte" → "Obra Sur" desaparece
+    // FLUKE only lives in "Obra Norte" → "Obra Sur" disappears
     expect(screen.getByText('Obra Norte')).toBeInTheDocument()
     expect(screen.queryByText('Obra Sur')).not.toBeInTheDocument()
   })
@@ -96,17 +92,15 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
     await user.click(await screen.findByRole('option', { name: 'FLUKE' }))
     await user.click(screen.getByRole('button', { name: /aprobar 1 visible/i }))
 
-    // Solo la fila FLUKE quedó "Aprobado"
     const flukeRow = screen.getByText('E-FLUKE').closest('tr')!
     expect(within(flukeRow).getByText('Aprobado')).toBeInTheDocument()
 
-    // El dock (global) muestra 1 de 3 aprobados, no 1 de 1
+    // The dock is global: 1 of 3 approved, not 1 of 1.
     expect(dockText()).toMatch(/1.*\/ 3 aprobados/)
   })
 
   test('vista guiada: los selectores del tour existen y el botón arranca driver.js', async () => {
-    // Anti-drift: en revisión (editable) están los 4 bloques del tour —
-    // resumen, filtros, tabla y dock.
+    // Anti-drift: under review (editable) all 4 tour blocks are present.
     const user = userEvent.setup()
     renderWithProviders(<ApprovalClient quotation={sentQuotation()} token="tok-1" />)
     for (const step of APPROVAL_TOUR) {
@@ -120,7 +114,7 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
 
   test('colores de sección: rotan por índice y el override guardado gana (issue #73)', () => {
     const quotation = sentQuotation()
-    // sep-b trae override manual; sep-a queda en automático.
+    // sep-b carries a manual override; sep-a stays automatic.
     quotation.quotation_items = quotation.quotation_items.map((item) =>
       item.id === 'sep-b' ? { ...item, separator_color: 'rose' } : item,
     )
@@ -128,7 +122,7 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
 
     const rowA = screen.getByText('Obra Norte').closest('tr')!
     const rowB = screen.getByText('Obra Sur').closest('tr')!
-    // 1er separador → 1er color de la paleta; override → su tono exacto.
+    // First separator → first palette color; override → its exact tone.
     expect(rowA.className).toContain(SEPARATOR_PALETTE[SEPARATOR_COLOR_KEYS[0]].row)
     expect(rowB.className).toContain(SEPARATOR_PALETTE.rose.row)
   })

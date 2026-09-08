@@ -2,21 +2,18 @@ import { driver } from 'driver.js'
 import 'driver.js/dist/driver.css'
 
 /**
- * Vistas guiadas (ADR-024): OVERVIEWS opcionales — nunca arrancan solas.
- * Anclas por data-tour, jamás clases: el estilo cambia, el ancla no.
+ * Guided overviews (ADR-024): optional, they never auto-start.
+ * Anchored on data-tour, never on classes: styles change, anchors don't.
  */
 export interface OverviewStep {
-  /** Selector del bloque (por convención `[data-tour="..."]`). */
+  /** Block selector (by convention `[data-tour="..."]`). */
   selector: string
   title: string
   description: string
   side?: 'top' | 'bottom' | 'left' | 'right'
 }
 
-/**
- * Primer match VISIBLE: el sidebar existe dos veces en el DOM y hay secciones
- * condicionales. checkVisibility no existe en jsdom → ahí basta existir.
- */
+/** First VISIBLE match: the sidebar exists twice in the DOM. checkVisibility is absent in jsdom, so existing is enough there. */
 function resolveVisible(selector: string): Element | null {
   for (const el of document.querySelectorAll(selector)) {
     if (
@@ -29,7 +26,7 @@ function resolveVisible(selector: string): Element | null {
   return null
 }
 
-/** Arranca solo con los bloques presentes — lo condicional se salta, sin popovers huérfanos. */
+/** Starts with the present blocks only — conditional ones are skipped, no orphan popovers. */
 export function startOverview(steps: OverviewStep[]) {
   const present = steps.flatMap((step) => {
     const element = resolveVisible(step.selector)

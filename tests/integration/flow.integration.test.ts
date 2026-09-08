@@ -1,9 +1,6 @@
 /**
- * Integración (Fase C1 · capa 5 — cadena completa) contra el Supabase LOCAL.
- * Encadena TODOS los handlers reales, el mismo E2E manual pero automatizado:
- *   guardar → enviar a aprobación → aprobar (cliente) → generar orden → recibir.
- * Ambos clients (server autenticado + admin) inyectados; se afirma la
- * progresión de estado en la BD real en cada paso.
+ * Full chain against local Supabase (ADR-021), all real handlers:
+ * save → send for approval → customer approves → create order → receive.
  */
 import { describe, test, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -39,7 +36,7 @@ function product(over: Record<string, unknown> = {}) {
 
 describe('Cadena completa: cotización → aprobación → orden → recepción', () => {
   test('progresión de estado end-to-end contra la BD real', async () => {
-    // ── 1. Guardar cotización (draft) ──────────────────────────────────────
+    // 1. Save quotation (draft).
     const saveRes = await save.POST(makeRequest({
       name: 'Flujo E2E', customer_name: 'ACME',
       items: [
@@ -50,12 +47,12 @@ describe('Cadena completa: cotización → aprobación → orden → recepción'
     const { quotation_id } = await readJson<{ quotation_id: string }>(saveRes)
     expect(quotation_id).toBeTruthy()
 
-    // ── 2. Enviar a aprobación (regenera token) ────────────────────────────
+    // 2. Send for approval (regenerates the token).
     expect((await statusRoute.PATCH(makeRequest({ status: 'sent_for_approval' }, { method: 'PATCH' }), makeParams({ id: quotation_id }))).status).toBe(200)
     const [q1] = await sql<{ approval_token: string; status: string }>('SELECT approval_token, status FROM quotations WHERE id = $1', [quotation_id])
     expect(q1.status).toBe('sent_for_approval')
 
-    // ── 3. Cliente aprueba AMBOS (finalize) ────────────────────────────────
+    // 3. Customer approves both (finalize).
     const itemIds = (await sql<{ id: string }>('SELECT id FROM quotation_items WHERE quotation_id = $1 ORDER BY sort_order', [quotation_id])).map((r) => r.id)
     const appRes = await approve.POST(
       makeRequest({ approvedIds: itemIds, finalize: true }, { method: 'POST' }),
@@ -66,7 +63,7 @@ describe('Cadena completa: cotización → aprobación → orden → recepción'
     expect(q2.status).toBe('approved')
     expect(q2.approved_at).not.toBeNull()
 
-    // ── 4. Generar orden (split de inventario, cotización → convertida) ─────
+    // 4. Create order (inventory split).
     const { order_id } = await readJson<{ order_id: string }>(
       await createOrder.POST(makeRequest(undefined, { method: 'POST' }), makeParams({ id: quotation_id })),
     )
@@ -74,12 +71,12 @@ describe('Cadena completa: cotización → aprobación → orden → recepción'
     const [q3] = await sql<{ status: string }>('SELECT status FROM quotations WHERE id = $1', [quotation_id])
     expect(q3.status).toBe('converted_to_order')
 
-    // 60001 (stock 5): 5 en stock / 7 a pedir. 60002 (sin stock): 0 / 3.
+    // 60001 (stock 5): 5 in stock / 7 to order. 60002 (no stock): 0 / 3.
     const [p1] = await sql<{ quantity_in_stock: number; quantity_to_order: number }>("SELECT quantity_in_stock, quantity_to_order FROM order_items WHERE order_id = $1 AND etm = 'SEED-URREA-1'", [order_id])
     expect(p1).toMatchObject({ quantity_in_stock: 5, quantity_to_order: 7 })
     expect(Number((await sql<{ quantity: number }>("SELECT quantity FROM store_inventory WHERE model_code = '60001'"))[0].quantity)).toBe(0)
 
-    // ── 5. Recibir con excedente (pediste 7, llegan 10 → +3 al inventario) ─
+    // 5. Receive with excess: 7 ordered, 10 arrive → +3 to inventory.
     const [p1item] = await sql<{ id: string }>("SELECT id FROM order_items WHERE order_id = $1 AND etm = 'SEED-URREA-1'", [order_id])
     expect((await reception.POST(
       makeRequest({ items: [{ id: p1item.id, quantity_received: 10, urrea_status: 'supplied' }] }, { method: 'POST' }),

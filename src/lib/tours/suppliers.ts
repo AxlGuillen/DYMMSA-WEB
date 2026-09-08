@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview de proveedores de menudeo (issue #74). */
+/** Retail suppliers overview (#74). */
 export const SUPPLIERS_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="sup-filters"]',

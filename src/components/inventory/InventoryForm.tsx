@@ -27,7 +27,7 @@ import type { StoreInventory } from '@/types/database'
 const inventorySchema = z.object({
   model_code: z.string().min(1, 'Codigo modelo es requerido'),
   quantity: z.number().min(0, 'Cantidad debe ser mayor o igual a 0'),
-  location: z.string(), // ubicación (gaveta), opcional; '' → null
+  location: z.string(), // optional drawer location; '' → null
 })
 
 type InventoryFormValues = z.infer<typeof inventorySchema>

@@ -1,16 +1,13 @@
-/**
- * Odoo crudo → JSON digerido: many2one → nombre, false → null, __* fuera.
- * Regla del bloque: el server digiere, el modelo interpreta (ADR-025).
- */
+/** Raw Odoo → digested JSON. Block rule: the server digests, the model interprets (ADR-025). */
 
 type OdooRecord = Record<string, unknown>
 
 function normalizeValue(value: unknown): unknown {
-  // many2one: [id, "nombre legible"] → el nombre (el id interno no le sirve al LLM)
+  // many2one: [id, "display name"] → the name; the internal id is useless to the model
   if (Array.isArray(value) && value.length === 2 && typeof value[0] === 'number' && typeof value[1] === 'string') {
     return value[1]
   }
-  // Odoo devuelve `false` para escalares vacíos
+  // Odoo returns `false` for empty scalars
   if (value === false) return null
   return value
 }
@@ -28,7 +25,7 @@ export function normalizeRecords(records: unknown): OdooRecord[] {
   return records.map((r) => normalizeRecord(r as OdooRecord))
 }
 
-/** Limpia read_group (quita __*, renombra a count) y descarta count=0: Odoo devuelve todas las opciones del selection. */
+/** Drops count=0 groups: Odoo returns every option of a selection field. */
 export function normalizeGroups(groups: unknown): OdooRecord[] {
   if (!Array.isArray(groups)) return []
   const out: OdooRecord[] = []
@@ -48,14 +45,14 @@ export function normalizeGroups(groups: unknown): OdooRecord[] {
   return out
 }
 
-/** Días transcurridos desde `dateIso` (YYYY-MM-DD) hasta hoy; 0 si es futura. */
+/** Days elapsed since `dateIso` up to today; 0 when it is in the future. */
 export function daysSince(dateIso: string, today = new Date()): number {
   const date = new Date(`${dateIso}T00:00:00Z`)
   const now = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
   return Math.max(0, Math.round((now - date.getTime()) / 86_400_000))
 }
 
-/** Fecha de hoy en formato de dominio Odoo (YYYY-MM-DD). */
+/** Today in Odoo domain format (YYYY-MM-DD). */
 export function todayIso(today = new Date()): string {
   return today.toISOString().slice(0, 10)
 }

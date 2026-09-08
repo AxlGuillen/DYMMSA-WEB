@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 
 const BUCKET = 'task-images'
-const MAX_BYTES = 5 * 1024 * 1024 // 5 MB (igual que el límite del bucket)
+const MAX_BYTES = 5 * 1024 * 1024 // 5 MB (matches the bucket limit)
 const ALLOWED = new Map<string, string>([
   ['image/png', 'png'],
   ['image/jpeg', 'jpg'],
@@ -12,7 +12,7 @@ const ALLOWED = new Map<string, string>([
   ['image/webp', 'webp'],
 ])
 
-// POST upload: imagen al bucket público → { url } para el markdown (service role, bypassa RLS).
+// POST upload — image to the public bucket → { url } for the markdown (service role bypasses RLS).
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()

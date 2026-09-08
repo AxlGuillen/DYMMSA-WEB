@@ -16,15 +16,12 @@ interface ApprovalFiltersProps {
   sections: string[]
   filters: Filters
   onChange: (filters: Filters) => void
-  /** Nº de productos visibles bajo el filtro (para el botón contextual). */
+  /** Products visible under the filter; drives the contextual button. */
   visibleCount: number
   onApproveVisible: () => void
 }
 
-/**
- * Filtros de la aprobación (#24): marca + sección y "aprobar lo visible".
- * Cada Select solo aparece con más de una opción que filtrar.
- */
+/** Each Select renders only when there is more than one option to filter by (#24). */
 export function ApprovalFilters({
   brands,
   sections,

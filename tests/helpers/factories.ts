@@ -1,13 +1,9 @@
-/**
- * Fixtures reutilizables para tests de route handlers.
- * Centralizadas para evitar drift entre archivos (un solo lugar que cambiar
- * si el shape de un item de cotización/orden evoluciona).
- */
+/** Shared fixtures for route-handler tests: one place to change when a shape evolves. */
 
-/** Usuario autenticado estándar. */
+/** Default authenticated user. */
 export const AUTH = { id: 'user-1' } as const
 
-/** Item de cotización tipo 'product' (payload de quotations/save y update). */
+/** Quotation 'product' item (payload of quotations/save and update). */
 export function quotationItem(overrides: Record<string, unknown> = {}) {
   return {
     _id: 'i' + Math.random().toString(36).slice(2, 6),
@@ -19,12 +15,12 @@ export function quotationItem(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/** Item separador (payload de quotations/save y update). */
+/** Separator item (payload of quotations/save and update). */
 export function separator(overrides: Record<string, unknown> = {}) {
   return { _id: 's1', item_type: 'separator', section_label: 'Sección A', ...overrides }
 }
 
-/** Producto para orders/create (usa `price`, no `unit_price`). */
+/** Product for orders/create (uses `price`, not `unit_price`). */
 export function orderProduct(overrides: Record<string, unknown> = {}) {
   return {
     model_code: 'MC1', quantity: 4, price: 100,

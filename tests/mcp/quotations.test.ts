@@ -1,7 +1,5 @@
-/**
- * Tools MCP de cotizaciones. El cliente Supabase se pasa por parámetro,
- * así que el mock del proyecto se inyecta directo (sin vi.mock).
- */
+/** MCP quotation tools. The Supabase client is passed as a parameter, so the
+ *  project mock is injected directly (no vi.mock). */
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, hasFilter, filterValue } from '../helpers/supabase-mock'
@@ -40,7 +38,7 @@ describe('listQuotations', () => {
     const call = client.callsTo('quotations', 'select')[0]
     expect(hasFilter(call, 'status')).toBe(false)
     const or = call.filters.find((f) => f.method === 'or')
-    expect(or?.args[0]).not.toContain('%M') // % y , removidos
+    expect(or?.args[0]).not.toContain('%M') // % and , removed
   })
 
   test('propaga error de BD como ToolError', async () => {
@@ -69,10 +67,10 @@ describe('getQuotation', () => {
 
     const result = await getQuotation(asDb(client), 'q1')
 
-    // E2 tiene is_sold=false → excluido; separador excluido → total = 10*2
+    // E2 has is_sold=false → excluded; separator excluded → total = 10*2
     expect(result.total).toBe(20)
     expect(result.total_approved).toBe(20)
-    expect(result.items_count).toBe(2) // productos, sin separador
+    expect(result.items_count).toBe(2) // products, no separator
     expect(result.items[0]).toEqual({ item_type: 'separator', section_label: 'Sección 1' })
     expect(result.items[1]).toMatchObject({ etm: 'E1', line_total: 20, description: 'Desc ES' })
   })

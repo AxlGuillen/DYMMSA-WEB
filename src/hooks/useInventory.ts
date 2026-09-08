@@ -9,12 +9,12 @@ const INVENTORY_KEY = ['inventory']
 export type StockFilter = 'all' | 'with_stock' | 'in_stock' | 'low_stock' | 'sin_stock'
 export type QuantitySort = 'asc' | 'desc' | null
 
-/** Valor del filtro para los productos cuyo ETM no trae marca (issue #53). */
+/** Filter value for products whose ETM carries no brand (#53). */
 export const NO_BRAND = '__none__'
-/** Valor del selector cuando no se filtra por marca. */
+/** Selector value for no brand filter. */
 export const ALL_BRANDS = '__all__'
 
-/** Fila de inventario con la marca resuelta contra `etm_products` (vista). */
+/** Inventory row with brand resolved against `etm_products` (view). */
 export interface StoreInventoryWithBrand extends StoreInventory {
   brand: string | null
 }
@@ -25,7 +25,7 @@ interface InventoryParams {
   search?: string
   stockFilter?: StockFilter
   quantitySort?: QuantitySort
-  /** Marca exacta, `NO_BRAND` para las que no tienen, o vacío para todas. */
+  /** Exact brand, `NO_BRAND` for none, or empty for all. */
   brand?: string
 }
 
@@ -104,7 +104,7 @@ export function useDeleteInventoryItem() {
 }
 
 export interface BrandCount {
-  /** null = productos cuyo ETM no trae marca. */
+  /** null = products whose ETM carries no brand. */
   brand: string | null
   total: number
   with_stock: number
@@ -116,7 +116,7 @@ interface InventoryStats {
   in_stock: number
   low_stock: number
   sin_stock: number
-  /** Marcas presentes en el inventario, de mayor a menor (para el selector). */
+  /** Brands in inventory, most to least (for the selector). */
   brands: BrandCount[]
 }
 

@@ -1,8 +1,6 @@
 /**
- * Integración (Tier 1) — decisiones de compra (mayoreo/menudeo) contra el
- * Supabase LOCAL. El PUT es replace-all (ADR-018): upsert por
- * (order_id, model_code, brand) + purga de las removidas. Decisiones de dinero
- * → vale probar el reemplazo real contra la BD (UNIQUE + upsert + delete).
+ * Purchase decisions against local Supabase (ADR-021): the PUT is replace-all
+ * (ADR-018), so the real UNIQUE + upsert + delete is worth exercising.
  */
 import { describe, test, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -35,7 +33,7 @@ describe('PUT /orders/[id]/purchase-decisions (integración local)', () => {
   test('replace-all: upsert actualiza, agrega nuevas y PURGA las removidas; normaliza code/brand', async () => {
     const orderId = await seedOrder()
 
-    // Set inicial: 2 decisiones (una con code/brand en minúsculas → normaliza).
+    // Initial set: 2 decisions, one lowercase to exercise normalization.
     expect((await put(orderId, [
       { model_code: ' aa-1 ', brand: 'urrea', std_snapshot: 10, needed_qty: 12, packages_wholesale: 1, qty_retail: 2 },
       { model_code: 'BB-2', brand: 'SURTEK', std_snapshot: 6, needed_qty: 6, packages_wholesale: 1, qty_retail: 0 },
@@ -44,11 +42,11 @@ describe('PUT /orders/[id]/purchase-decisions (integración local)', () => {
     expect(await sql<{ model_code: string; brand: string; packages_wholesale: number }>(
       'SELECT model_code, brand, packages_wholesale FROM order_purchase_decisions WHERE order_id = $1 ORDER BY model_code', [orderId],
     )).toEqual([
-      { model_code: 'AA-1', brand: 'URREA', packages_wholesale: 1 },  // normalizado
+      { model_code: 'AA-1', brand: 'URREA', packages_wholesale: 1 },
       { model_code: 'BB-2', brand: 'SURTEK', packages_wholesale: 1 },
     ])
 
-    // Replace: AA-1 modificado (upsert) + CC-3 nueva; BB-2 ya no viene → se purga.
+    // Replace: AA-1 upserted + CC-3 new; BB-2 is gone from the payload → purged.
     expect((await put(orderId, [
       { model_code: 'AA-1', brand: 'URREA', std_snapshot: 10, needed_qty: 12, packages_wholesale: 0, qty_retail: 12 },
       { model_code: 'CC-3', brand: 'URREA', std_snapshot: 1, needed_qty: 3, packages_wholesale: 3, qty_retail: 0 },
@@ -57,15 +55,15 @@ describe('PUT /orders/[id]/purchase-decisions (integración local)', () => {
     expect(await sql<{ model_code: string; packages_wholesale: number }>(
       'SELECT model_code, packages_wholesale FROM order_purchase_decisions WHERE order_id = $1 ORDER BY model_code', [orderId],
     )).toEqual([
-      { model_code: 'AA-1', packages_wholesale: 0 },  // upsert la actualizó (sin duplicar)
-      { model_code: 'CC-3', packages_wholesale: 3 },  // nueva
-      // BB-2 purgada
+      { model_code: 'AA-1', packages_wholesale: 0 },  // upserted, not duplicated
+      { model_code: 'CC-3', packages_wholesale: 3 },
+      // BB-2 purged
     ])
   })
 
   test('rechaza una decisión que no cubre la necesidad (pre-check del CHECK) → 400', async () => {
     const orderId = await seedOrder()
-    // 1 paq × 10 + 0 = 10 < 12 → no cubre.
+    // 1 package x 10 + 0 = 10 < 12 → does not cover.
     const res = await put(orderId, [
       { model_code: 'X', brand: 'URREA', std_snapshot: 10, needed_qty: 12, packages_wholesale: 1, qty_retail: 0 },
     ])

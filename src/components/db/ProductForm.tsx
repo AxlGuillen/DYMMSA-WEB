@@ -42,7 +42,7 @@ const productSchema = z.object({
   model_code: z.string().min(1, 'Modelo es requerido'),
   price: z.number().min(0, 'Precio debe ser mayor o igual a 0'),
   brand: z.string(),
-  is_sold: z.boolean().nullable(), // tri-estado: null=sin definir, true=lo vendemos, false=no
+  is_sold: z.boolean().nullable(), // tri-state: null = undefined, true = sold, false = not sold
 })
 
 type ProductFormValues = z.infer<typeof productSchema>
@@ -72,7 +72,6 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
     },
   })
 
-  // Reset form when product changes or dialog opens
   useEffect(() => {
     // oxlint-disable-next-line react-doctor/no-event-handler -- intentional pattern; structural refactor tracked separately
     if (open) {
@@ -102,8 +101,8 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
     }
   }, [open, product, form])
 
-  // Match por (model_code, brand): con oficial, la curada no se edita (ADR-013).
-  // watch() es incompatible con el React Compiler (solo pierde auto-memo).
+  // Matched by (model_code, brand): with an official description the curated one
+  // is not editable (ADR-013). watch() is incompatible with the React Compiler.
   // eslint-disable-next-line react-hooks/incompatible-library
   const modelCodeValue = form.watch('model_code')
   const brandValue = form.watch('brand')
@@ -119,7 +118,7 @@ export function ProductForm({ open, onOpenChange, product }: ProductFormProps) {
 
   const onSubmit = async (values: ProductFormValues) => {
     try {
-      // Con match de catálogo la curada no se editó aquí: preservar la existente.
+      // With a catalog match the curated description was not edited here: keep it.
       const payload = catalogDesc
         ? { ...values, dymmsa_description: product?.dymmsa_description ?? '' }
         : values

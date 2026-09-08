@@ -1,9 +1,6 @@
 'use client'
 
-/**
- * Leyenda compartida de los diagramas de corte (issue #71): qué es pieza, qué
- * es el paso de la sierra y qué es sobrante — una por grupo, no por diagrama.
- */
+/** Shared legend for the cutting diagrams (#71): one per group, not per diagram. */
 export function CutLegend({ showKerf }: { showKerf: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground print:text-[10px]">

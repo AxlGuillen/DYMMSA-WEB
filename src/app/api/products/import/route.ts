@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Read Excel file
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'array' })
     const sheetName = workbook.SheetNames[0]
@@ -45,7 +44,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate required columns
     const firstRow = rows[0]
     const requiredColumns = ['ETM', 'MODEL_CODE']
     const missingColumns = requiredColumns.filter(
@@ -82,7 +80,6 @@ export async function POST(request: NextRequest) {
       }
 
       if (mode === 'upsert') {
-        // Check if exists
         // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
         const { data: existing } = await supabase
           .from('etm_products')
@@ -91,7 +88,6 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (existing) {
-          // Update
           const { error } = await supabase
             .from('etm_products')
             .update({
@@ -106,7 +102,6 @@ export async function POST(request: NextRequest) {
             updated++
           }
         } else {
-          // Insert
           const { error } = await supabase
             .from('etm_products')
             .insert(product)
@@ -118,14 +113,12 @@ export async function POST(request: NextRequest) {
           }
         }
       } else {
-        // Insert only mode
         const { error } = await supabase
           .from('etm_products')
           .insert(product)
 
         if (error) {
           if (error.code === '23505') {
-            // Duplicate, skip
             errors++
           } else {
             errors++

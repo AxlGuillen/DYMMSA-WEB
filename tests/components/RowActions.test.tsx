@@ -1,10 +1,4 @@
-/**
- * Acciones de fila (issue #55): editar y eliminar al PRIMER click.
- *
- * Antes vivían dentro de un menú "···" que además solo aparecía al hover, así
- * que lo que se protege aquí es justamente que los botones existan por sí solos
- * y disparen su handler sin pasos intermedios.
- */
+/** Row actions (#55): edit and delete on the FIRST click — they used to hide behind a hover "···" menu. */
 
 import { describe, test, expect, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -24,7 +18,7 @@ describe('RowActions', () => {
     setup()
     expect(screen.getByRole('button', { name: 'Editar ETM-1' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Eliminar ETM-1' })).toBeVisible()
-    // La regresión a evitar: que vuelvan a esconderse tras un "···".
+    // The regression to avoid: hiding them behind a "···" again.
     expect(screen.queryByRole('button', { name: /more|opciones|menú/i })).toBeNull()
   })
 
