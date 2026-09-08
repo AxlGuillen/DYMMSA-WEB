@@ -1,14 +1,4 @@
-/**
- * Finanzas — facturas por pagar (issue #84, fase 1).
- *
- * Matemática pura del overview de egresos: vencimiento pre-llenado desde el
- * plazo del proveedor y resumen del mes (pendiente/vencido/por vencer/pagado,
- * con las pendientes agrupadas por semana de vencimiento). Como en format.ts,
- * el reloj SIEMPRE se inyecta por parámetro — nada aquí lee `new Date()`.
- *
- * Fase 2 (pendiente): el lado de los ingresos para proyectar el cierre ± del
- * mes y simular mover pagos entre meses.
- */
+/** Payables math (#84). As in format.ts the clock is ALWAYS injected — nothing here reads `new Date()`. */
 
 import type { Payable, PayableStatus } from '@/types/database'
 
@@ -18,10 +8,10 @@ export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
   cancelled: 'Cancelada',
 }
 
-/** Fechas como 'YYYY-MM-DD' (columnas `date` de Postgres — sin zona horaria). */
+/** 'YYYY-MM-DD' (Postgres `date` columns — no timezone). */
 export type ISODate = string
 
-/** Suma días de plazo a la fecha de factura. Aritmética UTC: sin saltos de DST. */
+/** Adds the credit days to the invoice date. UTC arithmetic: no DST jumps. */
 export function dueDateFrom(invoiceDate: ISODate, termsDays: number | null | undefined): ISODate {
   const days = Number.isInteger(termsDays) && (termsDays as number) > 0 ? (termsDays as number) : 0
   const base = new Date(`${invoiceDate}T00:00:00Z`)
@@ -30,23 +20,37 @@ export function dueDateFrom(invoiceDate: ISODate, termsDays: number | null | und
   return base.toISOString().slice(0, 10)
 }
 
-/** 'YYYY-MM' del mes de una fecha ISO. */
+/** Credit terms DYMMSA uses (#92); anything else goes through "Otro…". */
+export const PAYMENT_TERM_PRESETS: readonly { days: number; label: string }[] = [
+  { days: 7, label: '1 semana' },
+  { days: 15, label: '15 días' },
+  { days: 30, label: '1 mes' },
+  { days: 60, label: '2 meses' },
+  { days: 90, label: '3 meses' },
+]
+
+/** 'Contado' | preset label | 'N días'. */
+export function paymentTermsLabel(days: number | null | undefined): string {
+  if (days == null) return 'Contado'
+  return PAYMENT_TERM_PRESETS.find((p) => p.days === days)?.label ?? `${days} días`
+}
+
 export const monthOf = (date: ISODate): string => date.slice(0, 7)
 
-/** Frontera EXCLUSIVA del mes ('2026-09' → '2026-10-01'); `${month}-31` no existe en meses cortos. */
+/** EXCLUSIVE month boundary: `${month}-31` does not exist in short months (Postgres 22008). */
 export function nextMonth(month: string): string {
   const [y, m] = month.split('-').map(Number)
   return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
 }
 
-/** Semana del mes (1-based) por día del vencimiento: 1-7 → 1, 8-14 → 2, etc. */
+/** Week of the month (1-based): days 1-7 → 1, 8-14 → 2, capped at 5. */
 export function weekOfMonth(date: ISODate): number {
   const day = Number(date.slice(8, 10))
   return Math.min(Math.ceil(day / 7), 5)
 }
 
 export interface PayablesWeekBucket {
-  /** 1..5 dentro del mes. */
+  /** 1..5 within the month. */
   week: number
   label: string
   total: number
@@ -54,26 +58,23 @@ export interface PayablesWeekBucket {
 }
 
 export interface PayablesMonthSummary {
-  /** Pendientes que VENCEN dentro del mes seleccionado. */
+  /** Pending, due inside the selected month. */
   pendingTotal: number
   pendingCount: number
-  /** Pendientes ya vencidas a `today` (de este mes o arrastradas de meses previos). */
+  /** Pending already overdue at `today`, carry-over from earlier months included. */
   overdueTotal: number
   overdueCount: number
-  /** Pendientes que vencen en los próximos 7 días desde `today` (sin importar el mes). */
+  /** Pending due within 7 days of `today`, any month. */
   dueSoonTotal: number
   dueSoonCount: number
-  /** Pagadas con `paid_at` dentro del mes seleccionado. */
+  /** Paid with `paid_at` inside the selected month. */
   paidTotal: number
   paidCount: number
-  /** Pendientes del mes agrupadas por semana de vencimiento (solo semanas con algo). */
+  /** Month's pending grouped by due week; only non-empty weeks. */
   weeks: PayablesWeekBucket[]
 }
 
-/**
- * Resumen del mes para el overview. `month` = 'YYYY-MM'; `today` = ISODate.
- * Las canceladas no cuentan en nada.
- */
+/** Month overview; `month` = 'YYYY-MM'. Cancelled payables count for nothing. */
 export function summarizeMonth(
   payables: readonly Payable[],
   month: string,
@@ -101,7 +102,7 @@ export function summarizeMonth(
       continue
     }
 
-    // Pendiente: vencida a hoy cuenta SIEMPRE (aunque venga de meses previos).
+    // Overdue at today ALWAYS counts, even when carried from previous months.
     if (p.due_date < today) {
       summary.overdueTotal += p.amount
       summary.overdueCount += 1
@@ -125,7 +126,7 @@ export function summarizeMonth(
   return summary
 }
 
-/** Días entre hoy y el vencimiento (negativo = vencida). Para el tono de la celda. */
+/** Days from today to the due date (negative = overdue); drives the cell tone. */
 export function daysUntilDue(dueDate: ISODate, today: ISODate): number {
   const due = new Date(`${dueDate}T00:00:00Z`).getTime()
   const now = new Date(`${today}T00:00:00Z`).getTime()

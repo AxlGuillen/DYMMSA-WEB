@@ -1,8 +1,6 @@
-/** Utilidades de formato puras y determinísticas — el reloj se inyecta por parámetro. */
+/** Pure deterministic formatting — the clock is always injected as a parameter. */
 
-// ─── Fechas ────────────────────────────────────────────────────────────
-
-/** Fecha relativa en español ("hace 5 min", "ayer"); > 30 días → corto "15 ene 2026". */
+/** Relative Spanish date; past 30 days it falls back to a short absolute date. */
 export function formatRelative(dateStr: string, now: Date = new Date()): string {
   const diff  = now.getTime() - new Date(dateStr).getTime()
   const mins  = Math.floor(diff / 60_000)
@@ -19,9 +17,6 @@ export function formatRelative(dateStr: string, now: Date = new Date()): string 
   })
 }
 
-/**
- * Fecha absoluta larga en español: "15 de enero de 2026, 14:30"
- */
 export function formatAbsolute(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-MX', {
     day: '2-digit', month: 'long', year: 'numeric',
@@ -29,28 +24,46 @@ export function formatAbsolute(dateStr: string): string {
   })
 }
 
-/**
- * Columna `date` ('2026-09-15') a "15 de septiembre de 2026". Se ancla y
- * formatea en UTC porque `new Date('2026-09-15')` es medianoche UTC y en
- * Morelia se pintaría el día anterior; una fecha sin hora no tiene zona.
- */
+/** Anchored and formatted in UTC: `new Date('2026-09-15')` is UTC midnight and would render the
+ *  previous day in Morelia — a date without a time has no zone. */
 export function formatDayLong(iso: string): string {
   return new Intl.DateTimeFormat('es-MX', {
     timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric',
   }).format(new Date(`${iso}T00:00:00Z`))
 }
 
-/**
- * Fecha ISO solo día: "2026-05-11"
- */
+/** User-selectable `date` column formats (#92). */
+export const DATE_FORMATS = ['long', 'short', 'dd-mm-yyyy', 'dd/mm/yyyy', 'yyyy-mm-dd'] as const
+export type DateFormat = (typeof DATE_FORMATS)[number]
+export const DEFAULT_DATE_FORMAT: DateFormat = 'long'
+
+export function isDateFormat(value: unknown): value is DateFormat {
+  return typeof value === 'string' && (DATE_FORMATS as readonly string[]).includes(value)
+}
+
+/** Numeric formats are built from the string, never from `Date` — same zone trap as `formatDayLong`. */
+export function formatDay(iso: string, format: DateFormat = DEFAULT_DATE_FORMAT): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso
+  const [y, m, d] = iso.split('-')
+  switch (format) {
+    case 'dd-mm-yyyy': return `${d}-${m}-${y}`
+    case 'dd/mm/yyyy': return `${d}/${m}/${y}`
+    case 'yyyy-mm-dd': return iso
+    case 'short':
+      return new Intl.DateTimeFormat('es-MX', {
+        timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric',
+      }).format(new Date(`${iso}T00:00:00Z`))
+    default:
+      return formatDayLong(iso)
+  }
+}
+
 export function formatISODate(date: Date = new Date()): string {
   return date.toISOString().split('T')[0]
 }
 
-/**
- * Hoy en la zona del negocio (Morelia). `formatISODate` serializa en UTC y el
- * server corre en UTC: de las 18:00 a la medianoche local ya sería mañana.
- */
+/** Today in the business timezone (Morelia): the server runs in UTC, so `formatISODate` would
+ *  already say tomorrow between 18:00 and local midnight. */
 export function todayInMexico(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Mexico_City',
@@ -58,37 +71,21 @@ export function todayInMexico(date: Date = new Date()): string {
   }).format(date)
 }
 
-// ─── Strings ───────────────────────────────────────────────────────────
-
-/**
- * Normaliza string: trim + toLowerCase. Útil para comparaciones case-insensitive.
- */
 export function normalizeString(value: string): string {
   return value.trim().toLowerCase()
 }
 
-/**
- * Reemplaza caracteres no alfanuméricos por `_` y pasa a minúsculas.
- * Pensado para nombres de archivo descargables.
- */
+/** Non-alphanumerics → `_`, lowercased; for download filenames. */
 export function sanitizeFilename(name: string): string {
   return name.replace(/[^a-z0-9]/gi, '_').toLowerCase()
 }
 
-// ─── Números ───────────────────────────────────────────────────────────
-
-/**
- * Parsea un valor a number; retorna null si es NaN, null o undefined.
- */
 export function parseNumber(value: unknown): number | null {
   if (value == null || value === '') return null
   const num = parseFloat(String(value))
   return isNaN(num) ? null : num
 }
 
-/**
- * Parsea un valor a integer; retorna null si es NaN, null o undefined.
- */
 export function parseInteger(value: unknown): number | null {
   if (value == null || value === '') return null
   const num = parseInt(String(value), 10)

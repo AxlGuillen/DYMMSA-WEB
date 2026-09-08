@@ -1,10 +1,7 @@
-/**
- * Finanzas (issue #84): vencimiento desde el plazo del proveedor y resumen
- * del mes. El reloj SIEMPRE va por parámetro — nada lee new Date().
- */
+/** Payables math (#84). The clock is always injected; nothing reads new Date(). */
 
 import { describe, test, expect } from 'vitest'
-import { daysUntilDue, dueDateFrom, monthOf, nextMonth, summarizeMonth, weekOfMonth } from '@/lib/payables'
+import { daysUntilDue, dueDateFrom, monthOf, nextMonth, paymentTermsLabel, summarizeMonth, weekOfMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -60,25 +57,25 @@ describe('summarizeMonth', () => {
 
   test('pendientes del mes por semana + vencidas + por vencer', () => {
     const rows = [
-      payable({ due_date: '2026-09-03', amount: 100 }),  // semana 1, vencida (hoy=10)
-      payable({ due_date: '2026-09-12', amount: 200 }),  // semana 2, por vencer ≤7d
-      payable({ due_date: '2026-09-25', amount: 300 }),  // semana 4
-      payable({ due_date: '2026-08-20', amount: 50 }),   // vencida de AGOSTO: overdue sí, mes no
+      payable({ due_date: '2026-09-03', amount: 100 }),  // week 1, overdue (today = 10)
+      payable({ due_date: '2026-09-12', amount: 200 }),  // week 2, due soon <= 7d
+      payable({ due_date: '2026-09-25', amount: 300 }),  // week 4
+      payable({ due_date: '2026-08-20', amount: 50 }),   // overdue from AUGUST: counts as overdue, not in the month
     ]
     const s = summarizeMonth(rows, month, today)
 
-    expect(s.pendingTotal).toBe(600)     // solo las que VENCEN en septiembre
+    expect(s.pendingTotal).toBe(600)     // only the ones DUE in September
     expect(s.pendingCount).toBe(3)
-    expect(s.overdueTotal).toBe(150)     // 100 (sep 3) + 50 (agosto arrastrada)
+    expect(s.overdueTotal).toBe(150)     // 100 (sep 3) + 50 (dragged from August)
     expect(s.overdueCount).toBe(2)
-    expect(s.dueSoonTotal).toBe(200)     // vence el 12, hoy es 10
+    expect(s.dueSoonTotal).toBe(200)     // due on the 12th, today is the 10th
     expect(s.weeks.map((w) => [w.week, w.total])).toEqual([[1, 100], [2, 200], [4, 300]])
   })
 
   test('pagadas cuentan por MES DE PAGO real, no de vencimiento', () => {
     const rows = [
       payable({ status: 'paid', due_date: '2026-08-31', paid_at: '2026-09-02', amount: 400 }),
-      payable({ status: 'paid', due_date: '2026-09-05', paid_at: '2026-10-01', amount: 999 }), // pagada en octubre
+      payable({ status: 'paid', due_date: '2026-09-05', paid_at: '2026-10-01', amount: 999 }), // paid in October
     ]
     const s = summarizeMonth(rows, month, today)
     expect(s.paidTotal).toBe(400)
@@ -107,8 +104,8 @@ describe('monthOf', () => {
 
 describe('nextMonth', () => {
   test('devuelve el primer dia del mes siguiente, no el dia 31', () => {
-    // El bug que motivo el helper: `${month}-31` es fecha invalida en los meses
-    // cortos y Postgres responde 22008, tumbando el overview de septiembre.
+    // The bug behind the helper: `${month}-31` is invalid in short months and
+    // Postgres answers 22008, taking the September overview down.
     expect(nextMonth('2026-09')).toBe('2026-10-01')
     expect(nextMonth('2026-02')).toBe('2026-03-01')
   })
@@ -119,8 +116,8 @@ describe('nextMonth', () => {
 })
 
 describe('weekOfMonth', () => {
-  // Contrato compartido: el server la usa en summarizeMonth y el cliente para
-  // colgar cada fila de su semana. Si se desalinean, los totales no cuadran.
+  // Shared contract: the server uses it in summarizeMonth and the client to bucket
+  // each row by week. If they drift apart, the totals stop matching.
   test('agrupa por dia del mes en tramos de 7', () => {
     expect(weekOfMonth('2026-09-01')).toBe(1)
     expect(weekOfMonth('2026-09-07')).toBe(1)
@@ -130,5 +127,14 @@ describe('weekOfMonth', () => {
   test('el cierre de mes se topa en la semana 5', () => {
     expect(weekOfMonth('2026-08-29')).toBe(5)
     expect(weekOfMonth('2026-08-31')).toBe(5)
+  })
+})
+
+describe('paymentTermsLabel', () => {
+  test('null es contado, los presets usan su etiqueta, el resto queda en dias', () => {
+    expect(paymentTermsLabel(null)).toBe('Contado')
+    expect(paymentTermsLabel(7)).toBe('1 semana')
+    expect(paymentTermsLabel(30)).toBe('1 mes')
+    expect(paymentTermsLabel(45)).toBe('45 días')
   })
 })
