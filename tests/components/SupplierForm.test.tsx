@@ -75,6 +75,23 @@ describe('SupplierForm — plazo de pago', () => {
     expect(createAsync).toHaveBeenCalledWith(expect.objectContaining({ payment_terms_days: null }))
   })
 
+  test('"Otro…" con 0 guarda Contado, no cero días', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<SupplierForm open onOpenChange={vi.fn()} />)
+    await user.type(screen.getByLabelText(/Nombre/), 'Indar')
+    await user.click(terms())
+    await user.click(await screen.findByRole('option', { name: 'Otro…' }))
+    await user.type(screen.getByLabelText('Días de crédito'), '0')
+    await user.click(screen.getByRole('button', { name: 'Registrar' }))
+    expect(createAsync).toHaveBeenCalledWith(expect.objectContaining({ payment_terms_days: null }))
+  })
+
+  test('un proveedor guardado con 0 abre en Contado', () => {
+    renderWithProviders(<SupplierForm open onOpenChange={vi.fn()} supplier={supplier({ payment_terms_days: 0 })} />)
+    expect(terms()).toHaveTextContent('Contado')
+    expect(screen.queryByLabelText('Días de crédito')).toBeNull()
+  })
+
   test('"Otro…" sin días no guarda: pide el número o Contado', async () => {
     const user = userEvent.setup()
     renderWithProviders(<SupplierForm open onOpenChange={vi.fn()} />)

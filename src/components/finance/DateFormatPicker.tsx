@@ -18,7 +18,8 @@ export function DateFormatPicker() {
   const stored = useDateFormatStore((s) => s.dateFormat)
   const setDateFormat = useDateFormatStore((s) => s.setDateFormat)
   const mounted = useMounted()
-  const value = mounted ? stored : DEFAULT_DATE_FORMAT
+  // Validated on read too: a retired format would leave the trigger blank.
+  const value = mounted && isDateFormat(stored) ? stored : DEFAULT_DATE_FORMAT
 
   return (
     <Select value={value} onValueChange={(v) => { if (isDateFormat(v)) setDateFormat(v) }}>

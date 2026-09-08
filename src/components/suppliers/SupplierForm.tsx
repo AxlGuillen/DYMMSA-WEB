@@ -106,6 +106,7 @@ function SupplierFormBody({
   // "Otro…" opens the free input, and starts there when the saved term is no preset (#92).
   const [isOtherTerm, setIsOtherTerm] = useState(
     () => supplier?.payment_terms_days != null
+      && supplier.payment_terms_days > 0
       && !PAYMENT_TERM_PRESETS.some((p) => p.days === supplier.payment_terms_days),
   )
 
@@ -118,7 +119,7 @@ function SupplierFormBody({
       email: supplier?.email ?? '',
       address: supplier?.address ?? '',
       notes: supplier?.notes ?? '',
-      payment_terms_days: supplier?.payment_terms_days != null ? String(supplier.payment_terms_days) : '',
+      payment_terms_days: supplier?.payment_terms_days ? String(supplier.payment_terms_days) : '',
     },
   })
 
@@ -154,7 +155,8 @@ function SupplierFormBody({
       email: values.email.trim() || null,
       address: values.address.trim() || null,
       notes: values.notes.trim() || null,
-      payment_terms_days: values.payment_terms_days.trim() === '' ? null : Number(values.payment_terms_days),
+      // 0 is cash: storing it would read back as "0 días" instead of "Contado".
+      payment_terms_days: Number(values.payment_terms_days.trim()) || null,
       brandIds,
     }
     try {

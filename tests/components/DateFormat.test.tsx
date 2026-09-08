@@ -38,6 +38,14 @@ describe('DateFormatPicker + useDateFormat', () => {
     expect(raw && JSON.parse(raw).state.dateFormat).toBe('yyyy-mm-dd')
   })
 
+  test('un formato retirado tampoco deja vacío el selector', () => {
+    // formatDay already falls back, but the trigger would render blank:
+    // no SelectItem matches the stored value.
+    useDateFormatStore.setState({ dateFormat: 'retirado' as never })
+    renderWithProviders(<DateFormatPicker />)
+    expect(screen.getByRole('combobox', { name: 'Formato de fecha' })).toHaveTextContent('15 de septiembre de 2026')
+  })
+
   test('un formato guardado que ya no existe cae al default en vez de romper', () => {
     // A retired format must not leave the table dateless for whoever had it stored.
     useDateFormatStore.setState({ dateFormat: 'retirado' as never })

@@ -31,7 +31,8 @@ export const PAYMENT_TERM_PRESETS: readonly { days: number; label: string }[] = 
 
 /** 'Contado' | preset label | 'N días'. */
 export function paymentTermsLabel(days: number | null | undefined): string {
-  if (days == null) return 'Contado'
+  // 0 days of credit is cash: the API and the MCP can store it either way.
+  if (days == null || days <= 0) return 'Contado'
   return PAYMENT_TERM_PRESETS.find((p) => p.days === days)?.label ?? `${days} días`
 }
 

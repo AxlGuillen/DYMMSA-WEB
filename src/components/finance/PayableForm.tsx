@@ -156,7 +156,7 @@ function PayableFormBody({
                   {suppliers.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
-                      {s.payment_terms_days != null ? ` · ${paymentTermsLabel(s.payment_terms_days)}` : ' · contado'}
+                      {` · ${paymentTermsLabel(s.payment_terms_days)}`}
                     </SelectItem>
                   ))}
                 </SelectContent>

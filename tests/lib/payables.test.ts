@@ -136,5 +136,7 @@ describe('paymentTermsLabel', () => {
     expect(paymentTermsLabel(7)).toBe('1 semana')
     expect(paymentTermsLabel(30)).toBe('1 mes')
     expect(paymentTermsLabel(45)).toBe('45 días')
+    // The API and the MCP can store 0; reading it back as "0 días" would be wrong.
+    expect(paymentTermsLabel(0)).toBe('Contado')
   })
 })
