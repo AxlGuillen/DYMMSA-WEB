@@ -160,7 +160,7 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/finance/income` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, today, income, collections, fetchedAt, unavailable? }`. `income` = `{ collectedTotal/Count (pagos inbound de CLIENTE por fecha de cobro), receivableTotal/Count (abiertas, vencen hoy o después), overdueTotal/Count (abiertas vencidas), collectionsTruncated, receivablesTruncated, foreignCurrencies }`; `collections` = cobros del mes (`folio, customer, date, amount, currency, state`). **Odoo ausente o caído → 200 con `income: null`** y `unavailable.reason` (`not_configured` \| `odoo_error`); solo un error ajeno a Odoo da 500. Dos lecturas cacheadas 15 min (Data Cache, tag `finance-income`). `maxDuration = 60` |
+| `GET` | `/api/finance/income` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, today, income, collections, fetchedAt, unavailable? }`. `income` = `{ collectedTotal/Count (pagos inbound de CLIENTE por fecha de cobro), receivableTotal/Count (abiertas, vencen hoy o después), overdueTotal/Count (abiertas vencidas), collectionsTruncated, receivablesTruncated, collectionCurrencies, receivableCurrencies }`; `collections` = cobros del mes (`folio, customer, date, amount, currency, state`). **Odoo ausente o caído → 200 con `income: null`** y `unavailable.reason` (`not_configured` \| `odoo_error`); solo un error ajeno a Odoo da 500. Dos lecturas cacheadas 15 min (Data Cache, tag `finance-income`). `maxDuration = 60` |
 | `POST` | `/api/finance/income/refresh` | ✅ | Query: `month`. Purga el tag con `revalidateTag(tag, { expire: 0 })` y responde con una lectura fresca (misma forma que el GET) |
 
 ---

@@ -40,13 +40,13 @@ El refresh (`POST /api/finance/income/refresh`) purga el tag y responde con los 
 
 ### 6. El cierre se calcula en el cliente
 
-`monthClosing({ collected, paid, pending })` → real = cobrado − pagado, proyectado = real − pendientes del mes. Corre en `FinanceOverview` con los dos hooks, para que la ruta de ingresos sea solo-Odoo (cacheable, sin Supabase) y las mutaciones de payables no disparen refetches a Odoo. El negativo es respuesta válida: es justo el mes que conviene no cerrar así.
+`monthClosing({ collected, paid, pending })` → real = cobrado − pagado, proyectado = real − pendientes del mes **− vencidas de meses previos** (`carryOverTotal` de `summarizeMonth`, que por definición no se traslapa con `pendingTotal`). Decisión del usuario (2026-09-09, review PR #98): una factura de julio sin pagar en septiembre sí se tiene que pagar, así que un proyectado que la ignore sale optimista justo cuando hay atrasos. Corre en `FinanceOverview` con los dos hooks, para que la ruta de ingresos sea solo-Odoo (cacheable, sin Supabase) y las mutaciones de payables no disparen refetches a Odoo. El negativo es respuesta válida: es justo el mes que conviene no cerrar así.
 
 ### 7. Límites conscientes
 
 - **Truncado**: 500 filas por lectura (años de volumen de DYMMSA); `collectionsTruncated` y `receivablesTruncated` se exponen por separado para que el aviso hable del renglón correcto. Si alguna vez importa, un `read_group` extra da la suma exacta.
 - **Refresh caro a propósito**: purgar + leer crudo deja el Data Cache vacío, así que un ciclo de "Actualizar" cuesta 4 llamadas a Odoo (2 del POST + 2 del siguiente GET). Es el precio de que el botón nunca muestre dato viejo.
-- **Moneda**: `amount` va en la moneda del pago y `amount_residual` en la de la factura; ninguno se convierte. `foreignCurrencies` en el resumen une **ambos lados** (cobros y facturas abiertas) y la UI lo etiqueta junto al encabezado de ingresos. Si algún día hace falta convertir, `amount_residual_signed` ya viene en moneda de la compañía.
+- **Moneda**: `amount` va en la moneda del pago y `amount_residual` en la de la factura; ninguno se convierte. el resumen trae `collectionCurrencies` (cobros del mes, badge en el encabezado) y `receivableCurrencies` (facturas abiertas, nota en sus dos tarjetas) **por separado**: una factura vieja en USD no debe pintar el aviso en todos los meses. Si algún día hace falta convertir, `amount_residual_signed` ya viene en moneda de la compañía.
 - **Data Cache entre instancias**: tras un refresh, otra instancia podría servir una vez el dato viejo; el POST devuelve datos frescos y el hook los siembra.
 - **Fuera de alcance**: simulación de mover pagos entre meses (lo único que queda de #84 fase 2), tools MCP nuevas, histórico anual.
 

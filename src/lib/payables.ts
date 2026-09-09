@@ -58,6 +58,9 @@ export interface PayablesMonthSummary {
   /** Pending already overdue at `today`, carry-over from earlier months included. */
   overdueTotal: number
   overdueCount: number
+  /** Overdue subset due BEFORE the selected month: never overlaps pendingTotal (#94 closing). */
+  carryOverTotal: number
+  carryOverCount: number
   /** Pending due within 7 days of `today`, any month. */
   dueSoonTotal: number
   dueSoonCount: number
@@ -80,6 +83,7 @@ export function summarizeMonth(
   const summary: PayablesMonthSummary = {
     pendingTotal: 0, pendingCount: 0,
     overdueTotal: 0, overdueCount: 0,
+    carryOverTotal: 0, carryOverCount: 0,
     dueSoonTotal: 0, dueSoonCount: 0,
     paidTotal: 0, paidCount: 0,
     weeks: [],
@@ -100,6 +104,10 @@ export function summarizeMonth(
     if (p.due_date < today) {
       summary.overdueTotal += p.amount
       summary.overdueCount += 1
+      if (monthOf(p.due_date) < month) {
+        summary.carryOverTotal += p.amount
+        summary.carryOverCount += 1
+      }
     } else if (p.due_date <= soonLimit) {
       summary.dueSoonTotal += p.amount
       summary.dueSoonCount += 1

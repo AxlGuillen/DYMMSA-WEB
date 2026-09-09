@@ -47,10 +47,18 @@ export function FinanceOverview() {
   const incomeLoading = incomeQuery.isLoading || refreshIncome.isPending
   // A failed GET is not "Odoo degraded": data is undefined, not income: null (review PR #98).
   const incomeUnavailable = !incomeLoading && (incomeQuery.isError || (!!incomeData && !income))
+  // Overdue carry-over from earlier months still has to be paid: it belongs in the projection (PR #98).
   const closing = income && summary
-    ? monthClosing({ collected: income.collectedTotal, paid: summary.paidTotal, pending: summary.pendingTotal })
+    ? monthClosing({
+        collected: income.collectedTotal,
+        paid: summary.paidTotal,
+        pending: summary.pendingTotal + summary.carryOverTotal,
+      })
     : null
-  const currencies = income?.foreignCurrencies ?? []
+  const currencies = income?.collectionCurrencies ?? []
+  const receivableNote = income?.receivableCurrencies.length
+    ? ` · incluye ${income.receivableCurrencies.join(', ')} sin convertir`
+    : ''
 
   const handleRefresh = () => {
     refreshIncome.mutate(month, {
@@ -161,7 +169,7 @@ export function FinanceOverview() {
           <MetricCard
             title="Por cobrar"
             value={fmt(income?.receivableTotal ?? 0)}
-            description={income ? `${pieces(income.receivableCount)} — vence hoy o después` : undefined}
+            description={income ? `${pieces(income.receivableCount)} al día de hoy — vence hoy o después${receivableNote}` : undefined}
             icon={<Clock className="size-5" />}
             color="blue"
             isLoading={incomeLoading}
@@ -169,7 +177,7 @@ export function FinanceOverview() {
           <MetricCard
             title="Vencido por cobrar"
             value={fmt(income?.overdueTotal ?? 0)}
-            description={income ? pieces(income.overdueCount) : undefined}
+            description={income ? `${pieces(income.overdueCount)} al día de hoy — cualquier mes${receivableNote}` : undefined}
             icon={<AlertTriangle className="size-5" />}
             color="red"
             isLoading={incomeLoading}
@@ -177,7 +185,7 @@ export function FinanceOverview() {
           <MetricCard
             title="Cierre del mes"
             value={fmt(closing?.real ?? 0)}
-            description={closing ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes` : undefined}
+            description={closing ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes del mes y vencidas previas` : undefined}
             icon={<DollarSign className="size-5" />}
             color="purple"
             isLoading={incomeLoading || isLoading}

@@ -18,7 +18,7 @@ vi.mock('@/hooks/usePayables', () => ({
     data: {
       month: '2026-08',
       summary: {
-        pendingTotal: 1000, pendingCount: 1, overdueTotal: 0, overdueCount: 0,
+        pendingTotal: 1000, pendingCount: 1, overdueTotal: 500, overdueCount: 1, carryOverTotal: 500, carryOverCount: 1,
         dueSoonTotal: 0, dueSoonCount: 0, paidTotal: 4000, paidCount: 2, weeks: [],
       },
       payables: [],
@@ -41,7 +41,8 @@ const INCOME_OK: IncomeOverviewResponse = {
     overdueTotal: 18781.1, overdueCount: 1,
     collectionsTruncated: false,
     receivablesTruncated: false,
-    foreignCurrencies: ['USD'],
+    collectionCurrencies: ['USD'],
+    receivableCurrencies: [],
   },
   collections: [
     { id: 71, folio: 'PAY00068', customer: 'Andritz', date: '2026-08-12', amount: 9000, currency: 'MXN', state: 'paid', memo: null },
@@ -59,10 +60,11 @@ describe('FinanceOverview — ingresos', () => {
     expect(screen.getByText('2 cobros')).toBeInTheDocument()
     expect(screen.getByText('Por cobrar')).toBeInTheDocument()
     expect(screen.getByText('Vencido por cobrar')).toBeInTheDocument()
-    // 10 000 cobrado − 4 000 pagado = 6 000 real; − 1 000 pendientes = 5 000 proyectado.
+    // 10 000 cobrado − 4 000 pagado = 6 000 real; − 1 000 pendientes − 500 vencidas de meses previos = 4 500.
     const closing = screen.getByText('Cierre del mes').closest('[data-slot="card"]') ?? screen.getByText('Cierre del mes').parentElement!.parentElement!
     expect(closing).toHaveTextContent(/6,000/)
-    expect(closing).toHaveTextContent(/Proyectado \$5,000/)
+    expect(closing).toHaveTextContent(/Proyectado \$4,500/)
+    expect(screen.getByText(/1 factura al día de hoy — vence hoy o después/)).toBeInTheDocument()
   })
 
   test('lista los cobros del mes y marca la moneda extranjera', () => {

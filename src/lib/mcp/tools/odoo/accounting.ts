@@ -84,9 +84,6 @@ export async function odooAggregate(odoo: OdooCaller, input: OdooAggregateInput)
   return { model: input.model, agrupado_por: input.group_by, grupos: normalizeGroups(groups) }
 }
 
-// overdueDomain moved to lib/odoo/domains.ts: the income route (#94) shares it.
-export { overdueDomain }
-
 export async function odooOverdueInvoices(odoo: OdooCaller, input: { limit?: number } = {}) {
   const today = todayIso()
   const domain = overdueDomain(today)

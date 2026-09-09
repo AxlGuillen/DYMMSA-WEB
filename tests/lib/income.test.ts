@@ -55,7 +55,8 @@ describe('summarizeIncome', () => {
       overdueTotal: 5, overdueCount: 1,
       collectionsTruncated: false,
       receivablesTruncated: true,
-      foreignCurrencies: ['USD'],
+      collectionCurrencies: [],
+      receivableCurrencies: ['USD'],
     })
   })
 })

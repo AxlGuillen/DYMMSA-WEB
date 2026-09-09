@@ -19,8 +19,10 @@ export interface IncomeMonthSummary {
   collectionsTruncated: boolean
   /** The open-invoices read filled its limit: receivable/overdue may be short. */
   receivablesTruncated: boolean
-  /** Currencies other than MXN on either side; amounts are NOT converted. */
-  foreignCurrencies: string[]
+  /** Non-MXN currencies among the month's collections; amounts are NOT converted. */
+  collectionCurrencies: string[]
+  /** Non-MXN currencies among open invoices (month-independent, so kept apart). */
+  receivableCurrencies: string[]
 }
 
 export interface MonthClosing {
@@ -69,7 +71,8 @@ export function summarizeIncome(
     ...splitReceivables(openInvoices, today),
     collectionsTruncated: truncated.collections,
     receivablesTruncated: truncated.receivables,
-    foreignCurrencies: foreignCurrencies([...collections, ...openInvoices]),
+    collectionCurrencies: foreignCurrencies(collections),
+    receivableCurrencies: foreignCurrencies(openInvoices),
   }
 }
 

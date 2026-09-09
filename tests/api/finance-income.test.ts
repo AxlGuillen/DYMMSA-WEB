@@ -102,7 +102,7 @@ describe('GET /api/finance/income', () => {
       overdueTotal: 18781.1, overdueCount: 1,
       receivableTotal: 0, receivableCount: 0,
       collectionsTruncated: false, receivablesTruncated: false,
-      foreignCurrencies: [],
+      collectionCurrencies: [], receivableCurrencies: [],
     })
     expect(body.collections).toEqual([expect.objectContaining({ folio: 'PAY00068', customer: 'Andritz', amount: 59868.07 })])
     expect(typeof body.fetchedAt).toBe('string')
