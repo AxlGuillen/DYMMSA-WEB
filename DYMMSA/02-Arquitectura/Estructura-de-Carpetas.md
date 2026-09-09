@@ -52,6 +52,10 @@ src/
 │   │   ├── cutting/page.tsx      # Corte rápido standalone — efímero, borrador localStorage (issue #71)
 │   │   ├── materials/page.tsx    # Control de medidas de material del proveedor (issue #71)
 │   │   ├── proveedores/page.tsx  # Proveedores de menudeo + marcas (issue #21)
+│   │   ├── hours/
+│   │   │   ├── page.tsx          # Mi semana: stepper + WeekGrid (issue #93)
+│   │   │   ├── import/page.tsx   # Importar reporte NGTeco (admin)
+│   │   │   └── team/page.tsx     # Roles e ids de checador (admin)
 │   │   ├── orders/
 │   │   │   ├── page.tsx          # Lista de órdenes
 │   │   │   ├── new/page.tsx      # Crear orden manual (legacy)
@@ -76,6 +80,7 @@ src/
 │   ├── ColumnPicker.tsx          # Selector "Columnas" por tabla (checkbox + restablecer, issue #18)
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
+│   ├── hours/                    # HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
 │   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable, PurchasePlanner
@@ -93,6 +98,8 @@ src/
 │   ├── useInventory.ts           # CRUD inventario
 │   ├── useOrders.ts              # CRUD + acciones de órdenes (add/edit/remove items, cancel, confirm)
 │   ├── useProducts.ts            # CRUD catálogo ETM
+│   ├── useProfile.ts             # Perfil propio (isAdmin) + perfiles del equipo (issue #93)
+│   ├── useTimeEntries.ts         # Checadas por semana, import multipart, mutaciones admin (issue #93)
 │   ├── useQuotations.ts          # CRUD + acciones de cotizaciones
 │   ├── usePurchasePlan.ts        # Plan de compra + guardado de decisiones (ADR-018)
 │   ├── useVisibleColumns.ts      # Visibilidad de columnas por tabla (issue #18; SSR-safe con useMounted)

@@ -3,6 +3,23 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-08
+
+### Nuevo
+- **Módulo de Horas.** Nueva sección en el menú. En **Mi semana** cada quien ve
+  sus checadas de entrada y salida por día, con el total diario y el de la
+  semana; las salidas que faltaron se marcan en ámbar y no suman. Se puede
+  navegar semana por semana.
+- **Importar el reporte del checador.** Los administradores suben el Excel
+  semanal del NGTeco tal cual sale del aparato. Se ve cuántas checadas entraron,
+  cuántas se actualizaron y si algún empleado del reporte aún no tiene usuario
+  asignado. Volver a subir la misma semana no duplica nada.
+- **Correcciones con rastro.** Un administrador puede corregir una checada o
+  registrar una a mano; queda marcada con quién la editó y cuándo, y el dato
+  original del checador se conserva. Un reporte posterior no pisa lo corregido.
+- **Equipo.** Los administradores asignan el rol de cada persona y el número con
+  el que aparece en el reporte del checador.
+
 ## 2026-09-07
 
 ### Mejorado

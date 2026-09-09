@@ -342,6 +342,65 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 
 > `material_presentation_unique` es **UNIQUE NULLS NOT DISTINCT** sobre las 5 medidas: sin él, los NULL del tipo contrario colarían duplicados.
 
+## Tabla: `profiles`
+
+**Propósito:** Perfil 1:1 con `auth.users`: rol y el id con el que la persona aparece en el reporte del checador. Primera tabla con permiso por persona (ADR-026).
+**Módulo:** Horas (issue #93)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | — | PK, FK → `auth.users` CASCADE | Lo crea el trigger `handle_new_user` (SECURITY DEFINER; si falla, bloquea el alta) |
+| `display_name` | text | No | — | | `COALESCE(full_name, display_name, email)` al crearse |
+| `role` | text | No | `'member'` | CHECK `admin·member` | |
+| `clock_employee_id` | integer | Sí | — | UNIQUE, CHECK > 0 | Número entre paréntesis del reporte NGTeco; NULL = no checa |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+RLS: SELECT `authenticated`; UPDATE `is_admin()`. Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
+
+---
+
+## Tabla: `time_entries`
+
+**Propósito:** Una fila por **pareja de checada** (entrada/salida) importada del checador o capturada por un admin.
+**Módulo:** Horas (issue #93)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `user_id` | uuid | No | — | FK → `profiles` **sin cascade** | Borrar un usuario con checadas se bloquea |
+| `work_date` | date | No | — | | |
+| `source_clock_in` | time | No | — | UNIQUE `(user_id, work_date, source_clock_in)` | **Inmutable**: lo que dijo el checador; llave de idempotencia del import |
+| `clock_in` | time | No | — | | Editable por admin |
+| `clock_out` | time | Sí | — | CHECK `>= clock_in` | NULL = olvidó checar salida (no suma) |
+| `note` | text | Sí | — | | Solo la escribe un admin |
+| `source` | text | No | `'import'` | CHECK `import·manual` | |
+| `edited_by` | uuid | Sí | — | FK → `profiles` SET NULL | |
+| `edited_at` | timestamptz | Sí | — | | Con valor → el import la salta |
+| `original` | jsonb | Sí | — | | `{clock_in, clock_out, note}` escrito **solo la primera vez** |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+Índice `(user_id, work_date)`. RLS: SELECT `user_id = (select auth.uid()) OR is_admin()`; INSERT/UPDATE/DELETE `is_admin()`. Totales diarios/semanales **no se persisten**.
+
+---
+
+## Tabla: `time_imports`
+
+**Propósito:** Bitácora de cada carga del reporte semanal.
+**Módulo:** Horas (issue #93)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `period_start` / `period_end` | date | No | — | | "Período de pago" del reporte |
+| `file_name` | text | Sí | — | | |
+| `inserted` / `updated` / `skipped_edited` | integer | No | `0` | | Conteos que devuelve la RPC |
+| `imported_by` | uuid | Sí | — | FK → `profiles` SET NULL | |
+| `created_at` | timestamptz | No | `now()` | | |
+
+RLS: SELECT `authenticated`; INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_entries jsonb, p_period_start, p_period_end, p_file_name)`** (SECURITY INVOKER, transaccional): upsert `ON CONFLICT ... DO UPDATE SET clock_out, source='import' WHERE edited_at IS NULL`, cuenta con `xmax = 0`, dedupe `DISTINCT ON`, devuelve `{import_id, inserted, updated, skipped_edited}`.
+
+---
+
 ## Historial de migraciones
 
 | Versión | Nombre | Descripción |
@@ -358,6 +417,7 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `add_is_sold_to_etm_and_quotation_items` | (2026-07-06) | Columna `is_sold boolean` (nullable, sin default) en `etm_products` y `quotation_items` — tri-estado "¿lo vendemos?" |
 | `cut_module_tables` | (2026-07-31) | Módulo de corte (issue #59, Fase 1): `cut_plan_pieces` + `material_presentations` + 5 columnas nominales `cut_*` en `etm_products` (solo pre-llenado). RLS authenticated |
 | `add_location_to_inventory_and_order_items` | (2026-07-07) | Columna `location text` (nullable) en `store_inventory` y `order_items` — ubicación física (gaveta) |
+| `20260909031135` | `add_profiles_and_time_entries` | Módulo de horas (issue #93, ADR-026): `profiles` + trigger `handle_new_user` + `is_admin()`, `time_entries`, `time_imports`, RPC `import_time_entries`. Primera RLS por persona; GRANTs sin `anon` |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |
