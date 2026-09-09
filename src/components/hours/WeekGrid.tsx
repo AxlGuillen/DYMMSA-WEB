@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 interface WeekGridProps {
   week: WeekView<TimeEntry> | undefined
   isLoading?: boolean
+  isError?: boolean
   /** Admin only: shows the edit/add controls. */
   canEdit?: boolean
   onEdit?: (entry: TimeEntry) => void
@@ -24,7 +25,7 @@ interface WeekGridProps {
 }
 
 /** Seven rows, Monday to Sunday: punches per day, daily total, weekly total. */
-export function WeekGrid({ week, isLoading, canEdit, onEdit, onAdd, namesById = {} }: WeekGridProps) {
+export function WeekGrid({ week, isLoading, isError, canEdit, onEdit, onAdd, namesById = {} }: WeekGridProps) {
   const formatDate = useDateFormat()
 
   if (isLoading) {
@@ -41,7 +42,7 @@ export function WeekGrid({ week, isLoading, canEdit, onEdit, onAdd, namesById = 
     return (
       <Card>
         <CardContent className="pt-6 text-sm text-muted-foreground">
-          No hay una semana completa que mostrar.
+          {isError ? 'No se pudieron cargar las checadas. Intenta de nuevo.' : 'No hay una semana completa que mostrar.'}
         </CardContent>
       </Card>
     )
