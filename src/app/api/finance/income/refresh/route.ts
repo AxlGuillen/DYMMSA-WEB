@@ -7,7 +7,7 @@ import { buildIncomeOverview, incomeUnavailable } from '@/lib/income'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
 import { INCOME_CACHE_TAG, loadIncomeFresh } from '@/lib/odoo/income-cache'
-import { ISO_MONTH } from '../route'
+import { ISO_MONTH } from '@/lib/month'
 
 export const maxDuration = 60
 

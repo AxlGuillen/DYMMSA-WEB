@@ -1,7 +1,7 @@
 /** Income math (#94). Pure like payables.ts: the clock is injected, nothing reads `new Date()`. */
 
 import type { OdooCollection, OdooOpenInvoice } from '@/lib/odoo/income'
-import { nextMonth, type ISODate } from '@/lib/payables'
+import type { ISODate } from '@/lib/month'
 
 export type IncomeUnavailableReason = 'not_configured' | 'odoo_error'
 
@@ -15,8 +15,12 @@ export interface IncomeMonthSummary {
   /** Open invoices due before today, any month. */
   overdueTotal: number
   overdueCount: number
-  /** Some Odoo read filled its limit: totals may be short. */
-  truncated: boolean
+  /** The payments read filled its limit: collected may be short. */
+  collectionsTruncated: boolean
+  /** The open-invoices read filled its limit: receivable/overdue may be short. */
+  receivablesTruncated: boolean
+  /** Currencies other than MXN on either side; amounts are NOT converted. */
+  foreignCurrencies: string[]
 }
 
 export interface MonthClosing {
@@ -27,11 +31,6 @@ export interface MonthClosing {
   real: number
   /** If every pending payable of the month gets paid: real − pending. */
   projected: number
-}
-
-/** `[from, toExclusive)` for 'YYYY-MM'; exclusive end so short months never hit day 31. */
-export function monthRange(month: string): { from: ISODate; toExclusive: ISODate } {
-  return { from: `${month}-01`, toExclusive: nextMonth(month) }
 }
 
 export function summarizeCollections(rows: readonly OdooCollection[]): Pick<IncomeMonthSummary, 'collectedTotal' | 'collectedCount'> {
@@ -63,9 +62,15 @@ export function summarizeIncome(
   collections: readonly OdooCollection[],
   openInvoices: readonly OdooOpenInvoice[],
   today: ISODate,
-  truncated: boolean,
+  truncated: { collections: boolean; receivables: boolean },
 ): IncomeMonthSummary {
-  return { ...summarizeCollections(collections), ...splitReceivables(openInvoices, today), truncated }
+  return {
+    ...summarizeCollections(collections),
+    ...splitReceivables(openInvoices, today),
+    collectionsTruncated: truncated.collections,
+    receivablesTruncated: truncated.receivables,
+    foreignCurrencies: foreignCurrencies([...collections, ...openInvoices]),
+  }
 }
 
 /** Negative is a valid answer: it is exactly the month you would rather not close. */
@@ -106,13 +111,13 @@ export function buildIncomeOverview(
   return {
     month,
     today,
-    income: summarizeIncome(collections.rows, open.rows, today, collections.truncated || open.truncated),
+    income: summarizeIncome(collections.rows, open.rows, today, { collections: collections.truncated, receivables: open.truncated }),
     collections: collections.rows,
     fetchedAt: collections.fetchedAt < open.fetchedAt ? collections.fetchedAt : open.fetchedAt,
   }
 }
 
-/** Currencies other than MXN present in the month's payments; amounts are not converted. */
-export function foreignCurrencies(rows: readonly OdooCollection[]): string[] {
+/** Currencies other than MXN present in the rows; amounts are not converted. */
+export function foreignCurrencies(rows: readonly { currency: string | null }[]): string[] {
   return [...new Set(rows.map((r) => r.currency).filter((c): c is string => !!c && c !== 'MXN'))]
 }

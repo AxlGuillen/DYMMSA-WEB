@@ -14,7 +14,7 @@ import { useCurrency } from '@/hooks/useCurrency'
 import { formatRelative, todayInMexico } from '@/lib/format'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { monthOf, weekOfMonth } from '@/lib/payables'
-import { foreignCurrencies, monthClosing } from '@/lib/income'
+import { monthClosing } from '@/lib/income'
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -45,10 +45,12 @@ export function FinanceOverview() {
   const incomeData = incomeQuery.data
   const income = incomeData?.income ?? null
   const incomeLoading = incomeQuery.isLoading || refreshIncome.isPending
+  // A failed GET is not "Odoo degraded": data is undefined, not income: null (review PR #98).
+  const incomeUnavailable = !incomeLoading && (incomeQuery.isError || (!!incomeData && !income))
   const closing = income && summary
     ? monthClosing({ collected: income.collectedTotal, paid: summary.paidTotal, pending: summary.pendingTotal })
     : null
-  const currencies = foreignCurrencies(incomeData?.collections ?? [])
+  const currencies = income?.foreignCurrencies ?? []
 
   const handleRefresh = () => {
     refreshIncome.mutate(month, {
@@ -121,6 +123,9 @@ export function FinanceOverview() {
       <div className="flex flex-wrap items-center justify-between gap-2" data-testid="income-header">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingresos (Odoo)</h2>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {currencies.length > 0 && (
+            <Badge variant="outline">Incluye {currencies.join(', ')} sin convertir</Badge>
+          )}
           {incomeData?.fetchedAt && <span>Actualizado {formatRelative(incomeData.fetchedAt)}</span>}
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshIncome.isPending} aria-label="Actualizar ingresos">
             <RefreshCw className={`mr-1 size-3.5 ${refreshIncome.isPending ? 'animate-spin' : ''}`} />
@@ -129,7 +134,7 @@ export function FinanceOverview() {
         </div>
       </div>
 
-      {!incomeLoading && incomeData && !income ? (
+      {incomeUnavailable ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -138,7 +143,9 @@ export function FinanceOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {incomeData.unavailable?.message ?? 'No se pudo leer Odoo.'}
+            {incomeQuery.isError
+              ? 'No se pudieron cargar los ingresos. Intenta de nuevo con Actualizar.'
+              : incomeData?.unavailable?.message ?? 'No se pudo leer Odoo.'}
           </CardContent>
         </Card>
       ) : (
@@ -176,6 +183,11 @@ export function FinanceOverview() {
             isLoading={incomeLoading || isLoading}
           />
         </div>
+      )}
+      {income?.receivablesTruncated && (
+        <p className="text-xs text-muted-foreground">
+          Facturas abiertas: se leyeron las primeras 500; por cobrar y vencido pueden quedar cortos.
+        </p>
       )}
 
       <Card>
@@ -229,9 +241,6 @@ export function FinanceOverview() {
               <Check className="size-4" />
               Cobros de {monthLabel(month).toLowerCase()}
             </CardTitle>
-            {currencies.length > 0 && (
-              <Badge variant="outline">Incluye {currencies.join(', ')} sin convertir</Badge>
-            )}
           </CardHeader>
           <CardContent className="space-y-1">
             {incomeData?.collections.length === 0 && (
@@ -249,8 +258,8 @@ export function FinanceOverview() {
                 </span>
               </div>
             ))}
-            {income.truncated && (
-              <p className="pt-1 text-xs text-muted-foreground">Se muestran los primeros 500; los totales pueden quedar cortos.</p>
+            {income.collectionsTruncated && (
+              <p className="pt-1 text-xs text-muted-foreground">Se muestran los primeros 500 cobros; el total puede quedar corto.</p>
             )}
           </CardContent>
         </Card>

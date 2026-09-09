@@ -1,15 +1,16 @@
 /** Payables math (#84). As in format.ts the clock is ALWAYS injected — nothing here reads `new Date()`. */
 
 import type { Payable, PayableStatus } from '@/types/database'
+import { monthOf, nextMonth, type ISODate } from './month'
+
+export { monthOf, nextMonth }
+export type { ISODate }
 
 export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
   pending: 'Pendiente',
   paid: 'Pagada',
   cancelled: 'Cancelada',
 }
-
-/** 'YYYY-MM-DD' (Postgres `date` columns — no timezone). */
-export type ISODate = string
 
 /** Adds the credit days to the invoice date. UTC arithmetic: no DST jumps. */
 export function dueDateFrom(invoiceDate: ISODate, termsDays: number | null | undefined): ISODate {
@@ -34,14 +35,6 @@ export function paymentTermsLabel(days: number | null | undefined): string {
   // 0 days of credit is cash: the API and the MCP can store it either way.
   if (days == null || days <= 0) return 'Contado'
   return PAYMENT_TERM_PRESETS.find((p) => p.days === days)?.label ?? `${days} días`
-}
-
-export const monthOf = (date: ISODate): string => date.slice(0, 7)
-
-/** EXCLUSIVE month boundary: `${month}-31` does not exist in short months (Postgres 22008). */
-export function nextMonth(month: string): string {
-  const [y, m] = month.split('-').map(Number)
-  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
 }
 
 /** Week of the month (1-based): days 1-7 → 1, 8-14 → 2, capped at 5. */

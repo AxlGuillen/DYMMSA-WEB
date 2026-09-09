@@ -7,7 +7,7 @@ import type { OdooCaller } from './client'
 import { allowedFields, assertDomainAllowed, type DomainTriple } from './catalog'
 import { OPEN_RECEIVABLES_DOMAIN } from './domains'
 import { normalizeRecords } from './normalize'
-import { nextMonth } from '@/lib/payables'
+import { monthRange } from '@/lib/month'
 
 /** 500 covers years of DYMMSA volume; `truncated` says when it did not (PR #75). */
 export const INCOME_FETCH_LIMIT = 500
@@ -34,7 +34,9 @@ export interface OdooOpenInvoice {
   invoiceDate: string | null
   dueDate: string | null
   total: number
+  /** In the invoice's currency, like `amount` on collections. */
   residual: number
+  currency: string | null
   paymentState: string
 }
 
@@ -46,7 +48,7 @@ export interface OdooRows<T> {
 
 const COLLECTION_FIELDS = ['name', 'partner_id', 'date', 'amount', 'state', 'memo', 'currency_id']
 const OPEN_INVOICE_FIELDS = [
-  'name', 'partner_id', 'invoice_date', 'invoice_date_due', 'amount_total', 'amount_residual', 'payment_state',
+  'name', 'partner_id', 'invoice_date', 'invoice_date_due', 'amount_total', 'amount_residual', 'payment_state', 'currency_id',
 ]
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
@@ -54,11 +56,14 @@ const num = (v: unknown): number => (typeof v === 'number' ? v : 0)
 
 /** Money that actually came in during `month` (YYYY-MM), by payment date — same criterion as payables.paid_at. */
 export async function fetchMonthCollections(odoo: OdooCaller, month: string): Promise<OdooRows<OdooCollection>> {
+  const { from, toExclusive } = monthRange(month)
+  // inbound alone also matches supplier refunds and internal transfers (review PR #98).
   const domain: DomainTriple[] = [
     ['payment_type', '=', 'inbound'],
+    ['partner_type', '=', 'customer'],
     ['state', 'in', ['in_process', 'paid']],
-    ['date', '>=', `${month}-01`],
-    ['date', '<', nextMonth(month)],
+    ['date', '>=', from],
+    ['date', '<', toExclusive],
   ]
   assertDomainAllowed('account.payment', domain)
   const records = normalizeRecords(
@@ -105,6 +110,7 @@ export async function fetchOpenReceivables(odoo: OdooCaller): Promise<OdooRows<O
       dueDate: str(r.invoice_date_due),
       total: num(r.amount_total),
       residual: num(r.amount_residual),
+      currency: str(r.currency_id),
       paymentState: str(r.payment_state) ?? '',
     })),
     truncated: records.length >= INCOME_FETCH_LIMIT,

@@ -1,16 +1,15 @@
 /** Income math (#94): month range, collections sum, due/overdue split, closing. */
 
 import { describe, test, expect } from 'vitest'
-import {
-  monthRange, summarizeCollections, splitReceivables, summarizeIncome, monthClosing, foreignCurrencies,
-} from '@/lib/income'
+import { summarizeCollections, splitReceivables, summarizeIncome, monthClosing, foreignCurrencies } from '@/lib/income'
+import { monthRange } from '@/lib/month'
 import type { OdooCollection, OdooOpenInvoice } from '@/lib/odoo/income'
 
 const pay = (o: Partial<OdooCollection>): OdooCollection => ({
   id: 1, folio: 'PAY1', customer: 'Andritz', date: '2026-08-12', amount: 100, currency: 'MXN', state: 'paid', memo: null, ...o,
 })
 const inv = (o: Partial<OdooOpenInvoice>): OdooOpenInvoice => ({
-  id: 1, folio: 'F1', customer: 'Andritz', invoiceDate: '2026-08-01', dueDate: '2026-09-01', total: 100, residual: 100, paymentState: 'not_paid', ...o,
+  id: 1, folio: 'F1', customer: 'Andritz', invoiceDate: '2026-08-01', dueDate: '2026-09-01', total: 100, residual: 100, currency: 'MXN', paymentState: 'not_paid', ...o,
 })
 
 describe('monthRange', () => {
@@ -43,13 +42,20 @@ describe('splitReceivables', () => {
 })
 
 describe('summarizeIncome', () => {
-  test('junta cobros, por cobrar, vencido y el flag de truncado', () => {
-    const s = summarizeIncome([pay({ amount: 10 })], [inv({ dueDate: '2026-01-01', residual: 5 })], '2026-09-09', true)
+  test('junta cobros, por cobrar, vencido, truncado por lado y monedas de ambos lados', () => {
+    const s = summarizeIncome(
+      [pay({ amount: 10 })],
+      [inv({ dueDate: '2026-01-01', residual: 5, currency: 'USD' })],
+      '2026-09-09',
+      { collections: false, receivables: true },
+    )
     expect(s).toEqual({
       collectedTotal: 10, collectedCount: 1,
       receivableTotal: 0, receivableCount: 0,
       overdueTotal: 5, overdueCount: 1,
-      truncated: true,
+      collectionsTruncated: false,
+      receivablesTruncated: true,
+      foreignCurrencies: ['USD'],
     })
   })
 })

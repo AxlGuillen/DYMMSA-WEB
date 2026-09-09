@@ -3,14 +3,13 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
 import { buildIncomeOverview, incomeUnavailable } from '@/lib/income'
+import { ISO_MONTH } from '@/lib/month'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
 import { cachedMonthCollections, cachedOpenReceivables } from '@/lib/odoo/income-cache'
 
 // Two cold Odoo reads can exceed Vercel's default function timeout (same as /api/mcp).
 export const maxDuration = 60
-
-export const ISO_MONTH = /^\d{4}-\d{2}$/
 
 // GET /api/finance/income?month=YYYY-MM — the month's collections + open receivables, read from
 // Odoo through the Data Cache. Odoo down or absent → 200 with income: null, never a broken screen.

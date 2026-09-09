@@ -127,7 +127,8 @@ src/
 │   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
 │   ├── github.ts                 # Cliente GitHub Issues (módulo Tareas): fetchGitHub + mapeos puros
-│   ├── payables.ts               # Matemática de egresos: summarizeMonth, nextMonth, plazos (issue #84)
+│   ├── month.ts                  # ISODate, ISO_MONTH, monthOf, nextMonth, monthRange — sin imports de la app (#94)
+│   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); re-exporta month.ts
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94)
 │   └── utils.ts                  # cn() — class merging

@@ -30,6 +30,7 @@ const PAY00068 = {
   payment_type: 'inbound',
   state: 'paid',
   memo: false,
+  partner_type: 'customer',
   currency_id: [33, 'MXN'],
 }
 
@@ -43,10 +44,11 @@ const INVOICE_RAW = {
   amount_residual: 18781.1,
   payment_state: 'not_paid',
   state: 'posted',
+  currency_id: [33, 'MXN'],
 }
 
 describe('fetchMonthCollections', () => {
-  test('una llamada: cobros inbound registrados o conciliados, por fecha de pago dentro del mes', async () => {
+  test('una llamada: cobros de CLIENTE registrados o conciliados, por fecha de pago dentro del mes', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.payment.search_read': [[PAY00068]] })
     const result = await fetchMonthCollections(odoo, '2026-08')
 
@@ -54,6 +56,7 @@ describe('fetchMonthCollections', () => {
     expect(calls[0].model).toBe('account.payment')
     expect(calls[0].payload.domain).toEqual([
       ['payment_type', '=', 'inbound'],
+      ['partner_type', '=', 'customer'],
       ['state', 'in', ['in_process', 'paid']],
       ['date', '>=', '2026-08-01'],
       ['date', '<', '2026-09-01'],
@@ -111,6 +114,7 @@ describe('fetchOpenReceivables', () => {
       dueDate: '2026-05-10',
       total: 18781.1,
       residual: 18781.1,
+      currency: 'MXN',
       paymentState: 'not_paid',
     }])
   })

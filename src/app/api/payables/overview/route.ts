@@ -3,9 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
 import { nextMonth, summarizeMonth } from '@/lib/payables'
+import { ISO_MONTH } from '@/lib/month'
 import type { Payable } from '@/types/database'
-
-const ISO_MONTH = /^\d{4}-\d{2}$/
 
 // GET /api/payables/overview?month=YYYY-MM — month summary + raw rows for the weekly list.
 // Pulls ALL pending (overdue from earlier months count here) + the month's paid; math in lib/payables.ts.

@@ -14,7 +14,7 @@ Restricción de la issue: **leer, nunca duplicar**. Nada de una tabla `receivabl
 
 ### 1. Ingreso del mes = cobrado por fecha real de cobro
 
-Se leen los **pagos de cliente** (`account.payment`, `payment_type = inbound`, `state in (in_process, paid)`) cuya `date` cae en el mes. No las facturas por `invoice_date`: los egresos ya van por `paid_at` y las dos mitades deben hablar del mismo hecho — dinero que se movió ese mes — o el cierre sale mal. Una factura emitida el 25/08 y cobrada el 05/09 cuenta en septiembre. `in_process` es un pago registrado sin conciliar con el banco; `paid`, conciliado. Se cuentan ambos (mismo criterio que `odoo_rep_audit`); un pago que después se marque `rejected` sale del total al expirar el caché.
+Se leen los **pagos de cliente** (`account.payment`, `payment_type = inbound`, **`partner_type = customer`**, `state in (in_process, paid)`) cuya `date` cae en el mes. El `partner_type` no es adorno: un reembolso recibido de un proveedor y una transferencia interna también son `inbound`, y contarlos inflaría justo el número del que dependen los impuestos (review PR #98). No las facturas por `invoice_date`: los egresos ya van por `paid_at` y las dos mitades deben hablar del mismo hecho — dinero que se movió ese mes — o el cierre sale mal. Una factura emitida el 25/08 y cobrada el 05/09 cuenta en septiembre. `in_process` es un pago registrado sin conciliar con el banco; `paid`, conciliado. Se cuentan ambos (mismo criterio que `odoo_rep_audit`); un pago que después se marque `rejected` sale del total al expirar el caché.
 
 `account.payment.date` es un `DATE` (sin hora), así que el rango es `[mes-01, mesSiguiente-01)` con `nextMonth()` — la misma frontera exclusiva que los egresos.
 
@@ -44,8 +44,9 @@ El refresh (`POST /api/finance/income/refresh`) purga el tag y responde con los 
 
 ### 7. Límites conscientes
 
-- **Truncado**: 500 filas por lectura (años de volumen de DYMMSA); `truncated` se expone y la UI lo dice. Si alguna vez importa, un `read_group` extra da la suma exacta.
-- **Moneda**: `amount` va en la moneda del pago (`currency_id` entró al catálogo de `account.payment`); no se convierte, se etiqueta lo que no es MXN.
+- **Truncado**: 500 filas por lectura (años de volumen de DYMMSA); `collectionsTruncated` y `receivablesTruncated` se exponen por separado para que el aviso hable del renglón correcto. Si alguna vez importa, un `read_group` extra da la suma exacta.
+- **Refresh caro a propósito**: purgar + leer crudo deja el Data Cache vacío, así que un ciclo de "Actualizar" cuesta 4 llamadas a Odoo (2 del POST + 2 del siguiente GET). Es el precio de que el botón nunca muestre dato viejo.
+- **Moneda**: `amount` va en la moneda del pago y `amount_residual` en la de la factura; ninguno se convierte. `foreignCurrencies` en el resumen une **ambos lados** (cobros y facturas abiertas) y la UI lo etiqueta junto al encabezado de ingresos. Si algún día hace falta convertir, `amount_residual_signed` ya viene en moneda de la compañía.
 - **Data Cache entre instancias**: tras un refresh, otra instancia podría servir una vez el dato viejo; el POST devuelve datos frescos y el hook los siembra.
 - **Fuera de alcance**: simulación de mover pagos entre meses (lo único que queda de #84 fase 2), tools MCP nuevas, histórico anual.
 

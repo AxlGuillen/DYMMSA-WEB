@@ -25,7 +25,7 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
   },
   'account.payment': {
     label: 'Pagos',
-    fields: ['name', 'partner_id', 'date', 'amount', 'payment_type', 'state', 'memo', 'currency_id'],
+    fields: ['name', 'partner_id', 'partner_type', 'date', 'amount', 'payment_type', 'state', 'memo', 'currency_id'],
     // A payment's l10n_mx_edi_* stay out: they compute `false` even on payments with a stamped
     // REP (verified 2026-08-20 with PAY00068) — the REP truth is l10n_mx_edi.document.
     readOnlyFields: ['reconciled_invoice_ids'],

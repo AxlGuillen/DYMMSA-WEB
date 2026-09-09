@@ -9,6 +9,7 @@ import type { IncomeOverviewResponse } from '@/lib/income'
 
 const state = vi.hoisted(() => ({
   income: null as IncomeOverviewResponse | null,
+  isError: false,
   mutate: vi.fn(),
 }))
 
@@ -27,7 +28,7 @@ vi.mock('@/hooks/usePayables', () => ({
 }))
 
 vi.mock('@/hooks/useIncome', () => ({
-  useIncomeOverview: () => ({ data: state.income, isLoading: false }),
+  useIncomeOverview: () => ({ data: state.income, isLoading: false, isError: state.isError }),
   useRefreshIncome: () => ({ mutate: state.mutate, isPending: false }),
 }))
 
@@ -38,7 +39,9 @@ const INCOME_OK: IncomeOverviewResponse = {
     collectedTotal: 10000, collectedCount: 2,
     receivableTotal: 3000, receivableCount: 1,
     overdueTotal: 18781.1, overdueCount: 1,
-    truncated: false,
+    collectionsTruncated: false,
+    receivablesTruncated: false,
+    foreignCurrencies: ['USD'],
   },
   collections: [
     { id: 71, folio: 'PAY00068', customer: 'Andritz', date: '2026-08-12', amount: 9000, currency: 'MXN', state: 'paid', memo: null },
@@ -48,7 +51,7 @@ const INCOME_OK: IncomeOverviewResponse = {
 }
 
 describe('FinanceOverview — ingresos', () => {
-  beforeEach(() => { state.income = INCOME_OK; state.mutate.mockClear() })
+  beforeEach(() => { state.income = INCOME_OK; state.isError = false; state.mutate.mockClear() })
 
   test('pinta cobrado, por cobrar, vencido y el cierre real/proyectado', () => {
     renderWithProviders(<FinanceOverview />)
@@ -79,6 +82,16 @@ describe('FinanceOverview — ingresos', () => {
     expect(screen.getByText(/solo los egresos/)).toBeInTheDocument()
     expect(screen.queryByText('Cierre del mes')).not.toBeInTheDocument()
     expect(screen.getByText('Pagado en el mes')).toBeInTheDocument()
+  })
+
+  test('si el GET falla no pinta $0: muestra el error y deja reintentar', () => {
+    state.income = null
+    state.isError = true
+    renderWithProviders(<FinanceOverview />)
+    expect(screen.getByText('Ingresos no disponibles')).toBeInTheDocument()
+    expect(screen.getByText(/No se pudieron cargar los ingresos/)).toBeInTheDocument()
+    expect(screen.queryByText('Cobrado del mes')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Actualizar ingresos' })).toBeInTheDocument()
   })
 
   test('Actualizar dispara el refresh del mes visible', async () => {

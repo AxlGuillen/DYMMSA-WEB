@@ -27,12 +27,12 @@ let activeClient: MockSupabaseClient
 injectSupabaseServer(() => activeClient)
 
 const PAY00068 = {
-  id: 71, name: 'PAY00068', partner_id: [24, 'Andritz'], date: '2026-08-12', amount: 59868.07,
+  id: 71, name: 'PAY00068', partner_id: [24, 'Andritz'], partner_type: 'customer', date: '2026-08-12', amount: 59868.07,
   payment_type: 'inbound', state: 'paid', memo: false, currency_id: [33, 'MXN'],
 }
 const OPEN_INVOICE = {
   id: 780, name: 'F00387', partner_id: [24, 'Andritz'], invoice_date: '2026-08-11', invoice_date_due: '2026-05-10',
-  amount_total: 18781.1, amount_residual: 18781.1, payment_state: 'not_paid',
+  amount_total: 18781.1, amount_residual: 18781.1, payment_state: 'not_paid', currency_id: [33, 'MXN'],
 }
 
 function scriptOdoo() {
@@ -101,13 +101,15 @@ describe('GET /api/finance/income', () => {
       collectedTotal: 59868.07, collectedCount: 1,
       overdueTotal: 18781.1, overdueCount: 1,
       receivableTotal: 0, receivableCount: 0,
-      truncated: false,
+      collectionsTruncated: false, receivablesTruncated: false,
+      foreignCurrencies: [],
     })
     expect(body.collections).toEqual([expect.objectContaining({ folio: 'PAY00068', customer: 'Andritz', amount: 59868.07 })])
     expect(typeof body.fetchedAt).toBe('string')
     expect(callOdoo).toHaveBeenCalledTimes(2)
     const paymentCall = vi.mocked(callOdoo).mock.calls.find((c) => c[0] === 'account.payment')!
     expect(paymentCall[2].domain).toContainEqual(['date', '<', '2026-09-01'])
+    expect(paymentCall[2].domain).toContainEqual(['partner_type', '=', 'customer'])
   })
 
   test('sin month usa el mes actual', async () => {
