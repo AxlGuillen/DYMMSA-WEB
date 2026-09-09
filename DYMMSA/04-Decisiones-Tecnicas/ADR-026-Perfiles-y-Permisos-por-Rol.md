@@ -48,9 +48,13 @@ El `.upsert()` de supabase-js genera `DO UPDATE SET <todo>` sin `WHERE` y **pisa
 
 `edited_by`, `edited_at` y `original jsonb` (`{clock_in, clock_out, note}`) — `original` se escribe **solo la primera vez** y nunca se sobreescribe: conserva lo que dijo el checador, que es el dato de una disputa. Sin tabla de auditoría aparte en v1.
 
+**Solo un cambio de hora sella el rastro.** Como el import salta las filas con `edited_at`, sellar por una nota ("olvidó checar salida") congelaría para siempre una pareja que el checador todavía puede completar. Una nota sola se guarda sin rastro (review PR #96).
+
 ### 8. FKs y GRANTs
 
-- `time_entries.user_id → profiles` **sin cascade** (borrar un usuario no borra nómina; mismo criterio que `payables → suppliers`). `edited_by` e `imported_by` → `SET NULL`.
+- `time_entries.user_id → profiles` **sin cascade** y `NOT NULL` (mismo criterio que `payables → suppliers`). Efecto real: como `profiles.id → auth.users` sí es CASCADE, **borrar un usuario de `auth.users` que tenga checadas falla con 23503** desde el panel de Supabase. Es deliberado — la baja se hace desactivando (Supabase Auth: ban), no borrando; la nómina histórica no se destruye. `edited_by` e `imported_by` → `SET NULL`.
+- `time_imports` la lee cualquier `authenticated` aunque la página sea admin-only: es bitácora (semana, archivo, conteos), sin datos de personas. Intencional.
+- El dedupe de la RPC (`DISTINCT ON`) lleva `ORDER BY ... clock_out DESC NULLS LAST`: si el reporte repite una pareja con y sin salida, sobrevive la completa en cualquier orden (sin `ORDER BY`, Postgres elegía una arbitraria).
 - GRANTs explícitos a `authenticated` y `service_role`, **sin `anon`** — desviación deliberada del patrón del baseline: nada público lee estas tablas.
 - Totales diarios/semanales **no se persisten**: los calcula `buildWeekView()` al leer.
 

@@ -127,6 +127,20 @@ describe('RPC import_time_entries (transaccional, respeta ediciones)', () => {
     expect(Number(count)).toBe(2)
   })
 
+  test('pareja repetida en el reporte: sobrevive la que trae salida, en cualquier orden', async () => {
+    const dup = [
+      { user_id: MEMBER_ID, work_date: '2026-09-02', clock_in: '09:00', clock_out: '' },
+      { user_id: MEMBER_ID, work_date: '2026-09-02', clock_in: '09:00', clock_out: '17:00' },
+    ]
+    const res = await call(dup)
+    expect(res.data).toMatchObject({ inserted: 1, updated: 0, skipped_edited: 0 })
+    const [row] = await sql<{ clock_out: string | null }>(
+      "SELECT clock_out FROM public.time_entries WHERE user_id = $1 AND work_date = '2026-09-02'", [MEMBER_ID],
+    )
+    expect(row.clock_out).toBe('17:00:00')
+    expect((await call([...dup].reverse())).data).toMatchObject({ inserted: 0, updated: 1 })
+  })
+
   test('una fila editada por un admin sobrevive al re-import y se reporta como saltada', async () => {
     await call(entries)
     await sql(

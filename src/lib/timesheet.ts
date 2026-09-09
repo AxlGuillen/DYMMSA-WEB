@@ -60,6 +60,18 @@ export function normalizeTime(value: string): HHMM | null {
   return `${pad2(h)}:${pad2(min)}`
 }
 
+type TimedRow = { clock_in: string; clock_out: string | null; source_clock_in: string }
+
+/** PostgREST serializes `time` as HH:MM:SS; the lib and the UI work in HH:MM. */
+export function normalizeEntryTimes<T extends TimedRow>(row: T): T {
+  return {
+    ...row,
+    clock_in: normalizeTime(row.clock_in) ?? row.clock_in,
+    clock_out: row.clock_out ? (normalizeTime(row.clock_out) ?? row.clock_out) : null,
+    source_clock_in: normalizeTime(row.source_clock_in) ?? row.source_clock_in,
+  }
+}
+
 export function parseNgtecoReport(rows: unknown[][]): ParsedReport {
   const report: ParsedReport = { period: null, employees: [], warnings: [] }
   let current: ParsedEmployee | null = null
@@ -118,7 +130,11 @@ export function parseNgtecoReport(rows: unknown[][]): ParsedReport {
     }
     const inTime = normalizeTime(clockIn)
     if (!inTime) {
-      report.warnings.push(`Salida sin entrada: ${current.name} ${lastDate} ${clockOut}`)
+      report.warnings.push(
+        clockIn === ''
+          ? `Salida sin entrada: ${current.name} ${lastDate} ${clockOut}`
+          : `Hora de entrada inválida: ${current.name} ${lastDate} "${clockIn}"`,
+      )
       continue
     }
     const outTime = clockOut === '' ? null : normalizeTime(clockOut)

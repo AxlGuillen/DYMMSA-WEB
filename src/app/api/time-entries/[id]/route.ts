@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import { normalizeTime } from '@/lib/timesheet'
-import { normalizeEntry } from '../route'
+import { normalizeEntryTimes, normalizeTime } from '@/lib/timesheet'
 import type { TimeEntry, TimeEntryUpdate } from '@/types/database'
 
 // PATCH /api/time-entries/[id] — admin correction with trace; source_clock_in is never touched
@@ -20,7 +19,7 @@ export async function PATCH(
     const { data: current } = await supabase
       .from('time_entries').select('*').eq('id', id).single()
     if (!current) return notFound('La checada no existe')
-    const row = normalizeEntry(current as TimeEntry)
+    const row = normalizeEntryTimes(current as TimeEntry)
 
     const updates: Record<string, unknown> = {}
     let clockIn = row.clock_in
@@ -48,11 +47,15 @@ export async function PATCH(
     if (Object.keys(updates).length === 0) return badRequest('No hay cambios para guardar')
     if (clockOut !== null && clockOut < clockIn) return badRequest('La salida no puede ser antes de la entrada')
 
-    updates.edited_by = auth.profile.id
-    updates.edited_at = new Date().toISOString()
-    // Written once: what the clock said survives every later correction.
-    if (row.original == null) {
-      updates.original = { clock_in: row.clock_in, clock_out: row.clock_out, note: row.note }
+    // Only a time change seals the trace: the import skips rows with edited_at,
+    // so a note alone must not freeze a pair the clock may still complete (ADR-026).
+    if (clockIn !== row.clock_in || clockOut !== row.clock_out) {
+      updates.edited_by = auth.profile.id
+      updates.edited_at = new Date().toISOString()
+      // Written once: what the clock said survives every later correction.
+      if (row.original == null) {
+        updates.original = { clock_in: row.clock_in, clock_out: row.clock_out, note: row.note }
+      }
     }
 
     const { data, error } = await supabase
@@ -67,7 +70,7 @@ export async function PATCH(
       console.error('Error updating time entry:', error)
       return serverError('Error al actualizar la checada')
     }
-    return NextResponse.json(normalizeEntry(data as TimeEntry))
+    return NextResponse.json(normalizeEntryTimes(data as TimeEntry))
   } catch (error) {
     console.error('Time entry PATCH error:', error)
     return serverError('Error al actualizar la checada')
@@ -85,11 +88,12 @@ export async function DELETE(
     const auth = await requireAdmin(supabase)
     if ('error' in auth) return auth.error
 
-    const { error } = await supabase.from('time_entries').delete().eq('id', id)
+    const { data, error } = await supabase.from('time_entries').delete().eq('id', id).select('id')
     if (error) {
       console.error('Error deleting time entry:', error)
       return serverError('Error al eliminar la checada')
     }
+    if (!data || data.length === 0) return notFound('La checada no existe')
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('Time entry DELETE error:', error)

@@ -1,37 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, requireAdmin, badRequest, serverError } from '@/lib/api-helpers'
+import { requireRole, requireAdmin, badRequest, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
-import { buildWeekView, normalizeTime, weekBounds } from '@/lib/timesheet'
+import { buildWeekView, normalizeEntryTimes, normalizeTime, weekBounds } from '@/lib/timesheet'
 import type { TimeEntry } from '@/types/database'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** PostgREST serializes `time` as HH:MM:SS; the lib and the UI work in HH:MM. */
-export function normalizeEntry(row: TimeEntry): TimeEntry {
-  return {
-    ...row,
-    clock_in: normalizeTime(row.clock_in) ?? row.clock_in,
-    clock_out: row.clock_out ? (normalizeTime(row.clock_out) ?? row.clock_out) : null,
-    source_clock_in: normalizeTime(row.source_clock_in) ?? row.source_clock_in,
-  }
-}
-
-// GET /api/time-entries?user=&from=&to= — members always get their own rows, whatever `user` says
+// GET /api/time-entries?user=&from=&to= — members always get their own rows, whatever `user` says.
+// `week` is only meaningful when from..to is exactly a Monday→Sunday week (the UI always sends that).
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const auth = await requireAuth(supabase)
+    const auth = await requireRole(supabase)
     if ('error' in auth) return auth.error
 
     const { searchParams } = new URL(request.url)
     const requested = searchParams.get('user')
     if (requested && !UUID.test(requested)) return badRequest('Usuario inválido')
 
-    const { data: me } = await supabase
-      .from('profiles').select('role').eq('id', auth.user.id).single()
-    const isAdmin = me?.role === 'admin'
+    const isAdmin = auth.profile?.role === 'admin'
     const target = isAdmin && requested ? requested : auth.user.id
 
     const defaults = weekBounds(todayInMexico())
@@ -53,7 +42,7 @@ export async function GET(request: NextRequest) {
       return serverError('Error al obtener las checadas')
     }
 
-    const entries = ((data ?? []) as TimeEntry[]).map(normalizeEntry)
+    const entries = ((data ?? []) as TimeEntry[]).map(normalizeEntryTimes)
     return NextResponse.json({
       user: target,
       from,
@@ -106,7 +95,7 @@ export async function POST(request: NextRequest) {
       console.error('Error inserting time entry:', error)
       return serverError('Error al registrar la checada')
     }
-    return NextResponse.json(normalizeEntry(data as TimeEntry), { status: 201 })
+    return NextResponse.json(normalizeEntryTimes(data as TimeEntry), { status: 201 })
   } catch (error) {
     console.error('Time entries POST error:', error)
     return serverError('Error al registrar la checada')

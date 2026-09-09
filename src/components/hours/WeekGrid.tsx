@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Pencil, Plus, History } from '@/components/icons'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { formatDuration, type WeekView } from '@/lib/timesheet'
+import { formatAbsolute } from '@/lib/format'
 import type { TimeEntry } from '@/types/database'
 import { cn } from '@/lib/utils'
 
@@ -76,7 +77,7 @@ export function WeekGrid({ week, isLoading, canEdit, onEdit, onAdd, namesById = 
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>
-                            Editado por {(entry.edited_by && namesById[entry.edited_by]) || 'un administrador'} el {formatDate(entry.edited_at.slice(0, 10))}
+                            Editado por {(entry.edited_by && namesById[entry.edited_by]) || 'un administrador'} el {formatAbsolute(entry.edited_at)}
                           </p>
                           {entry.original && (
                             <p className="text-muted-foreground">

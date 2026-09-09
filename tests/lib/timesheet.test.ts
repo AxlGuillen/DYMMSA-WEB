@@ -79,6 +79,15 @@ describe('parseNgtecoReport', () => {
     const orphan = parseNgtecoReport([['LU', '2026-08-31', '10:00', '18:00']])
     expect(orphan.employees).toEqual([])
     expect(orphan.warnings[0]).toMatch(/fuera de un bloque/)
+
+    const badIn = parseNgtecoReport([
+      ['Período de pago', '', '', '2026-08-31-2026-09-06'],
+      ['Empleado', '', '', 'Tania\n(5)'],
+      ['Fecha', '', 'ENTRADA', 'SALIDA', 'Tiempo de trabajo', 'Total diario', 'Nota'],
+      ['LU', '2026-08-31', '9:00 AM', '18:00', '', '', ''],
+    ])
+    expect(badIn.warnings).toEqual([expect.stringMatching(/^Hora de entrada inválida: Tania 2026-08-31/)])
+    expect(badIn.employees[0].punches).toEqual([])
   })
 })
 

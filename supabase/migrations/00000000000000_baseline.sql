@@ -684,6 +684,8 @@ BEGIN
       (e->>'clock_in')::time AS clock_in,
       NULLIF(e->>'clock_out', '')::time AS clock_out
     FROM jsonb_array_elements(p_entries) AS e
+    -- A repeated pair keeps the one with a clock-out (deterministic re-import).
+    ORDER BY user_id, work_date, clock_in, clock_out DESC NULLS LAST
   ),
   upserted AS (
     INSERT INTO public.time_entries (user_id, work_date, source_clock_in, clock_in, clock_out, source)

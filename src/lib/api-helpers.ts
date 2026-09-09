@@ -18,13 +18,12 @@ export async function requireAuth(
   return { user }
 }
 
-/**
- * requireAuth plus the caller's profile role; members get a 403. Pairs with
- * RLS + is_admin() in the database — never a replacement for them (ADR-026).
- */
-export async function requireAdmin(
+export type CallerProfile = Pick<Profile, 'id' | 'role' | 'display_name'>
+
+/** requireAuth plus the caller's profile (null if missing), for handlers that branch on role. */
+export async function requireRole(
   supabase: SupabaseServerClient
-): Promise<{ user: User; profile: AdminProfile } | { error: NextResponse }> {
+): Promise<{ user: User; profile: CallerProfile | null } | { error: NextResponse }> {
   const auth = await requireAuth(supabase)
   if ('error' in auth) return auth
   const { data } = await supabase
@@ -32,11 +31,21 @@ export async function requireAdmin(
     .select('id, role, display_name')
     .eq('id', auth.user.id)
     .single()
-  if (!data || data.role !== 'admin') return { error: forbidden() }
-  return { user: auth.user, profile: data as AdminProfile }
+  return { user: auth.user, profile: (data as CallerProfile | null) ?? null }
 }
 
-export type AdminProfile = Pick<Profile, 'id' | 'role' | 'display_name'>
+/**
+ * Members get a 403. Pairs with RLS + is_admin() in the database — never a
+ * replacement for them (ADR-026).
+ */
+export async function requireAdmin(
+  supabase: SupabaseServerClient
+): Promise<{ user: User; profile: CallerProfile } | { error: NextResponse }> {
+  const auth = await requireRole(supabase)
+  if ('error' in auth) return auth
+  if (auth.profile?.role !== 'admin') return { error: forbidden() }
+  return { user: auth.user, profile: auth.profile }
+}
 
 export const unauthorized = (msg = 'No autorizado') =>
   NextResponse.json({ message: msg }, { status: 401 })

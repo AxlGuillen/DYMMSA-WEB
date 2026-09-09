@@ -199,6 +199,20 @@ describe('PATCH /api/time-entries/[id] (corrección con rastro)', () => {
     expect((await readJson<TimeEntry>(res)).clock_out).toBe('18:30')
   })
 
+  test('editar solo la nota no sella el rastro (el import aún puede completar la salida)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': withRole(ME_ADMIN),
+        'time_entries.select': { data: entry(), error: null },
+        'time_entries.update': { data: entry({ note: 'olvidó checar' }), error: null },
+      },
+    })
+    const res = await patch({ note: 'olvidó checar' })
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('time_entries')).toEqual({ note: 'olvidó checar' })
+  })
+
   test('original no se sobreescribe en una segunda corrección', async () => {
     const original = { clock_in: '10:06', clock_out: '18:27', note: null }
     activeClient = createMockSupabase({
@@ -240,10 +254,22 @@ describe('PATCH /api/time-entries/[id] (corrección con rastro)', () => {
     const denied = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'te-1' }))
     expect(denied.status).toBe(403)
 
-    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_ADMIN) } })
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': withRole(ME_ADMIN), 'time_entries.delete': { data: [{ id: 'te-1' }], error: null } },
+    })
     const ok = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'te-1' }))
     expect(ok.status).toBe(200)
     expect(filterValue(activeClient.callsTo('time_entries', 'delete')[0], 'id')).toBe('te-1')
+  })
+
+  test('DELETE de una checada inexistente → 404', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': withRole(ME_ADMIN), 'time_entries.delete': { data: [], error: null } },
+    })
+    const res = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'nope' }))
+    expect(res.status).toBe(404)
   })
 })
 
