@@ -178,6 +178,68 @@ export interface PayableWithSupplier extends Payable {
 export type PayableInsert = Omit<Payable, 'id' | 'created_at' | 'updated_at'>
 export type PayableUpdate = Partial<PayableInsert>
 
+export type ProfileRole = 'admin' | 'member'
+
+/** 1:1 with auth.users; the first per-person permission in the app (ADR-026, #93). */
+export interface Profile {
+  id: string
+  display_name: string
+  role: ProfileRole
+  /** NGTeco employee id; null = does not clock in. */
+  clock_employee_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id'>>
+
+export type TimeEntrySource = 'import' | 'manual'
+
+/** One clock-in/out pair; daily and weekly totals are computed, never stored (#93). */
+export interface TimeEntry {
+  id: string
+  user_id: string
+  work_date: string
+  /** What the clock said. Immutable: the re-import idempotency key. */
+  source_clock_in: string
+  clock_in: string
+  clock_out: string | null
+  note: string | null
+  source: TimeEntrySource
+  edited_by: string | null
+  edited_at: string | null
+  /** Pre-edit snapshot, written once and never overwritten. */
+  original: { clock_in: string; clock_out: string | null; note: string | null } | null
+  created_at: string
+  updated_at: string
+}
+
+export type TimeEntryUpdate = Partial<Pick<TimeEntry, 'clock_in' | 'clock_out' | 'note'>>
+
+/** One upload of the weekly clock report. */
+export interface TimeImport {
+  id: string
+  period_start: string
+  period_end: string
+  file_name: string | null
+  inserted: number
+  updated: number
+  skipped_edited: number
+  imported_by: string | null
+  created_at: string
+}
+
+/** Response of POST /api/time-entries/import. */
+export interface TimeImportResult {
+  period: { start: string; end: string }
+  inserted: number
+  updated: number
+  skipped_edited: number
+  /** Clock employees with no profile mapped; imported rows exclude them. */
+  unmapped: { clockId: number; name: string }[]
+  warnings: string[]
+}
+
 // Excel row type for inventory import
 export interface ExcelInventoryRow {
   MODEL_CODE: string

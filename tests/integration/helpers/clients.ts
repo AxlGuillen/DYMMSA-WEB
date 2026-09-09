@@ -5,18 +5,26 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { LOCAL } from './db'
 
-let authed: SupabaseClient | null = null
+type Credentials = { email: string; password: string }
 
-/** Test-user client, cached: the session is reused so RLS sees a logged-in user, as in the app. */
-export async function authedClient(): Promise<SupabaseClient> {
-  if (authed) return authed
+const cache = new Map<string, SupabaseClient>()
+
+/** Authenticated client per seeded user, cached so RLS sees a logged-in session, as in the app. */
+export async function authedClientAs(creds: Credentials): Promise<SupabaseClient> {
+  const hit = cache.get(creds.email)
+  if (hit) return hit
   const client = createClient(LOCAL.url, LOCAL.anon, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { error } = await client.auth.signInWithPassword(LOCAL.user)
-  if (error) throw new Error(`No se pudo autenticar el usuario de prueba: ${error.message}`)
-  authed = client
+  const { error } = await client.auth.signInWithPassword(creds)
+  if (error) throw new Error(`No se pudo autenticar ${creds.email}: ${error.message}`)
+  cache.set(creds.email, client)
   return client
+}
+
+/** The default test user (admin since #93; admin ⊇ member keeps older tests valid). */
+export function authedClient(): Promise<SupabaseClient> {
+  return authedClientAs(LOCAL.user)
 }
 
 /** Service-role client (bypasses RLS) for the public /approve/[token] route. */

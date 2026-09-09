@@ -495,3 +495,209 @@ CREATE POLICY "Authenticated users can manage presentations"
 
 GRANT ALL ON public.cut_plan_pieces TO anon, authenticated, service_role;
 GRANT ALL ON public.material_presentations TO anon, authenticated, service_role;
+
+-- ─── Módulo de horas (issue #93): perfiles con rol + checadas del checador ───
+-- Primer permiso por persona del sistema (ADR-026).
+
+-- profiles: 1:1 con auth.users. role gobierna RLS; clock_employee_id mapea al checador.
+CREATE TABLE public.profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  display_name text NOT NULL,
+  role text NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  clock_employee_id integer UNIQUE CHECK (clock_employee_id > 0),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+-- Perfil automático por usuario nuevo. Corre como supabase_auth_admin, que no tiene
+-- permisos en public: SECURITY DEFINER es obligatorio. Si falla, el alta aborta a propósito.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, display_name)
+  VALUES (
+    NEW.id,
+    COALESCE(
+      NULLIF(NEW.raw_user_meta_data->>'full_name', ''),
+      NULLIF(NEW.raw_user_meta_data->>'display_name', ''),
+      NULLIF(split_part(COALESCE(NEW.email, ''), '@', 1), ''),
+      NEW.id::text
+    )
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.handle_new_user() TO supabase_auth_admin;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Backfill genérico: los usuarios que ya existían. No-op en un stack vacío.
+INSERT INTO public.profiles (id, display_name)
+SELECT
+  id,
+  COALESCE(
+    NULLIF(raw_user_meta_data->>'full_name', ''),
+    NULLIF(raw_user_meta_data->>'display_name', ''),
+    NULLIF(split_part(COALESCE(email, ''), '@', 1), ''),
+    id::text
+  )
+FROM auth.users
+ON CONFLICT (id) DO NOTHING;
+
+-- DEFINER lee profiles como owner: la policy de profiles nunca se re-evalúa a sí misma.
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = (SELECT auth.uid()) AND role = 'admin'
+  );
+$$;
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can read profiles" ON public.profiles
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can update profiles" ON public.profiles
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- time_entries: una fila por pareja de checada. Totales calculados, nunca guardados.
+CREATE TABLE public.time_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- Sin cascade: borrar un usuario no borra nómina.
+  user_id uuid NOT NULL REFERENCES public.profiles(id),
+  work_date date NOT NULL,
+  -- Lo que dijo el checador. Inmutable: es la llave de idempotencia del re-import.
+  source_clock_in time NOT NULL,
+  clock_in time NOT NULL,
+  clock_out time,
+  note text,
+  source text NOT NULL DEFAULT 'import' CHECK (source IN ('import', 'manual')),
+  edited_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  edited_at timestamptz,
+  -- Snapshot pre-edición, se escribe una sola vez: conserva lo que dijo el checador.
+  original jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT time_entries_out_after_in CHECK (clock_out IS NULL OR clock_out >= clock_in),
+  CONSTRAINT time_entries_source_key UNIQUE (user_id, work_date, source_clock_in)
+);
+CREATE INDEX idx_time_entries_user_date ON public.time_entries (user_id, work_date);
+CREATE TRIGGER time_entries_set_updated_at BEFORE UPDATE ON public.time_entries
+  FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+ALTER TABLE public.time_entries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Members read own entries, admins read all" ON public.time_entries
+  FOR SELECT TO authenticated USING (user_id = (SELECT auth.uid()) OR public.is_admin());
+CREATE POLICY "Admins insert entries" ON public.time_entries
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY "Admins update entries" ON public.time_entries
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Admins delete entries" ON public.time_entries
+  FOR DELETE TO authenticated USING (public.is_admin());
+
+-- time_imports: bitácora de cargas del reporte semanal.
+CREATE TABLE public.time_imports (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  period_start date NOT NULL,
+  period_end date NOT NULL,
+  file_name text,
+  inserted integer NOT NULL DEFAULT 0,
+  updated integer NOT NULL DEFAULT 0,
+  skipped_edited integer NOT NULL DEFAULT 0,
+  imported_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT time_imports_period_check CHECK (period_end >= period_start)
+);
+ALTER TABLE public.time_imports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can read imports" ON public.time_imports
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins insert imports" ON public.time_imports
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+-- Carga transaccional. INVOKER: RLS e is_admin() aplican al que llama. Las filas
+-- editadas por un admin (edited_at) no se pisan y se reportan como saltadas.
+CREATE OR REPLACE FUNCTION public.import_time_entries(
+  p_entries jsonb,
+  p_period_start date,
+  p_period_end date,
+  p_file_name text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_inserted integer := 0;
+  v_updated integer := 0;
+  v_total integer := 0;
+  v_import_id uuid;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+  END IF;
+
+  WITH incoming AS (
+    SELECT DISTINCT ON (user_id, work_date, clock_in)
+      (e->>'user_id')::uuid AS user_id,
+      (e->>'work_date')::date AS work_date,
+      (e->>'clock_in')::time AS clock_in,
+      NULLIF(e->>'clock_out', '')::time AS clock_out
+    FROM jsonb_array_elements(p_entries) AS e
+  ),
+  upserted AS (
+    INSERT INTO public.time_entries (user_id, work_date, source_clock_in, clock_in, clock_out, source)
+    SELECT user_id, work_date, clock_in, clock_in, clock_out, 'import' FROM incoming
+    ON CONFLICT (user_id, work_date, source_clock_in) DO UPDATE
+      SET clock_out = EXCLUDED.clock_out, source = 'import'
+      WHERE public.time_entries.edited_at IS NULL
+    RETURNING (xmax = 0) AS is_insert
+  )
+  SELECT
+    count(*) FILTER (WHERE is_insert),
+    count(*) FILTER (WHERE NOT is_insert)
+  INTO v_inserted, v_updated
+  FROM upserted;
+
+  SELECT count(*) INTO v_total
+  FROM (
+    SELECT DISTINCT (e->>'user_id'), (e->>'work_date'), (e->>'clock_in')
+    FROM jsonb_array_elements(p_entries) AS e
+  ) d;
+
+  INSERT INTO public.time_imports
+    (period_start, period_end, file_name, inserted, updated, skipped_edited, imported_by)
+  VALUES
+    (p_period_start, p_period_end, p_file_name, v_inserted, v_updated,
+     v_total - v_inserted - v_updated, (SELECT auth.uid()))
+  RETURNING id INTO v_import_id;
+
+  RETURN jsonb_build_object(
+    'import_id', v_import_id,
+    'inserted', v_inserted,
+    'updated', v_updated,
+    'skipped_edited', v_total - v_inserted - v_updated
+  );
+END;
+$$;
+
+-- Sin anon a propósito: primeras tablas con permiso por persona; nada público las lee.
+GRANT SELECT, UPDATE ON public.profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.time_entries TO authenticated;
+GRANT SELECT, INSERT ON public.time_imports TO authenticated;
+GRANT ALL ON public.profiles, public.time_entries, public.time_imports TO service_role;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.import_time_entries(jsonb, date, date, text) TO authenticated, service_role;

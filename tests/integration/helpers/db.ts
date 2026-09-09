@@ -13,6 +13,8 @@ export const LOCAL = {
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
   dbUrl: process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
   user: { email: 'test@dymmsa.local', password: 'testpassword123' },
+  /** Second seeded user (role member, clock id 5) for the per-user RLS tests (#93). */
+  member: { email: 'member@dymmsa.local', password: 'testpassword123' },
 }
 
 let pool: Pool | null = null
@@ -108,7 +110,8 @@ export async function seedQuotation(opts: {
 export async function resetDb(): Promise<void> {
   await getPool().query(`
     TRUNCATE public.quotations, public.orders, public.order_purchase_decisions,
-             public.suppliers, public.brands, public.supplier_brands
+             public.suppliers, public.brands, public.supplier_brands,
+             public.time_entries, public.time_imports
       RESTART IDENTITY CASCADE;
     ${FIXTURES_SQL}
   `)
