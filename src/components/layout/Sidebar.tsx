@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useProfile } from '@/hooks/useProfile'
 import { useMounted } from '@/hooks/useMounted'
 import { useSidebarStore } from '@/stores/sidebarStore'
 import { Button } from '@/components/ui/button'
@@ -52,6 +53,9 @@ import {
   DollarSign,
   Receipt,
   Ruler,
+  CalendarClock,
+  Upload,
+  Users,
   Scissors,
   Truck,
 } from '@/components/icons'
@@ -86,6 +90,16 @@ const dymmsaLinks: LinkItem[] = [
 const financeLinks: LinkItem[] = [
   { href: '/dashboard/finance',          label: 'Overview',           icon: DollarSign, exact: true },
   { href: '/dashboard/finance/payables', label: 'Facturas por pagar', icon: Receipt },
+]
+
+const hoursLinks: LinkItem[] = [
+  { href: '/dashboard/hours', label: 'Mi semana', icon: CalendarClock, exact: true },
+]
+
+// Hidden for members; the server still answers 403 (ADR-026).
+const hoursAdminLinks: LinkItem[] = [
+  { href: '/dashboard/hours/import', label: 'Importar reporte', icon: Upload },
+  { href: '/dashboard/hours/team',   label: 'Equipo',           icon: Users },
 ]
 
 const urreaLinks: LinkItem[] = [
@@ -178,6 +192,7 @@ function SidebarContent({
   onToggleCollapse?: () => void
 }) {
   const { user, signOut } = useAuth()
+  const { isAdmin } = useProfile()
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   return (
@@ -237,6 +252,7 @@ function SidebarContent({
           <NavSection title="ETM — Catálogo" links={etmUrreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-etm" />
           <NavSection title="DYMMSA" links={dymmsaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-dymmsa" />
           <NavSection title="Finanzas" links={financeLinks} collapsed={collapsed} onNavigate={onNavigate} />
+          <NavSection title="Horas" links={isAdmin ? [...hoursLinks, ...hoursAdminLinks] : hoursLinks} collapsed={collapsed} onNavigate={onNavigate} />
           <NavSection title="URREA" links={urreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-urrea" />
           <NavSection title="Recursos" links={recursosLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-recursos" />
         </div>

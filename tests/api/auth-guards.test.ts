@@ -5,6 +5,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
 import { injectSupabaseServer, injectSupabaseAdmin } from '../helpers/setup'
 import { makeRequest, makeParams } from '../helpers/request'
+import { AUTH } from '../helpers/factories'
 
 // Static import of every handler (vi.mock hoists above it).
 import * as quotationsSave from '@/app/api/quotations/save/route'
@@ -32,6 +33,13 @@ import * as approve from '@/app/api/approve/[token]/route'
 import * as payablesRoute from '@/app/api/payables/route'
 import * as payableById from '@/app/api/payables/[id]/route'
 import * as payablesOverview from '@/app/api/payables/overview/route'
+import * as profileRoute from '@/app/api/profile/route'
+import * as profilesRoute from '@/app/api/profiles/route'
+import * as profileById from '@/app/api/profiles/[id]/route'
+import * as timeEntries from '@/app/api/time-entries/route'
+import * as timeEntryById from '@/app/api/time-entries/[id]/route'
+import * as timeEntriesImport from '@/app/api/time-entries/import/route'
+import * as timeImports from '@/app/api/time-entries/imports/route'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
@@ -41,6 +49,16 @@ let adminClient: MockSupabaseClient
 
 injectSupabaseServer(() => activeClient)
 injectSupabaseAdmin(() => adminClient)
+
+// Admin-only routes (#93): 401 with no user, 403 for a member.
+const adminRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
+  { name: 'GET    /profiles',                         call: () => profilesRoute.GET() },
+  { name: 'PATCH  /profiles/[id]',                    call: () => profileById.PATCH(makeRequest({ role: 'member' }, { method: 'PATCH' }), makeParams({ id: 'u1' })) },
+  { name: 'POST   /time-entries',                     call: () => timeEntries.POST(makeRequest({})) },
+  { name: 'PATCH  /time-entries/[id]',                call: () => timeEntryById.PATCH(makeRequest({ note: 'x' }, { method: 'PATCH' }), makeParams({ id: 't1' })) },
+  { name: 'DELETE /time-entries/[id]',                call: () => timeEntryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 't1' })) },
+  { name: 'POST   /time-entries/import',              call: () => timeEntriesImport.POST(makeRequest({})) },
+]
 
 const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
   { name: 'POST   /quotations/save',                  call: () => quotationsSave.POST(makeRequest({})) },
@@ -72,6 +90,10 @@ const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = 
   { name: 'PATCH  /payables/[id]',                    call: () => payableById.PATCH(makeRequest({}, { method: 'PATCH' }), makeParams({ id: 'p1' })) },
   { name: 'DELETE /payables/[id]',                    call: () => payableById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'p1' })) },
   { name: 'GET    /payables/overview',                call: () => payablesOverview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview' })) },
+  { name: 'GET    /profile',                          call: () => profileRoute.GET() },
+  { name: 'GET    /time-entries',                     call: () => timeEntries.GET(makeRequest(undefined, { url: 'http://x/api/time-entries' })) },
+  { name: 'GET    /time-entries/imports',             call: () => timeImports.GET() },
+  ...adminRoutes,
 ]
 
 describe('Auth guards — rutas protegidas exigen requireAuth (401 sin usuario)', () => {
@@ -83,6 +105,22 @@ describe('Auth guards — rutas protegidas exigen requireAuth (401 sin usuario)'
     test(`${route.name} → 401`, async () => {
       const res = await route.call()
       expect(res.status).toBe(401)
+    })
+  }
+})
+
+describe('Role guards — rutas de admin responden 403 a un member', () => {
+  beforeEach(() => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': { data: { id: AUTH.id, role: 'member', display_name: 'Tania' }, error: null } },
+    })
+  })
+
+  for (const route of adminRoutes) {
+    test(`${route.name} → 403`, async () => {
+      const res = await route.call()
+      expect(res.status).toBe(403)
     })
   }
 })

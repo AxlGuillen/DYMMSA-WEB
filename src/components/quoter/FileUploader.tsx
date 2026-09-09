@@ -9,9 +9,11 @@ import { toast } from 'sonner'
 interface FileUploaderProps {
   onFileSelected: (file: File) => void
   isLoading?: boolean
+  /** Copy under the title; default is the quoter's. */
+  hint?: string
 }
 
-export function FileUploader({ onFileSelected, isLoading }: FileUploaderProps) {
+export function FileUploader({ onFileSelected, isLoading, hint = 'El sistema buscara la columna ETM en todas las hojas' }: FileUploaderProps) {
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -121,9 +123,7 @@ export function FileUploader({ onFileSelected, isLoading }: FileUploaderProps) {
               <p className="mb-2 text-lg font-medium">
                 Arrastra un archivo Excel aqui
               </p>
-              <p className="mb-4 text-sm text-muted-foreground">
-                El sistema buscara la columna ETM en todas las hojas
-              </p>
+              <p className="mb-4 text-sm text-muted-foreground">{hint}</p>
               <Button
                 variant="outline"
                 size="lg"
