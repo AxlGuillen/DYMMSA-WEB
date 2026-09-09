@@ -1,6 +1,7 @@
 /** /api/time-entries: own-rows enforcement, admin edits with trace, and the NGTeco import (#93). */
 
 import { describe, test, expect, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 import { createMockSupabase, MockSupabaseClient, filterValue, hasFilter, type CallRecord } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
 import { makeRequest, makeParams, readJson, makeExcelRequestFromRows } from '../helpers/request'
@@ -106,6 +107,16 @@ describe('GET /api/time-entries', () => {
     expect(body.week.start).toBe('2026-08-31')
     expect(body.week.days).toHaveLength(7)
     expect(body.week.minutes).toBe(8 * 60 + 21)
+  })
+
+  test('rango que no es una semana completa → week: null', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': withRole(ME_MEMBER), 'time_entries.select': { data: [], error: null } },
+    })
+    const res = await get('?from=2026-09-10&to=2026-09-13')
+    expect(res.status).toBe(200)
+    expect((await readJson<{ week: unknown }>(res)).week).toBeNull()
   })
 
   test('sin from/to usa la semana actual', async () => {
@@ -327,6 +338,44 @@ describe('POST /api/time-entries/import (reporte NGTeco)', () => {
     expect(p.p_entries.every((e) => e.user_id === DIEGO)).toBe(true)
     expect(p.p_entries).toContainEqual({ user_id: DIEGO, work_date: '2026-09-01', clock_in: '19:21', clock_out: '19:21' })
     expect(p.p_entries).toContainEqual({ user_id: DIEGO, work_date: '2026-09-03', clock_in: '09:02', clock_out: null })
+  })
+
+  test('una pareja con salida antes de la entrada se filtra con aviso y no tumba el import', async () => {
+    const rows = NGTECO_WEEK.map((r) => [...r])
+    rows[5] = ['LU', '2026-08-31', '10:06', '09:00', '', '', '', '']
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': withRole(ME_ADMIN, [{ id: DIEGO, clock_employee_id: 1 }]),
+        'rpc.import_time_entries': RPC_OK,
+      },
+    })
+    const res = await importRoute.POST(makeExcelRequestFromRows(rows))
+    expect(res.status).toBe(200)
+    const body = await readJson<TimeImportResult>(res)
+    expect(body.warnings).toContainEqual(expect.stringMatching(/^Salida antes de la entrada: Diego Baltazar 2026-08-31 10:06–09:00/))
+    const p = activeClient._rpcCalls[0].params as { p_entries: Array<{ work_date: string }> }
+    expect(p.p_entries.some((e) => e.work_date === '2026-08-31')).toBe(false)
+    expect(p.p_entries.length).toBeGreaterThan(0)
+  })
+
+  test('la BD rechaza la pareja (23514) → 400 descriptivo', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': withRole(ME_ADMIN, [{ id: DIEGO, clock_employee_id: 1 }]),
+        'rpc.import_time_entries': { data: null, error: { code: '23514' } },
+      },
+    })
+    expect((await importRoute.POST(makeExcelRequestFromRows(NGTECO_WEEK))).status).toBe(400)
+  })
+
+  test('archivo mayor a 5 MB → 400 sin leerlo', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_ADMIN) } })
+    const fd = new FormData()
+    fd.set('file', new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.xls'))
+    const res = await importRoute.POST(new NextRequest('http://x/api/time-entries/import', { method: 'POST', body: fd }))
+    expect(res.status).toBe(400)
   })
 
   test('nadie mapeado: responde sin llamar a la RPC', async () => {

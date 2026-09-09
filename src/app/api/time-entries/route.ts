@@ -6,10 +6,15 @@ import { buildWeekView, normalizeEntryTimes, normalizeTime, weekBounds } from '@
 import type { TimeEntry } from '@/types/database'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+function isWholeWeek(from: string, to: string): boolean {
+  const bounds = weekBounds(from)
+  return bounds.start === from && bounds.end === to
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // GET /api/time-entries?user=&from=&to= — members always get their own rows, whatever `user` says.
-// `week` is only meaningful when from..to is exactly a Monday→Sunday week (the UI always sends that).
+// `week` is null unless from..to is exactly a Monday→Sunday week: a partial range has no weekly total.
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -48,7 +53,7 @@ export async function GET(request: NextRequest) {
       from,
       to,
       entries,
-      week: buildWeekView(entries, weekBounds(from).start),
+      week: isWholeWeek(from, to) ? buildWeekView(entries, from) : null,
     })
   } catch (error) {
     console.error('Time entries GET error:', error)

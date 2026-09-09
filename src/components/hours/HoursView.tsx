@@ -73,7 +73,7 @@ export function HoursView() {
       </div>
 
       <WeekGrid
-        week={data?.week}
+        week={data?.week ?? undefined}
         isLoading={isLoading}
         canEdit={isAdmin}
         onEdit={openEdit}

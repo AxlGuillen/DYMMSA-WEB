@@ -12,7 +12,8 @@ export interface TimeEntriesResponse {
   from: string
   to: string
   entries: TimeEntry[]
-  week: WeekView<TimeEntry>
+  /** null when from..to is not an exact Monday→Sunday week. */
+  week: WeekView<TimeEntry> | null
 }
 
 interface TimeEntriesParams {
