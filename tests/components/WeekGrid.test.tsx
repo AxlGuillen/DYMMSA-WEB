@@ -82,6 +82,11 @@ describe('WeekGrid', () => {
     expect(onAdd).toHaveBeenCalledWith('2026-09-06')
   })
 
+  test('week null sin carga muestra el vacío, no el esqueleto', () => {
+    renderWithProviders(<WeekGrid week={undefined} />)
+    expect(screen.getByText('No hay una semana completa que mostrar.')).toBeInTheDocument()
+  })
+
   test('sin datos muestra el esqueleto', () => {
     const { container } = renderWithProviders(<WeekGrid week={undefined} isLoading />)
     expect(container.querySelectorAll('[data-slot="skeleton"], .animate-pulse').length).toBeGreaterThan(0)

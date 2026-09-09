@@ -25,7 +25,11 @@ export function TimeImportPanel() {
       const res = await importReport.mutateAsync(file)
       setResult(res)
       if (res.inserted + res.updated === 0) {
-        toast.warning('No entró ninguna checada: revisa los no mapeados y los avisos')
+        toast.warning(
+          res.skipped_edited > 0
+            ? `No entró ninguna checada: las ${res.skipped_edited} del archivo ya estaban corregidas a mano`
+            : 'No entró ninguna checada: revisa los no mapeados y los avisos',
+        )
       } else {
         toast.success(`Reporte del ${formatDate(res.period.start)} importado`)
       }

@@ -370,7 +370,7 @@ describe('POST /api/time-entries/import (reporte NGTeco)', () => {
     expect((await importRoute.POST(makeExcelRequestFromRows(NGTECO_WEEK))).status).toBe(400)
   })
 
-  test('archivo mayor a 5 MB → 400 sin leerlo', async () => {
+  test('archivo mayor a 5 MB → 400 antes de parsear el Excel', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_ADMIN) } })
     const fd = new FormData()
     fd.set('file', new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.xls'))

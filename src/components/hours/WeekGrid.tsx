@@ -27,11 +27,21 @@ interface WeekGridProps {
 export function WeekGrid({ week, isLoading, canEdit, onEdit, onAdd, namesById = {} }: WeekGridProps) {
   const formatDate = useDateFormat()
 
-  if (isLoading || !week) {
+  if (isLoading) {
     return (
       <Card>
         <CardContent className="space-y-3 pt-6">
           {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+        </CardContent>
+      </Card>
+    )
+  }
+  // The API answers week: null for a range that is not a whole week; never spin forever.
+  if (!week) {
+    return (
+      <Card>
+        <CardContent className="pt-6 text-sm text-muted-foreground">
+          No hay una semana completa que mostrar.
         </CardContent>
       </Card>
     )
