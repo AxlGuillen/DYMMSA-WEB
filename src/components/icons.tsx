@@ -217,6 +217,10 @@ export { Ruler } from 'lucide-react'
 export { Receipt } from 'lucide-react'
 // Same: no history icon among the animated ones.
 export { History } from 'lucide-react'
+// Same: the animated Clock is a spinner and CalendarDays maps to Info (#93).
+export { CalendarClock } from 'lucide-react'
+// Same: no team/users icon among the animated ones (#93).
+export { Users } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
 export const RotateCcw = wrap(_CornerUpLeft)
