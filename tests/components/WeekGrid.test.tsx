@@ -87,6 +87,12 @@ describe('WeekGrid', () => {
     expect(screen.getByText('No hay una semana completa que mostrar.')).toBeInTheDocument()
   })
 
+  test('con error de red dice que falló la carga, no que no hay semana', () => {
+    renderWithProviders(<WeekGrid week={undefined} isError />)
+    expect(screen.getByText(/No se pudieron cargar las checadas/)).toBeInTheDocument()
+    expect(screen.queryByText('No hay una semana completa que mostrar.')).not.toBeInTheDocument()
+  })
+
   test('sin datos muestra el esqueleto', () => {
     const { container } = renderWithProviders(<WeekGrid week={undefined} isLoading />)
     expect(container.querySelectorAll('[data-slot="skeleton"], .animate-pulse').length).toBeGreaterThan(0)

@@ -29,7 +29,7 @@ export function HoursView() {
 
   const targetUser = isAdmin ? (selectedUser ?? profile?.id ?? null) : null
   const { start, end } = weekBounds(weekStart)
-  const { data, isLoading } = useTimeEntries({ user: targetUser, from: start, to: end })
+  const { data, isLoading, isError } = useTimeEntries({ user: targetUser, from: start, to: end })
 
   const namesById = useMemo(
     () => Object.fromEntries((profiles ?? []).map((p) => [p.id, p.display_name])),
@@ -75,6 +75,7 @@ export function HoursView() {
       <WeekGrid
         week={data?.week ?? undefined}
         isLoading={isLoading}
+        isError={isError}
         canEdit={isAdmin}
         onEdit={openEdit}
         onAdd={openAdd}
