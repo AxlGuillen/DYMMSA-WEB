@@ -3,6 +3,7 @@
 import type { OdooCaller } from '@/lib/odoo/client'
 import { allowedFields, assertDomainAllowed, catalogEntry, type DomainTriple } from '@/lib/odoo/catalog'
 import { daysSince, normalizeGroups, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
+import { overdueDomain } from '@/lib/odoo/domains'
 import { ToolError } from '../../shared'
 
 const MAX_LIMIT = 50
@@ -82,15 +83,6 @@ export async function odooAggregate(odoo: OdooCaller, input: OdooAggregateInput)
   })
   return { model: input.model, agrupado_por: input.group_by, grupos: normalizeGroups(groups) }
 }
-
-/** Posted customer invoices with an outstanding balance past their due date. */
-export const overdueDomain = (today: string): DomainTriple[] => [
-  ['move_type', '=', 'out_invoice'],
-  ['state', '=', 'posted'],
-  ['payment_state', 'in', ['not_paid', 'partial']],
-  ['invoice_date_due', '<', today],
-  ['amount_residual', '>', 0],
-]
 
 export async function odooOverdueInvoices(odoo: OdooCaller, input: { limit?: number } = {}) {
   const today = todayIso()

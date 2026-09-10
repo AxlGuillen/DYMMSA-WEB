@@ -11,7 +11,7 @@ export default function FinancePage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Finanzas</h1>
         <p className="text-muted-foreground">
-          Egresos pendientes y vencimientos del mes — para decidir qué pagar y cuándo.
+          Cobros de Odoo y egresos pendientes del mes — para decidir qué pagar y cuándo.
         </p>
       </div>
       <FinanceOverview />

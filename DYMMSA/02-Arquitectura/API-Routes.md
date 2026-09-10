@@ -154,6 +154,17 @@
 
 ---
 
+## Finanzas — Ingresos (Odoo)
+
+> Módulo: Finanzas fase 2 (issue #94, ADR-027) · La app **lee** Odoo, nunca lo espeja. Loaders en `src/lib/odoo/income.ts`, matemática en `src/lib/income.ts`, caché en `src/lib/odoo/income-cache.ts`.
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/finance/income` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, today, income, collections, fetchedAt, unavailable? }`. `income` = `{ collectedTotal/Count (pagos inbound de CLIENTE por fecha de cobro), receivableTotal/Count (abiertas, vencen hoy o después), overdueTotal/Count (abiertas vencidas), collectionsTruncated, receivablesTruncated, collectionCurrencies, receivableCurrencies, overdueCurrencies }`; `collections` = cobros del mes (`folio, customer, date, amount, currency, state`). **Odoo ausente o caído → 200 con `income: null`** y `unavailable.reason` (`not_configured` \| `odoo_error`); solo un error ajeno a Odoo da 500. Dos lecturas cacheadas 15 min (Data Cache, tag `finance-income`). `maxDuration = 60` |
+| `POST` | `/api/finance/income/refresh` | ✅ | Query: `month`. Purga el tag con `revalidateTag(tag, { expire: 0 })` y responde con una lectura fresca (misma forma que el GET) |
+
+---
+
 ## Horas (checador)
 
 > Módulo: Horas (issue #93, ADR-026) · Parser y matemática en `src/lib/timesheet.ts`. **Admin** = `requireAdmin()` (401 sin sesión, 403 para member); la BD repite la regla con RLS + `is_admin()`.

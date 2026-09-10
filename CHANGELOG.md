@@ -3,6 +3,19 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-09
+
+### Nuevo
+- **Ingresos en Finanzas, leídos de Odoo.** El overview ahora muestra lo
+  **cobrado del mes** (por la fecha en que entró el dinero, igual que los
+  egresos van por fecha de pago), lo **por cobrar** y lo **vencido por cobrar**,
+  y calcula el **cierre del mes**: real (cobrado − pagado) y proyectado (si se
+  pagara todo lo pendiente). Abajo, la lista de cobros del mes con cliente y
+  folio. Nada se captura a mano: Odoo sigue siendo la única fuente.
+- Los datos de Odoo se guardan 15 minutos para que la pantalla abra rápido; el
+  botón **Actualizar** los vuelve a leer. Si Odoo no responde, la pantalla sigue
+  mostrando los egresos y avisa que los ingresos no están disponibles.
+
 ## 2026-09-08
 
 ### Nuevo
