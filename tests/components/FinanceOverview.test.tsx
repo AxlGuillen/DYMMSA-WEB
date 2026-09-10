@@ -43,6 +43,7 @@ const INCOME_OK: IncomeOverviewResponse = {
     receivablesTruncated: false,
     collectionCurrencies: ['USD'],
     receivableCurrencies: [],
+    overdueCurrencies: ['USD'],
   },
   collections: [
     { id: 71, folio: 'PAY00068', customer: 'Andritz', date: '2026-08-12', amount: 9000, currency: 'MXN', state: 'paid', memo: null },
@@ -64,7 +65,8 @@ describe('FinanceOverview — ingresos', () => {
     const closing = screen.getByText('Cierre del mes').closest('[data-slot="card"]') ?? screen.getByText('Cierre del mes').parentElement!.parentElement!
     expect(closing).toHaveTextContent(/6,000/)
     expect(closing).toHaveTextContent(/Proyectado \$4,500/)
-    expect(screen.getByText(/1 factura al día de hoy — vence hoy o después/)).toBeInTheDocument()
+    expect(screen.getByText(/1 factura al día de hoy — vence hoy o después$/)).toBeInTheDocument()
+    expect(screen.getByText(/1 factura al día de hoy — cualquier mes · incluye USD sin convertir/)).toBeInTheDocument()
   })
 
   test('lista los cobros del mes y marca la moneda extranjera', () => {

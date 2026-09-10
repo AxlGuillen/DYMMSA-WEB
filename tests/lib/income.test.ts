@@ -32,12 +32,16 @@ describe('splitReceivables', () => {
   test('vence antes de hoy → vencido; hoy, después o sin fecha → por cobrar; usa el saldo, no el total', () => {
     const today = '2026-09-09'
     const out = splitReceivables([
-      inv({ dueDate: '2026-09-08', total: 500, residual: 200 }),
+      inv({ dueDate: '2026-09-08', total: 500, residual: 200, currency: 'USD' }),
       inv({ dueDate: '2026-09-09', residual: 300 }),
       inv({ dueDate: '2026-10-01', residual: 400 }),
       inv({ dueDate: null, residual: 50 }),
     ], today)
-    expect(out).toEqual({ receivableTotal: 750, receivableCount: 3, overdueTotal: 200, overdueCount: 1 })
+    expect(out).toEqual({
+      receivableTotal: 750, receivableCount: 3, overdueTotal: 200, overdueCount: 1,
+      // The USD invoice is overdue: it must not flag the "por cobrar" card.
+      receivableCurrencies: [], overdueCurrencies: ['USD'],
+    })
   })
 })
 
@@ -56,17 +60,20 @@ describe('summarizeIncome', () => {
       collectionsTruncated: false,
       receivablesTruncated: true,
       collectionCurrencies: [],
-      receivableCurrencies: ['USD'],
+      receivableCurrencies: [],
+      overdueCurrencies: ['USD'],
     })
   })
 })
 
 describe('monthClosing', () => {
-  test('real = cobrado − pagado; proyectado = real − pendientes; el negativo es válido', () => {
-    expect(monthClosing({ collected: 10000, paid: 4000, pending: 1000 })).toEqual({
-      collected: 10000, paid: 4000, pending: 1000, real: 6000, projected: 5000,
+  test('real = cobrado − pagado; proyectado = real − pendientes del mes − vencidas previas; el negativo es válido', () => {
+    expect(monthClosing({ collected: 10000, paid: 4000, pending: 1000, carryOver: 500 })).toEqual({
+      collected: 10000, paid: 4000, pending: 1000, carryOver: 500, real: 6000, projected: 4500,
     })
-    expect(monthClosing({ collected: 1000, paid: 4000, pending: 500 }).projected).toBe(-3500)
+    // Without carry-over the projection is just real − pending.
+    expect(monthClosing({ collected: 10000, paid: 4000, pending: 1000, carryOver: 0 }).projected).toBe(5000)
+    expect(monthClosing({ collected: 1000, paid: 4000, pending: 500, carryOver: 0 }).projected).toBe(-3500)
   })
 })
 

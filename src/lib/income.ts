@@ -21,17 +21,22 @@ export interface IncomeMonthSummary {
   receivablesTruncated: boolean
   /** Non-MXN currencies among the month's collections; amounts are NOT converted. */
   collectionCurrencies: string[]
-  /** Non-MXN currencies among open invoices (month-independent, so kept apart). */
+  /** Non-MXN currencies among open invoices due today or later (month-independent). */
   receivableCurrencies: string[]
+  /** Non-MXN currencies among overdue open invoices. */
+  overdueCurrencies: string[]
 }
 
 export interface MonthClosing {
   collected: number
   paid: number
+  /** Payables due inside the month, still pending. */
   pending: number
+  /** Payables overdue from EARLIER months, still pending (disjoint from `pending`). */
+  carryOver: number
   /** Money that actually moved: collected − paid. */
   real: number
-  /** If every pending payable of the month gets paid: real − pending. */
+  /** If everything owed gets paid — the month's pending AND the overdue carry-over. */
   projected: number
 }
 
@@ -46,18 +51,22 @@ export function summarizeCollections(rows: readonly OdooCollection[]): Pick<Inco
 export function splitReceivables(
   rows: readonly OdooOpenInvoice[],
   today: ISODate,
-): Pick<IncomeMonthSummary, 'receivableTotal' | 'receivableCount' | 'overdueTotal' | 'overdueCount'> {
+): Pick<IncomeMonthSummary, 'receivableTotal' | 'receivableCount' | 'overdueTotal' | 'overdueCount' | 'receivableCurrencies' | 'overdueCurrencies'> {
   const out = { receivableTotal: 0, receivableCount: 0, overdueTotal: 0, overdueCount: 0 }
+  const due: OdooOpenInvoice[] = []
+  const overdue: OdooOpenInvoice[] = []
   for (const r of rows) {
     if (r.dueDate && r.dueDate < today) {
       out.overdueTotal += r.residual
       out.overdueCount += 1
+      overdue.push(r)
     } else {
       out.receivableTotal += r.residual
       out.receivableCount += 1
+      due.push(r)
     }
   }
-  return out
+  return { ...out, receivableCurrencies: foreignCurrencies(due), overdueCurrencies: foreignCurrencies(overdue) }
 }
 
 export function summarizeIncome(
@@ -72,14 +81,13 @@ export function summarizeIncome(
     collectionsTruncated: truncated.collections,
     receivablesTruncated: truncated.receivables,
     collectionCurrencies: foreignCurrencies(collections),
-    receivableCurrencies: foreignCurrencies(openInvoices),
   }
 }
 
-/** Negative is a valid answer: it is exactly the month you would rather not close. */
-export function monthClosing(input: { collected: number; paid: number; pending: number }): MonthClosing {
+/** Negative is a valid answer: it is exactly the month you would rather not close (ADR-027 §6). */
+export function monthClosing(input: { collected: number; paid: number; pending: number; carryOver: number }): MonthClosing {
   const real = input.collected - input.paid
-  return { ...input, real, projected: real - input.pending }
+  return { ...input, real, projected: real - input.pending - input.carryOver }
 }
 
 export interface IncomeOverviewResponse {
