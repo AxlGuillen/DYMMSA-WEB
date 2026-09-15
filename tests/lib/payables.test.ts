@@ -67,6 +67,8 @@ describe('summarizeMonth', () => {
     expect(s.pendingTotal).toBe(600)     // only the ones DUE in September
     expect(s.pendingCount).toBe(3)
     expect(s.overdueTotal).toBe(150)     // 100 (sep 3) + 50 (dragged from August)
+    expect(s.carryOverTotal).toBe(50)    // only the August one: sep 3 already sits in pendingTotal
+    expect(s.carryOverCount).toBe(1)
     expect(s.overdueCount).toBe(2)
     expect(s.dueSoonTotal).toBe(200)     // due on the 12th, today is the 10th
     expect(s.weeks.map((w) => [w.week, w.total])).toEqual([[1, 100], [2, 200], [4, 300]])

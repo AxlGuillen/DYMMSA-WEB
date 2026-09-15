@@ -171,6 +171,44 @@ describe('PATCH /api/payables/[id]', () => {
 })
 
 describe('GET /api/payables/overview', () => {
+  test('ambas lecturas ordenan antes del límite, con id como desempate', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'payables.select': { data: [], error: null } } })
+    await overview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview?month=2026-09' }))
+
+    const [pendingCall, paidCall] = activeClient.callsTo('payables', 'select')
+    const orders = (rec: typeof pendingCall) =>
+      rec.filters.filter((f) => f.method === 'order').map((f) => f.args[0])
+    expect(orders(pendingCall)).toEqual(['due_date', 'id'])
+    expect(orders(paidCall)).toEqual(['paid_at', 'id'])
+  })
+
+  test('cada lado avisa por separado cuando su lectura llenó el límite', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'payables.select': (rec) =>
+          filterValue(rec, 'status') === 'pending'
+            ? { data: [], error: null, count: 1500 }
+            : { data: [], error: null, count: 12 },
+      },
+    })
+    const res = await overview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview?month=2026-09' }))
+    expect(res.status).toBe(200)
+    const body = await readJson<{ pendingTruncated: boolean; paidTruncated: boolean }>(res)
+    expect(body.pendingTruncated).toBe(true)
+    expect(body.paidTruncated).toBe(false)
+  })
+
+  test('exactamente 1000 pendientes NO se marcan truncadas: sí se leyeron todas', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'payables.select': { data: [], error: null, count: 1000 } },
+    })
+    const res = await overview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview?month=2026-09' }))
+    const body = await readJson<{ pendingTruncated: boolean }>(res)
+    expect(body.pendingTruncated).toBe(false)
+  })
+
   test('400 con mes inválido; 200 con resumen calculado', async () => {
     activeClient = createMockSupabase({
       user: AUTH,

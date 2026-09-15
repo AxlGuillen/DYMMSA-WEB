@@ -4,7 +4,7 @@ import type { OdooCaller } from '@/lib/odoo/client'
 import type { DomainTriple } from '@/lib/odoo/catalog'
 import { daysSince, normalizeGroups, normalizeRecord, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
 import { ToolError } from '../../shared'
-import { overdueDomain } from './accounting'
+import { overdueDomain } from '@/lib/odoo/domains'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 

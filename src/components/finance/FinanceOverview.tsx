@@ -5,12 +5,16 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MetricCard } from '@/components/dashboard/MetricCard'
-import { ChevronLeft, ChevronRight, DollarSign, AlertTriangle, Clock, Check, Receipt } from '@/components/icons'
+import { Badge } from '@/components/ui/badge'
+import { ChevronLeft, ChevronRight, DollarSign, AlertTriangle, Clock, Check, Receipt, RefreshCw } from '@/components/icons'
+import { toast } from 'sonner'
 import { usePayablesOverview } from '@/hooks/usePayables'
+import { useIncomeOverview, useRefreshIncome } from '@/hooks/useIncome'
 import { useCurrency } from '@/hooks/useCurrency'
-import { todayInMexico } from '@/lib/format'
+import { formatRelative, todayInMexico } from '@/lib/format'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { monthOf, weekOfMonth } from '@/lib/payables'
+import { monthClosing } from '@/lib/income'
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -31,11 +35,39 @@ const monthLabel = (month: string) => {
 
 export function FinanceOverview() {
   const [month, setMonth] = useState(() => todayInMexico().slice(0, 7))
-  const { data, isLoading } = usePayablesOverview(month)
+  const { data, isLoading, isError: payablesError } = usePayablesOverview(month)
+  const incomeQuery = useIncomeOverview(month)
+  const refreshIncome = useRefreshIncome()
   const fmt = useCurrency()
   const fmtDay = useDateFormat()
 
   const summary = data?.summary
+  const incomeData = incomeQuery.data
+  const income = incomeData?.income ?? null
+  const incomeLoading = incomeQuery.isLoading || refreshIncome.isPending
+  // Unavailable = nothing to show. A failed refetch keeps the cached data, and hiding
+  // figures that did load would be worse than flagging them as stale (review PR #98).
+  const payablesUnavailable = !isLoading && !summary
+  const payablesStale = !isLoading && payablesError && !!summary
+  const incomeUnavailable = !incomeLoading && !income
+  const incomeStale = !incomeLoading && incomeQuery.isError && !!income
+  const closing = income && summary
+    ? monthClosing({
+        collected: income.collectedTotal,
+        paid: summary.paidTotal,
+        pending: summary.pendingTotal,
+        carryOver: summary.carryOverTotal,
+      })
+    : null
+  const currencies = income?.collectionCurrencies ?? []
+  const currencyNote = (list: string[] | undefined) =>
+    list?.length ? ` · incluye ${list.join(', ')} sin convertir` : ''
+
+  const handleRefresh = () => {
+    refreshIncome.mutate(month, {
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'No se pudo actualizar'),
+    })
+  }
   const pieces = (n: number) => `${n} factura${n !== 1 ? 's' : ''}`
 
   // Pending items of the selected month, for the weekly breakdown.
@@ -63,40 +95,146 @@ export function FinanceOverview() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          title="Pendiente del mes"
-          value={fmt(summary?.pendingTotal ?? 0)}
-          description={summary ? pieces(summary.pendingCount) : undefined}
-          icon={<DollarSign className="size-5" />}
-          color="blue"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Vencido"
-          value={fmt(summary?.overdueTotal ?? 0)}
-          description={summary ? `${pieces(summary.overdueCount)} — incluye meses previos` : undefined}
-          icon={<AlertTriangle className="size-5" />}
-          color="red"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Por vencer (7 días)"
-          value={fmt(summary?.dueSoonTotal ?? 0)}
-          description={summary ? pieces(summary.dueSoonCount) : undefined}
-          icon={<Clock className="size-5" />}
-          color="orange"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Pagado en el mes"
-          value={fmt(summary?.paidTotal ?? 0)}
-          description={summary ? pieces(summary.paidCount) : undefined}
-          icon={<Check className="size-5" />}
-          color="green"
-          isLoading={isLoading}
-        />
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Egresos</h2>
+      {payablesUnavailable ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="size-4 text-amber-600" />
+              Egresos no disponibles
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            No se pudieron cargar las facturas por pagar. Recarga la página para intentar de nuevo.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Pendiente del mes"
+            value={fmt(summary?.pendingTotal ?? 0)}
+            description={summary ? pieces(summary.pendingCount) : undefined}
+            icon={<DollarSign className="size-5" />}
+            color="blue"
+            isLoading={isLoading}
+          />
+          <MetricCard
+            title="Vencido"
+            value={fmt(summary?.overdueTotal ?? 0)}
+            description={summary ? `${pieces(summary.overdueCount)} — incluye meses previos` : undefined}
+            icon={<AlertTriangle className="size-5" />}
+            color="red"
+            isLoading={isLoading}
+          />
+          <MetricCard
+            title="Por vencer (7 días)"
+            value={fmt(summary?.dueSoonTotal ?? 0)}
+            description={summary ? pieces(summary.dueSoonCount) : undefined}
+            icon={<Clock className="size-5" />}
+            color="orange"
+            isLoading={isLoading}
+          />
+          <MetricCard
+            title="Pagado en el mes"
+            value={fmt(summary?.paidTotal ?? 0)}
+            description={summary ? pieces(summary.paidCount) : undefined}
+            icon={<Check className="size-5" />}
+            color="green"
+            isLoading={isLoading}
+          />
+        </div>
+      )}
+      {payablesStale && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Estos egresos son los de la última carga buena: el intento más reciente falló.
+        </p>
+      )}
+      {data?.pendingTruncated && (
+        <p className="text-xs text-muted-foreground">
+          Egresos pendientes: la lectura llegó a su límite; el arrastre vencido y el cierre proyectado pueden quedar cortos.
+        </p>
+      )}
+      {data?.paidTruncated && (
+        <p className="text-xs text-muted-foreground">
+          Egresos pagados: la lectura del mes llegó a su límite; el cierre real puede quedar corto.
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-2" data-testid="income-header">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingresos (Odoo)</h2>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {currencies.length > 0 && (
+            <Badge variant="outline">Incluye {currencies.join(', ')} sin convertir</Badge>
+          )}
+          {incomeData?.fetchedAt && <span>Actualizado {formatRelative(incomeData.fetchedAt)}</span>}
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshIncome.isPending} aria-label="Actualizar ingresos">
+            <RefreshCw className={`mr-1 size-3.5 ${refreshIncome.isPending ? 'animate-spin' : ''}`} />
+            Actualizar
+          </Button>
+        </div>
       </div>
+
+      {incomeUnavailable ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="size-4 text-amber-600" />
+              Ingresos no disponibles
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {incomeData?.unavailable?.message
+              ?? (incomeQuery.isError ? 'No se pudieron cargar los ingresos. Intenta de nuevo con Actualizar.' : 'No se pudo leer Odoo.')}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Cobrado del mes"
+            value={fmt(income?.collectedTotal ?? 0)}
+            description={income ? `${income.collectedCount} cobro${income.collectedCount !== 1 ? 's' : ''}` : undefined}
+            icon={<Check className="size-5" />}
+            color="green"
+            isLoading={incomeLoading}
+          />
+          <MetricCard
+            title="Por cobrar"
+            value={fmt(income?.receivableTotal ?? 0)}
+            description={income ? `${pieces(income.receivableCount)} al día de hoy — vence hoy o después${currencyNote(income.receivableCurrencies)}` : undefined}
+            icon={<Clock className="size-5" />}
+            color="blue"
+            isLoading={incomeLoading}
+          />
+          <MetricCard
+            title="Vencido por cobrar"
+            value={fmt(income?.overdueTotal ?? 0)}
+            description={income ? `${pieces(income.overdueCount)} al día de hoy — cualquier mes${currencyNote(income.overdueCurrencies)}` : undefined}
+            icon={<AlertTriangle className="size-5" />}
+            color="red"
+            isLoading={incomeLoading}
+          />
+          <MetricCard
+            title="Cierre del mes"
+            value={closing ? fmt(closing.real) : '—'}
+            description={closing
+              ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes del mes y vencidas previas`
+              : 'Necesita los cobros de Odoo y los egresos del mes'}
+            icon={<DollarSign className="size-5" />}
+            color="purple"
+            isLoading={incomeLoading || isLoading}
+          />
+        </div>
+      )}
+      {incomeStale && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Estos ingresos son los de la última carga buena: el intento más reciente falló.
+        </p>
+      )}
+      {income?.receivablesTruncated && (
+        <p className="text-xs text-muted-foreground">
+          Facturas abiertas: la lectura llegó a su límite; por cobrar y vencido pueden quedar cortos.
+        </p>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -109,7 +247,12 @@ export function FinanceOverview() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isLoading && monthPending.length === 0 && (
+          {payablesUnavailable && (
+            <p className="text-sm text-muted-foreground">
+              No se pudieron cargar las facturas; esta lista puede estar incompleta.
+            </p>
+          )}
+          {!isLoading && !payablesUnavailable && monthPending.length === 0 && (
             <p className="text-sm text-muted-foreground">
               Sin facturas pendientes con vencimiento en este mes.
             </p>
@@ -142,9 +285,40 @@ export function FinanceOverview() {
         </CardContent>
       </Card>
 
+      {income && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Check className="size-4" />
+              Cobros de {monthLabel(month).toLowerCase()}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {incomeData?.collections.length === 0 && (
+              <p className="text-sm text-muted-foreground">Sin cobros registrados en Odoo este mes.</p>
+            )}
+            {incomeData?.collections.map((c) => (
+              <div key={c.id} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
+                <span className="min-w-0 truncate">
+                  <span className="font-medium">{c.customer ?? 'Sin cliente'}</span>
+                  <span className="text-muted-foreground"> · {c.folio}</span>
+                  {c.currency && c.currency !== 'MXN' && <Badge variant="secondary" className="ml-2">{c.currency}</Badge>}
+                </span>
+                <span className="ml-3 shrink-0 tabular-nums">
+                  {fmtDay(c.date)} · {fmt(c.amount)}
+                </span>
+              </div>
+            ))}
+            {income.collectionsTruncated && (
+              <p className="pt-1 text-xs text-muted-foreground">La lista de cobros llegó al límite de la lectura; el total puede quedar corto.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <p className="text-xs text-muted-foreground">
-        Fase 1: solo egresos. La proyección del cierre ± del mes (con ingresos) y la
-        simulación de mover pagos entre meses llegan en la fase 2.
+        Ingresos leídos de Odoo por fecha de cobro (caché de 15 min). La simulación de mover
+        pagos entre meses llega después.
       </p>
     </div>
   )

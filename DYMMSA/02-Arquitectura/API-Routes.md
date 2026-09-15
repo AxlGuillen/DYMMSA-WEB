@@ -150,7 +150,18 @@
 | `POST` | `/api/payables` | ✅ | Registrar factura. Body: `{ supplier_id, concept, amount > 0, invoice_date, due_date, notes? }`. Proveedor obligatorio y existente (404 preciso). Siempre nace `pending` — el status del cliente se ignora |
 | `PATCH` | `/api/payables/[id]` | ✅ | Updates sparse. Regla de pago: `status→'paid'` sin `paid_at` → default hoy; `status→'pending'/'cancelled'` limpia `paid_at`; `paid_at` solo también se acepta (corregir fecha de una pagada) |
 | `DELETE` | `/api/payables/[id]` | ✅ | Eliminar factura |
-| `GET` | `/api/payables/overview` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, summary, payables }` — todas las pendientes (las vencidas de meses previos cuentan) + pagadas del mes; resumen de `summarizeMonth()` |
+| `GET` | `/api/payables/overview` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, summary, payables, pendingTruncated, paidTruncated }` — todas las pendientes (las vencidas de meses previos cuentan) + pagadas del mes; ambas banderas avisan si su lectura superó las 1000 filas, porque las pendientes alimentan el cierre proyectado de #94 y las pagadas el real; resumen de `summarizeMonth()` (incluye `carryOverTotal/Count`) |
+
+---
+
+## Finanzas — Ingresos (Odoo)
+
+> Módulo: Finanzas fase 2 (issue #94, ADR-027) · La app **lee** Odoo, nunca lo espeja. Loaders en `src/lib/odoo/income.ts`, matemática en `src/lib/income.ts`, caché en `src/lib/odoo/income-cache.ts`.
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/finance/income` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, today, income, collections, fetchedAt, unavailable? }`. `income` = `{ collectedTotal/Count (pagos inbound de CLIENTE por fecha de cobro), receivableTotal/Count (abiertas, vencen hoy o después), overdueTotal/Count (abiertas vencidas), collectionsTruncated, receivablesTruncated, collectionCurrencies, receivableCurrencies, overdueCurrencies }`; `collections` = cobros del mes (`folio, customer, date, amount, currency, state`). **Odoo ausente o caído → 200 con `income: null`** y `unavailable.reason` (`not_configured` \| `odoo_error`); solo un error ajeno a Odoo da 500. Dos lecturas cacheadas 15 min (Data Cache, tag `finance-income`). `maxDuration = 60` |
+| `POST` | `/api/finance/income/refresh` | ✅ | Query: `month`. Purga el tag con `revalidateTag(tag, { expire: 0 })` y responde con una lectura fresca (misma forma que el GET) |
 
 ---
 
