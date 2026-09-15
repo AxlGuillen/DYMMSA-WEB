@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         .eq('status', 'paid')
         .gte('paid_at', from)
         .lt('paid_at', toExclusive)
+        .order('paid_at', { ascending: true })
         .limit(PAID_LIMIT),
     ])
 

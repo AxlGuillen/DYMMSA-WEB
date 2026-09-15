@@ -128,12 +128,12 @@ export function FinanceOverview() {
       </div>
       {data?.pendingTruncated && (
         <p className="text-xs text-muted-foreground">
-          Egresos pendientes: se leyeron los primeros 1000; el arrastre vencido y el cierre proyectado pueden quedar cortos.
+          Egresos pendientes: la lectura llegó a su límite; el arrastre vencido y el cierre proyectado pueden quedar cortos.
         </p>
       )}
       {data?.paidTruncated && (
         <p className="text-xs text-muted-foreground">
-          Egresos pagados: se leyeron los primeros 1000 del mes; el cierre real puede quedar corto.
+          Egresos pagados: la lectura del mes llegó a su límite; el cierre real puede quedar corto.
         </p>
       )}
 
@@ -203,7 +203,7 @@ export function FinanceOverview() {
       )}
       {income?.receivablesTruncated && (
         <p className="text-xs text-muted-foreground">
-          Facturas abiertas: se leyeron las primeras 500; por cobrar y vencido pueden quedar cortos.
+          Facturas abiertas: la lectura llegó a su límite; por cobrar y vencido pueden quedar cortos.
         </p>
       )}
 
@@ -276,7 +276,7 @@ export function FinanceOverview() {
               </div>
             ))}
             {income.collectionsTruncated && (
-              <p className="pt-1 text-xs text-muted-foreground">Se muestran los primeros 500 cobros; el total puede quedar corto.</p>
+              <p className="pt-1 text-xs text-muted-foreground">La lista de cobros llegó al límite de la lectura; el total puede quedar corto.</p>
             )}
           </CardContent>
         </Card>
