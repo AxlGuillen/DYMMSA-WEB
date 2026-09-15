@@ -48,6 +48,8 @@ interface PayablesOverviewResponse {
   payables: PayableWithSupplier[]
   /** The pending read hit its limit: carry-over and the projected closing may be short. */
   pendingTruncated: boolean
+  /** The paid read hit its limit: the real closing may be short. */
+  paidTruncated: boolean
 }
 
 export function usePayablesOverview(month: string) {

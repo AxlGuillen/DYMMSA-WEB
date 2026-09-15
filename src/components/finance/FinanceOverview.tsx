@@ -126,6 +126,16 @@ export function FinanceOverview() {
           isLoading={isLoading}
         />
       </div>
+      {data?.pendingTruncated && (
+        <p className="text-xs text-muted-foreground">
+          Egresos pendientes: se leyeron los primeros 1000; el arrastre vencido y el cierre proyectado pueden quedar cortos.
+        </p>
+      )}
+      {data?.paidTruncated && (
+        <p className="text-xs text-muted-foreground">
+          Egresos pagados: se leyeron los primeros 1000 del mes; el cierre real puede quedar corto.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-2" data-testid="income-header">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingresos (Odoo)</h2>
@@ -190,11 +200,6 @@ export function FinanceOverview() {
             isLoading={incomeLoading || isLoading}
           />
         </div>
-      )}
-      {data?.pendingTruncated && (
-        <p className="text-xs text-muted-foreground">
-          Egresos pendientes: se leyeron los primeros 1000; el arrastre vencido y el cierre proyectado pueden quedar cortos.
-        </p>
       )}
       {income?.receivablesTruncated && (
         <p className="text-xs text-muted-foreground">

@@ -150,7 +150,7 @@
 | `POST` | `/api/payables` | ✅ | Registrar factura. Body: `{ supplier_id, concept, amount > 0, invoice_date, due_date, notes? }`. Proveedor obligatorio y existente (404 preciso). Siempre nace `pending` — el status del cliente se ignora |
 | `PATCH` | `/api/payables/[id]` | ✅ | Updates sparse. Regla de pago: `status→'paid'` sin `paid_at` → default hoy; `status→'pending'/'cancelled'` limpia `paid_at`; `paid_at` solo también se acepta (corregir fecha de una pagada) |
 | `DELETE` | `/api/payables/[id]` | ✅ | Eliminar factura |
-| `GET` | `/api/payables/overview` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, summary, payables, pendingTruncated }` — todas las pendientes (las vencidas de meses previos cuentan; `pendingTruncated` avisa si superan las 1000 leídas, porque alimentan el cierre proyectado de #94) + pagadas del mes; resumen de `summarizeMonth()` (incluye `carryOverTotal/Count`) |
+| `GET` | `/api/payables/overview` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, summary, payables, pendingTruncated, paidTruncated }` — todas las pendientes (las vencidas de meses previos cuentan) + pagadas del mes; ambas banderas avisan si su lectura superó las 1000 filas, porque las pendientes alimentan el cierre proyectado de #94 y las pagadas el real; resumen de `summarizeMonth()` (incluye `carryOverTotal/Count`) |
 
 ---
 

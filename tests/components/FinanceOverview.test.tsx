@@ -22,6 +22,8 @@ vi.mock('@/hooks/usePayables', () => ({
         dueSoonTotal: 0, dueSoonCount: 0, paidTotal: 4000, paidCount: 2, weeks: [],
       },
       payables: [],
+      pendingTruncated: false,
+      paidTruncated: false,
     },
     isLoading: false,
   }),

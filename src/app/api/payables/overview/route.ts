@@ -4,10 +4,12 @@ import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
 import { summarizeMonth } from '@/lib/payables'
 import { ISO_MONTH, monthRange } from '@/lib/month'
-
-// Pending rows feed carryOverTotal and the projected closing (#94): a silent cut would lie.
-const PENDING_LIMIT = 1000
 import type { Payable } from '@/types/database'
+
+// Both feed the month closing (#94) — pending the projection, paid the real figure:
+// a silent cut would lie, so each read reports whether it filled its limit.
+const PENDING_LIMIT = 1000
+const PAID_LIMIT = 1000
 
 // GET /api/payables/overview?month=YYYY-MM — month summary + raw rows for the weekly list.
 // Pulls ALL pending (overdue from earlier months count here) + the month's paid; math in lib/payables.ts.
@@ -31,11 +33,11 @@ export async function GET(request: NextRequest) {
         .limit(PENDING_LIMIT),
       supabase
         .from('payables')
-        .select('*, supplier:suppliers(id, name, payment_terms_days)')
+        .select('*, supplier:suppliers(id, name, payment_terms_days)', { count: 'exact' })
         .eq('status', 'paid')
         .gte('paid_at', from)
         .lt('paid_at', toExclusive)
-        .limit(1000),
+        .limit(PAID_LIMIT),
     ])
 
     if (pendingRes.error || paidRes.error) {
@@ -47,8 +49,9 @@ export async function GET(request: NextRequest) {
     const summary = summarizeMonth(rows, month, todayInMexico())
 
     const pendingTruncated = (pendingRes.count ?? 0) > PENDING_LIMIT
+    const paidTruncated = (paidRes.count ?? 0) > PAID_LIMIT
 
-    return NextResponse.json({ month, summary, payables: rows, pendingTruncated })
+    return NextResponse.json({ month, summary, payables: rows, pendingTruncated, paidTruncated })
   } catch (error) {
     console.error('Payables overview error:', error)
     return serverError('Error al obtener el resumen de finanzas')
