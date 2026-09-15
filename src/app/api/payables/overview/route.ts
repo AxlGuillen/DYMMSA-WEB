@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
         .from('payables')
         .select('*, supplier:suppliers(id, name, payment_terms_days)', { count: 'exact' })
         .eq('status', 'pending')
+        // id breaks the tie: due_date is not unique, so a truncated read would still vary.
         .order('due_date', { ascending: true })
+        .order('id', { ascending: true })
         .limit(PENDING_LIMIT),
       supabase
         .from('payables')
@@ -38,6 +40,7 @@ export async function GET(request: NextRequest) {
         .gte('paid_at', from)
         .lt('paid_at', toExclusive)
         .order('paid_at', { ascending: true })
+        .order('id', { ascending: true })
         .limit(PAID_LIMIT),
     ])
 

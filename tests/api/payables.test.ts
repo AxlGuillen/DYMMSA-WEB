@@ -171,6 +171,17 @@ describe('PATCH /api/payables/[id]', () => {
 })
 
 describe('GET /api/payables/overview', () => {
+  test('ambas lecturas ordenan antes del límite, con id como desempate', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'payables.select': { data: [], error: null } } })
+    await overview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview?month=2026-09' }))
+
+    const [pendingCall, paidCall] = activeClient.callsTo('payables', 'select')
+    const orders = (rec: typeof pendingCall) =>
+      rec.filters.filter((f) => f.method === 'order').map((f) => f.args[0])
+    expect(orders(pendingCall)).toEqual(['due_date', 'id'])
+    expect(orders(paidCall)).toEqual(['paid_at', 'id'])
+  })
+
   test('cada lado avisa por separado cuando su lectura llenó el límite', async () => {
     activeClient = createMockSupabase({
       user: AUTH,

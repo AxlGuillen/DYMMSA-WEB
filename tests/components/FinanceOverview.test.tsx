@@ -7,25 +7,29 @@ import { renderWithProviders } from './helpers/render'
 import { FinanceOverview } from '@/components/finance/FinanceOverview'
 import type { IncomeOverviewResponse } from '@/lib/income'
 
+const PAYABLES_OK = {
+  month: '2026-08',
+  summary: {
+    pendingTotal: 1000, pendingCount: 1, overdueTotal: 500, overdueCount: 1, carryOverTotal: 500, carryOverCount: 1,
+    dueSoonTotal: 0, dueSoonCount: 0, paidTotal: 4000, paidCount: 2, weeks: [],
+  },
+  payables: [],
+  pendingTruncated: false,
+  paidTruncated: false,
+}
+
 const state = vi.hoisted(() => ({
   income: null as IncomeOverviewResponse | null,
   isError: false,
+  payablesError: false,
   mutate: vi.fn(),
 }))
 
 vi.mock('@/hooks/usePayables', () => ({
   usePayablesOverview: () => ({
-    data: {
-      month: '2026-08',
-      summary: {
-        pendingTotal: 1000, pendingCount: 1, overdueTotal: 500, overdueCount: 1, carryOverTotal: 500, carryOverCount: 1,
-        dueSoonTotal: 0, dueSoonCount: 0, paidTotal: 4000, paidCount: 2, weeks: [],
-      },
-      payables: [],
-      pendingTruncated: false,
-      paidTruncated: false,
-    },
+    data: state.payablesError ? undefined : PAYABLES_OK,
     isLoading: false,
+    isError: state.payablesError,
   }),
 }))
 
@@ -55,7 +59,7 @@ const INCOME_OK: IncomeOverviewResponse = {
 }
 
 describe('FinanceOverview — ingresos', () => {
-  beforeEach(() => { state.income = INCOME_OK; state.isError = false; state.mutate.mockClear() })
+  beforeEach(() => { state.income = INCOME_OK; state.isError = false; state.payablesError = false; state.mutate.mockClear() })
 
   test('pinta cobrado, por cobrar, vencido y el cierre real/proyectado', () => {
     renderWithProviders(<FinanceOverview />)
@@ -98,6 +102,17 @@ describe('FinanceOverview — ingresos', () => {
     expect(screen.getByText(/No se pudieron cargar los ingresos/)).toBeInTheDocument()
     expect(screen.queryByText('Cobrado del mes')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Actualizar ingresos' })).toBeInTheDocument()
+  })
+
+  test('si falla el GET de egresos no pinta $0: avisa y el cierre se queda sin cifra', () => {
+    state.payablesError = true
+    renderWithProviders(<FinanceOverview />)
+    expect(screen.getByText('Egresos no disponibles')).toBeInTheDocument()
+    expect(screen.queryByText('Pendiente del mes')).not.toBeInTheDocument()
+    // The closing needs both halves: without payables it shows a dash, never a zero.
+    const closing = screen.getByText('Cierre del mes').closest('[data-slot="card"]')!
+    expect(closing).toHaveTextContent('—')
+    expect(closing).toHaveTextContent(/Necesita los cobros de Odoo/)
   })
 
   test('Actualizar dispara el refresh del mes visible', async () => {

@@ -35,13 +35,14 @@ const monthLabel = (month: string) => {
 
 export function FinanceOverview() {
   const [month, setMonth] = useState(() => todayInMexico().slice(0, 7))
-  const { data, isLoading } = usePayablesOverview(month)
+  const { data, isLoading, isError: payablesError } = usePayablesOverview(month)
   const incomeQuery = useIncomeOverview(month)
   const refreshIncome = useRefreshIncome()
   const fmt = useCurrency()
   const fmtDay = useDateFormat()
 
   const summary = data?.summary
+  const payablesUnavailable = !isLoading && (payablesError || !data)
   const incomeData = incomeQuery.data
   const income = incomeData?.income ?? null
   const incomeLoading = incomeQuery.isLoading || refreshIncome.isPending
@@ -92,6 +93,19 @@ export function FinanceOverview() {
       </div>
 
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Egresos</h2>
+      {payablesUnavailable ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="size-4 text-amber-600" />
+              Egresos no disponibles
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            No se pudieron cargar las facturas por pagar. Recarga la página para intentar de nuevo.
+          </CardContent>
+        </Card>
+      ) : (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Pendiente del mes"
@@ -126,6 +140,7 @@ export function FinanceOverview() {
           isLoading={isLoading}
         />
       </div>
+      )}
       {data?.pendingTruncated && (
         <p className="text-xs text-muted-foreground">
           Egresos pendientes: la lectura llegó a su límite; el arrastre vencido y el cierre proyectado pueden quedar cortos.
@@ -193,8 +208,10 @@ export function FinanceOverview() {
           />
           <MetricCard
             title="Cierre del mes"
-            value={fmt(closing?.real ?? 0)}
-            description={closing ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes del mes y vencidas previas` : undefined}
+            value={closing ? fmt(closing.real) : '—'}
+            description={closing
+              ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes del mes y vencidas previas`
+              : 'Necesita los cobros de Odoo y los egresos del mes'}
             icon={<DollarSign className="size-5" />}
             color="purple"
             isLoading={incomeLoading || isLoading}
