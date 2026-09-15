@@ -22,12 +22,14 @@ const state = vi.hoisted(() => ({
   income: null as IncomeOverviewResponse | null,
   isError: false,
   payablesError: false,
+  payablesCached: false,
   mutate: vi.fn(),
 }))
 
 vi.mock('@/hooks/usePayables', () => ({
   usePayablesOverview: () => ({
-    data: state.payablesError ? undefined : PAYABLES_OK,
+    // A failed refetch keeps the cached data: payablesStale covers that case.
+    data: state.payablesError && !state.payablesCached ? undefined : PAYABLES_OK,
     isLoading: false,
     isError: state.payablesError,
   }),
@@ -59,7 +61,13 @@ const INCOME_OK: IncomeOverviewResponse = {
 }
 
 describe('FinanceOverview — ingresos', () => {
-  beforeEach(() => { state.income = INCOME_OK; state.isError = false; state.payablesError = false; state.mutate.mockClear() })
+  beforeEach(() => {
+    state.income = INCOME_OK
+    state.isError = false
+    state.payablesError = false
+    state.payablesCached = false
+    state.mutate.mockClear()
+  })
 
   test('pinta cobrado, por cobrar, vencido y el cierre real/proyectado', () => {
     renderWithProviders(<FinanceOverview />)
@@ -113,6 +121,21 @@ describe('FinanceOverview — ingresos', () => {
     const closing = screen.getByText('Cierre del mes').closest('[data-slot="card"]')!
     expect(closing).toHaveTextContent('—')
     expect(closing).toHaveTextContent(/Necesita los cobros de Odoo/)
+    // The vencimientos card must not claim an empty month when the read failed.
+    expect(screen.queryByText(/Sin facturas pendientes con vencimiento/)).not.toBeInTheDocument()
+    expect(screen.getByText(/esta lista puede estar incompleta/)).toBeInTheDocument()
+  })
+
+  test('un refetch fallido con datos en caché los conserva y los marca viejos', () => {
+    state.payablesError = true
+    state.payablesCached = true
+    renderWithProviders(<FinanceOverview />)
+    expect(screen.queryByText('Egresos no disponibles')).not.toBeInTheDocument()
+    expect(screen.getByText('Pendiente del mes')).toBeInTheDocument()
+    expect(screen.getAllByText(/última carga buena/)[0]).toBeInTheDocument()
+    // Both halves loaded, so the closing still has a figure.
+    const closing = screen.getByText('Cierre del mes').closest('[data-slot="card"]')!
+    expect(closing).toHaveTextContent(/6,000/)
   })
 
   test('Actualizar dispara el refresh del mes visible', async () => {

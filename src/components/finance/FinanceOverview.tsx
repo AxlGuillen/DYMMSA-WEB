@@ -42,12 +42,15 @@ export function FinanceOverview() {
   const fmtDay = useDateFormat()
 
   const summary = data?.summary
-  const payablesUnavailable = !isLoading && (payablesError || !data)
   const incomeData = incomeQuery.data
   const income = incomeData?.income ?? null
   const incomeLoading = incomeQuery.isLoading || refreshIncome.isPending
-  // A failed GET is not "Odoo degraded": data is undefined, not income: null (review PR #98).
-  const incomeUnavailable = !incomeLoading && (incomeQuery.isError || (!!incomeData && !income))
+  // Unavailable = nothing to show. A failed refetch keeps the cached data, and hiding
+  // figures that did load would be worse than flagging them as stale (review PR #98).
+  const payablesUnavailable = !isLoading && !summary
+  const payablesStale = !isLoading && payablesError && !!summary
+  const incomeUnavailable = !incomeLoading && !income
+  const incomeStale = !incomeLoading && incomeQuery.isError && !!income
   const closing = income && summary
     ? monthClosing({
         collected: income.collectedTotal,
@@ -106,40 +109,45 @@ export function FinanceOverview() {
           </CardContent>
         </Card>
       ) : (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          title="Pendiente del mes"
-          value={fmt(summary?.pendingTotal ?? 0)}
-          description={summary ? pieces(summary.pendingCount) : undefined}
-          icon={<DollarSign className="size-5" />}
-          color="blue"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Vencido"
-          value={fmt(summary?.overdueTotal ?? 0)}
-          description={summary ? `${pieces(summary.overdueCount)} — incluye meses previos` : undefined}
-          icon={<AlertTriangle className="size-5" />}
-          color="red"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Por vencer (7 días)"
-          value={fmt(summary?.dueSoonTotal ?? 0)}
-          description={summary ? pieces(summary.dueSoonCount) : undefined}
-          icon={<Clock className="size-5" />}
-          color="orange"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Pagado en el mes"
-          value={fmt(summary?.paidTotal ?? 0)}
-          description={summary ? pieces(summary.paidCount) : undefined}
-          icon={<Check className="size-5" />}
-          color="green"
-          isLoading={isLoading}
-        />
-      </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Pendiente del mes"
+            value={fmt(summary?.pendingTotal ?? 0)}
+            description={summary ? pieces(summary.pendingCount) : undefined}
+            icon={<DollarSign className="size-5" />}
+            color="blue"
+            isLoading={isLoading}
+          />
+          <MetricCard
+            title="Vencido"
+            value={fmt(summary?.overdueTotal ?? 0)}
+            description={summary ? `${pieces(summary.overdueCount)} — incluye meses previos` : undefined}
+            icon={<AlertTriangle className="size-5" />}
+            color="red"
+            isLoading={isLoading}
+          />
+          <MetricCard
+            title="Por vencer (7 días)"
+            value={fmt(summary?.dueSoonTotal ?? 0)}
+            description={summary ? pieces(summary.dueSoonCount) : undefined}
+            icon={<Clock className="size-5" />}
+            color="orange"
+            isLoading={isLoading}
+          />
+          <MetricCard
+            title="Pagado en el mes"
+            value={fmt(summary?.paidTotal ?? 0)}
+            description={summary ? pieces(summary.paidCount) : undefined}
+            icon={<Check className="size-5" />}
+            color="green"
+            isLoading={isLoading}
+          />
+        </div>
+      )}
+      {payablesStale && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Estos egresos son los de la última carga buena: el intento más reciente falló.
+        </p>
       )}
       {data?.pendingTruncated && (
         <p className="text-xs text-muted-foreground">
@@ -175,9 +183,8 @@ export function FinanceOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {incomeQuery.isError
-              ? 'No se pudieron cargar los ingresos. Intenta de nuevo con Actualizar.'
-              : incomeData?.unavailable?.message ?? 'No se pudo leer Odoo.'}
+            {incomeData?.unavailable?.message
+              ?? (incomeQuery.isError ? 'No se pudieron cargar los ingresos. Intenta de nuevo con Actualizar.' : 'No se pudo leer Odoo.')}
           </CardContent>
         </Card>
       ) : (
@@ -218,6 +225,11 @@ export function FinanceOverview() {
           />
         </div>
       )}
+      {incomeStale && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Estos ingresos son los de la última carga buena: el intento más reciente falló.
+        </p>
+      )}
       {income?.receivablesTruncated && (
         <p className="text-xs text-muted-foreground">
           Facturas abiertas: la lectura llegó a su límite; por cobrar y vencido pueden quedar cortos.
@@ -235,7 +247,12 @@ export function FinanceOverview() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isLoading && monthPending.length === 0 && (
+          {payablesUnavailable && (
+            <p className="text-sm text-muted-foreground">
+              No se pudieron cargar las facturas; esta lista puede estar incompleta.
+            </p>
+          )}
+          {!isLoading && !payablesUnavailable && monthPending.length === 0 && (
             <p className="text-sm text-muted-foreground">
               Sin facturas pendientes con vencimiento en este mes.
             </p>
