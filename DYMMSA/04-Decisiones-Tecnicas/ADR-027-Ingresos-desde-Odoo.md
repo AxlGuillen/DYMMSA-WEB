@@ -46,7 +46,7 @@ El refresh (`POST /api/finance/income/refresh`) purga el tag y responde con los 
 
 ### 7. Límites conscientes
 
-- **Truncado**: 500 filas por lectura (años de volumen de DYMMSA); `collectionsTruncated` y `receivablesTruncated` se exponen por separado para que el aviso hable del renglón correcto. Si alguna vez importa, un `read_group` extra da la suma exacta.
+- **Truncado**: 500 filas por lectura (años de volumen de DYMMSA); `collectionsTruncated` y `receivablesTruncated` se exponen por separado para que el aviso hable del renglón correcto; del lado de egresos, `pendingTruncated` en `/api/payables/overview` cumple el mismo papel, porque las pendientes alimentan el arrastre del proyectado. Si alguna vez importa, un `read_group` extra da la suma exacta.
 - **Refresh caro a propósito**: purgar + leer crudo deja el Data Cache vacío, así que un ciclo de "Actualizar" cuesta 4 llamadas a Odoo (2 del POST + 2 del siguiente GET). Es el precio de que el botón nunca muestre dato viejo.
 - **Moneda**: `amount` va en la moneda del pago y `amount_residual` en la de la factura; ninguno se convierte. el resumen trae `collectionCurrencies` (cobros del mes, badge en el encabezado) y `receivableCurrencies`/`overdueCurrencies` (facturas abiertas, cada tarjeta con la nota de su propio lado) **por separado**: una factura vieja en USD no debe pintar el aviso en todos los meses. Si algún día hace falta convertir, `amount_residual_signed` ya viene en moneda de la compañía.
 - **Data Cache entre instancias**: tras un refresh, otra instancia podría servir una vez el dato viejo; el POST devuelve datos frescos y el hook los siembra.

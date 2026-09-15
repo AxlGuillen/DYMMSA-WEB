@@ -53,20 +53,21 @@ export function splitReceivables(
   today: ISODate,
 ): Pick<IncomeMonthSummary, 'receivableTotal' | 'receivableCount' | 'overdueTotal' | 'overdueCount' | 'receivableCurrencies' | 'overdueCurrencies'> {
   const out = { receivableTotal: 0, receivableCount: 0, overdueTotal: 0, overdueCount: 0 }
-  const due: OdooOpenInvoice[] = []
-  const overdue: OdooOpenInvoice[] = []
+  const dueCurrencies = new Set<string>()
+  const overdueCurrencies = new Set<string>()
   for (const r of rows) {
+    const foreign = r.currency && r.currency !== 'MXN' ? r.currency : null
     if (r.dueDate && r.dueDate < today) {
       out.overdueTotal += r.residual
       out.overdueCount += 1
-      overdue.push(r)
+      if (foreign) overdueCurrencies.add(foreign)
     } else {
       out.receivableTotal += r.residual
       out.receivableCount += 1
-      due.push(r)
+      if (foreign) dueCurrencies.add(foreign)
     }
   }
-  return { ...out, receivableCurrencies: foreignCurrencies(due), overdueCurrencies: foreignCurrencies(overdue) }
+  return { ...out, receivableCurrencies: [...dueCurrencies], overdueCurrencies: [...overdueCurrencies] }
 }
 
 export function summarizeIncome(

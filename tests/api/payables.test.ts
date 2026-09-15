@@ -171,6 +171,21 @@ describe('PATCH /api/payables/[id]', () => {
 })
 
 describe('GET /api/payables/overview', () => {
+  test('pendingTruncated avisa cuando hay más pendientes que el límite leído', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'payables.select': (rec) =>
+          filterValue(rec, 'status') === 'pending'
+            ? { data: [], error: null, count: 1500 }
+            : { data: [], error: null },
+      },
+    })
+    const res = await overview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview?month=2026-09' }))
+    expect(res.status).toBe(200)
+    expect((await readJson<{ pendingTruncated: boolean }>(res)).pendingTruncated).toBe(true)
+  })
+
   test('400 con mes inválido; 200 con resumen calculado', async () => {
     activeClient = createMockSupabase({
       user: AUTH,

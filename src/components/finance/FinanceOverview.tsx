@@ -191,6 +191,11 @@ export function FinanceOverview() {
           />
         </div>
       )}
+      {data?.pendingTruncated && (
+        <p className="text-xs text-muted-foreground">
+          Egresos pendientes: se leyeron los primeros 1000; el arrastre vencido y el cierre proyectado pueden quedar cortos.
+        </p>
+      )}
       {income?.receivablesTruncated && (
         <p className="text-xs text-muted-foreground">
           Facturas abiertas: se leyeron las primeras 500; por cobrar y vencido pueden quedar cortos.
