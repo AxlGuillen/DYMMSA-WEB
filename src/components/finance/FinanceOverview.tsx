@@ -217,7 +217,7 @@ export function FinanceOverview() {
             title="Cierre del mes"
             value={closing ? fmt(closing.real) : '—'}
             description={closing
-              ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes del mes y vencidas previas`
+              ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes del mes y vencidas previas${currencyNote(income?.collectionCurrencies)}`
               : 'Necesita los cobros de Odoo y los egresos del mes'}
             icon={<DollarSign className="size-5" />}
             color="purple"

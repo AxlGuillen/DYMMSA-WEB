@@ -57,6 +57,7 @@ injectSupabaseAdmin(() => adminClient)
 // Admin-only routes (#93): 401 with no user, 403 for a member.
 const adminRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
   { name: 'GET    /profiles',                         call: () => profilesRoute.GET() },
+  { name: 'GET    /time-entries/imports',             call: () => timeImports.GET() },
   { name: 'PATCH  /profiles/[id]',                    call: () => profileById.PATCH(makeRequest({ role: 'member' }, { method: 'PATCH' }), makeParams({ id: 'u1' })) },
   { name: 'POST   /time-entries',                     call: () => timeEntries.POST(makeRequest({})) },
   { name: 'PATCH  /time-entries/[id]',                call: () => timeEntryById.PATCH(makeRequest({ note: 'x' }, { method: 'PATCH' }), makeParams({ id: 't1' })) },
@@ -96,7 +97,6 @@ const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = 
   { name: 'GET    /payables/overview',                call: () => payablesOverview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview' })) },
   { name: 'GET    /profile',                          call: () => profileRoute.GET() },
   { name: 'GET    /time-entries',                     call: () => timeEntries.GET(makeRequest(undefined, { url: 'http://x/api/time-entries' })) },
-  { name: 'GET    /time-entries/imports',             call: () => timeImports.GET() },
   { name: 'GET    /finance/income',                   call: () => financeIncome.GET(makeRequest(undefined, { url: 'http://x/api/finance/income' })) },
   { name: 'POST   /finance/income/refresh',           call: () => financeIncomeRefresh.POST(makeRequest(undefined, { method: 'POST', url: 'http://x/api/finance/income/refresh' })) },
   ...adminRoutes,

@@ -179,7 +179,7 @@
 | `PATCH` | `/api/time-entries/[id]` | Admin | `clock_in`, `clock_out` (vacío = abierta), `note`. **Solo un cambio de hora** sella `edited_by/edited_at` y escribe `original` (la primera vez): una nota sola no congela la fila para el import. **Jamás** toca `source_clock_in` |
 | `DELETE` | `/api/time-entries/[id]` | Admin | Eliminar pareja; id inexistente → 404 |
 | `POST` | `/api/time-entries/import` | Admin | `multipart/form-data` campo `file` (el `.xls` NGTeco; hoja `Employee Timecard` o la primera). Mapea `(id)` del reporte → `profiles.clock_employee_id`, llama a la RPC `import_time_entries`. Responde `{ period, inserted, updated, skipped_edited, unmapped: [{ clockId, name }], warnings }`. Los no mapeados **no bloquean**; re-subir es idempotente. Una pareja con salida anterior a la entrada se filtra con `warning` (el CHECK la rechazaría y la RPC transaccional tiraría el archivo entero); `23514` → 400. Máximo 5 MB |
-| `GET` | `/api/time-entries/imports` | ✅ | Bitácora de cargas (52 más recientes) |
+| `GET` | `/api/time-entries/imports` | Admin | Bitácora de cargas (52 más recientes). La RLS de `time_imports` también es solo admin |
 
 ---
 

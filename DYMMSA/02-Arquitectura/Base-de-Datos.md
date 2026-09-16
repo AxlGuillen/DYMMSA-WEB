@@ -355,7 +355,7 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `clock_employee_id` | integer | Sí | — | UNIQUE, CHECK > 0 | Número entre paréntesis del reporte NGTeco; NULL = no checa |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
-RLS: SELECT `authenticated`; UPDATE `is_admin()`. Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
+RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()`. Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
 
 ---
 
@@ -397,7 +397,7 @@ RLS: SELECT `authenticated`; UPDATE `is_admin()`. Función `is_admin()` (sql STA
 | `imported_by` | uuid | Sí | — | FK → `profiles` SET NULL | |
 | `created_at` | timestamptz | No | `now()` | | |
 
-RLS: SELECT `authenticated`; INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_entries jsonb, p_period_start, p_period_end, p_file_name)`** (SECURITY INVOKER, transaccional): upsert `ON CONFLICT ... DO UPDATE SET clock_out, source='import' WHERE edited_at IS NULL`, cuenta con `xmax = 0`, dedupe `DISTINCT ON`, devuelve `{import_id, inserted, updated, skipped_edited}`.
+RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_entries jsonb, p_period_start, p_period_end, p_file_name)`** (SECURITY INVOKER, transaccional): upsert `ON CONFLICT ... DO UPDATE SET clock_out, source='import' WHERE edited_at IS NULL`, cuenta con `xmax = 0`, dedupe `DISTINCT ON` (y el conteo total sobre los mismos valores casteados), devuelve `{import_id, inserted, updated, skipped_edited}`.
 
 ---
 
@@ -418,6 +418,8 @@ RLS: SELECT `authenticated`; INSERT `is_admin()`. La escribe la RPC **`import_ti
 | `cut_module_tables` | (2026-07-31) | Módulo de corte (issue #59, Fase 1): `cut_plan_pieces` + `material_presentations` + 5 columnas nominales `cut_*` en `etm_products` (solo pre-llenado). RLS authenticated |
 | `add_location_to_inventory_and_order_items` | (2026-07-07) | Columna `location text` (nullable) en `store_inventory` y `order_items` — ubicación física (gaveta) |
 | `20260909031135` | `add_profiles_and_time_entries` | Módulo de horas (issue #93, ADR-026): `profiles` + trigger `handle_new_user` + `is_admin()`, `time_entries`, `time_imports`, RPC `import_time_entries`. Primera RLS por persona; GRANTs sin `anon` |
+| `20260909162418` | `import_time_entries_deterministic_dedupe` | `ORDER BY ... clock_out DESC NULLS LAST` en el dedupe de la RPC (review PR #96) |
+| `20260916190052` | `tighten_profiles_and_imports_rls` | `profiles` SELECT = fila propia o admin; `time_imports` SELECT = admin; conteo casteado en la RPC (review PR #99) |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |

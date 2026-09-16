@@ -595,8 +595,9 @@ AS $$
 $$;
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated users can read profiles" ON public.profiles
-  FOR SELECT TO authenticated USING (true);
+-- Own row or admin: the MCP reads with the user's token, so USING (true) bypassed requireAdmin (PR #99).
+CREATE POLICY "Users read own profile, admins read all" ON public.profiles
+  FOR SELECT TO authenticated USING (id = (SELECT auth.uid()) OR public.is_admin());
 CREATE POLICY "Admins can update profiles" ON public.profiles
   FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
 
@@ -649,8 +650,8 @@ CREATE TABLE public.time_imports (
   CONSTRAINT time_imports_period_check CHECK (period_end >= period_start)
 );
 ALTER TABLE public.time_imports ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated users can read imports" ON public.time_imports
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins read imports" ON public.time_imports
+  FOR SELECT TO authenticated USING (public.is_admin());
 CREATE POLICY "Admins insert imports" ON public.time_imports
   FOR INSERT TO authenticated WITH CHECK (public.is_admin());
 
@@ -703,7 +704,8 @@ BEGIN
 
   SELECT count(*) INTO v_total
   FROM (
-    SELECT DISTINCT (e->>'user_id'), (e->>'work_date'), (e->>'clock_in')
+    -- Casted like the incoming CTE: '8:05' and '08:05' are one pair.
+    SELECT DISTINCT (e->>'user_id')::uuid, (e->>'work_date')::date, (e->>'clock_in')::time
     FROM jsonb_array_elements(p_entries) AS e
   ) d;
 

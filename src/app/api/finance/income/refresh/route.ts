@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
 
     if (!isOdooConfigured()) return NextResponse.json(incomeUnavailable(month, today, 'not_configured'))
 
-    // { expire: 0 } is the immediate purge; 'max' would be stale-while-revalidate and the
-    // button would look broken. The next GET repopulates the Data Cache.
+    // Purge with { expire: 0 } ('max' is SWR) and answer with raw reads: a cached read in this same
+    // request could still see the purged entry. Cost: the next GET refills it (ADR-027 §7).
     revalidateTag(INCOME_CACHE_TAG, { expire: 0 })
 
     try {

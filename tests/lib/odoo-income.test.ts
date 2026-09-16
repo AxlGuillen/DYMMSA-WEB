@@ -5,6 +5,7 @@ import type { OdooCaller } from '@/lib/odoo/client'
 import { ODOO_CATALOG } from '@/lib/odoo/catalog'
 import { OPEN_RECEIVABLES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
 import { fetchMonthCollections, fetchOpenReceivables, INCOME_FETCH_LIMIT } from '@/lib/odoo/income'
+import { daysSince, todayIso } from '@/lib/odoo/normalize'
 
 type Call = { model: string; method: string; payload: Record<string, unknown> }
 
@@ -123,6 +124,20 @@ describe('fetchOpenReceivables', () => {
     const { odoo } = fakeOdoo({ 'account.move.search_read': [[{ ...INVOICE_RAW, invoice_date_due: false }]] })
     const result = await fetchOpenReceivables(odoo)
     expect(result.rows[0].dueDate).toBeNull()
+  })
+})
+
+describe('reloj del negocio para las tools MCP', () => {
+  // 02:00 UTC of the 16th is 20:00 of the 15th in Morelia.
+  const night = new Date('2026-09-16T02:00:00Z')
+
+  test('todayIso da la fecha de Morelia, no la de UTC', () => {
+    expect(todayIso(night)).toBe('2026-09-15')
+  })
+
+  test('daysSince cuenta días contra la fecha de Morelia', () => {
+    expect(daysSince('2026-09-14', night)).toBe(1)
+    expect(daysSince('2026-09-16', night)).toBe(0)
   })
 })
 

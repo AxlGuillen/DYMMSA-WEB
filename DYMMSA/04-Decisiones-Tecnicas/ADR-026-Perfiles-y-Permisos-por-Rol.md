@@ -53,7 +53,7 @@ El `.upsert()` de supabase-js genera `DO UPDATE SET <todo>` sin `WHERE` y **pisa
 ### 8. FKs y GRANTs
 
 - `time_entries.user_id → profiles` **sin cascade** y `NOT NULL` (mismo criterio que `payables → suppliers`). Efecto real: como `profiles.id → auth.users` sí es CASCADE, **borrar un usuario de `auth.users` que tenga checadas falla con 23503** desde el panel de Supabase. Es deliberado — la baja se hace desactivando (Supabase Auth: ban), no borrando; la nómina histórica no se destruye. `edited_by` e `imported_by` → `SET NULL`.
-- `time_imports` la lee cualquier `authenticated` aunque la página sea admin-only: es bitácora (semana, archivo, conteos), sin datos de personas. Intencional.
+- **La policy dice lo mismo que la ruta** (review PR #99, migración `20260916190052`). Al principio `profiles` y `time_imports` tenían `SELECT USING (true)` mientras sus rutas eran admin-only. Como el MCP construye su cliente con el token del usuario (ADR-023) y deja que RLS decida, esa policy abierta era una puerta lateral a `requireAdmin`. Ahora `profiles` = fila propia o admin (`requireRole` solo necesita la propia) y `time_imports` = solo admin, igual que `GET /api/time-entries/imports`.
 - El dedupe de la RPC (`DISTINCT ON`) lleva `ORDER BY ... clock_out DESC NULLS LAST`: si el reporte repite una pareja con y sin salida, sobrevive la completa en cualquier orden (sin `ORDER BY`, Postgres elegía una arbitraria).
 - GRANTs explícitos a `authenticated` y `service_role`, **sin `anon`** — desviación deliberada del patrón del baseline: nada público lee estas tablas.
 - Totales diarios/semanales **no se persisten**: los calcula `buildWeekView()` al leer.

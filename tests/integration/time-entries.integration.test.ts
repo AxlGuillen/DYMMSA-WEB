@@ -78,9 +78,11 @@ describe('RLS por usuario (directo al cliente)', () => {
     expect(Number(count)).toBe(4)
   })
 
-  test('profiles: todos leen la lista; solo admin actualiza', async () => {
-    const list = await member.from('profiles').select('id')
-    expect(list.data).toHaveLength(2)
+  test('profiles: cada quien lee su fila y el admin todas; solo admin actualiza', async () => {
+    const own = await member.from('profiles').select('id')
+    expect(own.data).toEqual([{ id: MEMBER_ID }])
+    const all = await admin.from('profiles').select('id')
+    expect(all.data).toHaveLength(2)
 
     const denied = await member.from('profiles').update({ role: 'admin' }).eq('id', MEMBER_ID).select()
     expect(denied.data).toHaveLength(0)
@@ -154,6 +156,20 @@ describe('RPC import_time_entries (transaccional, respeta ediciones)', () => {
       "SELECT clock_out FROM public.time_entries WHERE user_id = $1 AND work_date = '2026-08-31'", [MEMBER_ID],
     )
     expect(row.clock_out).toBe('19:30:00')
+  })
+
+  test('8:05 y 08:05 son la misma pareja: skipped_edited no se infla', async () => {
+    const res = await call([
+      { user_id: MEMBER_ID, work_date: '2026-09-03', clock_in: '8:05', clock_out: '17:00' },
+      { user_id: MEMBER_ID, work_date: '2026-09-03', clock_in: '08:05', clock_out: '17:00' },
+    ])
+    expect(res.data).toMatchObject({ inserted: 1, updated: 0, skipped_edited: 0 })
+  })
+
+  test('la bitácora solo la lee un admin', async () => {
+    await call(entries)
+    expect((await admin.from('time_imports').select('id')).data).toHaveLength(1)
+    expect((await member.from('time_imports').select('id')).data).toEqual([])
   })
 })
 

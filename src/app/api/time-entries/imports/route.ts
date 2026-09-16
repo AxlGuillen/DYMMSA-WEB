@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, serverError } from '@/lib/api-helpers'
+import { requireAdmin, serverError } from '@/lib/api-helpers'
 
-// GET /api/time-entries/imports — periods already loaded, newest first
+// GET /api/time-entries/imports — periods already loaded, newest first (admin)
 export async function GET() {
   try {
     const supabase = await createClient()
-    const auth = await requireAuth(supabase)
+    const auth = await requireAdmin(supabase)
     if ('error' in auth) return auth.error
 
     const { data, error } = await supabase

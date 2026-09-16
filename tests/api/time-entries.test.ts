@@ -404,10 +404,19 @@ describe('POST /api/time-entries/import (reporte NGTeco)', () => {
 })
 
 describe('GET /api/time-entries/imports', () => {
+  test('un member recibe 403 sin leer la bitácora', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_MEMBER) } })
+    expect((await importsRoute.GET()).status).toBe(403)
+    expect(activeClient.didCall('time_imports', 'select')).toBe(false)
+  })
+
   test('lista las cargas, la más reciente primero', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'time_imports.select': { data: [{ id: 'imp-1', period_start: '2026-08-31' }], error: null } },
+      responses: {
+        'profiles.select': withRole(ME_ADMIN),
+        'time_imports.select': { data: [{ id: 'imp-1', period_start: '2026-08-31' }], error: null },
+      },
     })
     const res = await importsRoute.GET()
     expect(res.status).toBe(200)

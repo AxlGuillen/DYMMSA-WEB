@@ -1,5 +1,7 @@
 /** Raw Odoo → digested JSON. Block rule: the server digests, the model interprets (ADR-025). */
 
+import { todayInMexico } from '@/lib/format'
+
 type OdooRecord = Record<string, unknown>
 
 function normalizeValue(value: unknown): unknown {
@@ -45,14 +47,15 @@ export function normalizeGroups(groups: unknown): OdooRecord[] {
   return out
 }
 
-/** Days elapsed since `dateIso` up to today; 0 when it is in the future. */
+/** Days elapsed since `dateIso` up to today in Morelia; 0 when it is in the future. */
 export function daysSince(dateIso: string, today = new Date()): number {
-  const date = new Date(`${dateIso}T00:00:00Z`)
-  const now = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
-  return Math.max(0, Math.round((now - date.getTime()) / 86_400_000))
+  const date = Date.parse(`${dateIso}T00:00:00Z`)
+  const now = Date.parse(`${todayInMexico(today)}T00:00:00Z`)
+  return Math.max(0, Math.round((now - date) / 86_400_000))
 }
 
-/** Today in Odoo domain format (YYYY-MM-DD). */
+/** Today (YYYY-MM-DD) on the business clock: UTC said "tomorrow" from 18:00, so the MCP and the
+ *  income route disagreed on what was overdue (PR #99). */
 export function todayIso(today = new Date()): string {
-  return today.toISOString().slice(0, 10)
+  return todayInMexico(today)
 }
