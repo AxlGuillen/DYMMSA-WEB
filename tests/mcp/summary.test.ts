@@ -1,4 +1,4 @@
-/** Tool MCP de resumen ejecutivo: compone métricas de todos los módulos. */
+/** MCP executive summary tool: composes metrics from every module. */
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import { createMockSupabase } from '../helpers/supabase-mock'
@@ -8,7 +8,7 @@ import { type Db } from '@/lib/mcp/shared'
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
 beforeEach(() => {
-  // Sin GITHUB_TOKEN/REPO → open_tasks es null sin tocar la red
+  // No GITHUB_TOKEN/REPO → open_tasks is null without touching the network
   delete process.env.GITHUB_TOKEN
   delete process.env.GITHUB_REPO
 })
@@ -32,7 +32,7 @@ describe('getBusinessSummary', () => {
     expect(summary.inventory).toEqual({ total: 2, sin_stock: 1, low_stock: 0, in_stock: 1 })
     expect(summary.products_count).toBe(564)
     expect(summary.urrea_catalog_count).toBe(1200)
-    expect(summary.open_tasks).toBeNull() // GitHub no configurado
+    expect(summary.open_tasks).toBeNull() // GitHub not configured
   })
 
   test('un módulo que falla no tumba el resumen (degrada a null)', async () => {

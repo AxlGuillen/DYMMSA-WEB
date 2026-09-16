@@ -1,13 +1,11 @@
 /**
- * Cliente JSON-2 de Odoo (ADR-025): /jsonrpc muere en Online 21.1, por eso no
- * se usa. Odoo Online tolera ~1 req/s SIN paralelas → cola serializada con
- * espaciado + un reintento ante 429. Producción usa SOLO el singleton callOdoo.
+ * Odoo JSON-2 client (ADR-025): /jsonrpc is dead in Online 21.1. Online tolerates ~1 req/s
+ * with NO parallelism → serialized queue with spacing + one retry on 429.
  */
 
 import { odooEnv } from './env'
 
-// Ciclo de módulos env ↔ client: benigno a propósito — ambos lados solo usan
-// al otro DENTRO de funciones (nunca al evaluar el módulo).
+// env ↔ client import cycle is benign on purpose: each side only uses the other inside functions.
 export class OdooError extends Error {
   constructor(
     message: string,
@@ -18,7 +16,7 @@ export class OdooError extends Error {
   }
 }
 
-/** Firma que reciben las tools (inyectable en tests, como `Db` en shared.ts). */
+/** Signature the tools receive (injectable in tests, like `Db` in shared.ts). */
 export type OdooCaller = (
   model: string,
   method: string,
@@ -28,7 +26,7 @@ export type OdooCaller = (
 interface CallerDeps {
   fetchFn?: typeof fetch
   sleepFn?: (ms: number) => Promise<void>
-  /** Espaciado mínimo entre llamadas (default 1100 ms ≈ 1 req/s con margen). */
+  /** Minimum spacing between calls (default 1100 ms ≈ 1 req/s with margin). */
   spacingMs?: number
   timeoutMs?: number
   getEnv?: () => { url: string; apiKey: string; db: string | null }
@@ -97,11 +95,11 @@ export function createOdooCaller(deps: CallerDeps = {}): OdooCaller {
         lastCallAt = Date.now()
       }
     })
-    // La cola sobrevive a los errores: el siguiente en fila no hereda el fallo.
+    // The queue survives errors: the next caller doesn't inherit the failure.
     chain = task.catch(() => undefined)
     return task
   }
 }
 
-/** Singleton de producción: todas las tools comparten la MISMA cola. */
+/** Production singleton: every tool shares the SAME queue. */
 export const callOdoo: OdooCaller = createOdooCaller()

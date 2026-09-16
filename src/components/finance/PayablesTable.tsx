@@ -29,7 +29,8 @@ import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import { useCurrency } from '@/hooks/useCurrency'
 import { toast } from 'sonner'
-import { formatDayLong, todayInMexico } from '@/lib/format'
+import { todayInMexico } from '@/lib/format'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { daysUntilDue, PAYABLE_STATUS_LABELS } from '@/lib/payables'
 import { ApiError } from '@/lib/fetch-json'
 import type { PayableStatus, PayableWithSupplier } from '@/types/database'
@@ -46,7 +47,7 @@ interface PayablesTableProps {
   onSort: (field: PayableSortField) => void
 }
 
-// Columnas de facturas por pagar (issue #84). Concepto y acciones son fijas.
+// Concepto and acciones are fixed columns (#84).
 export const PAYABLES_COLUMNS: readonly TableColumn[] = [
   { id: 'supplier', label: 'Proveedor', width: 190 },
   { id: 'concept', label: 'Concepto', hideable: false, width: 250 },
@@ -90,9 +91,10 @@ function SortHeader({
   )
 }
 
-/** Tono del vencimiento: rojo vencida, ámbar ≤7 días — solo en pendientes. */
+/** Due-date tone: red overdue, amber ≤7 days; pending rows only. */
 function DueDateCell({ payable, today }: { payable: PayableWithSupplier; today: string }) {
-  const date = formatDayLong(payable.due_date)
+  const fmtDay = useDateFormat()
+  const date = fmtDay(payable.due_date)
   if (payable.status !== 'pending') return <>{date}</>
   const days = daysUntilDue(payable.due_date, today)
   if (days < 0) {
@@ -121,6 +123,7 @@ export function PayablesTable({
   const deletePayable = useDeletePayable()
   const updatePayable = useUpdatePayable()
   const fmt = useCurrency()
+  const fmtDay = useDateFormat()
   const cols = useVisibleColumns('payables', PAYABLES_COLUMNS)
   const widths = useColumnWidths('payables', PAYABLES_COLUMNS)
   const today = todayInMexico()
@@ -231,7 +234,7 @@ export function PayablesTable({
                   <TableCell className="text-right tabular-nums">{fmt(payable.amount)}</TableCell>
                 )}
                 {cols.isVisible('invoice_date') && (
-                  <TableCell className="text-sm whitespace-nowrap">{formatDayLong(payable.invoice_date)}</TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">{fmtDay(payable.invoice_date)}</TableCell>
                 )}
                 {cols.isVisible('due_date') && (
                   <TableCell className="text-sm whitespace-nowrap">
@@ -247,7 +250,7 @@ export function PayablesTable({
                 )}
                 {cols.isVisible('paid_at') && (
                   <TableCell className="text-sm whitespace-nowrap">
-                    {payable.paid_at ? formatDayLong(payable.paid_at) : dash}
+                    {payable.paid_at ? fmtDay(payable.paid_at) : dash}
                   </TableCell>
                 )}
                 <TableCell className={STICKY_ACTIONS_CELL}>

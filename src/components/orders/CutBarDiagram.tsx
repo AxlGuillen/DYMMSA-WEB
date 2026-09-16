@@ -4,7 +4,7 @@ import { useId } from 'react'
 import { formatMm } from '@/lib/cut-plan'
 
 export interface DiagramSegment {
-  /** Llave estable de la unidad física (pieza + ocurrencia), para el key. */
+  /** Stable key of the physical unit (piece + occurrence). */
   unitKey: string
   lengthMm: number
 }
@@ -18,8 +18,8 @@ interface CutBarDiagramProps {
 const VIEW_W = 1000
 const VIEW_H = 56
 
-/** Posiciones acumuladas de cada segmento (fuera del render: el compilador de
- * React no permite reasignar acumuladores en el cuerpo del componente). */
+/** Outside the render: the React Compiler forbids reassigning accumulators in
+ *  the component body. */
 function layoutSegments(segments: DiagramSegment[], marginMm: number, scale: number) {
   const rects: (DiagramSegment & { x: number; width: number })[] = []
   let cursorMm = 0
@@ -30,13 +30,9 @@ function layoutSegments(segments: DiagramSegment[], marginMm: number, scale: num
   return rects
 }
 
-/**
- * Barra cortada en SVG proporcional: [pieza][corte]…[sobrante punteado].
- * SVG a propósito — se imprime tal cual para el taller (ADR-022).
- */
+/** SVG on purpose: it prints as-is for the shop floor (ADR-022). */
 export function CutBarDiagram({ barLengthMm, marginMm, segments }: CutBarDiagramProps) {
-  // Ids únicos por instancia: una página puede tener muchos diagramas y los
-  // <pattern> de SVG se resuelven por id global.
+  // Per-instance ids: SVG <pattern> resolves by global id and a page holds many diagrams.
   const kerfPatternId = useId()
   const scale = VIEW_W / barLengthMm
   const sumMm = segments.reduce((sum, s) => sum + s.lengthMm, 0)
@@ -55,14 +51,14 @@ export function CutBarDiagram({ barLengthMm, marginMm, segments }: CutBarDiagram
         aria-label={`Barra de ${formatMm(barLengthMm)} con ${segments.length} piezas`}
       >
         <defs>
-          {/* Achurado del paso de la sierra (issue #71): distinguible de una
-              pieza delgada, que iría en ámbar sólido. */}
+          {/* Saw-kerf hatching (#71): distinguishable from a thin piece, which
+              would be solid amber. */}
           <pattern id={kerfPatternId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <rect width="6" height="6" className="fill-foreground/40" />
             <line x1="0" y1="0" x2="0" y2="6" className="stroke-background" strokeWidth="2.5" />
           </pattern>
         </defs>
-        {/* Fondo = material sin usar (sobrante incluido) */}
+        {/* Background = unused material, offcut included */}
         <rect x="0" y="0" width={VIEW_W} height={VIEW_H} className="fill-muted" />
         {rects.map((rect) => (
           <g key={rect.unitKey}>
@@ -76,7 +72,7 @@ export function CutBarDiagram({ barLengthMm, marginMm, segments }: CutBarDiagram
             >
               <title>{formatMm(rect.lengthMm)}</title>
             </rect>
-            {/* Etiqueta solo si la pieza es lo bastante ancha para leerla */}
+            {/* Label only when the piece is wide enough to read it */}
             {rect.width > 70 && (
               <text
                 x={rect.x + rect.width / 2}
@@ -87,7 +83,7 @@ export function CutBarDiagram({ barLengthMm, marginMm, segments }: CutBarDiagram
                 {formatMm(rect.lengthMm)}
               </text>
             )}
-            {/* El corte (kerf) que sigue a la pieza: achurado = aquí pasa la sierra */}
+            {/* Kerf after the piece: hatching marks where the saw passes */}
             {marginMm > 0 && (
               <rect
                 x={rect.x + rect.width}
@@ -101,7 +97,7 @@ export function CutBarDiagram({ barLengthMm, marginMm, segments }: CutBarDiagram
             )}
           </g>
         ))}
-        {/* Sobrante punteado, con su medida cuando cabe el texto */}
+        {/* Dotted offcut, with its size when the text fits */}
         {!overflow && leftoverMm > 0 && (
           <g>
             <rect

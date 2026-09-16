@@ -6,12 +6,12 @@ import type { EtmProductInsert } from '@/types/database'
 const SORT_COLUMNS = ['etm', 'description_es', 'model_code', 'price'] as const
 type SortColumn = (typeof SORT_COLUMNS)[number]
 
-/** Sanea la búsqueda: `,()` alterarían el filtro .or(); `%*` son comodines de ilike. */
+/** Strips `,()` (they would alter the .or() filter) and `%*` (ilike wildcards). */
 function sanitizeSearch(raw: string): string {
   return raw.replace(/[%*,()]/g, ' ').trim()
 }
 
-/** Columnas TEXT NOT NULL: se normalizan a cadena recortada (nunca null). */
+/** TEXT NOT NULL columns: normalized to a trimmed string, never null. */
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/products → crear producto del catálogo ETM
+// POST /api/products — create an ETM catalog product
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         etm,
         description: text(body.description),
         description_es: text(body.description_es),
-        // Única columna de texto nullable (jerarquía de catálogo, ADR-013).
+        // The only nullable text column (catalog hierarchy, ADR-013).
         dymmsa_description: text(body.dymmsa_description) || null,
         model_code: text(body.model_code),
         brand: text(body.brand),

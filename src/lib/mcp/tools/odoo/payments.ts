@@ -1,7 +1,6 @@
 /**
- * Odoo F6 — complementos de pago REP (#70, ADR-025). La verdad del timbrado es
- * l10n_mx_edi.document (los l10n_mx_edi_* del pago computan false); el puente
- * pago↔REP es por facturas conciliadas — no hay FK directa.
+ * Odoo phase 6 — REP complements (#70, ADR-025). Stamping truth is l10n_mx_edi.document
+ * (a payment's l10n_mx_edi_* compute false); payment↔REP bridges via reconciled invoices, no FK.
  */
 
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -17,7 +16,7 @@ const REP_STATE: Record<string, string> = {
   payment_cancel_failed: 'falló la cancelación',
 }
 
-/** Estados de REP que dejan al pago en regla ante el SAT. */
+/** REP states that leave the payment compliant with the SAT. */
 const REP_OK_STATES = new Set(['payment_sent', 'payment_sent_pue'])
 
 const PAYMENT_STATE: Record<string, string> = {
@@ -34,20 +33,18 @@ const satLabel = (sat: unknown) =>
 const repLabel = (state: unknown) =>
   (typeof state === 'string' && REP_STATE[state]) || state || null
 
-/** Ids de las facturas conciliadas del pago (many2many crudo → number[]). */
+/** Reconciled invoice ids of the payment (raw many2many → number[]). */
 function invoiceIdsOf(payment: Record<string, unknown>): number[] {
   const raw = payment.reconciled_invoice_ids
   return Array.isArray(raw) ? raw.filter((v): v is number => typeof v === 'number') : []
 }
 
-/** Un doc REP cubre al pago si abarca TODAS sus facturas conciliadas. */
+/** A REP doc covers the payment only if it spans ALL its reconciled invoices. */
 function covers(docInvoiceIds: unknown, paymentInvoiceIds: number[]): boolean {
   if (!Array.isArray(docInvoiceIds)) return false
   const set = new Set(docInvoiceIds)
   return paymentInvoiceIds.every((id) => set.has(id))
 }
-
-// ── odoo_payment_detail ────────────────────────────────────────────────
 
 const PAYMENT_FIELDS = [
   'name', 'partner_id', 'date', 'amount', 'payment_type', 'state', 'memo',
@@ -64,7 +61,7 @@ export async function odooPaymentDetail(odoo: OdooCaller, input: { folio: string
   const payment = result.found
   const invoiceIds = invoiceIdsOf(payment)
 
-  // 2 llamadas más, serializadas: los REP que tocan sus facturas + las facturas.
+  // 2 more serialized calls: the REPs touching its invoices + the invoices themselves.
   const reps = invoiceIds.length
     ? normalizeRecords(
         await odoo('l10n_mx_edi.document', 'search_read', {
@@ -130,8 +127,6 @@ export async function odooPaymentDetail(odoo: OdooCaller, input: { folio: string
   }
 }
 
-// ── odoo_rep_audit ─────────────────────────────────────────────────────
-
 export interface RepAuditInput {
   date_from?: string
   date_to?: string
@@ -140,16 +135,13 @@ export interface RepAuditInput {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const AUDIT_LIMIT = 50
 
-/**
- * Barrido: pagos del rango + sus docs REP (sin filtro de fecha: el REP llega
- * después) + 3ª llamada lazy con la política PUE/PPD — 100% PUE no requiere REP.
- */
+/** REP docs are fetched without a date filter (the REP arrives later); the PUE/PPD call is lazy — 100% PUE needs no REP. */
 export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) {
   for (const date of [input.date_from, input.date_to]) {
     if (date && !DATE_RE.test(date)) throw new ToolError(`Fecha inválida "${date}" — usa YYYY-MM-DD`)
   }
   const today = todayIso()
-  // Default: el barrido del último mes (~30 días).
+  // Default sweep: the last ~30 days.
   const from = input.date_from ?? new Date(Date.parse(`${today}T00:00:00Z`) - 30 * 86_400_000).toISOString().slice(0, 10)
   const to = input.date_to ?? today
 
@@ -203,7 +195,7 @@ export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) 
       sinRepIds.push(ids)
       continue
     }
-    // El más reciente manda: un REP re-timbrado sustituye al fallido.
+    // Newest wins: a re-stamped REP supersedes the failed one.
     const latest = docs.reduce((a, b) => (String(a.datetime) >= String(b.datetime) ? a : b))
     const ok = REP_OK_STATES.has(String(latest.state)) && ['valid', 'skip'].includes(String(latest.sat_state))
     if (ok) {
@@ -218,8 +210,7 @@ export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) 
     }
   }
 
-  // Reclasificación PUE: un pago cuyas facturas son TODAS PUE no requiere
-  // REP — sin esto se reportaría como pendiente (falso positivo).
+  // A payment whose invoices are ALL PUE needs no REP; without this it reads as a false positive.
   let noRequiere = 0
   let sinRepFinal = sinRep
   if (sinRep.length) {
@@ -251,7 +242,7 @@ export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) 
       payments.length === AUDIT_LIMIT
         ? `Se revisó el máximo (${AUDIT_LIMIT} pagos); acota el rango de fechas para cubrir el resto.`
         : null,
-      // Sin esto un "sin REP" podría ser truncamiento silencioso (review PR #75).
+      // Without this a "no REP" could really be silent truncation (PR #75).
       reps.length === REP_DOCS_LIMIT
         ? `Se alcanzó el máximo de documentos REP (${REP_DOCS_LIMIT}); algún "sin REP" podría deberse al corte — acota el rango de fechas.`
         : null,

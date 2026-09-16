@@ -1,7 +1,4 @@
-/**
- * Cliente GitHub — funciones puras (mapeo issue↔task, prioridad, reporter).
- * La red (fetchGitHub) se cubre en tests/api con fetch mockeado.
- */
+/** GitHub client pure functions; the network (fetchGitHub) is covered in tests/api. */
 
 import { describe, test, expect } from 'vitest'
 import {

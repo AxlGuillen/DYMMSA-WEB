@@ -26,10 +26,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, Plus, X } from '@/components/icons'
 import { useBrands, useCreateBrand, useCreateSupplier, useUpdateSupplier } from '@/hooks/useSuppliers'
+import { PAYMENT_TERM_PRESETS } from '@/lib/payables'
 import { toast } from 'sonner'
 import type { SupplierWithBrands } from '@/types/database'
 
@@ -40,7 +48,7 @@ const supplierSchema = z.object({
   email: z.string().email('Correo inválido').or(z.literal('')),
   address: z.string(),
   notes: z.string(),
-  // Días de crédito como texto (input controlado); vacío = contado → null.
+  // Credit days as text for the controlled input; empty means cash, i.e. null.
   payment_terms_days: z.string().refine(
     (v) => v === '' || (/^\d+$/.test(v.trim())),
     'Días enteros (vacío = contado)',
@@ -48,6 +56,10 @@ const supplierSchema = z.object({
 })
 
 type SupplierFormValues = z.infer<typeof supplierSchema>
+
+// Radix Select rejects an empty value: sentinels for Contado and "Otro…".
+const TERM_CASH = '__cash__'
+const TERM_OTHER = '__other__'
 
 interface SupplierFormProps {
   open: boolean
@@ -62,8 +74,7 @@ export function SupplierForm({ open, onOpenChange, supplier }: SupplierFormProps
         <DialogHeader>
           <DialogTitle>{supplier ? 'Editar proveedor' : 'Registrar proveedor'}</DialogTitle>
         </DialogHeader>
-        {/* Radix desmonta el content al cerrar → el body se monta fresco en cada
-            apertura y su estado inicial sale de props sin effects. */}
+        {/* Radix unmounts content on close, so the body remounts fresh from props. */}
         <SupplierFormBody
           key={supplier?.id ?? 'new'}
           supplier={supplier ?? null}
@@ -87,11 +98,17 @@ function SupplierFormBody({
   const { data: brands = [] } = useBrands()
   const createBrand = useCreateBrand()
 
-  // Marcas seleccionadas — fuera de RHF (lista de ids, UI de etiquetas).
+  // Selected brands live outside RHF: a list of ids with a tag UI.
   const [brandIds, setBrandIds] = useState<string[]>(
     () => supplier?.brands.map((b) => b.id) ?? [],
   )
   const [newBrand, setNewBrand] = useState('')
+  // "Otro…" opens the free input, and starts there when the saved term is no preset (#92).
+  const [isOtherTerm, setIsOtherTerm] = useState(
+    () => supplier?.payment_terms_days != null
+      && supplier.payment_terms_days > 0
+      && !PAYMENT_TERM_PRESETS.some((p) => p.days === supplier.payment_terms_days),
+  )
 
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierSchema),
@@ -102,7 +119,7 @@ function SupplierFormBody({
       email: supplier?.email ?? '',
       address: supplier?.address ?? '',
       notes: supplier?.notes ?? '',
-      payment_terms_days: supplier?.payment_terms_days != null ? String(supplier.payment_terms_days) : '',
+      payment_terms_days: supplier?.payment_terms_days ? String(supplier.payment_terms_days) : '',
     },
   })
 
@@ -110,7 +127,7 @@ function SupplierFormBody({
     setBrandIds((prev) => (prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]))
   }
 
-  // Crea la marca al vuelo y la deja seleccionada.
+  // Creates the brand on the fly and leaves it selected.
   const handleCreateBrand = async () => {
     const name = newBrand.trim()
     if (!name) return
@@ -127,6 +144,10 @@ function SupplierFormBody({
   const selectedBrands = brands.filter((b) => brandIds.includes(b.id))
 
   const onSubmit = async (values: SupplierFormValues) => {
+    if (isOtherTerm && values.payment_terms_days.trim() === '') {
+      form.setError('payment_terms_days', { message: 'Captura los días o elige Contado' })
+      return
+    }
     const payload = {
       name: values.name.trim(),
       whatsapp: values.whatsapp.trim() || null,
@@ -134,7 +155,8 @@ function SupplierFormBody({
       email: values.email.trim() || null,
       address: values.address.trim() || null,
       notes: values.notes.trim() || null,
-      payment_terms_days: values.payment_terms_days.trim() === '' ? null : Number(values.payment_terms_days),
+      // 0 is cash: storing it would read back as "0 días" instead of "Contado".
+      payment_terms_days: Number(values.payment_terms_days.trim()) || null,
       brandIds,
     }
     try {
@@ -204,15 +226,43 @@ function SupplierFormBody({
           <FormField
             control={form.control}
             name="payment_terms_days"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Plazo de pago (días)</FormLabel>
-                <FormControl>
-                  <Input inputMode="numeric" placeholder="Vacío = contado" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            render={({ field }) => {
+              const selected = isOtherTerm ? TERM_OTHER : field.value === '' ? TERM_CASH : field.value
+              return (
+                <FormItem>
+                  <FormLabel>Plazo de pago</FormLabel>
+                  <Select
+                    value={selected}
+                    onValueChange={(v) => {
+                      if (v === TERM_OTHER) {
+                        setIsOtherTerm(true)
+                        if (PAYMENT_TERM_PRESETS.some((p) => String(p.days) === field.value)) field.onChange('')
+                        return
+                      }
+                      setIsOtherTerm(false)
+                      field.onChange(v === TERM_CASH ? '' : v)
+                    }}
+                  >
+                    <SelectTrigger className="w-full" aria-label="Plazo de pago">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={TERM_CASH}>Contado</SelectItem>
+                      {PAYMENT_TERM_PRESETS.map((p) => (
+                        <SelectItem key={p.days} value={String(p.days)}>{p.label}</SelectItem>
+                      ))}
+                      <SelectItem value={TERM_OTHER}>Otro…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {isOtherTerm && (
+                    <FormControl>
+                      <Input inputMode="numeric" placeholder="Días de crédito" aria-label="Días de crédito" {...field} />
+                    </FormControl>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
           />
         </div>
         <FormField
@@ -242,7 +292,6 @@ function SupplierFormBody({
           )}
         />
 
-        {/* ── Marcas que maneja (etiquetas) ── */}
         <div className="space-y-2">
           <p className="text-sm font-medium">Marcas que maneja</p>
           {selectedBrands.length > 0 && (
@@ -280,7 +329,7 @@ function SupplierFormBody({
                     key={brand.id}
                     checked={brandIds.includes(brand.id)}
                     onCheckedChange={() => toggleBrand(brand.id)}
-                    // El menú se queda abierto para elegir varias de corrido.
+                    // The menu stays open so several can be picked in a row.
                     onSelect={(e) => e.preventDefault()}
                   >
                     {brand.name}

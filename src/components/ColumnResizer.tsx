@@ -4,28 +4,23 @@ import { useRef } from 'react'
 import { MIN_COLUMN_WIDTH } from '@/hooks/useColumnWidths'
 
 interface ColumnResizerProps {
-  /** Ancho actual de la columna en px (punto de partida del arrastre). */
+  /** Current column width in px; the drag starts from it. */
   width: number
   onResize: (width: number) => void
-  /** Doble click / tecla Home: vuelve al ancho por defecto. */
+  /** Double click / Home key: back to the default width. */
   onReset: () => void
   label?: string
 }
 
 const KEYBOARD_STEP = 16
 
-/**
- * Manija de redimensionado en el borde derecho de un `<th>` (issue #55).
- *
- * El `<th>` contenedor debe ser `relative`. Usa Pointer Events + captura para
- * que el arrastre siga funcionando aunque el cursor salga del `<th>` (arrastres
- * rápidos) y `stopPropagation` para no disparar el ordenamiento del header.
- */
+/** Resize handle on a `<th>`'s right edge (#55). The `<th>` must be `relative`.
+ *  Pointer capture keeps fast drags alive outside it; stopPropagation blocks sort. */
 export function ColumnResizer({ width, onResize, onReset, label }: ColumnResizerProps) {
   const start = useRef({ x: 0, width: 0 })
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    // Solo botón principal; evita que el header dispare sort o selección.
+    // Primary button only; keeps the header from sorting or selecting.
     if (event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
@@ -46,7 +41,7 @@ export function ColumnResizer({ width, onResize, onReset, label }: ColumnResizer
 
     target.addEventListener('pointermove', handleMove)
     target.addEventListener('pointerup', handleUp)
-    // Sin esto el arrastre va seleccionando el texto de las celdas.
+    // Without this the drag selects the cell text.
     document.body.classList.add('select-none')
   }
 

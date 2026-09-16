@@ -1,8 +1,4 @@
-/**
- * Vista guiada de la lista de órdenes (issue #74, ADR-024): anti-drift de los
- * anclajes `data-tour` y arranque vía TourButton. El tour del detalle vive en
- * OrderDetail.test.tsx, junto a su componente.
- */
+/** Orders-list tour (#74, ADR-024): `data-tour` anti-drift and TourButton start. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -22,7 +18,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('@/hooks/useOrders', () => ({
   ORDERS_KEY: ['orders'],
-  // OrdersTable lo llama a nivel de componente aunque no haya filas.
+  // OrdersTable calls it at component level even with no rows.
   useDeleteOrder: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useOrders: () => ({
     data: { data: [], count: 0, page: 1, pageSize: 20, totalPages: 1 },

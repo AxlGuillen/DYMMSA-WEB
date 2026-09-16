@@ -6,7 +6,7 @@ import { ORDERS_KEY } from '@/hooks/useOrders'
 import { resolveCutMargin, SETTING_CUT_MARGIN_MM } from '@/lib/cut-plan'
 import type { CutMaterialType, CutPlanPiece, MaterialPresentation } from '@/types/database'
 
-/** Ítem DYMMSA de la orden, con las medidas nominales del producto (pre-llenado). */
+/** Order item with the product's nominal measurements (pre-fill only). */
 export interface CutPlanCandidate {
   itemId: string
   etm: string | null
@@ -27,7 +27,7 @@ export interface CutPlanResponse {
   marginMm: number
 }
 
-/** Plan de corte de una orden; key bajo [ORDERS_KEY, id] → las mutaciones de la orden lo refrescan solas. */
+/** Keyed under [ORDERS_KEY, id] so order mutations refresh it too. */
 export function useCutPlan(orderId: string) {
   return useQuery({
     queryKey: [...ORDERS_KEY, orderId, 'cut-plan'],
@@ -48,7 +48,7 @@ export interface SaveCutPieceInput {
   source_item_id?: string | null
 }
 
-/** Reemplaza la lista de corte completa de la orden (el body es el estado deseado). */
+/** Replace-all: the body is the desired final list. */
 export function useSaveCutPlan(orderId: string) {
   const queryClient = useQueryClient()
 
@@ -75,7 +75,7 @@ export interface SavePresentationInput {
 
 export const PRESENTATIONS_KEY = ['material-presentations'] as const
 
-/** Registra una presentación del proveedor (catálogo que se arma solo); orderId solo dirige la invalidación. */
+/** orderId only steers invalidation; the presentation catalog is global. */
 export function useSavePresentation(orderId: string) {
   const queryClient = useQueryClient()
 
@@ -93,7 +93,6 @@ export function useSavePresentation(orderId: string) {
   })
 }
 
-/** Catálogo completo de medidas registradas (corte rápido + página de control). */
 export function useMaterialPresentations() {
   return useQuery({
     queryKey: PRESENTATIONS_KEY,
@@ -102,7 +101,6 @@ export function useMaterialPresentations() {
   })
 }
 
-/** Elimina una medida registrada (captura errónea — issue #71). */
 export function useDeletePresentation() {
   const queryClient = useQueryClient()
 
@@ -115,7 +113,7 @@ export function useDeletePresentation() {
   })
 }
 
-/** Margen de corte global (settings) para el modo standalone, ya resuelto. */
+/** Global cut margin from settings, default already applied. */
 export function useCutMargin() {
   return useQuery({
     queryKey: ['settings', 'cut-margin'],

@@ -1,11 +1,8 @@
 import { getResend } from './client'
 
-/**
- * Correo a DYMMSA al aprobar una cotización (ADR-012). Nunca lanza — la
- * aprobación jamás falla por correo; sin config → skipped, no error.
- */
+/** Approval notification to DYMMSA (ADR-012). Never throws: approval must not fail on email. */
 
-/** Interruptor: correo APAGADO hasta configurar Resend en producción (#25); reactivar = true. */
+/** Kill switch: email OFF until Resend is configured in production (#25). */
 const EMAIL_NOTIFICATIONS_ENABLED: boolean = false
 
 interface ApprovalNotificationInput {
@@ -26,7 +23,7 @@ function formatMXN(amount: number): string {
   return amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
 }
 
-/** Link absoluto a la cotización; sin APP_URL válida → null (el correo va sin botón). */
+/** Null when APP_URL is missing or not absolute — the email then goes without the button. */
 export function buildQuotationUrl(appUrl: string | undefined, quotationId: string): string | null {
   if (!appUrl) return null
   const base = appUrl.trim().replace(/\/+$/, '')

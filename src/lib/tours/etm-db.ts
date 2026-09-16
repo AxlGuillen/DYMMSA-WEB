@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del catálogo ETM / base de datos (issue #74). */
+/** ETM catalog / database overview (#74). */
 export const ETM_DB_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="db-filters"]',

@@ -77,7 +77,6 @@ export default async function ChangelogPage() {
           <div className="space-y-0">
             {releases.map((release, i) => (
               <div key={`${release.date}-${i}`} className="flex gap-4">
-                {/* Timeline marker + connector */}
                 <div className="flex flex-col items-center">
                   <div className="size-3 shrink-0 rounded-full bg-primary ring-4 ring-primary/15" />
                   {i < releases.length - 1 && (
@@ -85,7 +84,6 @@ export default async function ChangelogPage() {
                   )}
                 </div>
 
-                {/* Release content */}
                 <div className="flex-1 min-w-0 pb-8">
                   <div className="mb-3 flex items-center gap-2">
                     <h2 className="text-base font-semibold leading-none">

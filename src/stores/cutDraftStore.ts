@@ -4,13 +4,13 @@ import type { CutPlanCandidate } from '@/hooks/useCutPlan'
 import type { PieceDraft } from '@/components/orders/CutPlanner'
 
 /**
- * Borrador del corte rápido (#71): efímero a propósito, jamás en BD (ADR-022).
- * localStorage solo evita perder la captura por un refresh.
+ * Ephemeral by design, never in the DB (ADR-022, #71).
+ * localStorage only keeps a refresh from losing the capture.
  */
 interface CutDraftState {
   drafts: PieceDraft[]
   candidates: CutPlanCandidate[]
-  /** Nombre de la cotización que sembró los candidatos (contexto en el header). */
+  /** Quotation that seeded the candidates; shown as header context. */
   seededFrom: string | null
 }
 
@@ -27,8 +27,7 @@ export const useCutDraftStore = create<CutDraftStore>()(
     (set) => ({
       ...initialState,
       setDrafts: (drafts) => set({ drafts }),
-      // Sembrar reemplaza los candidatos previos pero CONSERVA las piezas ya
-      // capturadas (venir de otra cotización no debe borrar trabajo manual).
+      // Seeding replaces candidates but KEEPS captured pieces: manual work survives.
       seed: (candidates, from) => set({ candidates, seededFrom: from }),
       clear: () => set(initialState),
     }),

@@ -1,8 +1,5 @@
-/**
- * Tools del bloque Odoo — Fase 2: Contactos + Ventas (issue #65, ADR-025).
- * Formas reales de la instancia (2026-08-11): res.partner sin `mobile`
- * (Odoo 19), date_order como DATETIME, false para email/phone vacíos.
- */
+/** Odoo block, phase 2: contacts + sales (#65, ADR-025). Real shapes: res.partner
+ *  without `mobile` (Odoo 19), date_order as DATETIME, false for empty email/phone. */
 
 import { describe, test, expect } from 'vitest'
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -108,14 +105,14 @@ describe('odoo_customer_profile', () => {
     const result = await odooCustomerProfile(odoo, { cliente: 'Andritz' })
 
     expect(calls).toHaveLength(4)
-    // Las 3 llamadas de detalle filtran por el id del partner encontrado.
+    // The 3 detail calls filter by the id of the partner found.
     for (const call of calls.slice(1)) {
       expect(call.payload.domain).toContainEqual(['partner_id', '=', 24])
     }
     expect(result.encontrado).toBe(true)
     if (result.encontrado) {
       expect(result.cliente.vat).toBe('AHY9601017X4')
-      // Solo confirmadas (sale/done): las draft de Odoo son cotizaciones, no ventas.
+      // Only confirmed (sale/done): Odoo drafts are quotes, not sales.
       expect(result.ventas.total_confirmado).toBe(900000)
       expect(result.facturacion.total_pendiente).toBeCloseTo(20253.47)
       expect(result.facturas_vencidas[0]).toMatchObject({ folio: 'F00078', monto_pendiente: 6558.64 })

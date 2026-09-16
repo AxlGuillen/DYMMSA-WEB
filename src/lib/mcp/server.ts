@@ -1,7 +1,4 @@
-/**
- * Registro de tools MCP: lectura + 3 escrituras acotadas (ADR-015), OAuth de
- * Supabase sin service_role — el db de cada llamada sale del token (ADR-023).
- */
+/** MCP tool registry: reads + 3 scoped writes (ADR-015). Each call's db comes from the OAuth token, no service_role (ADR-023). */
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -25,10 +22,10 @@ import { getBusinessSummary } from './tools/summary'
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
 
-/** El SDK entrega el AuthInfo validado por withMcpAuth en el extra de cada llamada. */
+/** The SDK hands the AuthInfo validated by withMcpAuth in each call's extra. */
 type ToolExtra = { authInfo?: AuthInfo }
 
-/** Corre el tool con el db del token (RLS aplica); errores esperados → mensaje, resto → genérico. */
+/** Runs the tool with the token's db (RLS applies); expected errors surface their message, the rest go generic. */
 async function run(extra: ToolExtra, fn: (db: Db) => Promise<unknown>): Promise<ToolResult> {
   try {
     const { db } = contextFrom(extra.authInfo)
@@ -43,10 +40,7 @@ async function run(extra: ToolExtra, fn: (db: Db) => Promise<unknown>): Promise<
   }
 }
 
-/**
- * Lectura pura — todas las tools salvo las escrituras acotadas de ADR-015
- * (create_task, update_task, set_inventory_location).
- */
+/** Read-only — every tool except the scoped writes of ADR-015. */
 const readOnly = { readOnlyHint: true, openWorldHint: false } as const
 
 const pagination = {
@@ -69,7 +63,7 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB (solo lectura). Las cotizaciones/órdenes de aquí y las facturas de Odoo son mundos separados — no asumas cruces entre ambos.
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
-/** Instructions del server: mapa de bloques + reglas — la agrupación vive aquí, el listado es plano (#72). */
+/** Grouping lives here because the MCP tool listing itself is flat (#72). */
 export const SERVER_INSTRUCTIONS = `# MCP DYMMSA — mapa de herramientas
 
 Las tools se dividen en DOS bloques que NO se cruzan:
@@ -94,9 +88,7 @@ Regla de oro: los dos bloques son mundos separados — nunca asumas que una coti
 ${BUSINESS_RULES_MD}`
 
 export function registerDymmsaTools(server: McpServer): void {
-  // ═══ BLOQUE A — DYMMSA-WEB (títulos sin sufijo: la app es el default) ═══
-
-  // ─── Resumen ─────────────────────────────────────────────────────────
+  // Block A — DYMMSA-WEB tools (no title suffix: the app is the default).
   server.registerTool(
     'get_business_summary',
     {
@@ -109,7 +101,6 @@ export function registerDymmsaTools(server: McpServer): void {
     (_input, extra) => run(extra, (db) => getBusinessSummary(db)),
   )
 
-  // ─── Cotizaciones ────────────────────────────────────────────────────
   server.registerTool(
     'list_quotations',
     {
@@ -149,7 +140,6 @@ export function registerDymmsaTools(server: McpServer): void {
     (_input, extra) => run(extra, (db) => getQuotationStats(db)),
   )
 
-  // ─── Órdenes ─────────────────────────────────────────────────────────
   server.registerTool(
     'list_orders',
     {
@@ -189,7 +179,6 @@ export function registerDymmsaTools(server: McpServer): void {
     ({ quotation_id }, extra) => run(extra, (db) => getOrderByQuotation(db, quotation_id)),
   )
 
-  // ─── Inventario ──────────────────────────────────────────────────────
   server.registerTool(
     'search_inventory',
     {
@@ -227,13 +216,12 @@ export function registerDymmsaTools(server: McpServer): void {
         model_code: z.string().min(1).describe('Código del producto en inventario (match exacto, sin distinguir mayúsculas/minúsculas)'),
         location: z.string().optional().describe('Ubicación física/gaveta, texto libre; omite o vacío para borrarla'),
       },
-      // Escritura acotada (issue #72, ADR-015): metadato duradero, no transaccional.
+      // Scoped write (#72, ADR-015): durable metadata, not transactional.
       annotations: { readOnlyHint: false, openWorldHint: false },
     },
     (input, extra) => run(extra, (db) => setInventoryLocation(db, input)),
   )
 
-  // ─── Catálogo ETM ────────────────────────────────────────────────────
   server.registerTool(
     'search_products',
     {
@@ -249,7 +237,6 @@ export function registerDymmsaTools(server: McpServer): void {
     (input, extra) => run(extra, (db) => searchProducts(db, input)),
   )
 
-  // ─── Catálogo URREA ──────────────────────────────────────────────────
   server.registerTool(
     'search_urrea_catalog',
     {
@@ -262,7 +249,6 @@ export function registerDymmsaTools(server: McpServer): void {
     ({ query }, extra) => run(extra, (db) => searchUrreaCatalog(db, query)),
   )
 
-  // ─── Tareas ──────────────────────────────────────────────────────────
   server.registerTool(
     'list_tasks',
     {
@@ -301,7 +287,7 @@ export function registerDymmsaTools(server: McpServer): void {
         description: z.string().optional().describe('Descripción/detalle de la tarea'),
         priority: z.string().optional().describe('low | medium | high | highest'),
       },
-      // Escritura (ADR-015 Fase 2): sin readOnlyHint a propósito.
+      // Write (ADR-015 phase 2): no readOnlyHint on purpose.
       annotations: { readOnlyHint: false, openWorldHint: false },
     },
     (input, extra) => run(extra, () => createTask(input)),
@@ -320,17 +306,14 @@ export function registerDymmsaTools(server: McpServer): void {
         state: z.string().optional().describe('open (reabrir) | closed (cerrar)'),
         state_reason: z.string().optional().describe('Solo al cerrar: completed (default) | not_planned (descartada)'),
       },
-      // Escritura acotada (issue #72, ADR-015): comentar/priorizar/cerrar, nunca reescribir texto humano.
+      // Scoped write (#72, ADR-015): comment/prioritize/close, never rewrite human text.
       annotations: { readOnlyHint: false, openWorldHint: false },
     },
     (input, extra) => run(extra, () => updateTask(input)),
   )
 
-  // ═══ BLOQUE B — ODOO (externo, SOLO lectura; mundos separados, ADR-025) ═══
-
-  // ─── Odoo — Fase 1: Contabilidad (issue #65) ─────────────────────────
-  // Consultan el Odoo de la EMPRESA (tercero donde vive la facturación
-  // oficial), no la base de DYMMSA-WEB. Solo lectura, con API key del server.
+  // Block B — Odoo: the COMPANY's external invoicing system, read-only with the server API key.
+  // Separate world from block A — never assume a row here maps to one there (ADR-025).
   const domainSchema = z
     .array(z.tuple([z.string(), z.string(), z.unknown()]))
     .optional()
@@ -528,7 +511,6 @@ export function registerDymmsaTools(server: McpServer): void {
     (_input, extra) => run(extra, () => odooFleetStatus(callOdoo)),
   )
 
-  // ─── Recurso: reglas de negocio ──────────────────────────────────────
   server.registerResource(
     'reglas-negocio',
     'dymmsa://reglas-negocio',

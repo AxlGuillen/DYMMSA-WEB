@@ -4,23 +4,19 @@ import { useCallback, useMemo } from 'react'
 import { useColumnStore } from '@/stores/columnStore'
 import { useMounted } from '@/hooks/useMounted'
 
-/** Columna del picker (#18). El `id` es API persistida en localStorage — renombrarlo huerfanea la preferencia. */
+/** Picker column (#18). `id` is persisted in localStorage: renaming it orphans the preference. */
 export interface TableColumn {
   id: string
-  /** Etiqueta en español que se muestra en el picker. */
   label: string
-  /** false = siempre visible y fuera del picker (acciones, drag, identificador). */
+  /** false = always visible and out of the picker. */
   hideable?: boolean
-  /**
-   * Ancho por defecto en px para tablas redimensionables (issue #55). No se
-   * persiste: es el valor del que parte el arrastre y al que vuelve el reset.
-   */
+  /** Default px width (#55). Not persisted: reset returns here. */
   width?: number
 }
 
 /**
- * Visibilidad por tableId. SSR-safe: hasta el primer frame reporta TODO visible
- * (hidratación). `isVisible` es estable — apto para filas memoizadas.
+ * SSR-safe: reports everything visible until hydrated.
+ * `isVisible` is stable, so memoized rows keep working.
  */
 export function useVisibleColumns(tableId: string, columns: readonly TableColumn[]) {
   const hiddenIds = useColumnStore((s) => s.hidden[tableId])
@@ -43,8 +39,7 @@ export function useVisibleColumns(tableId: string, columns: readonly TableColumn
     [columns, isVisible],
   )
 
-  // Solo cuenta ocultas que EXISTEN en las defs actuales (ignora huérfanas de
-  // ids renombrados y de columnas condicionales ausentes) — el badge nunca miente.
+  // Only counts hidden ids that still exist in the defs, so the badge never lies.
   const hiddenCount = useMemo(() => {
     if (!mounted) return 0
     return (hiddenIds ?? []).filter((id) =>

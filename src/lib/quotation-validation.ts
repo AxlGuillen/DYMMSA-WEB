@@ -1,7 +1,5 @@
-/**
- * Validación pre-flight del cotizador: señala el ítem ofensor por _id y ETM.
- * ETMs duplicados NO se validan a propósito (un producto puede repetirse por sección).
- */
+/** Quoter pre-flight validation. Duplicate ETMs are NOT validated on purpose: a product may repeat
+ *  across sections. */
 
 import type { QuotationItemRow } from '@/types/database'
 import { isProductItem, isNotSold } from '@/lib/business-rules'
@@ -10,20 +8,19 @@ export type ValidationField = 'quantity' | 'unit_price' | 'etm' | 'model_code'
 export type ValidationSeverity = 'error' | 'warning'
 
 export interface QuotationValidationIssue {
-  /** `_id` de la fila ofensora (para hacer scroll y resaltar en la UI). */
+  /** `_id` of the offending row, for scroll + highlight. */
   itemId: string
-  /** ETM del ítem ofensor (puede ser null si la regla es justamente "sin ETM"). */
+  /** May be null when the rule is precisely "missing ETM". */
   etm: string | null
-  /** Campo que viola la regla. */
   field: ValidationField
-  /** error bloquea el guardado; warning solo informa. */
+  /** error blocks saving; warning only informs. */
   severity: ValidationSeverity
-  /** Mensaje en español listo para mostrar. */
+  /** Display-ready message (Spanish). */
   message: string
 }
 
 export interface ValidateOptions {
-  /** Si es true, solo valida ítems con `is_approved === true` (uso de create-order). */
+  /** Validate only items with `is_approved === true` (create-order). */
   onlyApproved?: boolean
 }
 
@@ -35,14 +32,12 @@ export function validateQuotationItems(
 
   for (const item of items) {
     if (!isProductItem(item)) continue
-    // Ítems "no lo vendemos": no exigimos precio/cantidad/ETM — el cotizador
-    // los salta a propósito, así que no deben bloquear el guardado.
+    // "Not sold" items are exempt from price/quantity/ETM: they must not block saving.
     if (isNotSold(item)) continue
     if (options.onlyApproved && item.is_approved !== true) continue
 
     const tag = item.etm || '(sin ETM)'
 
-    // 1. Cantidad debe ser > 0
     if (item.quantity == null || item.quantity <= 0) {
       issues.push({
         itemId: item._id,
@@ -53,7 +48,7 @@ export function validateQuotationItems(
       })
     }
 
-    // 2. Precio no negativo (null se permite — significa "sin precio aún")
+    // A null price is allowed: "no price yet".
     if (item.unit_price != null && item.unit_price < 0) {
       issues.push({
         itemId: item._id,
@@ -64,7 +59,6 @@ export function validateQuotationItems(
       })
     }
 
-    // 3. ETM requerido — sin ETM no podemos identificar el producto
     if (!item.etm) {
       issues.push({
         itemId: item._id,
@@ -75,7 +69,6 @@ export function validateQuotationItems(
       })
     }
 
-    // 4. model_code → warning (no bloquea)
     if (!item.model_code) {
       issues.push({
         itemId: item._id,
@@ -90,21 +83,21 @@ export function validateQuotationItems(
   return issues
 }
 
-/** Devuelve solo los issues de severidad 'error' (los que bloquean el guardado). */
+/** Only the 'error' issues — the ones that block saving. */
 export function getBlockingIssues(items: QuotationItemRow[], options: ValidateOptions = {}) {
   return validateQuotationItems(items, options).filter((i) => i.severity === 'error')
 }
 
-/** Set de IDs de items con al menos un error (para resaltar en la UI). */
+/** Ids of items with at least one error, for UI highlighting. */
 export function getErrorItemIds(items: QuotationItemRow[], options: ValidateOptions = {}): Set<string> {
   return new Set(getBlockingIssues(items, options).map((i) => i.itemId))
 }
 
-// ─── Encabezado (nombre + cliente): avisa con toast+resaltado, no deshabilita (#26) ─
+// Header fields warn with toast + highlight instead of disabling the button (#26).
 
 export type HeaderField = 'name' | 'customer'
 
-/** Campos obligatorios del encabezado que están vacíos (tras trim). */
+/** Required header fields that are empty after trim. */
 export function getMissingHeaderFields(name: string, customerName: string): HeaderField[] {
   const missing: HeaderField[] = []
   if (!name.trim()) missing.push('name')
@@ -112,7 +105,7 @@ export function getMissingHeaderFields(name: string, customerName: string): Head
   return missing
 }
 
-/** Mensaje para el toast según qué campos del encabezado faltan. '' si no falta ninguno. */
+/** Toast message for the missing header fields; '' when none is. */
 export function headerFieldsMessage(missing: HeaderField[]): string {
   const name = missing.includes('name')
   const customer = missing.includes('customer')
@@ -122,7 +115,7 @@ export function headerFieldsMessage(missing: HeaderField[]): string {
   return ''
 }
 
-/** true si la cotización no tiene ningún ítem de producto (los separadores no cuentan). */
+/** True when there is no product item at all (separators do not count). */
 export function hasNoProducts(items: QuotationItemRow[]): boolean {
   return !items.some(isProductItem)
 }

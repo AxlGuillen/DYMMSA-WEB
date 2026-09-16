@@ -1,7 +1,4 @@
-/**
- * Tools MCP del módulo Catálogo URREA (solo lectura).
- * La llave de cruce se normaliza SIEMPRE con normalizeCatalogCode (trim+upper).
- */
+/** URREA catalog tools (read-only). The join key ALWAYS goes through normalizeCatalogCode (trim+upper). */
 
 import { normalizeCatalogCode } from '@/lib/business-rules'
 import { ToolError, type Db } from '../shared'
@@ -13,7 +10,7 @@ export async function searchUrreaCatalog(db: Db, rawQuery: string) {
   const query = rawQuery.trim()
   if (!query) throw new ToolError('La búsqueda no puede estar vacía')
 
-  // 1. Match exacto → TODAS las marcas del código (identidad = code+brand; maybeSingle reventaría con ≥2).
+  // Exact match returns ALL brands of the code (identity = code+brand; maybeSingle would throw on 2+).
   const code = normalizeCatalogCode(query)
   const { data: exact, error: exactError } = await db
     .from('urrea_catalog')
@@ -26,7 +23,6 @@ export async function searchUrreaCatalog(db: Db, rawQuery: string) {
   const exactItems = (exact ?? []) as CatalogRow[]
   if (exactItems.length > 0) return { match: 'exact' as const, items: exactItems }
 
-  // 2. Búsqueda parcial por código o descripción
   const sanitized = query.replace(/[,()%]/g, ' ').trim()
   const { data, error } = await db
     .from('urrea_catalog')

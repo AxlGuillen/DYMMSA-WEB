@@ -20,7 +20,7 @@ describe('MetricCard', () => {
       <MetricCard title="Órdenes" value={99} description="x" isLoading />,
     )
     expect(screen.queryByText('99')).not.toBeInTheDocument()
-    // shadcn Skeleton lleva la clase utilitaria "animate-pulse".
+    // shadcn Skeleton carries the "animate-pulse" utility class.
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
   })
 

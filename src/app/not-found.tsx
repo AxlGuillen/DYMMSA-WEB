@@ -15,7 +15,6 @@ export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="flex w-full max-w-md flex-col items-center gap-8 text-center">
-        {/* Logo */}
         <Link href="/dashboard">
           <Image
             src="/dymmsa-logo.webp"
@@ -29,7 +28,6 @@ export default function NotFound() {
 
         <Separator />
 
-        {/* 404 Block */}
         <div className="space-y-3">
           <p className="text-8xl font-bold tracking-tighter text-muted-foreground/40">
             404
@@ -44,7 +42,6 @@ export default function NotFound() {
           </p>
         </div>
 
-        {/* Actions */}
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
           <Button asChild>
             <Link href="/dashboard">
@@ -59,7 +56,6 @@ export default function NotFound() {
         </div>
       </div>
 
-      {/* Footer */}
       <p className="absolute bottom-6 text-xs text-muted-foreground">
         DYMMSA &copy; {CURRENT_YEAR}
       </p>

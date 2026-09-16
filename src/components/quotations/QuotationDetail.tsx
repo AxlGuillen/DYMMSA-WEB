@@ -110,10 +110,6 @@ import { getBlockingIssues } from '@/lib/quotation-validation'
 import { scrollToRow } from '@/lib/dom-helpers'
 import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime, QuotationStatus } from '@/types/database'
 
-// ------------------------------------------------------------------ //
-// Types                                                               //
-// ------------------------------------------------------------------ //
-
 type ApprovalFilter = 'all' | 'approved' | 'rejected' | 'pending'
 type SortField = 'description' | 'unit_price' | 'quantity' | 'delivery_time'
 type SortDir = 'asc' | 'desc'
@@ -127,10 +123,6 @@ const DELIVERY_ORDER: Record<DeliveryTime, number> = {
   indefinite: 5,
 }
 
-// ------------------------------------------------------------------ //
-// SortableHead (matches ProductsTable pattern)                        //
-// ------------------------------------------------------------------ //
-
 function SortableHead({
   col,
   columnId,
@@ -143,7 +135,7 @@ function SortableHead({
   className,
 }: {
   col: SortField
-  /** Id de columna del picker; llave del ancho. Por defecto el campo de orden. */
+  /** Picker column id and width key; defaults to the sort field. */
   columnId?: string
   label: string
   widths: ColumnWidths
@@ -176,16 +168,12 @@ function SortableHead({
   )
 }
 
-// ------------------------------------------------------------------ //
-// Sortable separator row                                              //
-// ------------------------------------------------------------------ //
-
 interface SortableSeparatorDetailRowProps {
   item: QuotationItemRow
   canEdit: boolean
   isDndEnabled: boolean
   totalCols: number
-  /** Posición del separador entre los separadores (color automático, issue #73). */
+  /** Index among separators; drives the automatic color (#73). */
   sectionIndex: number
   onLabelChange: (id: string, label: string) => void
   onColorChange: (id: string, color: string | null) => void
@@ -265,10 +253,6 @@ function SortableSeparatorDetailRow({
   )
 }
 
-// ------------------------------------------------------------------ //
-// Sortable row                                                        //
-// ------------------------------------------------------------------ //
-
 interface SortableDetailRowProps {
   item: QuotationItemRow
   canEdit: boolean
@@ -280,7 +264,7 @@ interface SortableDetailRowProps {
   onRemove: (id: string) => void
   onAddSeparatorAfter: (id: string) => void
   onApprovalChange: (id: string, value: boolean | null) => void
-  /** Visibilidad de columnas (identidad estable). */
+  /** Column visibility; the identity must stay stable. */
   isVisible: (columnId: string) => boolean
 }
 
@@ -443,10 +427,6 @@ function SortableDetailRow({
   )
 }
 
-// ------------------------------------------------------------------ //
-// Helpers                                                             //
-// ------------------------------------------------------------------ //
-
 const toItemRow = (item: QuotationItem): QuotationItemRow => ({
   _id:            item.id,
   _dbId:          item.id,
@@ -470,19 +450,14 @@ const toItemRow = (item: QuotationItem): QuotationItemRow => ({
 const isMissingData     = (item: QuotationItemRow) => isProductRow(item) && !item.description && !item.model_code
 const isMissingQuantity = (item: QuotationItemRow) => isProductRow(item) && !isMissingData(item) && item.quantity == null
 
-// Siempre devuelve UN fondo opaco (ver `notSoldRowClass`): la columna fija de
-// acciones lo hereda con `bg-inherit` y con alfa se vería el contenido de las
-// columnas pasando por debajo al hacer scroll lateral.
+// Always an OPAQUE background: the sticky actions column inherits it with
+// `bg-inherit`, and alpha would leak the scrolled columns underneath.
 const getRowClass = (item: QuotationItemRow) => {
   if (isNotSold(item))         return notSoldRowClass(item.is_sold)
   if (isMissingData(item))     return 'bg-orange-50 dark:bg-[color-mix(in_oklab,var(--color-orange-950)_20%,var(--background))]'
   if (isMissingQuantity(item)) return 'bg-yellow-50 dark:bg-[color-mix(in_oklab,var(--color-yellow-950)_20%,var(--background))]'
   return 'bg-background'
 }
-
-// ------------------------------------------------------------------ //
-// Component                                                           //
-// ------------------------------------------------------------------ //
 
 interface QuotationDetailProps {
   quotation: QuotationWithItems
@@ -493,7 +468,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const { refresh, push } = useRouter()
   const fmt = useCurrency()
 
-  // ── Draft editing state ─────────────────────────────────────────
   // oxlint-disable-next-line react-doctor/no-derived-useState -- intentional pattern; structural refactor tracked separately
   const [localQuotationName, setLocalQuotationName] = useState(quotation.name)
   // oxlint-disable-next-line react-doctor/no-derived-useState -- intentional pattern; structural refactor tracked separately
@@ -503,21 +477,18 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   )
   const [isDirty, setIsDirty] = useState(false)
 
-  // Modal state
   const [modalOpen, setModalOpen]       = useState(false)
   const [modalMode, setModalMode]       = useState<'edit' | 'create'>('create')
   const [selectedItem, setSelectedItem] = useState<QuotationItemRow | undefined>()
 
-  // Copy-link state
   const [copied, setCopied] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
-  // Sort & filter state
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all')
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDir, setSortDir]     = useState<SortDir>('asc')
 
-  // _id de filas con error pre-flight o reportadas por el backend (offendingEtm).
+  // Row _ids flagged pre-flight or reported by the backend (offendingEtm).
   const [errorItemIds, setErrorItemIds] = useState<ReadonlySet<string>>(new Set())
 
   const sendForApproval     = useSendForApproval()
@@ -526,7 +497,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   const deleteQuotation     = useDeleteQuotation()
   const changeStatus        = useChangeQuotationStatus()
 
-  // Estado destino pendiente de confirmar en el dialog de cambio de estado.
+  // Target status awaiting confirmation in the dialog.
   const [pendingStatus, setPendingStatus] = useState<QuotationStatus | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor))
@@ -543,9 +514,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const { data: relatedOrder } = useOrderByQuotationId(quotation.id, isConvertedToOrder)
 
-  // Desde la cotización se empieza a pensar el corte, antes de que exista la
-  // orden (issue #71): el botón siembra el modo rápido con las piezas DYMMSA.
-  // Misma detección que OrderDetail; "no lo vendemos" fuera (no se manda a hacer).
+  // Cutting gets planned before the order exists (#71); "not sold" items are out
+  // because they are never manufactured.
   const hasDymmsaItems = quotation.quotation_items.some(
     (item) =>
       (!item.item_type || item.item_type === 'product') &&
@@ -569,9 +539,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  // Re-sync local state when quotation IDs change OR when item IDs change.
-  // After save, the route DELETE+INSERT regenerates item IDs, so we react to
-  // the items signature to keep localItems in sync with the refetched data.
+  // Saving DELETEs+INSERTs items and regenerates their IDs, so this signature is
+  // what tells us the refetched data is new.
   const itemsSignature = quotation.quotation_items.map((i) => i.id).join('|')
 
   // oxlint-disable-next-line react-doctor/no-cascading-set-state -- intentional pattern; structural refactor tracked separately
@@ -587,7 +556,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quotation.id, itemsSignature]) // oxlint-disable-line react-doctor/exhaustive-deps -- intentional effect; refactor tracked separately
 
-  // ── Item editing handlers ───────────────────────────────────────
   const handleEdit = (item: QuotationItemRow) => {
     setSelectedItem(item)
     setModalMode('edit')
@@ -665,8 +633,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     setIsDirty(true)
   }
 
-  // Índice de sección por separador sobre la lista COMPLETA (no la filtrada):
-  // el color automático no debe cambiar al filtrar por aprobación (issue #73).
+  // Indexed over the FULL list: the automatic color must not shift when the
+  // approval filter hides rows (#73).
   const sectionIndexById = useMemo(() => {
     const map = new Map<string, number>()
     let n = 0
@@ -691,7 +659,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     setIsDirty(true)
   }
 
-  // ── Sort handler ────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -701,14 +668,12 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  // ── Approval filter toggle (same pattern as orders page) ────────
   const handleFilterToggle = (key: ApprovalFilter) => {
     setApprovalFilter((prev) => (prev === key && key !== 'all' ? 'all' : key))
   }
 
-  // ── Save changes ────────────────────────────────────────────────
   const handleSave = async () => {
-    // Pre-flight: atrapar errores conocidos antes del request.
+    // Pre-flight: catch known issues before the request.
     const blocking = getBlockingIssues(localItems)
     if (blocking.length > 0) {
       const first = blocking[0]
@@ -739,7 +704,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  /** Manejo centralizado de errores: 401 → login, offendingEtm → resaltar, fallback. */
+  /** 401 → login, offendingEtm → highlight that row, otherwise a generic toast. */
   const handleApiError = (error: unknown, lookupItems: QuotationItemRow[], fallbackMsg: string) => {
     if (error instanceof ApiError) {
       if (error.code === 'AUTH_EXPIRED') {
@@ -760,7 +725,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     toast.error(error instanceof Error ? error.message : fallbackMsg)
   }
 
-  // ── Manual status change (revert / lateral move) ────────────────
   const handleConfirmStatusChange = async () => {
     if (!pendingStatus) return
     const target = pendingStatus
@@ -779,9 +743,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  // ── Send for approval ───────────────────────────────────────────
   const handleSendForApproval = async () => {
-    // Pre-flight: si hay cambios pendientes, validar antes de auto-guardar
+    // Validate before the auto-save so a broken item never gets persisted.
     if (isDirty) {
       const blocking = getBlockingIssues(localItems)
       if (blocking.length > 0) {
@@ -814,7 +777,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  // ── Copy approval link ──────────────────────────────────────────
   const approvalUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/approve/${quotation.approval_token}`
     : ''
@@ -826,9 +788,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // ── Create order from approved quotation ────────────────────────
   const handleCreateOrder = async () => {
-    // Pre-flight: solo valida ítems APROBADOS (los que terminarán en la orden).
+    // Only APPROVED items are validated: they are the ones reaching the order.
     const blocking = getBlockingIssues(localItems, { onlyApproved: true })
     if (blocking.length > 0) {
       const first = blocking[0]
@@ -845,8 +806,7 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     setErrorItemIds(new Set())
 
     try {
-      // Auto-save pending changes before creating the order so all items (including
-      // post-approval additions and their is_approved state) are persisted first.
+      // Persist first so post-approval additions and their is_approved reach the order.
       if (isDirty) {
         await updateQuotation.mutateAsync({
           id:            quotation.id,
@@ -875,21 +835,19 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  // ── Items, stats & derived display ─────────────────────────────
   const rawItems = canEdit ? localItems : quotation.quotation_items.map(toItemRow)
   const rawProductItems = rawItems.filter(isProductRow)
   const hasSeparators = rawItems.some((i) => i.item_type === 'separator')
 
   const partialTotal = calculateQuotationTotal(rawProductItems)
 
-  // Use local state for counts so new/modified items are reflected immediately
+  // Count from local state so new/modified items show up immediately.
   const approvedCount = rawProductItems.filter((i) => i.is_approved === true).length
   const rejectedCount = rawProductItems.filter((i) => i.is_approved === false).length
   const pendingCount  = rawProductItems.filter((i) => i.is_approved == null).length
   const noDataCount     = isDraft ? rawProductItems.filter(isMissingData).length : 0
   const noQuantityCount = isDraft ? rawProductItems.filter(isMissingQuantity).length : 0
   const totalCount      = rawProductItems.length
-  // Desglose por "¿lo vendemos?" (subs de la tarjeta Productos)
   const soldYesCount   = rawProductItems.filter((i) => i.is_sold === true).length
   const soldNoCount    = rawProductItems.filter((i) => i.is_sold === false).length
   const soldUndefCount = rawProductItems.filter((i) => i.is_sold == null).length
@@ -899,11 +857,10 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     localName.trim().length > 0 &&
     localItems.some(isProductRow)
 
-  // Para reabrir una cotización convertida, su orden vinculada debe estar ELIMINADA.
+  // Reopening a converted quotation requires its linked order to be deleted.
   const hasBlockingOrder = isConvertedToOrder && !!relatedOrder
-  // El cambio de estado se bloquea con cambios sin guardar (evita perderlos en el refresh).
+  // Unsaved changes block the status change: the refresh would drop them.
   const statusChangeBlocked = changeStatus.isPending || hasBlockingOrder || isDirty
-  // Razón por la que el dropdown está deshabilitado (para tooltip + hint).
   const statusHint = hasBlockingOrder
     ? 'Esta cotización ya tiene una orden creada. Elimina esa orden para poder reabrirla y volver a trabajarla.'
     : isDirty
@@ -953,9 +910,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
 
   const displayItemIds = useMemo(() => displayItems.map((i) => i._id), [displayItems])
 
-  // Columnas (#18): las condicionales por status entran solo cuando aplican — el picker ofrece lo presente.
+  // Status-conditional columns enter only when they apply, so the picker offers what exists (#18).
   const itemColumns = useMemo<TableColumn[]>(() => [
-    // La manija de arrastre es un ancho fijo de icono: no se redimensiona.
+    // Drag handle is a fixed icon width: not resizable.
     ...(canEdit ? [{ id: 'drag', label: 'Reordenar', hideable: false, width: 40 }] : []),
     { id: 'etm', label: 'ETM', hideable: false, width: 120 },
     { id: 'description', label: 'Descripción', width: 240 },
@@ -976,7 +933,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
   return (
     <div className="space-y-6">
 
-      {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => push('/dashboard/quotations')}>
           <ArrowLeft className="size-5" />
@@ -1006,15 +962,13 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
           )}
         </div>
 
-        {/* Action buttons */}
         <div data-tour="qd-actions" className="flex items-center gap-2">
           <TourButton tour="quotation-detail" />
-          {/* Manual status control */}
           <div data-tour="qd-status" className="flex flex-col items-end gap-0.5">
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* Span envolvente: un Select deshabilitado no dispara hover por sí solo. */}
+                  {/* Wrapper span: a disabled Select fires no hover on its own. */}
                   <span className="inline-flex" tabIndex={statusHint ? 0 : -1}>
                     <Select
                       value={quotation.status}
@@ -1097,8 +1051,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
-                  // text-white explícito: el default hereda text-primary-foreground,
-                  // que en dark es casi negro → sin contraste sobre el verde.
+                  // Explicit text-white: the default inherits text-primary-foreground,
+                  // near-black in dark, with no contrast over the green.
                   className="bg-green-600 text-white hover:bg-green-700"
                   disabled={createOrderMutation.isPending || updateQuotation.isPending}
                 >
@@ -1149,7 +1103,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             </Button>
           )}
 
-          {/* Delete — always available */}
           <Button
             type="button"
             variant="ghost"
@@ -1187,7 +1140,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Confirm manual status change */}
           <AlertDialog
             open={pendingStatus !== null}
             onOpenChange={(o) => { if (!o && !changeStatus.isPending) setPendingStatus(null) }}
@@ -1218,7 +1170,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </div>
       </div>
 
-      {/* Approval link banner */}
       {isSentForApproval && (
         <Card data-tour="qd-approval-link" className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
           <CardContent className="pt-4 pb-4">
@@ -1239,7 +1190,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </Card>
       )}
 
-      {/* Rejected banner */}
       {isRejected && (
         <Card className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800">
           <CardContent className="pt-4 pb-4">
@@ -1253,7 +1203,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </Card>
       )}
 
-      {/* Converted to order banner */}
       {isConvertedToOrder && (
         <Card className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
           <CardContent className="pt-4 pb-4">
@@ -1288,11 +1237,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </Card>
       )}
 
-      {/* Stats / Filter cards */}
       {hasApprovalData ? (
-        /* Approval filter cards — clickable, same pattern as orders page */
         <div data-tour="qd-stats" className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          {/* Todos (acts as reset) */}
           <button type="button"
             onClick={() => handleFilterToggle('all')}
             className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
@@ -1305,7 +1251,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <p className="text-2xl font-bold">{totalCount}</p>
           </button>
 
-          {/* Aprobados */}
           <button type="button"
             onClick={() => handleFilterToggle('approved')}
             className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
@@ -1318,7 +1263,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <p className="text-2xl font-bold text-green-700 dark:text-green-300">{approvedCount}</p>
           </button>
 
-          {/* Rechazados */}
           <button type="button"
             onClick={() => handleFilterToggle('rejected')}
             className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
@@ -1331,7 +1275,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <p className="text-2xl font-bold text-red-700 dark:text-red-300">{rejectedCount}</p>
           </button>
 
-          {/* Pendientes */}
           <button type="button"
             onClick={() => handleFilterToggle('pending')}
             className={`rounded-lg border p-4 text-left transition-colors cursor-pointer
@@ -1344,7 +1287,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
             <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{pendingCount}</p>
           </button>
 
-          {/* Total (non-clickable) */}
           <Card>
             <CardContent className="pt-4 pb-4">
               <p className="text-xs text-muted-foreground">Total</p>
@@ -1357,7 +1299,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
           </Card>
         </div>
       ) : (
-        /* Regular stats (draft / converted / rejected) */
         <div data-tour="qd-stats" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card>
             <CardContent className="pt-4 pb-4">
@@ -1414,7 +1355,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </div>
       )}
 
-      {/* Name + Customer name inputs (editable quotations) */}
       {canEdit && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           <div className="space-y-1.5">
@@ -1442,7 +1382,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </div>
       )}
 
-      {/* Products section */}
       <Card data-tour="qd-items">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -1584,9 +1523,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
                 <TableFooter>
                   <TableRow>
                     {(() => {
-                      // Alineación derivada de las columnas VISIBLES: label hasta
-                      // Subtotal + una celda vacía por columna posterior. Si
-                      // Subtotal está oculta, una sola celda fusionada.
+                      // Alignment follows the VISIBLE columns: label up to Subtotal plus one
+                      // empty cell per later column; with Subtotal hidden, a single merged cell.
                       const subIdx = cols.visibleColumns.findIndex((c) => c.id === 'subtotal')
                       if (subIdx < 0) {
                         return (
@@ -1617,7 +1555,6 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
         </CardContent>
       </Card>
 
-      {/* Product modal */}
       {canEdit && (
         <ProductModal
           mode={modalMode}

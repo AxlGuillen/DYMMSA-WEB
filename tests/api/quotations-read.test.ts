@@ -1,11 +1,3 @@
-/**
- * Quotations — read handlers migrados al server side (antes el cliente
- * consultaba Supabase directo). Flujo crítico del programa.
- *   - GET /[id]: embed quotation_items(*), orden sort_order, limit(5000), 404
- *   - GET (list): shape paginado, búsqueda .or, whitelist de status, items_count
- *   - GET /stats: reduce por status
- */
-
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, findFilter, filterValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'

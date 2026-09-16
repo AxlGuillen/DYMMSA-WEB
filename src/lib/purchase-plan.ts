@@ -1,8 +1,5 @@
-/**
- * Planificador de compra: mayoreo URREA vs menudeo, lógica pura del ADR-018.
- * La decisión es por orden (nunca verdad global) y la matemática corre sobre
- * cantidades consolidadas por catalogKey; la decisión real es sobre el resto.
- */
+/** Purchase planner (ADR-018): wholesale vs retail, decided per order (never a global truth), over
+ *  quantities consolidated by catalogKey — the real choice is about the remainder. */
 
 import type { OrderPurchaseDecision } from '@/types/database'
 import {
@@ -12,12 +9,10 @@ import {
   normalizeCatalogCode,
 } from '@/lib/business-rules'
 
-// ─── Umbrales configurables ────────────────────────────────────────────
-
 export interface PurchaseThresholds {
-  /** Dinero parado (MXN) a partir del cual el resto conviene a menudeo. */
+  /** Money parked (MXN) above which the remainder is better bought retail. */
   money: number
-  /** Fracción del paquete extra que quedaría parada a partir de la cual se pide revisión. */
+  /** Fraction of the extra package left parked that forces a manual review. */
   pct: number
 }
 
@@ -30,7 +25,7 @@ function asFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-/** Settings crudos + defaults; valores inválidos caen al default — la config nunca rompe el plan. */
+/** Invalid values fall back to the defaults so config never breaks the plan. */
 export function resolveThresholds(settings: Record<string, unknown>): PurchaseThresholds {
   const money = asFiniteNumber(settings[SETTING_THRESHOLD_MONEY])
   const pct = asFiniteNumber(settings[SETTING_THRESHOLD_PCT])
@@ -40,9 +35,7 @@ export function resolveThresholds(settings: Record<string, unknown>): PurchaseTh
   }
 }
 
-// ─── Entradas ──────────────────────────────────────────────────────────
-
-/** Subset estructural de OrderItem que necesita el planificador. */
+/** Structural subset of OrderItem the planner needs. */
 export interface PlannableItem {
   id: string
   item_type?: string | null
@@ -55,20 +48,18 @@ export interface PlannableItem {
   unit_price: number
 }
 
-/** Fila del catálogo URREA relevante para el plan (ver fetchCatalogEntryMap). */
+/** Catalog row relevant to the plan (see fetchCatalogEntryMap). */
 export interface CatalogEntry {
   std: number
   description: string | null
 }
 
-// ─── Consolidación ─────────────────────────────────────────────────────
-
-/** Línea original de la orden que alimenta un grupo (para la vista expandible). */
+/** Original order line feeding a group. */
 export interface PurchaseSourceLine {
   itemId: string
   etm: string | null
   sectionLabel: string | null
-  /** model_code tal como está en la orden (crudo — puede diferir del normalizado). */
+  /** Raw model_code from the order; may differ from the normalized one. */
   modelCodeRaw: string
   description: string | null
   quantityToOrder: number
@@ -76,21 +67,18 @@ export interface PurchaseSourceLine {
 }
 
 export interface ConsolidatedGroup {
-  /** catalogKey(model_code, brand); las líneas sin model_code no se fusionan entre sí. */
+  /** catalogKey(model_code, brand); lines without model_code never merge. */
   key: string
-  modelCode: string // normalizado
-  brand: string // normalizado
-  /** Σ quantity_to_order de las líneas del grupo. */
+  modelCode: string // normalized
+  brand: string // normalized
+  /** Σ quantity_to_order of the group's lines. */
   needed: number
-  /** Promedio ponderado por cantidad de las líneas con precio > 0; null si ninguna lo tiene. */
+  /** Quantity-weighted average of the lines priced > 0; null when none is. */
   unitPrice: number | null
   lines: PurchaseSourceLine[]
 }
 
-/**
- * Agrupa por catalogKey (solo productos con to_order > 0, orden estable).
- * Sin model_code no hay cruce seguro → cada ítem es su propio grupo (local).
- */
+/** Groups by catalogKey. Without model_code there is no safe cross, so each item is its own group. */
 export function consolidateOrderItems(items: PlannableItem[]): ConsolidatedGroup[] {
   const groups = new Map<string, ConsolidatedGroup>()
 
@@ -138,21 +126,19 @@ export function consolidateOrderItems(items: PlannableItem[]): ConsolidatedGroup
   return [...groups.values()]
 }
 
-// ─── Matemática de decisión ────────────────────────────────────────────
-
 export interface PurchaseGroupMath {
   needed: number
   std: number
   unitPrice: number | null
-  /** Paquetes completos que caben en la necesidad: floor(N / STD). */
+  /** floor(N / STD). */
   packagesFull: number
-  /** Piezas que no llenan un paquete: N mod STD. La decisión real es sobre esto. */
+  /** N mod STD — the real decision is about this. */
   remainder: number
-  /** Piezas excedentes si el resto se redondea a un paquete extra. */
+  /** Extra pieces if the remainder is rounded up to one more package. */
   excess: number
-  /** excedente × precio; null cuando el grupo no tiene precio utilizable. */
+  /** excess × price; null when the group has no usable price. */
   parkedMoney: number | null
-  /** Fracción del paquete extra que quedaría parada: excess / std. */
+  /** excess / std. */
   parkedPct: number
 }
 
@@ -176,30 +162,25 @@ export function computeGroupMath(
   }
 }
 
-// ─── Recomendación ─────────────────────────────────────────────────────
-
-/** Opciones de decisión del usuario por grupo. */
 export type PurchaseChoice = 'wholesale' | 'mixed' | 'retail'
 
 export type RecommendationType =
-  | 'wholesale_exact' // encaja exacto en paquetes: no hay nada que decidir
-  | 'mixed' // el resto deja demasiado dinero parado → resto a menudeo
-  | 'review' // % parado alto con dinero bajo el umbral → decide el usuario
-  | 'wholesale_rounded' // el excedente es barato → redondear al paquete extra
+  | 'wholesale_exact' // exact package fit: nothing to decide
+  | 'mixed' // the remainder parks too much money → buy it retail
+  | 'review' // high parked % under the money threshold → the user decides
+  | 'wholesale_rounded' // cheap excess → round up to the extra package
 
 export interface PurchaseRecommendation {
   type: RecommendationType
-  /** Elección sugerida; null en 'review' (el usuario debe decidir). */
+  /** null on 'review': the user must decide. */
   suggested: PurchaseChoice | null
-  /** Reparto sugerido (en 'review': el mixto, como referencia). */
+  /** Suggested split; on 'review' the mixed one, as reference. */
   packagesWholesale: number
   qtyRetail: number
 }
 
-/**
- * Recomendación sobre el RESTO: dinero parado (>, estricto) antes que % parado
- * (≥, inclusivo); sin precio solo aplica el % (ADR-018 §4).
- */
+/** Decides on the REMAINDER: parked money (>, strict) before parked % (≥, inclusive); with no price
+ *  only the % applies (ADR-018 §4). */
 export function recommendPurchase(
   math: PurchaseGroupMath,
   thresholds: PurchaseThresholds,
@@ -216,7 +197,7 @@ export function recommendPurchase(
   if (math.parkedMoney != null && math.parkedMoney > thresholds.money) {
     return {
       type: 'mixed',
-      // Con 0 paquetes completos el mixto ES menudeo puro — nombrarlo como tal.
+      // With 0 full packages, mixed IS pure retail — name it so.
       suggested: math.packagesFull > 0 ? 'mixed' : 'retail',
       packagesWholesale: math.packagesFull,
       qtyRetail: math.remainder,
@@ -240,7 +221,7 @@ export function recommendPurchase(
   }
 }
 
-/** Elección → cantidades: wholesale=ceil a paquetes; mixed=floor+resto; retail=todo a menudeo. */
+/** wholesale = round up to packages; mixed = floor + remainder; retail = everything retail. */
 export function applyChoice(
   math: PurchaseGroupMath,
   choice: PurchaseChoice,
@@ -258,26 +239,24 @@ export function applyChoice(
   }
 }
 
-// ─── Resumen económico del plan ────────────────────────────────────────
-
 export interface PurchasePlanTotals {
-  /** Piezas que sobran por redondear al paquete, según lo YA decidido. */
+  /** Pieces left over from rounding up, per the decisions ALREADY made. */
   parkedPieces: number
-  /** Dinero de esas piezas (excedente × precio). Grupos sin precio no suman. */
+  /** Money in those pieces; groups without a price add nothing. */
   parkedMoney: number
-  /** Grupos que están parando dinero (mayoreo con resto). */
+  /** Groups parking money (wholesale with a remainder). */
   parkedGroups: number
-  /** Piezas que se evitó parar al mandar el resto a menudeo (mixto/menudeo). */
+  /** Pieces spared from parking by buying the remainder retail. */
   savedPieces: number
-  /** Dinero evitado con esas decisiones — el "ahorro" frente a redondear todo. */
+  /** Money spared against rounding everything up. */
   savedMoney: number
   savedGroups: number
-  /** Paquetes y piezas que van a URREA. */
+  /** Packages and pieces going to URREA. */
   wholesalePackages: number
   wholesalePieces: number
-  /** Piezas que van a menudeo (restos + grupos completos a menudeo). */
+  /** Pieces going retail: remainders + full retail groups. */
   retailPieces: number
-  /** Grupos aún sin decidir (marcados "Revisar"). */
+  /** Groups still undecided ("Revisar"). */
   undecidedGroups: number
 }
 
@@ -288,10 +267,7 @@ const EMPTY_TOTALS: PurchasePlanTotals = {
   undecidedGroups: 0,
 }
 
-/**
- * Resumen económico de lo YA decidido: "parado" = mayoreo con resto,
- * "ahorrado" = su espejo a menudeo; sin decidir no cuenta en ninguno (ADR-018).
- */
+/** Only DECIDED groups count: "parked" = wholesale with a remainder, "saved" = its retail mirror (ADR-018). */
 export function summarizePlanDecisions(
   groups: readonly PurchaseGroupPlan[],
   choiceOf: (group: PurchaseGroupPlan) => PurchaseChoice | null,
@@ -300,7 +276,7 @@ export function summarizePlanDecisions(
 
   for (const group of groups) {
     const math = group.math
-    if (!math) continue // bucket 'local': sin STD no hay math que agregar
+    if (!math) continue // 'local' bucket: no STD, nothing to aggregate
 
     const choice = choiceOf(group)
     if (!choice) {
@@ -313,7 +289,7 @@ export function summarizePlanDecisions(
     totals.wholesalePieces += packagesWholesale * math.std
     totals.retailPieces += qtyRetail
 
-    if (math.remainder === 0) continue // encaja exacto: no hay excedente en juego
+    if (math.remainder === 0) continue // exact fit: no excess at stake
 
     const money = math.parkedMoney ?? 0
     if (choice === 'wholesale') {
@@ -330,9 +306,7 @@ export function summarizePlanDecisions(
   return totals
 }
 
-// ─── Staleness ─────────────────────────────────────────────────────────
-
-/** Stale si cambió la necesidad, el STD, o el grupo salió del catálogo — el Excel jamás usa múltiplos viejos sin avisar. */
+/** Stale when need, STD or catalog membership changed — the Excel never uses old multiples silently. */
 export function isDecisionStale(
   decision: Pick<OrderPurchaseDecision, 'needed_qty' | 'std_snapshot'>,
   currentNeeded: number,
@@ -343,12 +317,10 @@ export function isDecisionStale(
   return false
 }
 
-// ─── Armado del plan ───────────────────────────────────────────────────
-
 export type PurchaseBucket =
-  | 'urrea' // en catálogo, con precio → math + recomendación completas
-  | 'no_data' // en catálogo pero sin precio utilizable → solo regla de %
-  | 'local' // no está en el catálogo → compra local directa, sin math
+  | 'urrea' // in catalog and priced → full math + recommendation
+  | 'no_data' // in catalog but with no usable price → % rule only
+  | 'local' // not in the catalog → local purchase, no math
 
 export interface PurchaseGroupPlan {
   key: string
@@ -356,23 +328,23 @@ export interface PurchaseGroupPlan {
   brand: string
   bucket: PurchaseBucket
   catalogDescription: string | null
-  /** STD del catálogo; null en bucket 'local'. */
+  /** Catalog STD; null in the 'local' bucket. */
   std: number | null
   needed: number
   unitPrice: number | null
   lines: PurchaseSourceLine[]
-  /** null en bucket 'local' (sin STD no hay matemática). */
+  /** null in the 'local' bucket: no STD, no math. */
   math: PurchaseGroupMath | null
-  /** null en bucket 'local'. */
+  /** null in the 'local' bucket. */
   recommendation: PurchaseRecommendation | null
-  /** Decisión guardada para ESTA orden, si existe. */
+  /** Saved decision for THIS order, if any. */
   decision: (OrderPurchaseDecision & { isStale: boolean }) | null
 }
 
 export interface PurchasePlan {
-  /** Grupos en orden de aparición: primero los que llevan math (urrea/no_data), luego local. */
+  /** Groups carrying math (urrea/no_data) first, then local. */
   groups: PurchaseGroupPlan[]
-  /** Decisiones guardadas cuyo grupo ya no existe en la orden (se limpian al re-guardar). */
+  /** Saved decisions whose group no longer exists in the order; cleared on re-save. */
   orphanDecisions: OrderPurchaseDecision[]
   thresholds: PurchaseThresholds
   summary: {
@@ -384,7 +356,7 @@ export interface PurchasePlan {
   }
 }
 
-/** Plan completo: consolida → buckets → math+recomendación → casa decisiones (con staleness). */
+/** consolidate → buckets → math + recommendation → match saved decisions (with staleness). */
 export function buildPurchasePlan(
   items: PlannableItem[],
   catalog: Map<string, CatalogEntry>,
@@ -402,8 +374,7 @@ export function buildPurchasePlan(
 
   for (const group of consolidated) {
     const entry = catalog.get(group.key) ?? null
-    // Defensivo: la columna std es NOT NULL CHECK > 0, pero un valor inválido
-    // no debe producir divisiones entre cero — se trata como "sin catálogo".
+    // Defensive: an invalid std must never divide by zero — treated as "not in catalog".
     const std = entry && entry.std > 0 ? entry.std : null
 
     let bucket: PurchaseBucket

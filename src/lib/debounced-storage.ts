@@ -1,7 +1,5 @@
-/**
- * localStorage con setItem debounced: escribir ~1000 ítems por mutación traba
- * el hilo. Flush en pagehide/hidden; getItem sirve lo pendiente (read-your-writes).
- */
+/** Debounced localStorage: writing ~1000 items per mutation stalls the thread. Flushes on
+ *  pagehide/hidden; getItem serves what is pending (read-your-writes). */
 export function createDebouncedStorage(
   backing: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined,
   delayMs = 500,
@@ -22,8 +20,7 @@ export function createDebouncedStorage(
       try {
         backing.setItem(key, value)
       } catch {
-        // Cuota llena u otro fallo de storage: se ignora (mismo criterio que
-        // el persist por defecto — no debe tumbar la app).
+        // Quota full or any storage failure: ignored, it must not take down the app.
       }
     }
     pending.clear()
@@ -53,9 +50,7 @@ export function createDebouncedStorage(
     removeItem: (name: string): void => {
       pending.delete(name)
       backing?.removeItem(name)
-      // Si aún quedan otras keys pendientes, re-agenda su flush; solo cancela el
-      // timer cuando no queda nada por escribir. (El store usa una sola key hoy,
-      // pero borrar una no debe dejar a las demás sin flush.)
+      // Re-schedule remaining keys; only cancel the timer when nothing is left to write.
       if (pending.size > 0) schedule()
       else if (timer) {
         clearTimeout(timer)
@@ -63,7 +58,7 @@ export function createDebouncedStorage(
       }
     },
 
-    /** Expuesto para tests y para forzar la escritura pendiente si hiciera falta. */
+    /** Exposed for tests and to force a pending write. */
     flush,
   }
 }

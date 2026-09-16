@@ -14,11 +14,8 @@ interface CutSheetDiagramProps {
 const VIEW_W = 1000
 const VIEW_H = 140
 
-/**
- * Hoja de placa vista desde arriba (#64/#81): largo en X, ancho en Y. Cada
- * pieza va en su posición real del acomodo por carriles; sobrantes punteados
- * por carril y en la banda de ancho libre. Imprimible para el taller.
- */
+/** Plate sheet from above (#64/#81): length on X, width on Y, pieces at their
+ *  real lane positions. Printable for the shop floor. */
 export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }: CutSheetDiagramProps) {
   const kerfPatternId = useId()
   if (sheetLengthMm <= 0 || sheetWidthMm <= 0) return null
@@ -42,7 +39,7 @@ export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }
         aria-label={`Hoja de ${formatMm(sheetLengthMm)} × ${formatMm(sheetWidthMm)} con ${pieces} piezas`}
       >
         <defs>
-          {/* Achurado del paso de la sierra (#71), como en las barras. */}
+          {/* Saw-kerf hatching (#71), same as the bars. */}
           <pattern id={kerfPatternId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <rect width="6" height="6" className="fill-foreground/40" />
             <line x1="0" y1="0" x2="0" y2="6" className="stroke-background" strokeWidth="2.5" />
@@ -56,7 +53,7 @@ export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }
           const laneLeftoverMm = sheetLengthMm - lane.usedLengthMm
           return (
             <g key={laneIndex}>
-              {/* Corte entre carriles (rip a lo largo de lo usado) */}
+              {/* Cut between lanes (rip along the used length) */}
               {marginMm > 0 && laneIndex > 0 && (
                 <rect
                   x={0}
@@ -93,7 +90,7 @@ export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }
                         {item.widthMm}×{item.lengthMm}
                       </text>
                     )}
-                    {/* Corte tras la pieza dentro del carril (si algo la sigue) */}
+                    {/* Cut after the piece within the lane, when something follows */}
                     {marginMm > 0 && item.xMm + item.lengthMm < lane.usedLengthMm && (
                       <rect
                         x={(item.xMm + item.lengthMm) * scaleX}
@@ -108,7 +105,7 @@ export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }
                   </g>
                 )
               })}
-              {/* Sobrante del carril a lo largo */}
+              {/* Lane offcut along the length */}
               {laneLeftoverMm * scaleX > 8 && (
                 <rect
                   x={lane.usedLengthMm * scaleX + 2}
@@ -133,7 +130,7 @@ export function CutSheetDiagram({ sheetWidthMm, sheetLengthMm, marginMm, sheet }
           )
         })}
 
-        {/* Banda de ancho libre (abajo), punteada */}
+        {/* Free-width band at the bottom, dotted */}
         {leftoverWidthMm * scaleY > 8 && (
           <rect
             x={2}

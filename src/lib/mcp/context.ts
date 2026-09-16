@@ -1,4 +1,4 @@
-/** Contexto por llamada (ADR-023): construye el Db de la tool desde el token del request. */
+/** Per-call context (ADR-023): builds the tool's Db from the request token. */
 
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 
@@ -9,8 +9,7 @@ import { ToolError, type Db } from './shared'
 export type McpContext = McpIdentity & { db: Db }
 
 export function contextFrom(authInfo: AuthInfo | undefined): McpContext {
-  // Con withMcpAuth({ required: true }) esto no debería pasar; si pasa, el
-  // mensaje le dice al usuario del conector qué hacer, no un "error interno".
+  // Unreachable with withMcpAuth({ required: true }); the message targets the connector user.
   if (!authInfo) {
     throw new ToolError('Sin sesión. Vuelve a conectar el conector.')
   }

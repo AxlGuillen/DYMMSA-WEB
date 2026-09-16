@@ -1,4 +1,4 @@
-/** Tools MCP de inventario. */
+/** MCP inventory tools. */
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, hasFilter, filterValue } from '../helpers/supabase-mock'
@@ -25,7 +25,7 @@ describe('searchInventory', () => {
     const result = await searchInventory(asDb(client), {})
 
     expect(result.items[0].location).toBe('G-1')
-    expect(result.items[1].location).toBeNull() // conservada en BD, oculta sin stock
+    expect(result.items[1].location).toBeNull() // kept in the DB, hidden without stock
   })
 
   test('aplica stockFilter low_stock (gt 0, lte 5)', async () => {
@@ -64,7 +64,7 @@ describe('setInventoryLocation (issue #72)', () => {
 
     const result = await setInventoryLocation(asDb(client), { model_code: ' 6954 ', location: '  Gaveta B3  ' })
 
-    // El payload del update SOLO trae location — cantidades intocables.
+    // The update payload carries ONLY location — quantities are untouchable.
     expect(client.updatePayload('store_inventory')).toEqual({ location: 'Gaveta B3' })
     const call = client.callsTo('store_inventory', 'update')[0]
     expect(filterValue(call, 'model_code', 'ilike')).toBe('6954')
@@ -104,8 +104,8 @@ describe('setInventoryLocation (issue #72)', () => {
   })
 
   test('avisa en vez de devolver la primera en silencio si el ilike toca >1 fila', async () => {
-    // No debería pasar (model_code es UNIQUE por valor exacto), pero si "abc"
-    // y "ABC" coexistieran el ilike case-insensitive tocaría ambas.
+    // Should not happen (model_code is UNIQUE by exact value), but if "abc" and
+    // "ABC" coexisted the case-insensitive ilike would touch both.
     const client = createMockSupabase({
       responses: {
         'store_inventory.update': {

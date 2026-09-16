@@ -1,34 +1,32 @@
-/**
- * Cliente GitHub Issues = backend del módulo Tareas (ADR-014).
- * El cliente importa de aquí SOLO con `import type` — next/server jamás va al bundle.
- */
+/** GitHub Issues client = Tasks module backend (ADR-014). Client code imports from here ONLY with
+ *  `import type` — next/server must never reach the bundle. */
 
 import { NextResponse } from 'next/server'
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'highest'
 export type TaskState = 'open' | 'closed'
 
-/** Motivo del cierre: completed = se hizo; not_planned = descartada (falso positivo). */
+/** completed = done; not_planned = discarded. */
 export type TaskCloseReason = 'completed' | 'not_planned'
 
 export interface Task {
   number: number
   title: string
-  description: string // body sin la línea "Reportado por"
+  description: string // body without the "Reportado por" line
   priority: TaskPriority | null
   state: TaskState
-  closedReason: TaskCloseReason | null // null si está abierta
+  closedReason: TaskCloseReason | null // null while open
   reporter: string | null
   createdAt: string
   closedAt: string | null
   commentsCount: number
-  url: string // html_url del issue en GitHub
+  url: string // issue html_url
 }
 
 export interface TaskComment {
   id: number
-  author: string // login de GitHub (dueño del token)
-  reporter: string | null // "Reportado por" extraído del cuerpo, si aplica
+  author: string // GitHub login (token owner)
+  reporter: string | null // "Reportado por" pulled from the body, when present
   body: string
   createdAt: string
 }
@@ -42,8 +40,6 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = {
 
 const REPORTER_PREFIX = 'Reportado por:'
 
-// ─── Prioridad ↔ label ─────────────────────────────────────────────────
-
 export function priorityToLabel(p: TaskPriority): string {
   return PRIORITY_LABELS[p]
 }
@@ -52,7 +48,7 @@ export function isTaskPriority(v: unknown): v is TaskPriority {
   return v === 'low' || v === 'medium' || v === 'high' || v === 'highest'
 }
 
-/** Deriva la prioridad de los labels; el de mayor severidad gana si hay varios. */
+/** Highest severity label wins when several are present. */
 export function priorityFromLabels(labels: { name: string }[]): TaskPriority | null {
   const names = new Set(labels.map((l) => l.name))
   const order: TaskPriority[] = ['highest', 'high', 'medium', 'low']
@@ -62,26 +58,22 @@ export function priorityFromLabels(labels: { name: string }[]): TaskPriority | n
   return null
 }
 
-// ─── Body: "Reportado por" + descripción ───────────────────────────────
-
 export function buildIssueBody(description: string, reporter: string): string {
   return `${REPORTER_PREFIX} ${reporter}\n\n${description.trim()}`
 }
 
-/** Separa la línea "Reportado por: X" del cuerpo → { reporter, description }. */
+/** Splits the "Reportado por: X" line off the body. */
 export function extractReporter(body: string | null): { reporter: string | null; description: string } {
   if (!body) return { reporter: null, description: '' }
   const lines = body.split('\n')
   if (lines[0]?.startsWith(REPORTER_PREFIX)) {
     const reporter = lines[0].slice(REPORTER_PREFIX.length).trim() || null
     let rest = lines.slice(1)
-    if (rest[0]?.trim() === '') rest = rest.slice(1) // línea en blanco tras el reporter
+    if (rest[0]?.trim() === '') rest = rest.slice(1) // blank line after the reporter
     return { reporter, description: rest.join('\n').trim() }
   }
   return { reporter: null, description: body.trim() }
 }
-
-// ─── Issue → Task ──────────────────────────────────────────────────────
 
 export interface GitHubIssue {
   number: number
@@ -94,10 +86,10 @@ export interface GitHubIssue {
   closed_at: string | null
   comments: number
   html_url: string
-  pull_request?: unknown // presente solo si el issue es en realidad un PR
+  pull_request?: unknown // present only when the issue is actually a PR
 }
 
-/** La API de issues incluye PRs; este helper los distingue para excluirlos. */
+/** The issues API also returns PRs; use this to exclude them. */
 export function isPullRequest(issue: { pull_request?: unknown }): boolean {
   return issue.pull_request !== undefined
 }
@@ -138,8 +130,6 @@ export function mapComment(c: GitHubComment): TaskComment {
   }
 }
 
-// ─── fetchGitHub ───────────────────────────────────────────────────────
-
 export class GitHubError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message)
@@ -174,7 +164,7 @@ export function explainGitHubStatus(status: number): string {
   }
 }
 
-/** GitHubError → NextResponse (patrón explainPgError); cualquier otro error → 500. */
+/** GitHubError → NextResponse (explainPgError pattern); anything else → 500. */
 export function handleGitHubError(e: unknown): NextResponse {
   if (e instanceof GitHubError) {
     const status = e.status >= 400 && e.status < 600 ? e.status : 502
@@ -184,7 +174,7 @@ export function handleGitHubError(e: unknown): NextResponse {
   return NextResponse.json({ message: 'Error interno' }, { status: 500 })
 }
 
-/** Fetch a la API del repo (`path` relativo, p. ej. `/issues`); lanza GitHubError claro. */
+/** Fetch the repo API (`path` relative, e.g. `/issues`); throws GitHubError. */
 export async function fetchGitHub<T>(
   path: string,
   init: RequestInit = {},

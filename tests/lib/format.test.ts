@@ -1,7 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { formatDayLong, formatISODate, formatRelative, normalizeString, parseInteger, parseNumber, sanitizeFilename, todayInMexico } from '@/lib/format'
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
+import { formatDay, formatDayLong, formatISODate, formatRelative, normalizeString, parseInteger, parseNumber, sanitizeFilename, todayInMexico } from '@/lib/format'
 
 /** Creates a Date that is `ms` milliseconds before `now`. */
 function ago(now: Date, ms: number): string {
@@ -12,8 +10,6 @@ const NOW = new Date('2026-05-25T12:00:00Z')
 const MIN = 60_000
 const HOUR = 3_600_000
 const DAY = 86_400_000
-
-// ─── formatRelative ─────────────────────────────────────────────────────────
 
 describe('formatRelative', () => {
   test('returns "hace un momento" for < 2 minutes ago', () => {
@@ -57,8 +53,6 @@ describe('formatRelative', () => {
   })
 })
 
-// ─── formatISODate ───────────────────────────────────────────────────────────
-
 describe('formatISODate', () => {
   test('formats a Date object to YYYY-MM-DD', () => {
     expect(formatISODate(new Date('2026-05-25T00:00:00Z'))).toBe('2026-05-25')
@@ -70,8 +64,6 @@ describe('formatISODate', () => {
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })
-
-// ─── normalizeString ─────────────────────────────────────────────────────────
 
 describe('normalizeString', () => {
   test('converts to lowercase', () => {
@@ -93,8 +85,6 @@ describe('normalizeString', () => {
     expect(normalizeString('   ')).toBe('')
   })
 })
-
-// ─── sanitizeFilename ────────────────────────────────────────────────────────
 
 describe('sanitizeFilename', () => {
   test('replaces spaces with underscores', () => {
@@ -120,8 +110,6 @@ describe('sanitizeFilename', () => {
     expect(sanitizeFilename('')).toBe('')
   })
 })
-
-// ─── parseNumber ─────────────────────────────────────────────────────────────
 
 describe('parseNumber', () => {
   test('parses valid integer strings', () => {
@@ -158,8 +146,6 @@ describe('parseNumber', () => {
     expect(parseNumber('12px')).toBe(12)
   })
 })
-
-// ─── parseInteger ────────────────────────────────────────────────────────────
 
 describe('parseInteger', () => {
   test('parses valid integer strings', () => {
@@ -198,8 +184,8 @@ describe('parseInteger', () => {
 
 describe('todayInMexico', () => {
   test('de noche en Morelia sigue siendo hoy, no manana', () => {
-    // 02:00 UTC = 20:00 del dia anterior en Morelia. Con toISOString() la app
-    // habria sellado pagos y vencimientos con la fecha de manana.
+    // 02:00 UTC = 20:00 the previous day in Morelia: with toISOString() the app
+    // would have stamped payments and due dates with tomorrow's date.
     expect(todayInMexico(new Date('2026-09-06T02:00:00Z'))).toBe('2026-09-05')
   })
 
@@ -210,13 +196,28 @@ describe('todayInMexico', () => {
 
 describe('formatDayLong', () => {
   test('una columna date se pinta en su propio dia, no en el anterior', () => {
-    // new Date('2026-09-15') es medianoche UTC: en Morelia la celda decia
-    // "14 de septiembre de 2026, 18:00" para una factura que vence el 15,
-    // contradiciendo al "vence hoy" que calcula la misma fila.
+    // new Date('2026-09-15') is UTC midnight: the cell read "14 de septiembre de
+    // 2026, 18:00" for an invoice due on the 15th.
     expect(formatDayLong('2026-09-15')).toBe('15 de septiembre de 2026')
   })
 
   test('no inventa hora: es una columna de dia', () => {
     expect(formatDayLong('2026-01-01')).toBe('1 de enero de 2026')
+  })
+})
+
+describe('formatDay', () => {
+  test('cada formato elegible, armado del string y sin corrimiento de zona', () => {
+    expect(formatDay('2026-09-15', 'long')).toBe('15 de septiembre de 2026')
+    expect(formatDay('2026-09-15', 'dd-mm-yyyy')).toBe('15-09-2026')
+    expect(formatDay('2026-09-15', 'dd/mm/yyyy')).toBe('15/09/2026')
+    expect(formatDay('2026-09-15', 'yyyy-mm-dd')).toBe('2026-09-15')
+    // September's abbreviation varies across ICU versions ("sep"/"sept").
+    expect(formatDay('2026-09-15', 'short')).toMatch(/^15 sept? 2026$/)
+  })
+
+  test('el default es el largo y un valor que no es fecha pasa intacto', () => {
+    expect(formatDay('2026-01-01')).toBe('1 de enero de 2026')
+    expect(formatDay('n/a', 'dd-mm-yyyy')).toBe('n/a')
   })
 })

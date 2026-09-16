@@ -1,4 +1,4 @@
-/** Formato de moneda MXN para la página pública de aprobación (sin modo discreto). */
+/** MXN currency for the public approval page — discrete mode never applies here. */
 export function formatMoney(value: number): string {
   return `$${value.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
 }

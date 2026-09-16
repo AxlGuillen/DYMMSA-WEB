@@ -1,9 +1,7 @@
-/**
- * Compresión de imágenes en el navegador (canvas → WebP) antes de subir.
- * Ante fallo o si no mejora, devuelve el original — nunca rompe la subida.
- */
+/** Browser-side compression (canvas → WebP). On failure or no gain it returns the original —
+ *  it must never break the upload. */
 
-// GIF excluido: animarlo se perdería al pasarlo por canvas.
+// GIF excluded: canvas would drop the animation.
 const COMPRESSIBLE = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 export function shouldCompress(type: string): boolean {
@@ -32,7 +30,7 @@ export async function compressImage(
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, 'image/webp', quality),
     )
-    // Si no comprime (imagen ya pequeña) → conserva el original.
+    // No gain (already small): keep the original.
     if (!blob || blob.size >= file.size) return file
 
     const name = file.name.replace(/\.[^.]+$/, '') + '.webp'

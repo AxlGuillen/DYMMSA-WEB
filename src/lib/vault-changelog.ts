@@ -1,13 +1,10 @@
-/**
- * Parser del changelog TÉCNICO de la bóveda (`DYMMSA/06-Changelog/*.md`) que
- * alimenta la pestaña Actividad. Formato heterogéneo por antigüedad: los meses
- * recientes usan bloques `**[Área/#NN]:**` y los primeros `**Etiqueta:**`.
- */
+/** Parser for the vault's technical changelog. The format is heterogeneous by age: recent months use
+ *  `**[Área/#NN]:**` blocks, the earliest ones plain `**Etiqueta:**`. */
 
 export interface ActivityBlock {
-  /** "Corte", "Feature / Fix", "Documentación"… vacío si el bloque no traía etiqueta. */
+  /** Empty when the block carried no label. */
   area: string
-  /** Issues del encabezado (`[Corte/#81]` → [81]); las del cuerpo las liga RichText. */
+  /** Issues from the heading; the ones in the body are linked by RichText. */
   issues: number[]
   title: string
   details: string[]
@@ -16,9 +13,9 @@ export interface ActivityBlock {
 
 export interface ActivityDay {
   date: string
-  /** Sufijo del heading cuando hubo varias entradas el mismo día ("II"). */
+  /** Heading suffix when a day holds several entries ("II"). */
   label?: string
-  /** Cierre de jornada de `**Total:**` ("636 tests, 0 fallos."). */
+  /** End-of-day `**Total:**` line. */
   total?: string
   blocks: ActivityBlock[]
 }
@@ -34,13 +31,13 @@ const SUFFIX_RE = /\(([^)]+)\)/
 const BLOCK_RE = /^\*\*(.+?):\*\*\s*(.*)$/
 const ISSUE_RE = /^#(\d+)$/
 
-/** Etiquetas que amplían el bloque abierto en vez de abrir uno nuevo. */
+/** Labels that extend the open block instead of starting a new one. */
 const CONTINUATION = new Set([
   'motivo', 'total', 'decision', 'ver', 'nota', 'notas',
   'seguimiento', 'metricas', 'pendiente', 'tabla',
 ])
 
-/** Sin acentos y en minúsculas — las etiquetas se escribieron a mano por meses. */
+/** Accent-free lowercase: the labels were hand-written over months. */
 export function normalizeLabel(label: string): string {
   return label
     .normalize('NFD')
@@ -49,10 +46,10 @@ export function normalizeLabel(label: string): string {
     .toLowerCase()
 }
 
-/** Etiqueta larga = pseudo-título; como badge rompe el renglón. */
+/** A long label is really a title; as a badge it breaks the line. */
 const MAX_AREA_LEN = 24
 
-/** `[Corte/#81]` → area "Corte" + issues [81]; sin corchetes se usa tal cual. */
+/** `[Corte/#81]` → area "Corte" + issues [81]; without brackets it is used as-is. */
 function parseArea(label: string): { area: string; issues: number[]; demoted?: string } {
   const inner = label.trim().replace(/^\[(.*)\]$/, '$1')
   const issues: number[] = []
@@ -66,7 +63,7 @@ function parseArea(label: string): { area: string; issues: number[]; demoted?: s
   }
   const area = areas.join(' / ')
 
-  // "Migración `20260409055423`" → badge "Migración" + folio al título.
+  // "Migración <id>" → badge "Migración" with the id demoted into the title.
   const migration = area.match(/^(Migraci[oó]n)\s+(.+)$/i)
   if (migration) return { area: migration[1], issues, demoted: migration[2] }
 
@@ -78,7 +75,7 @@ function newBlock(area: string, issues: number[], title: string): ActivityBlock 
   return { area, issues, title, details: [] }
 }
 
-/** Un archivo de mes → sus días, en el orden en que están escritos. */
+/** One month file → its days, in written order. */
 export function parseVaultChangelog(raw: string): ActivityDay[] {
   const days: ActivityDay[] = []
   let day: ActivityDay | null = null
@@ -104,11 +101,10 @@ export function parseVaultChangelog(raw: string): ActivityDay[] {
       continue
     }
 
-    // Título del archivo ("# Changelog técnico — Agosto 2026") y cualquier otro heading.
     if (trimmed.startsWith('#')) continue
     if (!day) continue
 
-    // Viñeta: pertenece al bloque abierto (las anidadas se aplanan).
+    // Bullets belong to the open block; nested ones are flattened.
     if (/^[-*]\s+/.test(trimmed)) {
       const text = trimmed.replace(/^[-*]\s+/, '')
       if (!block) {
@@ -144,7 +140,7 @@ export function parseVaultChangelog(raw: string): ActivityDay[] {
       continue
     }
 
-    // Párrafo suelto: cuerpo del bloque abierto.
+    // Loose paragraph: body of the open block.
     if (block) block.details.push(trimmed)
     else {
       block = newBlock('', [], trimmed)
@@ -155,10 +151,7 @@ export function parseVaultChangelog(raw: string): ActivityDay[] {
   return days.filter((d) => d.blocks.length > 0 || d.total)
 }
 
-/**
- * Agrupa por el mes de la FECHA, no por el archivo: `2026-04.md` arrastra días
- * de marzo y agruparlos por nombre de archivo los mandaría al mes equivocado.
- */
+/** Group by the DATE's month, not by the file: `2026-04.md` carries March days. */
 export function groupActivityByMonth(days: readonly ActivityDay[]): ActivityMonth[] {
   const ordered = [...days].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
   const months: ActivityMonth[] = []

@@ -7,21 +7,18 @@ import type { ColumnWidths } from '@/hooks/useColumnWidths'
 import { cn } from '@/lib/utils'
 
 interface ResizableHeadProps {
-  /** Id de columna (el mismo de TableColumn / ColumnPicker). */
+  /** Column id, the same one used by TableColumn / ColumnPicker. */
   id: string
   label: string
   widths: ColumnWidths
   className?: string
-  /** Fija la columna a la derecha (Acciones): al ensanchar, editar/eliminar no salen de pantalla. */
+  /** Pins the column right (Acciones) so its buttons stay on screen when widening. */
   sticky?: boolean
-  /**
-   * Contenido propio del encabezado (p. ej. el botón de ordenamiento de la
-   * tabla). Si se omite, se pinta la etiqueta truncada.
-   */
+  /** Custom header content; without it, the truncated label is rendered. */
   children?: ReactNode
 }
 
-/** <th> con ancho ajustable (#55), compartido para que manija y clamp sean iguales en todas las tablas. */
+/** Resizable <th> (#55), shared so handle and clamp match across every table. */
 export function ResizableHead({ id, label, widths, className, sticky, children }: ResizableHeadProps) {
   const width = widths.width(id)
 

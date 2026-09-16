@@ -1,4 +1,4 @@
-/** Tools MCP de catálogos: productos ETM (jerarquía de descripción) y catálogo URREA. */
+/** MCP catalog tools: ETM products (description hierarchy) and URREA catalog. */
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue } from '../helpers/supabase-mock'
@@ -20,7 +20,7 @@ describe('searchProducts', () => {
           ],
           count: 3,
         },
-        // Solo 6954 tiene match en el catálogo oficial
+        // Only 6954 has a match in the official catalog
         urrea_catalog: { data: [{ code: '6954', description: 'Oficial URREA' }] },
       },
     })
@@ -54,7 +54,7 @@ describe('searchUrreaCatalog', () => {
   })
 
   test('REGLA: un código en varias marcas devuelve TODAS (identidad = code+brand)', async () => {
-    // Antes esto usaba .maybeSingle() → con ≥2 filas reventaba con PGRST116.
+    // This used .maybeSingle() before → with ≥2 rows it blew up with PGRST116.
     const client = createMockSupabase({
       responses: {
         urrea_catalog: {
@@ -71,7 +71,7 @@ describe('searchUrreaCatalog', () => {
     expect(result.match).toBe('exact')
     expect(result.items).toHaveLength(2)
     expect(result.items.map((i) => i.brand)).toEqual(['FOY', 'SURTEK'])
-    // una sola query: no cae a la búsqueda parcial
+    // a single query: it does not fall back to the partial search
     expect(client.callsTo('urrea_catalog', 'select')).toHaveLength(1)
   })
 
@@ -79,7 +79,7 @@ describe('searchUrreaCatalog', () => {
     let call = 0
     const client = createMockSupabase({
       responses: {
-        // 1ª llamada (exacta) → sin filas; 2ª (parcial) → lista vacía
+        // 1st call (exact) → no rows; 2nd (partial) → empty list
         urrea_catalog: () => (++call === 1 ? { data: [] } : { data: [] }),
       },
     })

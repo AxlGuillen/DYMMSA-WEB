@@ -13,9 +13,7 @@ interface SaveQuotationInput {
   items: QuotationItemRow[]
 }
 
-// ------------------------------------------------------------------ //
-// POST /api/quotations/save                                           //
-// ------------------------------------------------------------------ //
+// POST /api/quotations/save — creates the quotation and its items
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -46,10 +44,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Total parcial: solo productos con precio y cantidad (separadores excluidos)
+    // Partial total: only products with price and quantity (separators excluded).
     const total_amount = calculateQuotationTotal(items)
 
-    // ── 1. Crear quotation ──────────────────────────────────────────
     const { data: quotation, error: quotationError } = await supabase
       .from('quotations')
       .insert({
@@ -70,9 +67,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // ── 2. Crear quotation_items ────────────────────────────────────
-    // Snapshot de la Descripción DYMMSA resuelta server-side (catálogo URREA
-    // gana jerarquía sobre la curada). Se congela como el resto de campos.
+    // Frozen snapshot of the DYMMSA description resolved server-side (catalog beats curated, ADR-013).
     const catalogMap = await fetchCatalogDescriptionMap(supabase, items.map((i) => i.model_code))
 
     const quotationItems = items.map((item, index) => ({
@@ -100,9 +95,9 @@ export async function POST(request: NextRequest) {
 
     if (itemsError) {
       console.error('Error creating quotation items:', itemsError)
-      // Rollback: eliminar la cotización recién creada
+      // Rollback: drop the quotation we just created.
       await supabase.from('quotations').delete().eq('id', quotation.id)
-      // Mapear el error de Postgres a un mensaje accionable identificando el ítem ofensor.
+      // Map the Postgres error to an actionable message naming the offending item.
       const info = explainPgError(itemsError, items)
       return NextResponse.json(
         { message: info.userMessage, offendingEtm: info.offendingEtm },
@@ -110,9 +105,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // ── 3. Auto-aprendizaje en etm_products ─────────────────────────
-    // Aislado: si falla, la cotización ya está guardada; reportamos warning
-    // en vez de tirar 500 y confundir al usuario.
+    // Auto-learn is isolated: the quotation is already saved, so warn instead of throwing 500.
     let autoLearn = { added: 0, updated: 0, skipped: 0 }
     let autoLearnFailed = false
     try {

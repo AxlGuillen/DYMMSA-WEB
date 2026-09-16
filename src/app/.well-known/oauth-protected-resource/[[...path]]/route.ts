@@ -1,7 +1,4 @@
-/**
- * Metadata RFC 9728 (ADR-023) — lo que el 401 anuncia en WWW-Authenticate.
- * Catch-all a propósito: los clientes lo piden en la raíz Y en .../api/mcp.
- */
+// RFC 9728 metadata (ADR-023). Catch-all on purpose: clients ask for it at the root AND at .../api/mcp.
 
 import { metadataCorsOptionsRequestHandler, protectedResourceHandler } from 'mcp-handler'
 

@@ -11,7 +11,7 @@ interface QuotationStats {
   converted_to_order: number
 }
 
-// GET /api/quotations/stats → conteo por status
+// GET /api/quotations/stats — count by status
 export async function GET() {
   try {
     const supabase = await createClient()

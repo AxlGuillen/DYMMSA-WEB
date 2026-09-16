@@ -49,24 +49,20 @@ export function useDashboard(dateRange: DateRange) {
         salesResult,
         recentResult,
       ] = await Promise.all([
-        // 1. Total ETM products (no date filter)
         supabase
           .from('etm_products')
           .select('*', { count: 'exact', head: true }),
 
-        // 2. Total inventory items (no date filter)
         supabase
           .from('store_inventory')
           .select('*', { count: 'exact', head: true }),
 
-        // 3. Orders in date range (for status breakdown)
         supabase
           .from('orders')
           .select('status')
           .gte('created_at', dateRange.from)
           .lte('created_at', dateRange.to),
 
-        // 4. Completed/paid orders in range (for sales total)
         supabase
           .from('orders')
           .select('total_amount')
@@ -74,7 +70,6 @@ export function useDashboard(dateRange: DateRange) {
           .gte('created_at', dateRange.from)
           .lte('created_at', dateRange.to),
 
-        // 5. Recent 5 orders in range
         supabase
           .from('orders')
           .select('id, customer_name, status, total_amount, created_at')
@@ -90,7 +85,6 @@ export function useDashboard(dateRange: DateRange) {
       if (salesResult.error) throw salesResult.error
       if (recentResult.error) throw recentResult.error
 
-      // Count orders by status
       const statusCounts: StatusCounts = {
         ordered: 0,
         received: 0,
@@ -106,7 +100,6 @@ export function useDashboard(dateRange: DateRange) {
         }
       }
 
-      // Sum sales
       const salesData = (salesResult.data || []) as Pick<Order, 'total_amount'>[]
       const totalSales = salesData.reduce(
         (sum, order) => sum + (order.total_amount || 0),

@@ -1,14 +1,3 @@
-/**
- * Fase 4 — Inventario / productos.
- *
- *   - inventory/import:  validación de archivo/columnas, modos upsert/replace,
- *                        clamp de cantidades negativas a 0.
- *   - products/import:   validación de columnas, upsert (update vs insert),
- *                        brand por defecto 'URREA', filas sin ETM = error.
- *   - orders/auto-learn: validación, skip de campos incompletos, existing vs added,
- *                        siempre inserta brand='URREA'.
- */
-
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
@@ -22,8 +11,6 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
 injectSupabaseServer(() => activeClient)
-
-// ─── inventory/import ──────────────────────────────────────────────────────
 
 describe('POST /inventory/import', () => {
   test('400 si no se envía archivo', async () => {
@@ -128,8 +115,6 @@ describe('POST /inventory/import', () => {
   })
 })
 
-// ─── products/import ───────────────────────────────────────────────────────
-
 describe('POST /products/import', () => {
   test('400 si faltan columnas ETM / MODEL_CODE', async () => {
     activeClient = createMockSupabase({ user: AUTH })
@@ -164,7 +149,7 @@ describe('POST /products/import', () => {
     const res = await productsImport.POST(makeExcelRequest([{ ETM: 'E1', MODEL_CODE: 'MC1', BRAND: 'TRUPER', PRICE: 50 }]))
     const body = await res.json()
     expect(body.updated).toBe(1)
-    // respeta brand explícito
+    // honors the explicit brand
     const payload = activeClient.updatePayload('etm_products')
     expect(payload.brand).toBe('TRUPER')
   })
@@ -177,15 +162,13 @@ describe('POST /products/import', () => {
         'etm_products.insert': { data: null, error: null },
       },
     })
-    // columna ETM presente (para pasar validación) pero valor vacío en la fila
+    // ETM column present (so validation passes) but empty in the row
     const res = await productsImport.POST(makeExcelRequest([{ ETM: '', MODEL_CODE: 'MC1' }]))
     const body = await res.json()
     expect(body.errors).toBe(1)
     expect(body.imported).toBe(0)
   })
 })
-
-// ─── orders/auto-learn ─────────────────────────────────────────────────────
 
 describe('POST /orders/auto-learn', () => {
   test('400 si products no es un array', async () => {
@@ -197,7 +180,7 @@ describe('POST /orders/auto-learn', () => {
   test('skip cuando faltan campos requeridos (sin model_code)', async () => {
     activeClient = createMockSupabase({ user: AUTH })
     const res = await autoLearn.POST(makeRequest({
-      products: [{ etm: 'E1', description: 'P', price: 10 /* sin model_code */ }],
+      products: [{ etm: 'E1', description: 'P', price: 10 /* no model_code */ }],
     }))
     const body = await res.json()
     expect(body.skipped).toBe(1)

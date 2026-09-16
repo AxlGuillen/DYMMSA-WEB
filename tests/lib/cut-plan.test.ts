@@ -1,8 +1,4 @@
-/**
- * Módulo de corte (issue #59) — matemática pura de src/lib/cut-plan.ts.
- * Cubre las esquinas físicas ANTES de que exista UI: ajuste a ras, el margen
- * que bloquea una pieza que "cabría" sin kerf, piezas imposibles, FFD.
- */
+/** Cut module (#59): pure math for flush fits, margin-blocked pieces, impossible pieces, FFD. */
 
 import { describe, test, expect } from 'vitest'
 import {
@@ -27,8 +23,6 @@ const plate = (over: Partial<PlatePieceInput> = {}): PlatePieceInput => ({
   id: 'p1', thicknessMm: 5, widthMm: 100, lengthMm: 500, quantity: 1, ...over,
 })
 
-// ─── resolveCutMargin ────────────────────────────────────────────────────
-
 describe('resolveCutMargin', () => {
   test('sin fila → default', () => {
     expect(resolveCutMargin({})).toBe(DEFAULT_CUT_MARGIN_MM)
@@ -46,8 +40,6 @@ describe('resolveCutMargin', () => {
     expect(resolveCutMargin({ [SETTING_CUT_MARGIN_MM]: NaN })).toBe(DEFAULT_CUT_MARGIN_MM)
   })
 })
-
-// ─── Formateo ────────────────────────────────────────────────────────────
 
 describe('formatMm / formatMm2', () => {
   test('mm bajo el metro; metros con hasta 2 decimales sin ceros de cola', () => {
@@ -67,8 +59,6 @@ describe('formatMm / formatMm2', () => {
     expect(formatMm2(2_340_000)).toBe('2.34 m²')
   })
 })
-
-// ─── Necesidad neta: tubos ───────────────────────────────────────────────
 
 describe('tubeNetNeeds', () => {
   test('agrupa por diámetro (asc) y suma (longitud + margen) × cantidad', () => {
@@ -94,8 +84,6 @@ describe('tubeNetNeeds', () => {
   })
 })
 
-// ─── Necesidad neta: placas ──────────────────────────────────────────────
-
 describe('plateNetNeeds', () => {
   test('agrupa por espesor con área total y ancho mínimo de tira', () => {
     const groups = plateNetNeeds([
@@ -106,13 +94,11 @@ describe('plateNetNeeds', () => {
     expect(groups.map((g) => g.thicknessMm)).toEqual([3, 5])
     const t5 = groups[1]
     expect(t5.areaMm2).toBe(100 * 500 * 2 + 180 * 200)
-    // La pieza más ancha manda: la tira del proveedor debe medir al menos esto.
+    // The widest piece rules: the supplier strip must be at least this wide.
     expect(t5.minWidthMm).toBe(180)
     expect(t5.totalUnits).toBe(3)
   })
 })
-
-// ─── Acomodo de barras (tubos) ───────────────────────────────────────────
 
 describe('packBars', () => {
   test('ajuste a ras sin margen: 3×1000 en barra de 3000, sobrante 0', () => {
@@ -124,13 +110,13 @@ describe('packBars', () => {
   })
 
   test('el margen BLOQUEA la pieza que cabría sin kerf (2×1000 en 2000, margen 20)', () => {
-    // Sin margen cabrían las dos; el corte entre ellas se come 20 mm → 2 barras.
+    // Without margin both would fit; the cut between them eats 20 mm → 2 bars.
     const { bars } = packBars([{ id: 'a', lengthMm: 1000, quantity: 2 }], 2000, 20)
     expect(bars).toHaveLength(2)
   })
 
   test('la ÚLTIMA pieza puede caer exacta al final (su margen no se exige al entrar)', () => {
-    // [1000][20][980] = 2000 exactos → una sola barra, sobrante 0 (clamp).
+    // [1000][20][980] = exactly 2000 → a single bar, leftover 0 (clamped).
     const { bars } = packBars(
       [
         { id: 'a', lengthMm: 1000, quantity: 1 },
@@ -153,7 +139,7 @@ describe('packBars', () => {
       1000,
       0,
     )
-    // Orden 600, 500, 400: [600|400] y [500].
+    // Order 600, 500, 400: [600|400] and [500].
     expect(bars).toHaveLength(2)
     expect(bars[0].segments.map((s) => s.pieceId)).toEqual(['grande', 'chica'])
     expect(bars[1].segments.map((s) => s.pieceId)).toEqual(['media'])
@@ -161,7 +147,7 @@ describe('packBars', () => {
 
   test('sobrante descuenta un margen por segmento', () => {
     const { bars } = packBars([{ id: 'a', lengthMm: 1000, quantity: 1 }], 3000, 20)
-    // [1000][corte 20] → usado 1020, sobrante 1980.
+    // [1000][cut 20] → 1020 used, 1980 left.
     expect(bars[0].usedMm).toBe(1020)
     expect(bars[0].leftoverMm).toBe(1980)
   })
@@ -182,7 +168,7 @@ describe('packBars', () => {
 
   test('la cantidad expande a unidades físicas repartidas en barras', () => {
     const { bars } = packBars([{ id: 'a', lengthMm: 2500, quantity: 5 }], 6000, 0)
-    // 2 por barra (5000 ≤ 6000; 3ª no cabe: 7500) → 3 barras: 2+2+1.
+    // 2 per bar (5000 ≤ 6000; a 3rd needs 7500) → 3 bars: 2+2+1.
     expect(bars.map((b) => b.segments.length)).toEqual([2, 2, 1])
   })
 
@@ -190,8 +176,6 @@ describe('packBars', () => {
     expect(packBars([], 6000, 20)).toEqual({ bars: [], impossible: [] })
   })
 })
-
-// ─── Acomodo en hojas de medida fija (placas, issue #64) ─────────────────
 
 describe('packSheets', () => {
   test('piezas del mismo ancho que no caben a lo largo van en carriles apilados', () => {
@@ -201,7 +185,7 @@ describe('packSheets', () => {
       600,
       10,
     )
-    // 500 + 10 + 500 > 600 (no caben punta con punta) pero 80 + 10 + 80 = 170 ≤ 200.
+    // 500 + 10 + 500 > 600 (no end-to-end fit) but 80 + 10 + 80 = 170 ≤ 200.
     expect(sheets).toHaveLength(1)
     expect(sheets[0].lanes.map((l) => l.yMm)).toEqual([0, 90])
     expect(sheets[0].usedLengthMm).toBe(500)
@@ -222,9 +206,8 @@ describe('packSheets', () => {
   })
 
   test('REGRESIÓN #81: el caso reportado cabe en UNA hoja (antes pedía dos)', () => {
-    // Hoja 150 × 420, margen 20: la 30×400 en su carril y las dos 100×200
-    // punta con punta (200+20+200 = 420 exacto). El modelo shelf mandaba la
-    // segunda 100×200 a una hoja nueva.
+    // Sheet 150 × 420, margin 20: the two 100×200 fit end to end (200+20+200).
+    // The shelf model used to push the second one to a new sheet.
     const { sheets, impossible } = packSheets(
       [
         { id: 'angosta', widthMm: 30, lengthMm: 400, quantity: 1 },
@@ -236,7 +219,7 @@ describe('packSheets', () => {
     )
     expect(impossible).toEqual([])
     expect(sheets).toHaveLength(1)
-    // FFD por ancho: el carril de 100 va primero (y=0), el de 30 después.
+    // FFD by width: the 100 lane goes first (y=0), the 30 one after.
     const [wide, narrow] = sheets[0].lanes
     expect(wide.widthMm).toBe(100)
     expect(wide.items.map((i) => i.xMm)).toEqual([0, 220])
@@ -256,7 +239,7 @@ describe('packSheets', () => {
       600,
       10,
     )
-    // En carril: 500 + 10 + 300 > 600; carril nuevo: 150 + 10 + 150 > 200 → hoja 2.
+    // In lane: 500 + 10 + 300 > 600; new lane: 150 + 10 + 150 > 200 → sheet 2.
     expect(sheets).toHaveLength(2)
     expect(sheets[0].lanes[0].usedLengthMm).toBe(500)
     expect(sheets[1].lanes[0].usedLengthMm).toBe(300)
@@ -272,7 +255,7 @@ describe('packSheets', () => {
       1000,
       10,
     )
-    // La de 40 cabe DENTRO del carril de 100 (ancho 40 ≤ 100) tras la de 500.
+    // The 40 fits INSIDE the 100 lane (width 40 ≤ 100) after the 500.
     expect(sheets).toHaveLength(1)
     expect(sheets[0].lanes).toHaveLength(1)
     expect(sheets[0].lanes[0].items.map((i) => i.xMm)).toEqual([0, 510])
@@ -307,7 +290,7 @@ describe('packSheets', () => {
       150, 700, 10,
       { allowRotation: true },
     )
-    // La 80×120 entra ROTADA (120×80) al carril de 130: consume 80 de largo, no 120.
+    // The 80×120 goes in ROTATED (120×80) into the 130 lane: uses 80 of length.
     expect(sheets).toHaveLength(1)
     expect(sheets[0].lanes).toHaveLength(1)
     expect(sheets[0].lanes[0].items[1]).toMatchObject({ widthMm: 120, lengthMm: 80, rotated: true, xMm: 510 })

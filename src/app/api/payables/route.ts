@@ -9,13 +9,13 @@ type SortField = (typeof SORT_FIELDS)[number]
 
 const STATUSES: PayableStatus[] = ['pending', 'paid', 'cancelled']
 
-/** Neutraliza los metacaracteres de PostgREST antes de interpolar en .or()/.ilike(). */
+/** Neutralizes PostgREST metacharacters before interpolating into .or()/.ilike(). */
 const sanitizeSearch = (raw: string) => raw.replace(/[,()%]/g, ' ').trim()
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_MONTH = /^\d{4}-\d{2}$/
 
-// GET /api/payables → lista paginada con proveedor embebido
+// GET /api/payables — paginated list with the supplier embedded
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     if (search) query = query.ilike('concept', `%${search}%`)
     if (STATUSES.includes(status as PayableStatus)) query = query.eq('status', status)
     if (ISO_MONTH.test(month)) {
-      // Mes de VENCIMIENTO — el criterio del overview y de la planeación.
+      // Filter by DUE month — the criterion the overview and the planning use.
       query = query.gte('due_date', `${month}-01`).lt('due_date', nextMonth(month))
     }
 
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/payables → capturar factura (proveedor obligatorio del catálogo)
+// POST /api/payables — supplier is required and must exist in the catalog
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       return badRequest('Fecha de vencimiento inválida')
     }
 
-    // Existencia del proveedor ANTES del insert: 404 preciso en vez de FK 23503.
+    // Check the supplier BEFORE the insert: precise 404 instead of an FK 23503.
     const { data: supplier } = await supabase
       .from('suppliers').select('id').eq('id', supplierId).single()
     if (!supplier) return notFound('El proveedor no existe')

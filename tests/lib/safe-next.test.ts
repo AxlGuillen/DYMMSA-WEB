@@ -1,7 +1,4 @@
-/**
- * Guard de open-redirect del parámetro `?next=` (ADR-023). Lo comparten el
- * proxy y la página de login — de ahí que tenga test propio.
- */
+/** Open-redirect guard for `?next=` (ADR-023), shared by the proxy and the login page. */
 
 import { describe, test, expect } from 'vitest'
 import { isSafeNext } from '@/lib/safe-next'
@@ -24,7 +21,7 @@ describe('isSafeNext', () => {
     expect(isSafeNext('https://evil.com')).toBe(false)
     expect(isSafeNext('http://evil.com')).toBe(false)
     expect(isSafeNext('javascript:alert(1)')).toBe(false)
-    expect(isSafeNext('dashboard')).toBe(false) // sin la barra inicial
+    expect(isSafeNext('dashboard')).toBe(false) // no leading slash
   })
 
   test('REGLA: rechaza protocol-relative `//host`', () => {
@@ -33,7 +30,7 @@ describe('isSafeNext', () => {
   })
 
   test('REGLA: rechaza `/\\host` — el navegador normaliza la barra invertida a `/`', () => {
-    // Sin esto, `/\evil.com` termina siendo `//evil.com`: otro origen.
+    // Without this, `/\evil.com` ends up as `//evil.com`: another origin.
     expect(isSafeNext('/\\evil.com')).toBe(false)
     expect(isSafeNext('/\\/evil.com')).toBe(false)
   })

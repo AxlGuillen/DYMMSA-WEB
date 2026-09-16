@@ -28,7 +28,7 @@ function getPresetRange(preset: Preset): DateRange {
   } else if (preset === 'month') {
     from = new Date(now.getFullYear(), now.getMonth(), 1)
   } else {
-    // 'all' — desde el inicio del tiempo (Unix epoch) hasta hoy
+    // 'all' spans from the Unix epoch to today.
     from = new Date(0)
   }
 
@@ -93,9 +93,7 @@ export function DashboardMetrics() {
 
   return (
     <div className="space-y-6" data-tour="dash-metrics">
-      {/* Date filter */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Segmented control */}
         <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-0.5">
           {presets.map((p) => (
             <button type="button"
@@ -119,7 +117,6 @@ export function DashboardMetrics() {
 
         <span className="text-muted-foreground/50 text-sm select-none">|</span>
 
-        {/* Custom range */}
         <div className="flex items-center gap-2">
           <input
             type="date"
@@ -151,7 +148,6 @@ export function DashboardMetrics() {
         </div>
       </div>
 
-      {/* Metric cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Productos ETM"
@@ -187,7 +183,6 @@ export function DashboardMetrics() {
         />
       </div>
 
-      {/* Bottom row */}
       <div className="grid gap-4 md:grid-cols-2">
         <OrderStatusBreakdown
           statusCounts={
@@ -202,7 +197,6 @@ export function DashboardMetrics() {
           isLoading={isLoading}
         />
 
-        {/* Recent orders */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-4">
             <CardTitle>Ordenes Recientes</CardTitle>
@@ -240,12 +234,10 @@ export function DashboardMetrics() {
                     href={`/dashboard/orders/${order.id}`}
                     className="flex items-center gap-3 rounded-lg p-2  transition-colors hover:bg-muted"
                   >
-                    {/* Avatar */}
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
                       {getCustomerInitials(order.customer_name)}
                     </div>
 
-                    {/* Info */}
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="truncate text-sm font-medium">
                         {order.customer_name}
@@ -255,7 +247,6 @@ export function DashboardMetrics() {
                       </span>
                     </div>
 
-                    {/* Status + date */}
                     <div className="flex shrink-0 flex-col items-end gap-0.5">
                       <OrderStatusBadge status={order.status} />
                       <span className="text-xs text-muted-foreground">

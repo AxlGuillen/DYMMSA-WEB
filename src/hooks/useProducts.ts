@@ -73,7 +73,7 @@ export function useUpdateProduct() {
   })
 }
 
-/** Toggle optimista de is_sold (#55): cambia al instante y revierte si el PATCH falla. */
+/** Optimistic is_sold toggle (#55): reverts if the PATCH fails. */
 export function useSetProductSold() {
   const queryClient = useQueryClient()
 

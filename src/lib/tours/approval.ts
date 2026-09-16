@@ -1,9 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/**
- * Overview de /approve/[token] — el lector es el CLIENTE: tono sin jerga.
- * Filtros y dock solo existen en revisión; ausentes, se saltan solos.
- */
+/** /approve/[token] overview — the reader is the CUSTOMER, so no jargon. Filters and dock only exist while reviewing. */
 export const APPROVAL_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="approval-summary"]',

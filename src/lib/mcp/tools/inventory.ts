@@ -1,7 +1,4 @@
-/**
- * Tools MCP del módulo Inventario (solo lectura).
- * Misma query y filtros de stock que GET /api/inventory.
- */
+/** Inventory tools (read-only): same query and stock filters as GET /api/inventory. */
 
 import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'
 import type { StoreInventory } from '@/types/database'
@@ -21,8 +18,7 @@ export async function searchInventory(db: Db, input: SearchInventoryInput) {
 
   let query = db.from('store_inventory').select('*', { count: 'exact' })
 
-  // Coherencia con los demás tools: aunque hoy sea .ilike() directo (no .or()),
-  // sanitizeSearch mantiene el mismo saneo por si esta query cambia a futuro.
+  // Sanitized even though this is a plain .ilike() today, in case the query grows an .or().
   const search = sanitizeSearch(input.search ?? '')
   if (search) query = query.ilike('model_code', `%${search}%`)
 
@@ -42,9 +38,8 @@ export async function searchInventory(db: Db, input: SearchInventoryInput) {
   const items = ((data ?? []) as StoreInventory[]).map((i) => ({
     model_code: i.model_code,
     quantity: i.quantity,
-    // La ubicación (gaveta) se conserva en BD aunque quantity=0, pero solo se
-    // muestra con stock — misma regla que el frontend, para no mandar a buscar
-    // a una gaveta vacía.
+    // Location is kept at quantity=0 but only shown with stock (same rule as the frontend):
+    // never send anyone to an empty drawer.
     location: i.quantity > 0 ? i.location : null,
     updated_at: i.updated_at,
   }))
@@ -70,18 +65,14 @@ export interface SetInventoryLocationInput {
   location?: string | null
 }
 
-/**
- * Escritura acotada (#72, ADR-015): SOLO la gaveta de filas existentes —
- * cantidades vedadas (núcleo transaccional). Vacío = borrar ubicación.
- */
+/** Scoped write (#72, ADR-015): location only — quantities are off-limits. Empty clears it. */
 export async function setInventoryLocation(db: Db, input: SetInventoryLocationInput) {
   const modelCode = (input.model_code ?? '').trim()
   if (!modelCode) throw new ToolError('Indica el model_code del producto en inventario')
 
   const location = typeof input.location === 'string' ? (input.location.trim() || null) : null
 
-  // ilike con comodines escapados: match exacto pero case-insensitive — las
-  // filas de inventario se guardan con trim sin mayusculizar.
+  // Escaped-wildcard ilike = exact but case-insensitive: rows are stored trimmed, not uppercased.
   const exactPattern = modelCode.replace(/[\\%_]/g, (c) => `\\${c}`)
 
   const { data, error } = await db
@@ -93,15 +84,14 @@ export async function setInventoryLocation(db: Db, input: SetInventoryLocationIn
   if (error) throw new ToolError(`Error al actualizar la ubicación: ${error.message}`)
   const rows = (data ?? []) as StoreInventory[]
   if (rows.length === 0) {
-    // No se crea la fila: la ubicación es metadato de algo YA inventariado.
+    // No insert: a location is metadata about something ALREADY in inventory.
     throw new ToolError(
       `"${modelCode}" no está en el inventario — la ubicación solo se asigna a productos ya inventariados (usa search_inventory para verificar el código).`,
     )
   }
   if (rows.length > 1) {
-    // model_code es UNIQUE por valor exacto: el ilike case-insensitive pudo
-    // haber tocado más de una fila (p. ej. "abc" y "ABC" coexistiendo). Ya se
-    // actualizaron todas — se avisa en vez de devolver solo la primera en silencio.
+    // model_code is UNIQUE by exact value, so a case-insensitive match can hit several rows
+    // ("abc" and "ABC"): all were updated — warn instead of silently returning the first.
     throw new ToolError(
       `"${modelCode}" coincide con ${rows.length} códigos distintos por mayúsculas/minúsculas — repórtalo, no debería pasar.`,
     )

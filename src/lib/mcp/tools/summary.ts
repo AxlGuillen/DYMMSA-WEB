@@ -1,7 +1,4 @@
-/**
- * Resumen ejecutivo del negocio en una sola llamada — el tool de arranque
- * para cualquier conversación ("¿cómo vamos?"). Cruza todos los módulos.
- */
+/** Whole-business snapshot in one call: the starter tool, crosses every module. */
 
 import { fetchGitHub, getGitHubConfig, isPullRequest, type GitHubIssue } from '@/lib/github'
 import { type Db } from '../shared'
@@ -32,7 +29,7 @@ async function getOrderStats(db: Db) {
   return stats
 }
 
-/** Tareas abiertas (máx. 100; suficiente como indicador). null si GitHub no está configurado o falla. */
+/** Capped at 100 (enough as an indicator). null when GitHub is unconfigured or fails. */
 async function countOpenTasks(): Promise<number | null> {
   if (!getGitHubConfig()) return null
   try {

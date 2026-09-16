@@ -1,14 +1,11 @@
-/**
- * Sonidos de UI (ADR-017): ÚNICO módulo que importa cuelume (lib joven — si se
- * quita, se toca solo este archivo). Un listener delegado global; on/off en soundStore.
- */
+/** UI sounds (ADR-017): the ONLY module importing cuelume, so dropping that young lib touches one file. */
 
 import { play, setEnabled, type SoundName } from 'cuelume'
 
-/** Selector de controles que suenan al click. */
+/** Controls that make a sound on click. */
 const INTERACTIVE = 'button, a, [role="button"]'
 
-/** Doble-click o clicks en ráfaga no deben metralletear. */
+/** Double-clicks and click bursts must not machine-gun. */
 const THROTTLE_MS = 80
 
 let lastPlay = 0
@@ -18,7 +15,7 @@ function handleClick(event: MouseEvent): void {
   const target = event.target as Element | null
   const control = target?.closest?.(INTERACTIVE)
   if (!control) return
-  // Un control deshabilitado no responde: tampoco debe sonar.
+  // A disabled control does nothing, so it must not sound either.
   if (control instanceof HTMLButtonElement && control.disabled) return
   if (control.getAttribute('aria-disabled') === 'true') return
 
@@ -29,7 +26,7 @@ function handleClick(event: MouseEvent): void {
   playSound('press')
 }
 
-/** Arranca los listeners; idempotente (StrictMode monta doble) y no-op fuera del navegador. */
+/** Idempotent (StrictMode mounts twice) and a no-op outside the browser. */
 export function initSounds(enabled: boolean): void {
   if (typeof document === 'undefined' || initialized) return
   initialized = true
@@ -37,19 +34,16 @@ export function initSounds(enabled: boolean): void {
   document.addEventListener('click', handleClick)
 }
 
-/** Enciende/apaga la reproducción (cuelume ignora los play() en off). */
+/** cuelume ignores play() while off. */
 export function setSoundEnabled(enabled: boolean): void {
   setEnabled(enabled)
 }
 
-/**
- * Toca un sonido puntual (feedback de acciones señaladas, p. ej. re-activar
- * el sonido). Nunca lanza: un fallo de audio jamás debe romper la UI.
- */
+/** Never throws: an audio failure must never break the UI. */
 export function playSound(name: SoundName): void {
   try {
     play(name)
   } catch {
-    // Web Audio bloqueado o no disponible: silencio, sin error.
+    // Web Audio blocked or unavailable: stay silent.
   }
 }

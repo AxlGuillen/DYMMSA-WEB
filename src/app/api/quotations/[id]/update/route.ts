@@ -25,7 +25,6 @@ export async function PATCH(
     if ('error' in auth) return auth.error
     const { user } = auth
 
-    // Verify quotation exists and is editable
     const { data: quotation, error: fetchError } = await supabase
       .from('quotations')
       .select('id, status')
@@ -62,9 +61,8 @@ export async function PATCH(
 
     const total_amount = calculateQuotationTotal(items)
 
-    // Read existing items before the destructive delete: used to preserve
-    // is_approved (las decisiones del cliente sobreviven a reaperturas/ediciones,
-    // sin importar el estado) AND to roll back if the re-insert fails.
+    // Read the items before the destructive delete: preserves the client's is_approved
+    // decisions across reopens/edits and allows a rollback if the re-insert fails.
     const { data: existingItems } = await supabase
       .from('quotation_items')
       .select('*')
@@ -80,11 +78,9 @@ export async function PATCH(
       dymmsaDescMap.set(ei.id, ei.dymmsa_description)
     }
 
-    // Mapa de catálogo para re-resolver la Descripción DYMMSA al re-insertar
-    // (jerarquía: catálogo > curada > null).
+    // Catalog map to re-resolve the DYMMSA description on re-insert (catalog > curated > null).
     const catalogMap = await fetchCatalogDescriptionMap(supabase, items.map((i) => i.model_code))
 
-    // Delete existing items and re-insert
     const { error: deleteError } = await supabase
       .from('quotation_items')
       .delete()
@@ -100,22 +96,22 @@ export async function PATCH(
       let is_approved: boolean | null = null
       let is_sold: boolean | null = null
       if (!isSep) {
-        // is_approved se preserva en CUALQUIER estado: al reabrir, lo aprobado se
-        // conserva y el cliente solo decide lo nuevo (fallback al valor en BD).
+        // is_approved is preserved in ANY status: on reopen the approved items stay and the
+        // client only decides the new ones (fallback to the DB value).
         if (item.is_approved !== undefined) {
           is_approved = item.is_approved ?? null
         } else {
           is_approved = approvalMap.has(lookupKey) ? (approvalMap.get(lookupKey) ?? null) : null
         }
-        // Mismo criterio para is_sold (¿lo vendemos?): UI manda; fallback a BD.
+        // Same rule for is_sold: the UI wins, falling back to the DB value.
         if (item.is_sold !== undefined) {
           is_sold = item.is_sold ?? null
         } else {
           is_sold = soldMap.has(lookupKey) ? (soldMap.get(lookupKey) ?? null) : null
         }
       }
-      // Descripción DYMMSA: se re-resuelve con jerarquía de catálogo. La curada
-      // viene de la UI; fallback al snapshot en BD para clientes que no la envían.
+      // DYMMSA description re-resolved by hierarchy: the curated value comes from the UI,
+      // falling back to the DB snapshot for clients that do not send it.
       const curated = item.dymmsa_description !== undefined
         ? item.dymmsa_description
         : (dymmsaDescMap.get(lookupKey) ?? null)
@@ -156,13 +152,12 @@ export async function PATCH(
       )
     }
 
-    // Update quotation header
     await supabase
       .from('quotations')
       .update({ name: name.trim(), customer_name: customer_name.trim(), total_amount })
       .eq('id', id)
 
-    // Auto-learn aislado: si falla, la actualización ya está hecha; warning en vez de 500.
+    // Auto-learn is isolated: the update already landed, so warn instead of throwing 500.
     let autoLearnFailed = false
     try {
       await processAutoLearn(supabase, user.id, items)

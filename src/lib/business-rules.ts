@@ -1,16 +1,10 @@
-/**
- * Reglas de negocio críticas como funciones puras — la única fuente de verdad
- * ejecutable de totales, separadores, descripción DYMMSA e inventario.
- * La narrativa de cada regla vive en CLAUDE.md ("Reglas de negocio críticas").
- */
-
-// ─── Tipos de ítem ─────────────────────────────────────────────────────
+/** Executable source of truth for the critical business rules; the narrative lives in CLAUDE.md. */
 
 export function isSeparator(item: { item_type?: string | null }): boolean {
   return item.item_type === 'separator'
 }
 
-/** Producto = sin `item_type` (legacy) o 'product'; cualquier otro valor no lo es. */
+/** Product = missing `item_type` (legacy) or 'product'. */
 export function isProductItem(item: { item_type?: string | null }): boolean {
   return !item.item_type || item.item_type === 'product'
 }
@@ -19,35 +13,30 @@ export function filterProductItems<T extends { item_type?: string | null }>(item
   return items.filter(isProductItem)
 }
 
-/** "No lo vendemos" = SOLO `is_sold === false` (tri-estado: null/true no excluyen). */
+/** "Not sold" = ONLY `is_sold === false`; the tri-state null/true never exclude. */
 export function isNotSold(item: { is_sold?: boolean | null }): boolean {
   return item.is_sold === false
 }
 
-// ─── Descripción DYMMSA (jerarquía de catálogo, ADR-013) ───────────────
-
-/** Llave de cruce con urrea_catalog: trim+upper SIEMPRE — un espacio rompe el match en silencio. */
+/** ALWAYS trim+upper: a stray space breaks the catalog match silently. */
 export function normalizeCatalogCode(code: string | null | undefined): string {
   return (code ?? '').trim().toUpperCase()
 }
 
-/** Marca por defecto del catálogo/sistema (etm_products.brand y urrea_catalog.brand). */
+/** Default brand for etm_products.brand and urrea_catalog.brand. */
 export const DEFAULT_BRAND = 'URREA'
 
-/** Marca normalizada trim+upper; vacía → DEFAULT_BRAND (la columna es NOT NULL DEFAULT). */
+/** trim+upper; empty → DEFAULT_BRAND (the column is NOT NULL DEFAULT). */
 export function normalizeCatalogBrand(brand: string | null | undefined): string {
   return (brand ?? '').trim().toUpperCase() || DEFAULT_BRAND
 }
 
-/** Marca como ETIQUETA (proveedores, #21): trim+upper SIN default — vacía es inválida, no URREA. */
+/** Brand as a TAG (suppliers, #21): trim+upper with NO default — empty is invalid, not URREA. */
 export function normalizeBrandTag(name: string | null | undefined): string {
   return (name ?? '').trim().toUpperCase()
 }
 
-/**
- * Llave `marca|código` para los mapas de catálogo. El cruce es SIEMPRE por
- * (code, brand): el mismo código existe en varias marcas (ADR-013).
- */
+/** The catalog cross is ALWAYS by (code, brand): the same code exists under several brands (ADR-013). */
 export function catalogKey(
   code: string | null | undefined,
   brand: string | null | undefined,
@@ -64,10 +53,8 @@ type DescriptionResolvable = {
   dymmsa_description?: string | null
 }
 
-/**
- * Jerarquía: catálogo oficial (por code+brand estricto) > curada > null.
- * `source` deja a la UI etiquetar el origen y bloquear la edición de la oficial.
- */
+/** Hierarchy: official catalog (strict code+brand) > curated > null. `source` lets the UI label
+ *  the origin and lock the official one. */
 export function resolveDymmsaDescription(
   item: DescriptionResolvable,
   catalogMap: Map<string, string | null>,
@@ -76,7 +63,7 @@ export function resolveDymmsaDescription(
 
   if (normalizeCatalogCode(item.model_code)) {
     const catalogDesc = catalogMap.get(catalogKey(item.model_code, item.brand))
-    // Una fila de catálogo sin descripción no aporta nada oficial: cede a la curada.
+    // A catalog row with no description offers nothing official: fall back to curated.
     if (catalogDesc && catalogDesc.trim() !== '') {
       return { value: catalogDesc.trim(), source: 'catalog' }
     }
@@ -88,9 +75,7 @@ export function resolveDymmsaDescription(
   return { value: null, source: null }
 }
 
-// ─── Cálculos de líneas ────────────────────────────────────────────────
-
-/** Subtotal de línea; null si falta precio o cantidad. */
+/** Line subtotal; null when price or quantity is missing. */
 export function calculateLineTotal(
   unitPrice: number | null | undefined,
   quantity: number | null | undefined
@@ -98,8 +83,6 @@ export function calculateLineTotal(
   if (unitPrice == null || quantity == null) return null
   return unitPrice * quantity
 }
-
-// ─── Totales de cotización ─────────────────────────────────────────────
 
 type QuotationItemLike = {
   unit_price: number | null
@@ -109,7 +92,7 @@ type QuotationItemLike = {
   is_sold?: boolean | null
 }
 
-/** Total de cotización: fuera separadores, "no lo vendemos" y líneas incompletas. */
+/** Excludes separators, "not sold" items and incomplete lines. */
 export function calculateQuotationTotal<T extends QuotationItemLike>(
   items: T[],
   options: { onlyApproved?: boolean } = {}
@@ -123,10 +106,8 @@ export function calculateQuotationTotal<T extends QuotationItemLike>(
   }, 0)
 }
 
-/**
- * Subtotal EN VIVO de `/approve/[token]`: la aprobación es el set local de ids
- * que el cliente marca, no el campo persistido. Mismas exclusiones que el total.
- */
+/** LIVE subtotal for `/approve/[token]`: approval is the client's local id set, not the persisted
+ *  field. Same exclusions as the total. */
 export function calculateApprovedSubtotal<T extends QuotationItemLike & { id: string }>(
   items: T[],
   approvedIds: ReadonlySet<string>,
@@ -139,15 +120,13 @@ export function calculateApprovedSubtotal<T extends QuotationItemLike & { id: st
   }, 0)
 }
 
-// ─── Totales de orden ──────────────────────────────────────────────────
-
 type OrderItemLike = {
   unit_price: number
   quantity_approved: number
   item_type?: string | null
 }
 
-/** Total de orden: precio × cantidad aprobada, separadores fuera. */
+/** Price × approved quantity; separators excluded. */
 export function calculateOrderTotal<T extends OrderItemLike>(items: T[]): number {
   return items.reduce((sum, item) => {
     if (!isProductItem(item)) return sum
@@ -155,10 +134,7 @@ export function calculateOrderTotal<T extends OrderItemLike>(items: T[]): number
   }, 0)
 }
 
-/**
- * Total real entregado (confirm-reception): stock + min(recibido, pedido).
- * El excedente de recepción nunca se factura (ADR-019).
- */
+/** Delivered total: stock + min(received, ordered) — reception excess is never invoiced (ADR-019). */
 export function calculateDeliveredTotal<T extends {
   quantity_in_stock: number
   quantity_received: number
@@ -177,26 +153,22 @@ export function calculateDeliveredTotal<T extends {
   }, 0)
 }
 
-// ─── Recepción con excedente (ADR-019) ─────────────────────────────────
-
 type ReceptionLike = {
   quantity_received: number
   quantity_to_order: number
 }
 
-/** Lo facturable/entregable de una recepción: min(recibido, pedido). */
+/** Invoiceable/deliverable part of a reception: min(received, ordered). */
 export function receivedForCustomer<T extends ReceptionLike>(item: T): number {
   return Math.min(item.quantity_received, item.quantity_to_order)
 }
 
-/** Excedente = max(0, recibido − pedido): lo ÚNICO que entra a inventario (por delta). */
+/** Excess = max(0, received − ordered): the ONLY thing that enters inventory, by delta. */
 export function receptionExcess<T extends ReceptionLike>(item: T): number {
   return Math.max(0, item.quantity_received - item.quantity_to_order)
 }
 
-// ─── Inventario / Allocation ───────────────────────────────────────────
-
-/** Reparte lo aprobado entre stock y por pedir. Invariante: inStock + toOrder === needed. */
+/** Splits approved between stock and to-order. Invariant: inStock + toOrder === needed. */
 export function allocateInventory(
   needed: number,
   available: number
@@ -206,7 +178,7 @@ export function allocateInventory(
   return { inStock, toOrder }
 }
 
-/** Assert del invariante in_stock + to_order === approved (routes que mutan order_items). */
+/** Invariant check for routes that mutate order_items. */
 export function validateAllocationInvariant(item: {
   quantity_in_stock: number
   quantity_to_order: number

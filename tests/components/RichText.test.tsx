@@ -1,7 +1,4 @@
-/**
- * RichText: las cuatro marcas en línea que traen los changelogs. Antes de esto
- * la página de Novedades imprimía los `**asteriscos**` tal cual.
- */
+/** RichText: the four inline marks used by changelogs — Novedades used to print `**asterisks**` raw. */
 
 import { describe, test, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -19,7 +16,7 @@ describe('RichText', () => {
     const { container } = render(<RichText text="**Migración**: corre `bun run check`" />)
     expect(container.querySelector('strong')?.textContent).toBe('Migración')
     expect(container.querySelector('code')?.textContent).toBe('bun run check')
-    // Ni asteriscos ni backticks sobreviven como texto.
+    // Neither asterisks nor backticks survive as text.
     expect(container.textContent).toBe('Migración: corre bun run check')
   })
 

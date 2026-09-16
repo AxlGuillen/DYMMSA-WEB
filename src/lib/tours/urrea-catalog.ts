@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del catálogo oficial URREA/multimarca (issue #74). */
+/** Official URREA / multi-brand catalog overview (#74). */
 export const URREA_CATALOG_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="uc-filters"]',

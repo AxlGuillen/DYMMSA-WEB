@@ -1,8 +1,5 @@
-/**
- * Health checks del endpoint público /api/health: ok | degraded | down.
- * Endpoint público → respuestas gruesas (ok/fail/skip, sin detalles internos);
- * los checks reusan las queries reales de la app y se aíslan entre sí.
- */
+/** Checks for the public /api/health. Public endpoint → coarse results (ok/fail/skip, no internals);
+ *  every check reuses the app's real query and stays isolated from the others. */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getGitHubConfig } from '@/lib/github'
@@ -43,16 +40,16 @@ type Fetcher = typeof fetch
 
 const CHECK_TIMEOUT_MS = 5000
 
-/** Promesa que rechaza al vencer el plazo — cap para checks cuya query no expone señal de aborto. */
+/** Rejects on deadline — cap for checks whose query exposes no abort signal. */
 function checkTimeout(ms: number): Promise<never> {
   return new Promise((_, reject) => {
     const id = setTimeout(() => reject(new Error(`timeout tras ${ms}ms`)), ms)
-    // En Node el timer retendría el proceso; unref lo libera (en edge no existe).
+    // In Node the timer would hold the process open; unref releases it (absent on edge).
     if (typeof id === 'object' && 'unref' in id) id.unref()
   })
 }
 
-/** Corre un check con latencia y cap de timeout: colgado = fail, no espera a la plataforma. */
+/** Runs a check with latency and a timeout cap: hung = fail, never waits on the platform. */
 async function timed(name: string, fn: () => Promise<unknown>): Promise<HealthCheck> {
   const start = Date.now()
   try {
@@ -64,9 +61,7 @@ async function timed(name: string, fn: () => Promise<unknown>): Promise<HealthCh
   }
 }
 
-// ─── Checks ────────────────────────────────────────────────────────────
-
-/** Módulos de negocio: la misma query que usa la app — prueba schema y relaciones, no un ping. */
+/** Business modules: the app's own query — exercises schema and relations, not a ping. */
 export const checkQuotations = (db: SupabaseClient) =>
   timed('quotations', () => listQuotations(db, { pageSize: 1 }))
 
@@ -76,17 +71,14 @@ export const checkOrders = (db: SupabaseClient) =>
 export const checkInventory = (db: SupabaseClient) =>
   timed('inventory', () => searchInventory(db, { pageSize: 1 }))
 
-/** El bucket de imágenes de Tareas responde (Storage vivo). */
+/** Storage is alive: the Tasks image bucket responds. */
 export const checkStorage = (db: SupabaseClient) =>
   timed('storage', async () => {
     const { error } = await db.storage.from('task-images').list('', { limit: 1 })
     if (error) throw error
   })
 
-/**
- * El token de GitHub (módulo Tareas) sigue válido. /rate_limit no consume
- * cuota. Sin configuración → skip (entorno local sin el módulo).
- */
+/** GitHub token still valid; /rate_limit consumes no quota. Not configured → skip. */
 export async function checkGitHub(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
   const cfg = getGitHubConfig()
   if (!cfg) return { status: 'skip', detail: 'no configurado' }
@@ -102,12 +94,12 @@ export async function checkGitHub(fetchFn: Fetcher = fetch): Promise<HealthCheck
   })
 }
 
-/** Odoo (ADR-025): search_count vacío = llamada autenticada más barata; sin env → skip. */
+/** Odoo (ADR-025): an empty search_count is the cheapest authenticated call; no env → skip. */
 export async function checkOdoo(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
   if (!isOdooConfigured()) return { status: 'skip', detail: 'no configurado' }
   return timed('odoo', async () => {
-    // odooEnv DENTRO de timed: si algún día su validación diverge del guard de
-    // arriba, un throw aquí se reporta como fail — no tumba el endpoint entero.
+    // odooEnv inside timed: if its validation ever diverges from the guard above,
+    // a throw is reported as fail instead of taking the whole endpoint down.
     const { url, apiKey, db } = odooEnv()
     const res = await fetchFn(`${url}/json/2/account.move/search_count`, {
       method: 'POST',
@@ -124,12 +116,8 @@ export async function checkOdoo(fetchFn: Fetcher = fetch): Promise<HealthCheck> 
   })
 }
 
-// ─── Checks del MCP remoto (OAuth, ADR-023) ────────────────────────────
-
-/**
- * El servidor OAuth de Supabase está encendido (es un toggle beta del
- * dashboard: si alguien lo apaga, el conector muere sin que cambie el repo).
- */
+/** Supabase's OAuth server is a beta dashboard toggle: if someone turns it off the connector dies
+ *  with no change in the repo. */
 export async function checkOauthServer(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
   return timed('oauth_server', async () => {
     const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/.well-known/oauth-authorization-server/auth/v1`
@@ -141,7 +129,7 @@ export async function checkOauthServer(fetchFn: Fetcher = fetch): Promise<Health
   })
 }
 
-/** El metadata RFC 9728 propio responde y anuncia la URI canónica del recurso. */
+/** Our own RFC 9728 metadata responds and advertises the canonical resource URI. */
 export async function checkProtectedResource(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
   return timed('protected_resource', async () => {
     const res = await fetchFn(`${appUrl()}${PROTECTED_RESOURCE_PATH}`, {
@@ -155,7 +143,7 @@ export async function checkProtectedResource(fetchFn: Fetcher = fetch): Promise<
   })
 }
 
-/** MCP sin token debe dar 401 CON resource_metadata: atrapa fail-open y 401 mudo. */
+/** MCP without a token must return 401 WITH resource_metadata: catches fail-open and mute 401s. */
 export async function checkMcpUnauthenticated(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
   const start = Date.now()
   try {
@@ -163,7 +151,7 @@ export async function checkMcpUnauthenticated(fetchFn: Fetcher = fetch): Promise
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        // Streamable HTTP exige aceptar ambos content types.
+        // Streamable HTTP requires accepting both content types.
         accept: 'application/json, text/event-stream',
       },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
@@ -186,8 +174,6 @@ export async function checkMcpUnauthenticated(fetchFn: Fetcher = fetch): Promise
   }
 }
 
-// ─── Agregación ────────────────────────────────────────────────────────
-
 export async function runHealthChecks(deps: {
   db: SupabaseClient
   fetchFn?: Fetcher
@@ -206,9 +192,7 @@ export async function runHealthChecks(deps: {
       checkMcpUnauthenticated(fetchFn),
     ])
 
-  // down = algún módulo de negocio no puede operar; degraded = módulos
-  // secundarios (Tareas/imágenes/conector MCP) afectados pero el negocio sigue.
-  // skip no penaliza.
+  // down = a business module cannot operate; degraded = only secondary modules. skip never penalizes.
   let status: HealthReport['status'] = 'ok'
   const secondary = [storage, github, odoo, oauthServer, protectedResource, mcpUnauthenticated]
   if (secondary.some((c) => c.status === 'fail')) status = 'degraded'

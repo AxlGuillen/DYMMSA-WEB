@@ -1,8 +1,4 @@
-/**
- * Global setup del E2E: deja la BD local en estado conocido antes de correr.
- * Reusa resetDb() del harness de integración (trunca lo transaccional y reaplica
- * los fixtures). El usuario de prueba de auth persiste del `supabase start`.
- */
+/** E2E global setup: resets the local DB to a known state via the integration harness. */
 import { resetDb, closePool } from '../integration/helpers/db'
 
 export default async function globalSetup() {

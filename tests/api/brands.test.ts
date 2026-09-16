@@ -1,8 +1,5 @@
-/**
- * Submódulo de marcas (issue #21). Regla clave: eliminar una marca EN USO se
- * bloquea (pre-check + FK sin cascade como backstop); nombres SIEMPRE
- * normalizados trim+upper (cruce futuro por valor con marcas de productos).
- */
+/** Brands (#21): deleting a brand in use is blocked (pre-check + FK without
+ *  cascade), and names are always normalized trim+upper. */
 
 import { describe, test, expect, vi } from 'vitest'
 import {

@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del módulo de tareas (issue #74): GitHub Issues como backend. */
+/** Tasks module overview (#74): GitHub Issues as the backend. */
 export const TASKS_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="tk-filters"]',

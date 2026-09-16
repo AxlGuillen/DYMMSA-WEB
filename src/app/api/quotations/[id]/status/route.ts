@@ -17,7 +17,7 @@ export async function PATCH(
 
     const { status } = (await request.json()) as { status: QuotationStatus }
 
-    // converted_to_order no es un destino manual: solo se asigna al generar la orden.
+    // converted_to_order is not a manual target: it is only set when the order is generated.
     if (!MANUAL_QUOTATION_STATUSES.includes(status)) {
       return badRequest('El estado "Convertida a orden" solo se asigna al generar la orden')
     }
@@ -32,9 +32,8 @@ export async function PATCH(
       return notFound('Cotización no encontrada')
     }
 
-    // Guarda: para reabrir una cotización convertida, su orden vinculada debe estar
-    // ELIMINADA (eliminar la orden restaura el inventario). Esto además garantiza que
-    // una cotización tenga a lo sumo una orden a la vez (evita órdenes huérfanas).
+    // Reopening a converted quotation requires its linked order to be deleted (that restores
+    // inventory) and keeps at most one order per quotation.
     if (quotation.status === 'converted_to_order') {
       const { data: linkedOrders } = await supabase
         .from('orders')
@@ -49,8 +48,8 @@ export async function PATCH(
       }
     }
 
-    // Cada cambio de estado regenera approval_token (el link viejo muere);
-    // is_approved y approved_at se preservan — approved_at solo se sella si no existe.
+    // Every status change regenerates approval_token, killing the old link; is_approved and
+    // approved_at are preserved — approved_at is only sealed when still empty.
     const updatePayload: {
       status: QuotationStatus
       approval_token: string

@@ -1,6 +1,6 @@
 'use server'
 
-/** Consentimiento OAuth (ADR-023): Supabase valida el authorization_id contra la sesión — el campo oculto no necesita ser de fiar. */
+/** OAuth consent (ADR-023): Supabase validates authorization_id against the session, so the hidden field need not be trusted. */
 
 import { redirect } from 'next/navigation'
 
@@ -27,7 +27,7 @@ async function decide(formData: FormData, action: 'approve' | 'deny'): Promise<s
   return data.redirect_url
 }
 
-// `redirect()` lanza NEXT_REDIRECT, así que va FUERA de cualquier try/catch.
+// `redirect()` throws NEXT_REDIRECT, so it must stay OUTSIDE any try/catch.
 export async function approveAction(formData: FormData): Promise<void> {
   redirect(await decide(formData, 'approve'))
 }

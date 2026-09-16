@@ -23,10 +23,10 @@ export const PRIORITY_META: Record<TaskPriority, { label: string; badge: string;
   },
 }
 
-/** Orden de mayor a menor prioridad (para selects y ordenamiento). */
+/** Highest to lowest priority, for selects and sorting. */
 export const PRIORITY_ORDER: TaskPriority[] = ['highest', 'high', 'medium', 'low']
 
-/** Badge de estado: Abierta / Cerrada (completada) / Descartada (not_planned). */
+/** Status badge: open / closed (completed) / discarded (not_planned). */
 export function TaskStateBadge({ state, closedReason }: { state: TaskState; closedReason: TaskCloseReason | null }) {
   const meta =
     state === 'open'

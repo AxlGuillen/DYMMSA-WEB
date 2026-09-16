@@ -21,11 +21,8 @@ interface ColumnPickerProps {
   className?: string
 }
 
-/**
- * Selector "Columnas" por tabla (issue #18): checkbox por columna ocultable
- * + restablecer. Comparte estado con la tabla vía useVisibleColumns (mismo
- * tableId) — sin prop threading.
- */
+/** Per-table column picker (#18). State is shared with the table through
+ *  useVisibleColumns and the same tableId, so no prop threading. */
 export function ColumnPicker({ tableId, columns, className }: ColumnPickerProps) {
   const cols = useVisibleColumns(tableId, columns)
   const hideable = columns.filter((c) => c.hideable !== false)
@@ -52,7 +49,7 @@ export function ColumnPicker({ tableId, columns, className }: ColumnPickerProps)
             key={column.id}
             checked={cols.isVisible(column.id)}
             onCheckedChange={() => cols.toggle(column.id)}
-            // El menú se queda abierto para togglear varias columnas de corrido.
+            // The menu stays open so several columns can be toggled in a row.
             onSelect={(e) => e.preventDefault()}
           >
             {column.label}

@@ -32,7 +32,7 @@ import { useColumnWidths, RESIZABLE_TABLE_CLASS, STICKY_ACTIONS_CELL } from '@/h
 import { ResizableHead } from '@/components/ResizableHead'
 import type { OrderWithCount } from '@/types/database'
 
-// Columnas de la lista (issue #18). Nombre y acciones son fijas.
+// Nombre and acciones are fixed columns (#18).
 export const ORDERS_COLUMNS: readonly TableColumn[] = [
   { id: 'odoo_id', label: 'Odoo ID', width: 120 },
   { id: 'name', label: 'Nombre', hideable: false, width: 240 },
@@ -57,7 +57,7 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
   const cols = useVisibleColumns('orders-list', ORDERS_COLUMNS)
   const widths = useColumnWidths('orders-list', ORDERS_COLUMNS)
 
-  // Header compartido entre skeleton y tabla real (guards escritos una vez).
+  // Shared by the skeleton and the real table so the guards are written once.
   const tableHeaders = (
     <TableHeader>
       <TableRow>
@@ -136,8 +136,8 @@ export function OrdersTable({ orders, isLoading }: OrdersTableProps) {
             {orders.map((order) => (
               <TableRow
                 key={order.id}
-                // Fondos OPACOS: la columna fija de acciones los hereda con
-                // `bg-inherit`, y con alfa se vería el contenido pasando debajo.
+                // OPAQUE backgrounds: the sticky actions column inherits them with
+                // `bg-inherit`, and alpha would leak the content underneath.
                 className="group cursor-pointer bg-background hover:bg-muted"
                 onClick={() => push(`/dashboard/orders/${order.id}`)}
               >

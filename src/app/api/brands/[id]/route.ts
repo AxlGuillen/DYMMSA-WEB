@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
 import { normalizeBrandTag } from '@/lib/business-rules'
 
-// PATCH /api/brands/[id] → renombrar (normalizado)
+// PATCH /api/brands/[id] — rename (normalized trim+upper)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -39,7 +39,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/brands/[id] → bloqueado si está asignada a proveedores
+// DELETE /api/brands/[id] — blocked while the brand is assigned to suppliers
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -50,7 +50,7 @@ export async function DELETE(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    // Pre-check para un mensaje amable; el FK sin CASCADE es el backstop.
+    // Pre-check for a friendly message; the FK without CASCADE is the backstop.
     const { count, error: countError } = await supabase
       .from('supplier_brands')
       .select('*', { count: 'exact', head: true })
@@ -69,7 +69,7 @@ export async function DELETE(
     const { error } = await supabase.from('brands').delete().eq('id', id)
 
     if (error) {
-      // 23503: el FK bloqueó (carrera entre el pre-check y el delete).
+      // 23503: the FK blocked it (race between the pre-check and the delete).
       if (error.code === '23503') {
         return badRequest('La marca está asignada a proveedores. Quítala antes de eliminarla.')
       }

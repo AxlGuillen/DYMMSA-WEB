@@ -1,12 +1,3 @@
-/**
- * URREA Catalog — list / stats / CRUD handlers (tabla aislada urrea_catalog).
- * Migrado a server side: el cliente ya no toca Supabase directo.
- *   - auth en todas las rutas
- *   - list: shape paginado, búsqueda (.or), whitelist de sortField
- *   - stats: count
- *   - create/update/delete: payload, .eq('id'), validación
- */
-
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, findFilter, filterValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'

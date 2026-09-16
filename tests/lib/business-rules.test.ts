@@ -18,8 +18,6 @@ import {
   resolveDymmsaDescription,
 } from '@/lib/business-rules'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function makeQuotationItem(overrides: {
   unit_price?: number | null
   quantity?: number | null
@@ -53,8 +51,6 @@ function makeOrderItem(overrides: {
   }
 }
 
-// ─── isSeparator ─────────────────────────────────────────────────────────────
-
 describe('isSeparator', () => {
   test('returns true only for item_type === "separator"', () => {
     expect(isSeparator({ item_type: 'separator' })).toBe(true)
@@ -69,8 +65,6 @@ describe('isSeparator', () => {
     expect(isSeparator({})).toBe(false)
   })
 })
-
-// ─── isProductItem ───────────────────────────────────────────────────────────
 
 describe('isProductItem', () => {
   test('returns true for item_type === "product"', () => {
@@ -87,8 +81,6 @@ describe('isProductItem', () => {
     expect(isProductItem({ item_type: 'separator' })).toBe(false)
   })
 })
-
-// ─── filterProductItems ──────────────────────────────────────────────────────
 
 describe('filterProductItems', () => {
   const items = [
@@ -118,8 +110,6 @@ describe('filterProductItems', () => {
   })
 })
 
-// ─── calculateLineTotal ──────────────────────────────────────────────────────
-
 describe('calculateLineTotal', () => {
   test('multiplies unit_price × quantity', () => {
     expect(calculateLineTotal(100, 3)).toBe(300)
@@ -143,8 +133,6 @@ describe('calculateLineTotal', () => {
     expect(calculateLineTotal(100, 0)).toBe(0)
   })
 })
-
-// ─── calculateQuotationTotal ─────────────────────────────────────────────────
 
 describe('calculateQuotationTotal', () => {
   test('sums unit_price × quantity for all products', () => {
@@ -197,21 +185,18 @@ describe('calculateQuotationTotal', () => {
       makeQuotationItem({ unit_price: 100, quantity: 2, is_approved: null }),  // 200
       makeQuotationItem({ unit_price: 100, quantity: 3, is_approved: false }), // 300
     ]
-    // Without onlyApproved flag, both are included
     expect(calculateQuotationTotal(items)).toBe(500)
   })
 
   test('excluye ítems "no lo vendemos" (is_sold === false)', () => {
     const items = [
       makeQuotationItem({ unit_price: 100, quantity: 2, is_sold: null }),  // 200
-      makeQuotationItem({ unit_price: 100, quantity: 5, is_sold: false }), // excluido
+      makeQuotationItem({ unit_price: 100, quantity: 5, is_sold: false }), // excluded
       makeQuotationItem({ unit_price: 100, quantity: 1, is_sold: true }),  // 100
     ]
     expect(calculateQuotationTotal(items)).toBe(300)
   })
 })
-
-// ─── isNotSold ───────────────────────────────────────────────────────────────
 
 describe('isNotSold', () => {
   test('solo true cuando is_sold === false', () => {
@@ -221,8 +206,6 @@ describe('isNotSold', () => {
     expect(isNotSold({})).toBe(false)
   })
 })
-
-// ─── calculateApprovedSubtotal ───────────────────────────────────────────────
 
 describe('calculateApprovedSubtotal', () => {
   const items = [
@@ -265,8 +248,6 @@ describe('calculateApprovedSubtotal', () => {
   })
 })
 
-// ─── calculateOrderTotal ─────────────────────────────────────────────────────
-
 describe('calculateOrderTotal', () => {
   test('sums unit_price × quantity_approved for products', () => {
     const items = [
@@ -289,8 +270,6 @@ describe('calculateOrderTotal', () => {
   })
 })
 
-// ─── calculateDeliveredTotal ─────────────────────────────────────────────────
-
 describe('calculateDeliveredTotal', () => {
   function makeDeliveredItem(overrides: {
     quantity_in_stock?: number
@@ -303,7 +282,7 @@ describe('calculateDeliveredTotal', () => {
     return {
       quantity_in_stock: 0,
       quantity_received: 0,
-      // Default generoso: lo pedido cubre lo recibido (los casos legacy no cambian)
+      // Default: what was ordered covers what was received, so legacy cases hold.
       quantity_to_order: overrides.quantity_to_order ?? overrides.quantity_received ?? 0,
       urrea_status: 'pending',
       unit_price: 100,
@@ -341,7 +320,7 @@ describe('calculateDeliveredTotal', () => {
   })
 
   test('REGLA (ADR-019): el excedente NO se factura — cap en lo pedido', () => {
-    // in_stock 2 + min(10, 3) = 5 × $100 = $500; los 7 de excedente son stock, no venta
+    // in_stock 2 + min(10, 3) = 5 × $100; the 7 excess units are stock, not a sale.
     const item = makeDeliveredItem({
       quantity_in_stock: 2, quantity_received: 10, quantity_to_order: 3, unit_price: 100,
     })
@@ -356,8 +335,6 @@ describe('calculateDeliveredTotal', () => {
     expect(calculateDeliveredTotal([item])).toBe(200)
   })
 })
-
-// ─── Recepción con excedente (ADR-019) ──────────────────────────────────────
 
 describe('receivedForCustomer', () => {
   test('recibido menor o igual a lo pedido → recibido', () => {
@@ -382,8 +359,6 @@ describe('receptionExcess', () => {
     expect(receptionExcess({ quantity_received: 0, quantity_to_order: 0 })).toBe(0)
   })
 })
-
-// ─── allocateInventory ───────────────────────────────────────────────────────
 
 describe('allocateInventory', () => {
   test('INVARIANTE: inStock + toOrder siempre === needed', () => {
@@ -431,8 +406,6 @@ describe('allocateInventory', () => {
   })
 })
 
-// ─── validateAllocationInvariant ─────────────────────────────────────────────
-
 describe('validateAllocationInvariant', () => {
   test('returns true when invariant holds', () => {
     expect(validateAllocationInvariant({
@@ -469,8 +442,6 @@ describe('validateAllocationInvariant', () => {
   })
 })
 
-// ─── Descripción DYMMSA (jerarquía de catálogo) ──────────────────────────────
-
 describe('normalizeCatalogCode', () => {
   test('trim + mayúsculas', () => {
     expect(normalizeCatalogCode('  art-123 ')).toBe('ART-123')
@@ -493,8 +464,8 @@ describe('catalogKey', () => {
 })
 
 describe('resolveDymmsaDescription', () => {
-  // El catálogo se indexa por (marca, código): el MISMO código existe en dos
-  // marcas con descripciones distintas — el caso que motivó el match estricto.
+  // The catalog is keyed by (brand, code): the same code lives in two brands with
+  // different descriptions — the case that forced the strict match.
   const catalog = new Map<string, string | null>([
     [catalogKey('ART-123', 'URREA'), 'Llave stilson 14" oficial'],
     [catalogKey('TIJS9', 'SURTEK'), 'Tijeras industriales 9-1/2"'],
@@ -519,15 +490,14 @@ describe('resolveDymmsaDescription', () => {
   })
 
   test('REGLA: mismo código, otra marca → NO hereda la descripción ajena', () => {
-    // TIJS9 solo existe bajo SURTEK. Un producto marcado URREA no debe tomarla
-    // (antes sí lo hacía: cruzaba solo por código — ese era el bug).
+    // TIJS9 exists only under SURTEK: a URREA product must not inherit it
+    // (the old code crossed by code alone — that was the bug).
     const r = resolveDymmsaDescription(
       { item_type: 'product', model_code: 'TIJS9', brand: 'URREA', dymmsa_description: 'curada' },
       catalog,
     )
     expect(r).toEqual({ value: 'curada', source: 'dymmsa' })
 
-    // Con la marca correcta sí resuelve.
     const ok = resolveDymmsaDescription(
       { item_type: 'product', model_code: 'TIJS9', brand: 'SURTEK', dymmsa_description: 'curada' },
       catalog,

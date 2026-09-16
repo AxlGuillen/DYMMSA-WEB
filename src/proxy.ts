@@ -37,33 +37,28 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Rutas protegidas → login. /oauth/consent entra aquí a propósito (el
-  // consentimiento OAuth sin sesión no significa nada, ADR-023).
+  // /oauth/consent is protected on purpose: consent without a session means nothing (ADR-023).
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/oauth')) {
     if (!user) {
       const url = request.nextUrl.clone()
-      // Conservar la query es vital para /oauth/consent: sin el
-      // authorization_id, el usuario vuelve del login a una pantalla que ya no
-      // sabe qué estaba autorizando.
+      // Keep the query: without authorization_id, consent forgets what it was authorizing.
       const target = `${pathname}${request.nextUrl.search}`
       url.pathname = '/login'
-      url.search = '' // clone() arrastra la query original; sin limpiarla se duplica
+      url.search = '' // clone() carries the original query; it duplicates unless cleared
       url.searchParams.set('next', target)
       return NextResponse.redirect(url)
     }
   }
 
-  // Auth routes - redirect if already authenticated. Honra ?next= (solo rutas
-  // relativas — guard de open-redirect): un usuario con sesión que cae en
-  // /login?next=/oauth/consent?... debe llegar al consentimiento, no a /dashboard.
+  // Honors ?next= for relative routes only (open-redirect guard): a logged-in user
+  // landing on /login?next=/oauth/consent must reach consent, not /dashboard.
   if (pathname === '/login') {
     if (user) {
       const next = request.nextUrl.searchParams.get('next')
       const url = request.nextUrl.clone()
       url.search = ''
-      // Solo rutas relativas del mismo origen. Se rechaza `//` y también `/\`:
-      // el navegador normaliza la barra invertida a `/`, así que `/\evil.com`
-      // se convertiría en `//evil.com` — protocol-relative, o sea otro origen.
+      // Rejects `//` and `/\`: browsers normalize the backslash, so `/\evil.com`
+      // would become protocol-relative `//evil.com` — a different origin.
       if (isSafeNext(next)) {
         const [nextPath, ...rest] = next.split('?')
         url.pathname = nextPath
@@ -80,8 +75,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Excluye estáticos, /api/mcp, /.well-known/* y health: autentican en su
-    // handler — un redirect a /login mataría el 401 de discovery (ADR-023).
+    // /api/mcp, /.well-known/* and health authenticate in their own handler:
+    // a /login redirect would kill the discovery 401 (ADR-023).
     '/((?!_next/static|_next/image|favicon.ico|\\.well-known|api/mcp|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

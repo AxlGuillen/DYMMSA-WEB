@@ -6,7 +6,7 @@ import type { Brand } from '@/types/database'
 
 type BrandRow = Brand & { supplier_brands: { count: number }[] | null }
 
-// GET /api/brands → todas las marcas con conteo de proveedores que las usan
+// GET /api/brands — all brands with a count of the suppliers using each one
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -35,7 +35,7 @@ export async function GET() {
   }
 }
 
-// POST /api/brands → crear marca (normalizada trim+upper)
+// POST /api/brands — create a brand (normalized trim+upper)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()

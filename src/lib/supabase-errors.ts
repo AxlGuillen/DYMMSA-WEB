@@ -1,7 +1,5 @@
-/**
- * Traduce errores de Postgres a mensajes accionables en español, identificando
- * el ETM ofensor cuando se pasan los ítems del insert (ADR-009).
- */
+/** Postgres errors → actionable Spanish messages, naming the offending ETM when the insert items
+ *  are passed in (ADR-009). */
 
 export interface PgErrorInput {
   message?: string | null
@@ -10,7 +8,7 @@ export interface PgErrorInput {
   code?: string | null
 }
 
-/** Subconjunto del shape de ítem usado para escanear en busca del ofensor. */
+/** Item subset needed to scan for the offender. */
 export interface InspectableItem {
   etm?: string | null
   quantity?: number | null
@@ -21,13 +19,13 @@ export interface InspectableItem {
 }
 
 export interface PgErrorExplanation {
-  /** Mensaje en español, listo para mostrar al usuario. */
+  /** Display-ready message (Spanish). */
   userMessage: string
-  /** ETM del ítem ofensor cuando pudo identificarse. */
+  /** Offending item's ETM, when it could be identified. */
   offendingEtm?: string
-  /** True si es violación de regla de negocio (responder 400, no 500). */
+  /** True on a business-rule violation: answer 400, not 500. */
   isConstraintViolation: boolean
-  /** Nombre crudo de la constraint, útil para debugging/logs. */
+  /** Raw constraint name, for logs. */
   constraintName?: string
 }
 
@@ -36,28 +34,26 @@ const ERR_UNKNOWN: PgErrorExplanation = {
   isConstraintViolation: false,
 }
 
-/** Extrae el nombre de la constraint del mensaje de Postgres. */
 function extractConstraint(msg: string): string | undefined {
-  // Formato típico: '... violates check constraint "name"' o
-  // '... unique constraint "name"' / '... foreign key constraint "name"'.
+  // Typical shapes: '... violates check constraint "name"', '... unique constraint "name"',
+  // '... foreign key constraint "name"'.
   const m = msg.match(/constraint "([a-z0-9_]+)"/i)
   return m?.[1]
 }
 
-/** ¿Es una violación de CHECK reconocible por code o sufijo? */
+/** CHECK violation, by code or by constraint suffix. */
 function isCheckViolation(code: string, constraint?: string): boolean {
   return code === '23514' || constraint?.endsWith('_check') === true || constraint?.startsWith('check_') === true
 }
-/** ¿Es una violación de UNIQUE reconocible? */
+/** UNIQUE violation, by code or by constraint suffix. */
 function isUniqueViolation(code: string, constraint?: string): boolean {
   return code === '23505' || constraint?.endsWith('_key') === true || constraint?.endsWith('_unique') === true
 }
-/** ¿Es una violación de FK reconocible? */
+/** FK violation, by code or by constraint suffix. */
 function isFkViolation(code: string, constraint?: string): boolean {
   return code === '23503' || constraint?.endsWith('_fkey') === true
 }
 
-/** Helpers para buscar el ítem ofensor según el tipo de constraint. */
 function findByZeroOrNullQuantity(items: InspectableItem[]): InspectableItem | undefined {
   return items.find(
     (i) => i.quantity == null || (typeof i.quantity === 'number' && i.quantity <= 0),
@@ -75,7 +71,7 @@ function findByNegativePrice(items: InspectableItem[]): InspectableItem | undefi
   return items.find((i) => typeof i.unit_price === 'number' && i.unit_price < 0)
 }
 
-/** Error de Postgres → mensaje accionable; con `items` identifica el ETM ofensor. */
+/** Postgres error → actionable message; with `items` it names the offending ETM. */
 export function explainPgError(
   error: PgErrorInput | null | undefined,
   items?: InspectableItem[],
@@ -87,7 +83,6 @@ export function explainPgError(
   const code = error.code ?? ''
   const constraint = extractConstraint(msg) ?? extractConstraint(details)
 
-  // ── CHECK constraint (23514) ──────────────────────────────────────
   if (isCheckViolation(code, constraint)) {
     switch (constraint) {
       case 'quotation_items_quantity_check': {
@@ -190,7 +185,6 @@ export function explainPgError(
     }
   }
 
-  // ── UNIQUE constraint (23505) ─────────────────────────────────────
   if (isUniqueViolation(code, constraint)) {
     if (
       constraint === 'etm_products_etm_unique' ||
@@ -217,7 +211,6 @@ export function explainPgError(
     }
   }
 
-  // ── FK violation (23503) ──────────────────────────────────────────
   if (isFkViolation(code, constraint)) {
     return {
       userMessage: 'Recurso relacionado no encontrado o eliminado.',
@@ -226,7 +219,6 @@ export function explainPgError(
     }
   }
 
-  // ── NOT NULL violation (23502) ────────────────────────────────────
   if (code === '23502') {
     return {
       userMessage: 'Falta un campo requerido.',
@@ -234,7 +226,6 @@ export function explainPgError(
     }
   }
 
-  // ── Fallback ──────────────────────────────────────────────────────
   return {
     userMessage: msg || 'Ocurrió un error al guardar.',
     isConstraintViolation: false,

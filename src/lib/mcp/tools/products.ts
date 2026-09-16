@@ -1,4 +1,4 @@
-/** Tools del catálogo ETM (lectura); la Descripción DYMMSA va YA resuelta (ADR-013). */
+/** ETM catalog tools (read); the DYMMSA description is returned already resolved (ADR-013). */
 
 import { resolveDymmsaDescription } from '@/lib/business-rules'
 import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'

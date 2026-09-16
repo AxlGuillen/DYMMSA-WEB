@@ -1,8 +1,4 @@
-/**
- * Vista guiada de proveedores (issue #74, ADR-024): anti-drift de los
- * anclajes `data-tour`. La tabla y los forms se mockean a null — los anclajes
- * viven en la página. El tour de tareas se prueba en TasksPage.test.tsx.
- */
+/** Suppliers tour (#74, ADR-024): `data-tour` anti-drift; table and forms mocked to null. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'

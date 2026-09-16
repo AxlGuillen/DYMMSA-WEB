@@ -1,10 +1,5 @@
-/**
- * /api/settings — configuración key-value (app_settings).
- *
- * La whitelist de PATCH es la regla crítica: cada key se valida con su
- * validador registrado; keys desconocidas se rechazan (app_settings no es
- * un dumping ground sin validar).
- */
+/** /api/settings: the PATCH whitelist is the rule — each key has its validator
+ *  and unknown keys are rejected (app_settings is not a dumping ground). */
 
 import { describe, test, expect, vi } from 'vitest'
 import {

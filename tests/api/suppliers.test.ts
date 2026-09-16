@@ -1,10 +1,5 @@
-/**
- * Módulo de proveedores (issue #21) — CRUD de suppliers.
- *
- * Reglas cubiertas: rollback del padre si fallan los links (regla crítica del
- * proyecto), replace por DIFF de marcas en PATCH (no destructivo), filtro por
- * marca vía supplier_brands, y aplanado del embed de marcas.
- */
+/** Suppliers (#21): the parent is rolled back if the links fail, and PATCH
+ *  replaces brands by DIFF instead of wiping them. */
 
 import { describe, test, expect, vi } from 'vitest'
 import {
@@ -52,7 +47,7 @@ describe('GET /api/suppliers', () => {
             supplier_brands: [
               { brands: { id: 'b2', name: 'URREA', created_at: 'x' } },
               { brands: { id: 'b1', name: 'FLUKE', created_at: 'x' } },
-              { brands: null }, // link huérfano defensivo
+              { brands: null }, // defensive orphan link
             ],
           }],
           error: null,
@@ -65,7 +60,7 @@ describe('GET /api/suppliers', () => {
     const body = await readJson<{ data: Array<{ name: string; brands: Array<{ name: string }> }>; count: number; totalPages: number }>(res)
     expect(body.count).toBe(1)
     expect(body.data[0].name).toBe('Ferretería El Tornillo')
-    // aplanadas, sin nulls, ordenadas alfabéticamente
+    // flattened, no nulls, alphabetical
     expect(body.data[0].brands.map((b) => b.name)).toEqual(['FLUKE', 'URREA'])
   })
 
@@ -129,7 +124,7 @@ describe('POST /api/suppliers', () => {
       name: '  Ferretería El Tornillo  ',
       whatsapp: '4433334444',
       email: 'ventas@tornillo.mx',
-      brandIds: ['b1', 'b2', 'b1'], // duplicado se de-duplica
+      brandIds: ['b1', 'b2', 'b1'], // duplicate is de-duplicated
     }))
     expect(res.status).toBe(201)
 
@@ -211,15 +206,15 @@ describe('PATCH /api/suppliers/[id]', () => {
     const res = await patch({ phone: ' 443999 ', notes: '' })
     expect(res.status).toBe(200)
     const upd = activeClient.updatePayload('suppliers')
-    expect(upd).toEqual({ phone: '443999', notes: null }) // trim + vacío→null
+    expect(upd).toEqual({ phone: '443999', notes: null }) // trim + empty → null
   })
 
   test('REGLA: brandIds hace replace por DIFF (inserta nuevas, borra removidas)', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
-        'suppliers.select': { data: { id: 's1' }, error: null }, // chequeo de existencia
-        // existentes: b1, b2 — deseadas: b2, b3 → insertar b3, borrar b1
+        'suppliers.select': { data: { id: 's1' }, error: null }, // existence check
+        // existing: b1, b2 — wanted: b2, b3 → insert b3, delete b1
         'supplier_brands.select': { data: [{ brand_id: 'b1' }, { brand_id: 'b2' }], error: null },
         'supplier_brands.insert': { data: null, error: null },
         'supplier_brands.delete': { data: null, error: null },
@@ -261,8 +256,8 @@ describe('PATCH /api/suppliers/[id]', () => {
   })
 
   test('solo brandIds con proveedor inexistente → 404 (no 500)', async () => {
-    // Sin campos que actualizar no hay update que dispare PGRST116; el chequeo
-    // de existencia previo al diff de marcas devuelve el 404 preciso.
+    // With no fields to update nothing triggers PGRST116; the existence check
+    // before the brand diff is what returns the precise 404.
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {

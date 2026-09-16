@@ -42,8 +42,7 @@ export function useCreateTask() {
     mutationFn: (input: { title: string; description?: string; priority?: TaskPriority }) =>
       fetchJson<Task>('/api/tasks', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) }),
     onSuccess: (newTask) => {
-      // Inserción optimista: la task aparece al instante en las vistas donde
-      // corresponde (estado/prioridad/página 1), sin esperar el refetch.
+      // Optimistic insert into the lists whose filters match, before the refetch.
       const lists = qc.getQueriesData<{ tasks: Task[]; page: number }>({ queryKey: [...TASKS_KEY, 'list'] })
       for (const [key, data] of lists) {
         if (!data) continue
@@ -56,7 +55,7 @@ export function useCreateTask() {
           qc.setQueryData(key, { ...data, tasks: [newTask, ...data.tasks] })
         }
       }
-      // Reconcilia con el servidor en segundo plano.
+      // Reconcile with the server in the background.
       qc.invalidateQueries({ queryKey: TASKS_KEY })
     },
   })
@@ -70,7 +69,7 @@ export function useUpdateTask(number: number) {
       description?: string
       priority?: TaskPriority | null
       state?: TaskState
-      stateReason?: 'completed' | 'not_planned' // solo al cerrar (descartar = not_planned)
+      stateReason?: 'completed' | 'not_planned' // only when closing (discard = not_planned)
     }) =>
       fetchJson<Task>(`/api/tasks/${number}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(input) }),
     onSuccess: () => {
@@ -94,7 +93,7 @@ export function useCreateComment(number: number) {
 }
 
 export function useUploadTaskImage() {
-  // Sube una imagen y devuelve su URL pública para embeberla en la descripción.
+  // Returns a public URL to embed; no server state to invalidate.
   // oxlint-disable-next-line react-doctor/query-mutation-missing-invalidation
   return useMutation({
     mutationFn: (file: File) => {

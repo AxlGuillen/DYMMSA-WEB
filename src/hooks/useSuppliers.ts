@@ -14,8 +14,6 @@ import type {
 export const SUPPLIERS_KEY = ['suppliers']
 export const BRANDS_KEY = ['brands']
 
-// ─── Proveedores ────────────────────────────────────────────────────────
-
 export type SupplierSortField = 'name' | 'updated_at'
 
 interface SuppliersParams {
@@ -69,7 +67,7 @@ export function useCreateSupplier() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: SUPPLIERS_KEY })
-      // Los conteos de uso de marcas cambian al asignar.
+      // Assigning changes the brand usage counts.
       queryClient.invalidateQueries({ queryKey: BRANDS_KEY })
     },
   })
@@ -108,8 +106,6 @@ export function useDeleteSupplier() {
   })
 }
 
-// ─── Marcas (submódulo) ─────────────────────────────────────────────────
-
 export function useBrands() {
   return useQuery({
     queryKey: BRANDS_KEY,
@@ -144,7 +140,7 @@ export function useUpdateBrand() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BRANDS_KEY })
-      // El rename se refleja en las etiquetas de las filas de proveedores.
+      // A rename shows up in the supplier row labels.
       queryClient.invalidateQueries({ queryKey: SUPPLIERS_KEY })
     },
   })

@@ -1,8 +1,4 @@
-/**
- * Anchos de columna redimensionables (issue #55). Solo se persisten los anchos
- * que el usuario ARRASTRÓ: el resto sale del default declarado en la columna,
- * así que cambiar un default en código se refleja para quien no lo tocó.
- */
+/** Resizable column widths (#55): only dragged widths persist, so code defaults still apply. */
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
@@ -21,11 +17,7 @@ const COLUMNS: readonly TableColumn[] = [
   { id: 'sin_width', label: 'Sin ancho declarado' },
 ]
 
-/**
- * `useMounted` marca montado dentro de un requestAnimationFrame (para no
- * animar la rehidratación), y act() no vacía rAF en jsdom: hay que esperarlo
- * o el hook responde con los defaults de SSR — mismo patrón que ColumnPicker.
- */
+/** `useMounted` flips inside a rAF that act() doesn't flush in jsdom; without waiting we get SSR defaults. */
 const render = async () => {
   const hook = renderHook(() => useColumnWidths('products', COLUMNS))
   await act(async () => {

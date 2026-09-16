@@ -47,7 +47,6 @@ export async function POST(
       return NextResponse.json({ message: 'El precio no puede ser negativo' }, { status: 400 })
     }
 
-    // Check inventory
     let quantityInStock = 0
     let quantityToOrder = quantity_approved
 
@@ -106,7 +105,6 @@ export async function POST(
       return NextResponse.json({ message: 'Error al agregar el producto' }, { status: 500 })
     }
 
-    // Recalculate order total
     const { data: allItems } = await supabase
       .from('order_items')
       .select('unit_price, quantity_approved, item_type')

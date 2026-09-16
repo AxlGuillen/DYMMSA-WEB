@@ -150,7 +150,36 @@
 | `POST` | `/api/payables` | ✅ | Registrar factura. Body: `{ supplier_id, concept, amount > 0, invoice_date, due_date, notes? }`. Proveedor obligatorio y existente (404 preciso). Siempre nace `pending` — el status del cliente se ignora |
 | `PATCH` | `/api/payables/[id]` | ✅ | Updates sparse. Regla de pago: `status→'paid'` sin `paid_at` → default hoy; `status→'pending'/'cancelled'` limpia `paid_at`; `paid_at` solo también se acepta (corregir fecha de una pagada) |
 | `DELETE` | `/api/payables/[id]` | ✅ | Eliminar factura |
-| `GET` | `/api/payables/overview` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, summary, payables }` — todas las pendientes (las vencidas de meses previos cuentan) + pagadas del mes; resumen de `summarizeMonth()` |
+| `GET` | `/api/payables/overview` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, summary, payables, pendingTruncated, paidTruncated }` — todas las pendientes (las vencidas de meses previos cuentan) + pagadas del mes; ambas banderas avisan si su lectura superó las 1000 filas, porque las pendientes alimentan el cierre proyectado de #94 y las pagadas el real; resumen de `summarizeMonth()` (incluye `carryOverTotal/Count`) |
+
+---
+
+## Finanzas — Ingresos (Odoo)
+
+> Módulo: Finanzas fase 2 (issue #94, ADR-027) · La app **lee** Odoo, nunca lo espeja. Loaders en `src/lib/odoo/income.ts`, matemática en `src/lib/income.ts`, caché en `src/lib/odoo/income-cache.ts`.
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/finance/income` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, today, income, collections, fetchedAt, unavailable? }`. `income` = `{ collectedTotal/Count (pagos inbound de CLIENTE por fecha de cobro), receivableTotal/Count (abiertas, vencen hoy o después), overdueTotal/Count (abiertas vencidas), collectionsTruncated, receivablesTruncated, collectionCurrencies, receivableCurrencies, overdueCurrencies }`; `collections` = cobros del mes (`folio, customer, date, amount, currency, state`). **Odoo ausente o caído → 200 con `income: null`** y `unavailable.reason` (`not_configured` \| `odoo_error`); solo un error ajeno a Odoo da 500. Dos lecturas cacheadas 15 min (Data Cache, tag `finance-income`). `maxDuration = 60` |
+| `POST` | `/api/finance/income/refresh` | ✅ | Query: `month`. Purga el tag con `revalidateTag(tag, { expire: 0 })` y responde con una lectura fresca (misma forma que el GET) |
+
+---
+
+## Horas (checador)
+
+> Módulo: Horas (issue #93, ADR-026) · Parser y matemática en `src/lib/timesheet.ts`. **Admin** = `requireAdmin()` (401 sin sesión, 403 para member); la BD repite la regla con RLS + `is_admin()`.
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/profile` | ✅ | Perfil propio `{ id, display_name, role, clock_employee_id }` — lo que el cliente usa para decidir qué mostrar |
+| `GET` | `/api/profiles` | Admin | Todos los perfiles |
+| `PATCH` | `/api/profiles/[id]` | Admin | `display_name`, `role (admin/member)`, `clock_employee_id (entero ≥ 1 o null)`. No degrada al **último** admin (400); id de checador repetido (23505) → 400 |
+| `GET` | `/api/time-entries` | ✅ | Query: `user (uuid, solo admin — un member lo IGNORA y recibe lo propio)`, `from`, `to` (ISO; default semana actual lunes→domingo). Devuelve `{ user, from, to, entries, week }` con `week = buildWeekView()` (7 días, totales derivados). **`week` es `null` salvo que `from..to` sea exactamente una semana lunes→domingo** (la UI siempre manda eso; un rango parcial no tiene total semanal). `time` normalizado a `HH:MM` |
+| `POST` | `/api/time-entries` | Admin | Captura manual: `{ user_id, work_date, clock_in, clock_out?, note? }` → nace `source='manual'`, `source_clock_in = clock_in`. Duplicada → 400 |
+| `PATCH` | `/api/time-entries/[id]` | Admin | `clock_in`, `clock_out` (vacío = abierta), `note`. **Solo un cambio de hora** sella `edited_by/edited_at` y escribe `original` (la primera vez): una nota sola no congela la fila para el import. **Jamás** toca `source_clock_in` |
+| `DELETE` | `/api/time-entries/[id]` | Admin | Eliminar pareja; id inexistente → 404 |
+| `POST` | `/api/time-entries/import` | Admin | `multipart/form-data` campo `file` (el `.xls` NGTeco; hoja `Employee Timecard` o la primera). Mapea `(id)` del reporte → `profiles.clock_employee_id`, llama a la RPC `import_time_entries`. Responde `{ period, inserted, updated, skipped_edited, unmapped: [{ clockId, name }], warnings }`. Los no mapeados **no bloquean**; re-subir es idempotente. Una pareja con salida anterior a la entrada se filtra con `warning` (el CHECK la rechazaría y la RPC transaccional tiraría el archivo entero); `23514` → 400. Máximo 5 MB |
+| `GET` | `/api/time-entries/imports` | Admin | Bitácora de cargas (52 más recientes). La RLS de `time_imports` también es solo admin |
 
 ---
 

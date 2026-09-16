@@ -1,7 +1,6 @@
 /**
- * Clientes Supabase del MCP (ADR-023), CERO service_role: clientForToken actúa
- * como el usuario del token (RLS es la única barrera). verifierClient existe
- * aparte porque con accessToken supabase-js bloquea client.auth.
+ * MCP Supabase clients (ADR-023), ZERO service_role: RLS is the only barrier.
+ * verifierClient is separate because supabase-js disables client.auth when accessToken is set.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -31,7 +30,7 @@ export function verifierClient(): SupabaseClient {
   return verifier
 }
 
-/** Solo para tests: el singleton viviría entre casos con mocks distintos. */
+/** Tests only: the singleton would leak across cases with different mocks. */
 export function resetVerifierClient(): void {
   verifier = null
 }

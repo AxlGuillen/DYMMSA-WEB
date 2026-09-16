@@ -12,13 +12,14 @@ import {
 } from '@/components/ui/select'
 import { Plus, Search, X } from '@/components/icons'
 import { ColumnPicker } from '@/components/ColumnPicker'
+import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { PayableForm } from '@/components/finance/PayableForm'
 import { PayablesTable, PAYABLES_COLUMNS } from '@/components/finance/PayablesTable'
 import { usePayables, type PayableSortField } from '@/hooks/usePayables'
 import { PAYABLE_STATUS_LABELS } from '@/lib/payables'
 import type { PayableStatus, PayableWithSupplier } from '@/types/database'
 
-/** Radix no admite value="" en SelectItem — centinela para "todas". */
+/** Radix rejects value="" in SelectItem; sentinel for "all". */
 const ALL_STATUSES = '__all__'
 
 export default function PayablesPage() {
@@ -106,7 +107,7 @@ export default function PayablesPage() {
             ))}
           </SelectContent>
         </Select>
-        {/* Filtro por mes de VENCIMIENTO (vacío = todos). */}
+        {/* Due-month filter; empty = all. */}
         <Input
           type="month"
           value={month}
@@ -114,6 +115,7 @@ export default function PayablesPage() {
           className="w-auto"
           aria-label="Filtrar por mes de vencimiento"
         />
+        <DateFormatPicker />
         <ColumnPicker tableId="payables" columns={PAYABLES_COLUMNS} />
       </div>
 

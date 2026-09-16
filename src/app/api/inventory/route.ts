@@ -6,10 +6,10 @@ import type { StoreInventoryInsert } from '@/types/database'
 const STOCK_FILTERS = ['all', 'with_stock', 'in_stock', 'low_stock', 'sin_stock'] as const
 type StockFilter = (typeof STOCK_FILTERS)[number]
 
-/** "Sin marca" es categoría filtrable (#53): hay productos con stock cuyos ETM no traen marca. */
+/** "No brand" is a filterable category (#53): stocked items whose ETM carries no brand. */
 export const NO_BRAND = '__none__'
 
-/** Escapa el patrón de búsqueda para `ilike` (model_code no usa `.or()`). */
+/** Escapes the search pattern for `ilike` (model_code does not go through `.or()`). */
 function sanitizeSearch(raw: string): string {
   return raw.replace(/[%]/g, ' ').trim()
 }
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
 
     const brand = (searchParams.get('brand') ?? '').trim()
 
-    // Se lee de la vista (no de la tabla) para que el filtro por marca ocurra
-    // ANTES de paginar: la marca vive en etm_products, no aquí.
+    // Read from the view, not the table, so the brand filter runs BEFORE paging:
+    // the brand lives in etm_products, not here.
     let query = supabase.from('store_inventory_with_brand').select('*', { count: 'exact' })
 
     if (search) query = query.ilike('model_code', `%${search}%`)
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/inventory → crear producto de inventario
+// POST /api/inventory — create an inventory item
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()

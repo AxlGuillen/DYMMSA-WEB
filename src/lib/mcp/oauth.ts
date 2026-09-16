@@ -1,7 +1,6 @@
 /**
- * Verificación OAuth 2.1 (ADR-023): getUser contra GoTrue (autoritativo) +
- * claim client_id en allowlist — un token de sesión web NO abre el conector.
- * Caché por SHA-256 del token (jamás en claro); revocar tarda hasta TTL_MS.
+ * OAuth 2.1 check (ADR-023): getUser + client_id allowlist — a web session token can't open the connector.
+ * Cache keyed by the token's SHA-256 (never plaintext); revocation lags up to TTL_MS.
  */
 
 import { createHash } from 'node:crypto'
@@ -28,7 +27,7 @@ function fingerprint(token: string): string {
   return createHash('sha256').update(token).digest('base64url')
 }
 
-/** Solo seguro DESPUÉS de que getUser probó que el token es genuino. */
+/** Only safe AFTER getUser proved the token is genuine. */
 function claims(token: string): Record<string, unknown> {
   const payload = token.split('.')[1]
   if (!payload) return {}
@@ -39,8 +38,7 @@ function claims(token: string): Record<string, unknown> {
   }
 }
 
-// Un 401 sin motivo es un fallo silencioso. Se registra en qué puerta se cayó,
-// nunca el token. Solo va a los logs del server.
+// A 401 with no reason is a silent failure: log which gate rejected, never the token.
 function reject(reason: string, detail?: Record<string, unknown>): null {
   console.warn('[mcp] token rechazado:', reason, detail ?? '')
   return null
@@ -77,7 +75,7 @@ function identityFor(token: string): Promise<CachedIdentity | null> {
 
   const pending = identify(token)
   cache.set(key, { at: Date.now(), identity: pending })
-  // No cachear errores: un fallo transitorio de red no debe pegarse 60s.
+  // Don't cache failures: a transient network error must not stick for 60s.
   pending.catch(() => {
     if (cache.get(key)?.identity === pending) cache.delete(key)
   })
@@ -89,7 +87,7 @@ function identityFor(token: string): Promise<CachedIdentity | null> {
   return pending
 }
 
-/** `undefined` → withMcpAuth responde 401 CON WWW-Authenticate (sin él, los clientes no descubren el auth server). */
+/** `undefined` → withMcpAuth answers 401 WITH WWW-Authenticate; without it clients can't discover the auth server. */
 export async function verifyToken(
   _req: Request,
   bearerToken?: string,
@@ -104,16 +102,15 @@ export async function verifyToken(
   return {
     token: bearerToken,
     clientId: identity.clientId,
-    // Los access tokens de Supabase no llevan claim `scope` → exigir scopes
-    // daría 403 siempre. Y sin validación de audiencia RFC 8707 (Supabase emite
-    // aud: "authenticated"), afirmar `resource` aquí sería mentir.
+    // Supabase tokens carry no `scope` claim (requiring scopes would always 403), and
+    // without RFC 8707 audience validation asserting `resource` here would be a lie.
     scopes: [],
     expiresAt,
     extra: { ...rest } satisfies McpIdentity,
   }
 }
 
-/** Solo para los tests: la caché vive en el módulo y se filtraría entre casos. */
+/** Tests only: the module-level cache would leak between cases. */
 export function resetIdentityCache(): void {
   cache.clear()
 }

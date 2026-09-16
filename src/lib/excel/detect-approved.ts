@@ -4,8 +4,8 @@ import type { ApprovedProduct } from '@/types/database'
 
 const DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 
-// ExcelJS only types Color as { argb: string }, but at runtime it also
-// carries theme/tint for Office theme colors and indexed for legacy palette.
+// ExcelJS types Color as { argb } only, but at runtime it also carries
+// theme/tint (Office theme colors) and indexed (legacy palette).
 interface FillColor {
   argb?: string
   theme?: number
@@ -13,7 +13,7 @@ interface FillColor {
   indexed?: number
 }
 
-/** Los 10 colores base del tema (dk1..accent6) desde theme1.xml, hex sin '#'. */
+/** The 10 theme base colors (dk1..accent6) from theme1.xml, hex without '#'. */
 async function loadThemeColors(buffer: ArrayBuffer): Promise<string[]> {
   try {
     const zip = await JSZip.loadAsync(buffer)
@@ -40,10 +40,7 @@ async function loadThemeColors(buffer: ArrayBuffer): Promise<string[]> {
   }
 }
 
-/**
- * Applies an Excel tint value to a base hex color.
- * tint > 0 lightens toward white, tint < 0 darkens toward black.
- */
+/** Excel tint: > 0 lightens toward white, < 0 darkens toward black. */
 function applyTint(hex: string, tint: number): string {
   if (!hex || hex.length !== 6) return hex
   const ch = (raw: number) => {
@@ -60,7 +57,7 @@ function applyTint(hex: string, tint: number): string {
   )
 }
 
-/** Verde por rango HSL (hue 70–165°, sat >15%, light 15–93%): cubre olivas y excluye grises. */
+/** Green by HSL range (hue 70-165°, sat >15%, light 15-93%): covers olives, excludes grays. */
 function isGreenColor(hex: string): boolean {
   if (!hex || hex.length !== 6) return false
 
@@ -89,10 +86,7 @@ function isGreenColor(hex: string): boolean {
   return h >= 70 && h <= 165
 }
 
-/**
- * Resolves the hex color of a cell's fill, handling both explicit ARGB
- * and Excel theme colors (theme index + tint).
- */
+/** Handles both explicit ARGB and Excel theme colors (theme index + tint). */
 function resolveFillHex(
   fgColor: FillColor,
   themeColors: string[]
@@ -113,10 +107,6 @@ function resolveFillHex(
   return undefined
 }
 
-/**
- * Check if a row has any cell with green background.
- * Handles both explicit ARGB colors and Office theme colors.
- */
 function isRowGreen(row: ExcelJS.Row, themeColors: string[]): boolean {
   let hasGreen = false
 
@@ -133,9 +123,6 @@ function isRowGreen(row: ExcelJS.Row, themeColors: string[]): boolean {
   return hasGreen
 }
 
-/**
- * Find column index by header name (case insensitive)
- */
 function findColumnIndex(headerRow: ExcelJS.Row, name: string): number | null {
   let foundIndex: number | null = null
 
@@ -149,18 +136,12 @@ function findColumnIndex(headerRow: ExcelJS.Row, name: string): number | null {
   return foundIndex
 }
 
-/**
- * Get cell value as string
- */
 function getCellString(row: ExcelJS.Row, colIndex: number): string {
   const cell = row.getCell(colIndex)
   if (cell.value === null || cell.value === undefined) return ''
   return String(cell.value).trim()
 }
 
-/**
- * Get cell value as number
- */
 function getCellNumber(row: ExcelJS.Row, colIndex: number): number {
   const cell = row.getCell(colIndex)
   if (cell.value === null || cell.value === undefined) return 0
@@ -176,9 +157,9 @@ export interface DetectionResult {
   greenRowsFound: number
 }
 
-/** Detecta aprobados por fondo verde en cualquier celda (hex directo o color de tema Office). */
+/** Approved = green background on any cell (direct hex or Office theme color). */
 export async function detectApprovedProducts(buffer: ArrayBuffer): Promise<DetectionResult> {
-  // Load theme colors first (needed to resolve theme-based cell backgrounds)
+  // Loaded first: needed to resolve theme-based cell backgrounds
   const themeColors = await loadThemeColors(buffer)
 
   const workbook = new ExcelJS.Workbook()

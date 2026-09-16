@@ -1,7 +1,4 @@
-/**
- * MaterialsManager (issue #71): control del catálogo de presentaciones que se
- * arma solo — listar por tipo, alta manual validada y borrado con confirmación.
- */
+/** MaterialsManager (#71): list by type, validated manual insert and delete with confirmation. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -87,7 +84,7 @@ describe('MaterialsManager', () => {
 
     await user.click(screen.getByRole('button', { name: /Eliminar barra Ø30/ }))
     expect(screen.getByText('¿Eliminar esta medida?')).toBeInTheDocument()
-    // El texto del dialog describe la medida para no borrar a ciegas.
+    // The dialog spells out the size so nothing is deleted blind.
     expect(screen.getByText(/barra Ø30 mm × 6 m/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /^eliminar$/i }))

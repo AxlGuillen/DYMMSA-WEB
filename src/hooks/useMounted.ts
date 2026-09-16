@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 
 /**
- * `true` desde el primer frame pintado — para no animar el salto de la
- * rehidratación. El setState va en rAF: esa ES la semántica y evita el lint.
+ * `true` from the first painted frame, so the rehydration jump is not animated.
+ * setState inside rAF is the intended semantics (and keeps lint quiet).
  */
 export function useMounted(): boolean {
   const [mounted, setMounted] = useState(false)

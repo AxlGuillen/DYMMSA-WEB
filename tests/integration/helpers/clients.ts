@@ -1,31 +1,33 @@
 /**
- * Clientes Supabase REALES contra el stack local (Fase C1). Se inyectan en los
- * route handlers vía el mismo seam que los mocks (`injectSupabaseServer` /
- * `injectSupabaseAdmin`): en vez de un mock devuelven un cliente auténtico, así
- * el handler ejerce auth + RLS + SQL de verdad.
+ * Real Supabase clients against the local stack, injected through the same seam
+ * as the mocks so handlers exercise real auth, RLS and SQL.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { LOCAL } from './db'
 
-let authed: SupabaseClient | null = null
+type Credentials = { email: string; password: string }
 
-/**
- * Cliente autenticado como el usuario de prueba (test@dymmsa.local). Cacheado:
- * la sesión (JWT del rol `authenticated`) se reusa entre tests — RLS lo ve como
- * usuario logueado, igual que en la app. `requireAuth` → getUser() devuelve el user.
- */
-export async function authedClient(): Promise<SupabaseClient> {
-  if (authed) return authed
+const cache = new Map<string, SupabaseClient>()
+
+/** Authenticated client per seeded user, cached so RLS sees a logged-in session, as in the app. */
+export async function authedClientAs(creds: Credentials): Promise<SupabaseClient> {
+  const hit = cache.get(creds.email)
+  if (hit) return hit
   const client = createClient(LOCAL.url, LOCAL.anon, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { error } = await client.auth.signInWithPassword(LOCAL.user)
-  if (error) throw new Error(`No se pudo autenticar el usuario de prueba: ${error.message}`)
-  authed = client
+  const { error } = await client.auth.signInWithPassword(creds)
+  if (error) throw new Error(`No se pudo autenticar ${creds.email}: ${error.message}`)
+  cache.set(creds.email, client)
   return client
 }
 
-/** Cliente service-role (bypassa RLS) — para la ruta pública /approve/[token]. */
+/** The default test user (admin since #93; admin ⊇ member keeps older tests valid). */
+export function authedClient(): Promise<SupabaseClient> {
+  return authedClientAs(LOCAL.user)
+}
+
+/** Service-role client (bypasses RLS) for the public /approve/[token] route. */
 export function serviceClient(): SupabaseClient {
   return createClient(LOCAL.url, LOCAL.service, {
     auth: { persistSession: false, autoRefreshToken: false },

@@ -9,10 +9,7 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/**
- * Los `numeric` de Postgres llegan como STRING por supabase-js; la matemática
- * de cut-plan.ts espera number. Se coerce AQUÍ, en la frontera — nunca en la lib.
- */
+/** Postgres numerics arrive as strings from supabase-js; coerce at the boundary, never in the lib. */
 function num(value: unknown): number | null {
   if (value == null) return null
   const n = Number(value)
@@ -40,7 +37,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
         .select('*')
         .eq('order_id', id)
         .order('sort_order', { ascending: true }),
-      // Candidatos DYMMSA filtrados en JS con el MISMO trim+upper del botón de OrderDetail.
+      // DYMMSA candidates filtered in JS with the SAME trim+upper as the OrderDetail button.
       supabase
         .from('order_items')
         .select('id, etm, description, quantity_approved, item_type, brand')
@@ -57,7 +54,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return serverError('Error al cargar la lista de corte')
     }
 
-    // Medidas nominales del producto para PRE-LLENAR los candidatos.
+    // Nominal product measurements only PRE-FILL the candidates.
     const candidateItems = (itemsRes.data ?? []).filter(
       (item) =>
         (!item.item_type || item.item_type === 'product') &&
@@ -126,10 +123,7 @@ interface PieceInput {
 const isPositive = (v: unknown): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v > 0
 
-/**
- * Replace-all de la lista de corte (el body ES el estado deseado): sin llave
- * natural es delete → insert, con restauración si el insert falla.
- */
+/** Replace-all: the body IS the desired state; with no natural key it is delete → insert, restoring if the insert fails. */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
@@ -164,7 +158,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       if (!Number.isInteger(piece.quantity) || piece.quantity < 1) {
         return badRequest(`${label}: la cantidad debe ser un entero mayor a 0`)
       }
-      // Espejo del CHECK cut_piece_shape, con mensaje claro (ADR-009).
+      // Mirrors the cut_piece_shape CHECK with a clear message (ADR-009).
       if (piece.material_type === 'tube') {
         if (!isPositive(piece.diameter_mm)) {
           return badRequest(`${label}: un tubo necesita diámetro`)
@@ -198,7 +192,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       })
     }
 
-    // Foto previa para poder restaurar si el insert falla.
+    // Snapshot to restore if the insert fails.
     const { data: previous } = await supabase
       .from('cut_plan_pieces')
       .select('*')
@@ -222,15 +216,14 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
     if (insertError) {
       console.error('cut-plan insert error:', insertError)
-      // Restaurar la lista previa: perderla por un error de guardado no es aceptable.
+      // Restore the previous list: losing it to a save error is not acceptable.
       if (previous && previous.length > 0) {
         const { error: restoreError } = await supabase.from('cut_plan_pieces').insert(
           previous.map(({ id: _id, ...row }) => row),
         )
         if (restoreError) console.error('cut-plan restore error:', restoreError)
       }
-      // Violación de regla (p. ej. FK de un ítem borrado entre GET y PUT, o el
-      // CHECK de forma) → 400 descriptivo, no 500 (ADR-009).
+      // Rule violation (stale FK, shape CHECK) → descriptive 400, not 500 (ADR-009).
       const explanation = explainPgError(insertError)
       return explanation.isConstraintViolation
         ? badRequest(explanation.userMessage)

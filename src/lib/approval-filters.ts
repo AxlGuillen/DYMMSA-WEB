@@ -1,7 +1,4 @@
-/**
- * Filtros de la aprobación pública (#24): por marca y por sección — la sección
- * de un ítem es el último separador que lo precede; antes del primero, "General".
- */
+/** Public approval filters (#24). An item's section is the last separator before it; "General" before the first. */
 
 import { isSeparator } from '@/lib/business-rules'
 
@@ -12,13 +9,13 @@ type FilterableItem = {
   brand: string | null
 }
 
-/** Etiqueta de la sección sintética para los ítems previos al primer separador. */
+/** Synthetic section for items that precede the first separator. */
 export const GENERAL_SECTION = 'General'
 
 export interface ApprovalFilters {
-  /** marca exacta o 'all'. */
+  /** Exact brand or 'all'. */
   brand: string
-  /** etiqueta de sección exacta o 'all'. */
+  /** Exact section label or 'all'. */
   section: string
 }
 
@@ -28,7 +25,7 @@ export function hasActiveFilters(filters: ApprovalFilters): boolean {
   return filters.brand !== 'all' || filters.section !== 'all'
 }
 
-/** itemId → sección; un separador con label vacío igual abre sección (GENERAL) para no perder ítems. */
+/** itemId → section. An empty separator label still opens a section (GENERAL) so no item is lost. */
 export function deriveItemSections<T extends FilterableItem>(items: T[]): Map<string, string> {
   const map = new Map<string, string>()
   let current = GENERAL_SECTION
@@ -42,7 +39,7 @@ export function deriveItemSections<T extends FilterableItem>(items: T[]): Map<st
   return map
 }
 
-/** Secciones en orden de aparición que tienen ≥1 ítem (para el Select de proyecto). */
+/** Sections in order of appearance holding at least one item. */
 export function listSections<T extends FilterableItem>(items: T[]): string[] {
   const sectionsMap = deriveItemSections(items)
   const seen = new Set<string>()
@@ -58,7 +55,7 @@ export function listSections<T extends FilterableItem>(items: T[]): string[] {
   return ordered
 }
 
-/** Marcas únicas no vacías, ordenadas alfabéticamente (para el Select de marca). */
+/** Unique non-empty brands, sorted. */
 export function listBrands<T extends { brand: string | null }>(items: T[]): string[] {
   const brands = new Set<string>()
   for (const item of items) {
@@ -68,7 +65,6 @@ export function listBrands<T extends { brand: string | null }>(items: T[]): stri
   return [...brands].sort((a, b) => a.localeCompare(b, 'es'))
 }
 
-/** ¿El ítem (con su sección) pasa los filtros activos? */
 export function matchesFilters(
   item: { brand: string | null },
   sectionLabel: string,
@@ -79,7 +75,7 @@ export function matchesFilters(
   return true
 }
 
-/** Ids visibles bajo los filtros; el caller muestra un separador solo si su sección tiene ítems. */
+/** Visible ids; callers render a separator only if its section has items. */
 export function computeVisibleItemIds<T extends FilterableItem>(
   items: T[],
   filters: ApprovalFilters,

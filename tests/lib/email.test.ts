@@ -1,7 +1,4 @@
-/**
- * Módulo de email — funciones puras de armado del correo de aprobación.
- * El envío real (Resend) se cubre indirectamente en tests/api/approve.test.ts.
- */
+/** Pure builders for the approval mail; real sending is covered in tests/api/approve.test.ts. */
 
 import { describe, test, expect } from 'vitest'
 import { buildQuotationUrl, buildHtml } from '@/lib/email/send-approval-notification'
@@ -43,7 +40,7 @@ describe('buildHtml', () => {
   test('omite el botón (sin href) cuando la URL es null', () => {
     const html = buildHtml(input, null)
     expect(html).not.toContain('<a href')
-    // pero el resto del correo (datos) sigue presente
+    // but the rest of the mail (the data) is still there
     expect(html).toContain('ACME')
     expect(html).toContain('COT-001')
   })

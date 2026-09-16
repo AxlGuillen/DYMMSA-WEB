@@ -35,7 +35,7 @@ describe('OrderStatusBadge', () => {
 
   test('renderiza el punto de color (dot) junto al label', () => {
     const { container } = render(<OrderStatusBadge status="ordered" />)
-    // El dot es un <span> con la clase de color de fondo del estado.
+    // The dot is a <span> carrying the status background color class.
     expect(container.querySelector('span.bg-yellow-500')).toBeTruthy()
   })
 })

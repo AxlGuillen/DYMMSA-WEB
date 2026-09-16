@@ -6,6 +6,7 @@ src/
 │   ├── api/                      # Route Handlers (lógica server-side)
 │   │   ├── approve/[token]/      # GET: cotización por token | POST: enviar decisiones
 │   │   ├── inventory/import/     # POST: importar inventario desde Excel
+│   │   ├── finance/income/       # GET: ingresos del mes leídos de Odoo · refresh/ POST: purga el caché (issue #94)
 │   │   ├── orders/
 │   │   │   ├── [id]/
 │   │   │   │   ├── cancel/       # POST: cancelar orden + restaurar inventario
@@ -52,6 +53,10 @@ src/
 │   │   ├── cutting/page.tsx      # Corte rápido standalone — efímero, borrador localStorage (issue #71)
 │   │   ├── materials/page.tsx    # Control de medidas de material del proveedor (issue #71)
 │   │   ├── proveedores/page.tsx  # Proveedores de menudeo + marcas (issue #21)
+│   │   ├── hours/
+│   │   │   ├── page.tsx          # Mi semana: stepper + WeekGrid (issue #93)
+│   │   │   ├── import/page.tsx   # Importar reporte NGTeco (admin)
+│   │   │   └── team/page.tsx     # Roles e ids de checador (admin)
 │   │   ├── orders/
 │   │   │   ├── page.tsx          # Lista de órdenes
 │   │   │   ├── new/page.tsx      # Crear orden manual (legacy)
@@ -76,6 +81,7 @@ src/
 │   ├── ColumnPicker.tsx          # Selector "Columnas" por tabla (checkbox + restablecer, issue #18)
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
+│   ├── hours/                    # HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
 │   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable, PurchasePlanner
@@ -93,6 +99,9 @@ src/
 │   ├── useInventory.ts           # CRUD inventario
 │   ├── useOrders.ts              # CRUD + acciones de órdenes (add/edit/remove items, cancel, confirm)
 │   ├── useProducts.ts            # CRUD catálogo ETM
+│   ├── useProfile.ts             # Perfil propio (isAdmin) + perfiles del equipo (issue #93)
+│   ├── useIncome.ts              # Ingresos del mes desde Odoo + refresh del caché (issue #94)
+│   ├── useTimeEntries.ts         # Checadas por semana, import multipart, mutaciones admin (issue #93)
 │   ├── useQuotations.ts          # CRUD + acciones de cotizaciones
 │   ├── usePurchasePlan.ts        # Plan de compra + guardado de decisiones (ADR-018)
 │   ├── useVisibleColumns.ts      # Visibilidad de columnas por tabla (issue #18; SSR-safe con useMounted)
@@ -118,6 +127,10 @@ src/
 │   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
 │   ├── github.ts                 # Cliente GitHub Issues (módulo Tareas): fetchGitHub + mapeos puros
+│   ├── month.ts                  # ISODate, ISO_MONTH, monthOf, nextMonth, monthRange — sin imports de la app (#94)
+│   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); re-exporta month.ts
+│   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
+│   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94)
 │   └── utils.ts                  # cn() — class merging
 │
 ├── stores/

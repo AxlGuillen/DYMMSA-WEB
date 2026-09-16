@@ -1,19 +1,13 @@
-/**
- * Fase 1 — Auth / guards.
- *
- * Verifica la regla 10 del CLAUDE.md: TODA ruta protegida debe exigir
- * `requireAuth()` y devolver 401 sin usuario autenticado.
- *
- * La excepción es /approve/[token], que es pública (usa createAdminClient,
- * sin auth) y se valida por separado.
- */
+/** Every protected route must require requireAuth() and answer 401 with no user.
+ *  /approve/[token] is the public exception and is covered separately. */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
 import { injectSupabaseServer, injectSupabaseAdmin } from '../helpers/setup'
 import { makeRequest, makeParams } from '../helpers/request'
+import { AUTH } from '../helpers/factories'
 
-// ── Import estático de TODOS los handlers (vi.mock se hoista por encima) ──
+// Static import of every handler (vi.mock hoists above it).
 import * as quotationsSave from '@/app/api/quotations/save/route'
 import * as quotationDelete from '@/app/api/quotations/[id]/route'
 import * as quotationUpdate from '@/app/api/quotations/[id]/update/route'
@@ -39,10 +33,20 @@ import * as approve from '@/app/api/approve/[token]/route'
 import * as payablesRoute from '@/app/api/payables/route'
 import * as payableById from '@/app/api/payables/[id]/route'
 import * as payablesOverview from '@/app/api/payables/overview/route'
+import * as profileRoute from '@/app/api/profile/route'
+import * as profilesRoute from '@/app/api/profiles/route'
+import * as profileById from '@/app/api/profiles/[id]/route'
+import * as timeEntries from '@/app/api/time-entries/route'
+import * as timeEntryById from '@/app/api/time-entries/[id]/route'
+import * as timeEntriesImport from '@/app/api/time-entries/import/route'
+import * as timeImports from '@/app/api/time-entries/imports/route'
+import * as financeIncome from '@/app/api/finance/income/route'
+import * as financeIncomeRefresh from '@/app/api/finance/income/refresh/route'
 
-// ── Mocks de los módulos de Supabase ────────────────────────────────────
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
+// The income routes import next/cache, which needs a Next request scope.
+vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn, revalidateTag: vi.fn() }))
 
 let activeClient: MockSupabaseClient
 let adminClient: MockSupabaseClient
@@ -50,7 +54,17 @@ let adminClient: MockSupabaseClient
 injectSupabaseServer(() => activeClient)
 injectSupabaseAdmin(() => adminClient)
 
-// ── Tabla de rutas protegidas: nombre + invocación con user:null ─────────
+// Admin-only routes (#93): 401 with no user, 403 for a member.
+const adminRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
+  { name: 'GET    /profiles',                         call: () => profilesRoute.GET() },
+  { name: 'GET    /time-entries/imports',             call: () => timeImports.GET() },
+  { name: 'PATCH  /profiles/[id]',                    call: () => profileById.PATCH(makeRequest({ role: 'member' }, { method: 'PATCH' }), makeParams({ id: 'u1' })) },
+  { name: 'POST   /time-entries',                     call: () => timeEntries.POST(makeRequest({})) },
+  { name: 'PATCH  /time-entries/[id]',                call: () => timeEntryById.PATCH(makeRequest({ note: 'x' }, { method: 'PATCH' }), makeParams({ id: 't1' })) },
+  { name: 'DELETE /time-entries/[id]',                call: () => timeEntryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 't1' })) },
+  { name: 'POST   /time-entries/import',              call: () => timeEntriesImport.POST(makeRequest({})) },
+]
+
 const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
   { name: 'POST   /quotations/save',                  call: () => quotationsSave.POST(makeRequest({})) },
   { name: 'DELETE /quotations/[id]',                  call: () => quotationDelete.DELETE(makeRequest(), makeParams({ id: 'q1' })) },
@@ -81,6 +95,11 @@ const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = 
   { name: 'PATCH  /payables/[id]',                    call: () => payableById.PATCH(makeRequest({}, { method: 'PATCH' }), makeParams({ id: 'p1' })) },
   { name: 'DELETE /payables/[id]',                    call: () => payableById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'p1' })) },
   { name: 'GET    /payables/overview',                call: () => payablesOverview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview' })) },
+  { name: 'GET    /profile',                          call: () => profileRoute.GET() },
+  { name: 'GET    /time-entries',                     call: () => timeEntries.GET(makeRequest(undefined, { url: 'http://x/api/time-entries' })) },
+  { name: 'GET    /finance/income',                   call: () => financeIncome.GET(makeRequest(undefined, { url: 'http://x/api/finance/income' })) },
+  { name: 'POST   /finance/income/refresh',           call: () => financeIncomeRefresh.POST(makeRequest(undefined, { method: 'POST', url: 'http://x/api/finance/income/refresh' })) },
+  ...adminRoutes,
 ]
 
 describe('Auth guards — rutas protegidas exigen requireAuth (401 sin usuario)', () => {
@@ -96,10 +115,26 @@ describe('Auth guards — rutas protegidas exigen requireAuth (401 sin usuario)'
   }
 })
 
+describe('Role guards — rutas de admin responden 403 a un member', () => {
+  beforeEach(() => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': { data: { id: AUTH.id, role: 'member', display_name: 'Tania' }, error: null } },
+    })
+  })
+
+  for (const route of adminRoutes) {
+    test(`${route.name} → 403`, async () => {
+      const res = await route.call()
+      expect(res.status).toBe(403)
+    })
+  }
+})
+
 describe('Ruta pública /approve/[token] — NO requiere auth', () => {
   test('GET devuelve la cotización por token sin usuario autenticado', async () => {
     adminClient = createMockSupabase({
-      user: null, // sin auth: debe funcionar igual
+      user: null, // no auth: must still work
       responses: {
         'quotations.select': {
           data: { id: 'q1', customer_name: 'ACME', status: 'sent_for_approval', total_amount: 100, created_at: '2026-05-25', quotation_items: [] },

@@ -32,7 +32,7 @@ import { ResizableHead } from '@/components/ResizableHead'
 import { formatRelative, formatAbsolute } from '@/lib/format'
 import type { QuotationWithCount } from '@/types/database'
 
-// Columnas de la lista (issue #18). Nombre y acciones son fijas.
+// Nombre and acciones are fixed columns (#18).
 export const QUOTATIONS_COLUMNS: readonly TableColumn[] = [
   { id: 'name', label: 'Nombre', hideable: false, width: 260 },
   { id: 'customer', label: 'Cliente', width: 200 },
@@ -56,7 +56,7 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
   const cols = useVisibleColumns('quotations-list', QUOTATIONS_COLUMNS)
   const widths = useColumnWidths('quotations-list', QUOTATIONS_COLUMNS)
 
-  // Header compartido entre skeleton y tabla real (guards escritos una vez).
+  // Shared by the skeleton and the real table so the guards are written once.
   const tableHeaders = (
     <TableHeader>
       <TableRow>
@@ -133,8 +133,8 @@ export function QuotationsTable({ quotations, isLoading }: QuotationsTableProps)
             {quotations.map((q) => (
               <TableRow
                 key={q.id}
-                // Fondos OPACOS: la columna fija de acciones los hereda con
-                // `bg-inherit`, y con alfa se vería el contenido pasando debajo.
+                // OPAQUE backgrounds: the sticky actions column inherits them with
+                // `bg-inherit`, and alpha would leak the content underneath.
                 className="group cursor-pointer bg-background hover:bg-muted"
                 onClick={() => push(`/dashboard/quotations/${q.id}`)}
               >

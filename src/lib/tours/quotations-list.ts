@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview de la lista de cotizaciones (issue #74): el tablero del flujo de venta. */
+/** Quotations list overview (#74): the sales-flow board. */
 export const QUOTATIONS_LIST_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="ql-stats"]',

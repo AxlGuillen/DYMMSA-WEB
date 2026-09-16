@@ -26,7 +26,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">
@@ -38,7 +37,6 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick actions */}
         <div className="flex flex-wrap gap-2">
           <TourButton tour="dashboard" />
           <Button asChild size="sm" variant="outline">

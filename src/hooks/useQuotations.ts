@@ -10,19 +10,10 @@ import type {
   QuotationStatus,
 } from '@/types/database'
 
-// Re-export para los consumidores que ya importaban ApiError desde este módulo
-// (QuotationDetail, quoter/page). El wrapper vive ahora en '@/lib/fetch-json'.
+// Re-export: consumers still import ApiError from here (wrapper moved to '@/lib/fetch-json').
 export { ApiError, fetchJson }
 
-// ------------------------------------------------------------------ //
-// Keys                                                                //
-// ------------------------------------------------------------------ //
-
 const QUOTATIONS_KEY = ['quotations']
-
-// ------------------------------------------------------------------ //
-// Query types                                                         //
-// ------------------------------------------------------------------ //
 
 interface QuotationsParams {
   page?: number
@@ -47,10 +38,6 @@ export interface QuotationStats {
   converted_to_order: number
 }
 
-// ------------------------------------------------------------------ //
-// Queries                                                             //
-// ------------------------------------------------------------------ //
-
 export function useQuotations(params: QuotationsParams = {}) {
   const { page = 1, pageSize = 20, search = '', status = 'all' } = params
 
@@ -68,10 +55,6 @@ export function useQuotations(params: QuotationsParams = {}) {
   })
 }
 
-// ------------------------------------------------------------------ //
-// Stats by status                                                     //
-// ------------------------------------------------------------------ //
-
 export function useQuotationStats() {
   return useQuery({
     queryKey: [...QUOTATIONS_KEY, 'stats'],
@@ -81,10 +64,6 @@ export function useQuotationStats() {
   })
 }
 
-// ------------------------------------------------------------------ //
-// Single quotation                                                    //
-// ------------------------------------------------------------------ //
-
 export function useQuotation(id: string) {
   return useQuery({
     queryKey: [...QUOTATIONS_KEY, id],
@@ -93,10 +72,6 @@ export function useQuotation(id: string) {
     enabled: !!id,
   })
 }
-
-// ------------------------------------------------------------------ //
-// Send for approval                                                   //
-// ------------------------------------------------------------------ //
 
 export function useSendForApproval() {
   const queryClient = useQueryClient()
@@ -110,10 +85,6 @@ export function useSendForApproval() {
     },
   })
 }
-
-// ------------------------------------------------------------------ //
-// Change status (manual revert / lateral move)                        //
-// ------------------------------------------------------------------ //
 
 export function useChangeQuotationStatus() {
   const queryClient = useQueryClient()
@@ -131,10 +102,6 @@ export function useChangeQuotationStatus() {
     },
   })
 }
-
-// ------------------------------------------------------------------ //
-// Update quotation (draft only)                                      //
-// ------------------------------------------------------------------ //
 
 export interface UpdateQuotationInput {
   id: string
@@ -160,10 +127,6 @@ export function useUpdateQuotation() {
   })
 }
 
-// ------------------------------------------------------------------ //
-// Types                                                               //
-// ------------------------------------------------------------------ //
-
 export interface SaveQuotationInput {
   name: string
   customer_name: string
@@ -181,10 +144,6 @@ export interface SaveQuotationResponse {
   }
 }
 
-// ------------------------------------------------------------------ //
-// Hooks                                                               //
-// ------------------------------------------------------------------ //
-
 export function useSaveQuotation() {
   const queryClient = useQueryClient()
 
@@ -200,10 +159,6 @@ export function useSaveQuotation() {
     },
   })
 }
-
-// ------------------------------------------------------------------ //
-// Create order from approved quotation                              //
-// ------------------------------------------------------------------ //
 
 export interface CreateOrderFromQuotationResponse {
   order_id: string

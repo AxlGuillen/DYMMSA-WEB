@@ -47,8 +47,7 @@ const STATS_KEY_MAP: Record<StockFilter, 'total' | 'with_stock' | 'in_stock' | '
 export default function InventoryPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  // Arranca en "con stock": de ~271 productos solo ~83 tienen existencias, y el
-  // resto son históricos que estorban en el día a día. "Total" está a un click.
+  // Defaults to "with stock": only ~83 of ~271 products have any; the rest are historical noise.
   const [stockFilter, setStockFilter] = useState<StockFilter>('with_stock')
   const [brand, setBrand] = useState<string>(ALL_BRANDS)
   const [quantitySort, setQuantitySort] = useState<QuantitySort>(null)
@@ -74,7 +73,6 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Inventario</h1>
@@ -97,7 +95,6 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Stats cards */}
       <div data-tour="inv-stats" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {STAT_CARDS.map((card) => {
           const isActive = stockFilter === card.key
@@ -132,7 +129,6 @@ export default function InventoryPage() {
         })}
       </div>
 
-      {/* Search */}
       <div data-tour="inv-filters" className="flex items-center gap-3">
       <div className="relative max-w-sm flex-1">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -159,7 +155,7 @@ export default function InventoryPage() {
           <SelectItem value={ALL_BRANDS}>Todas las marcas</SelectItem>
           {(stats?.brands ?? []).map((b) => (
             <SelectItem key={b.brand ?? NO_BRAND} value={b.brand ?? NO_BRAND}>
-              {/* El conteo evita ir a ciegas: casi todas las marcas están en 0. */}
+              {/* Counts avoid choosing blind: most brands sit at 0. */}
               {b.brand ?? 'Sin marca'} ({b.with_stock}/{b.total})
             </SelectItem>
           ))}
@@ -168,7 +164,6 @@ export default function InventoryPage() {
       <ColumnPicker tableId="inventory" columns={INVENTORY_COLUMNS} />
       </div>
 
-      {/* Table */}
       <div data-tour="inv-table">
       <InventoryTable
         items={data?.data || []}
@@ -183,7 +178,6 @@ export default function InventoryPage() {
       />
       </div>
 
-      {/* Pagination */}
       {data && data.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">

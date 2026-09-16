@@ -1,28 +1,6 @@
 /**
- * Mock del cliente de Supabase para tests unitarios de route handlers.
- *
- * Reproduce el query builder chainable de @supabase/supabase-js lo justo
- * para los handlers de DYMMSA:
- *
- *   supabase.from(t).insert(x).select().single()   → { data, error }
- *   supabase.from(t).select(c).eq(k, v).single()    → { data, error }
- *   supabase.from(t).update(x).eq(k, v)             → { data, error } (awaitable)
- *   supabase.from(t).delete().eq(k, v)              → { data, error } (awaitable)
- *   supabase.auth.getUser()                          → { data: { user } }
- *
- * El builder es a la vez chainable (cada filtro retorna `this`) y thenable
- * (implementa `.then()`), de modo que `await` resuelve la respuesta tanto si
- * se llamó `.single()` como si se await-ea el builder directamente.
- *
- * Las respuestas se configuran por `tabla` o `tabla.operacion`
- * (insert | select | update | delete | upsert). Todas las llamadas quedan
- * registradas en `_calls` para hacer assertions (rollback, deducción de stock, etc.).
- *
- * `.rpc(fn, params)` está modelado de forma simple: resuelve la respuesta
- * configurada en `responses['rpc.<fn>']` (o `{ data: null, error: null }`) y
- * registra la llamada en `_rpcCalls`. No encadena filtros (como el real para RPC).
- *
- * NO modelado (extender si algún handler lo usa): `.throwOnError()`, `storage.*`.
+ * Supabase mock: the builder is chainable AND thenable, so `await` resolves with or without
+ * `.single()`. Responses keyed by `table` or `table.op`; `.throwOnError()`/`storage.*` not modeled.
  */
 
 export type MockResult = { data?: unknown; error?: unknown; count?: number }
@@ -33,20 +11,20 @@ export type Op = 'insert' | 'select' | 'update' | 'delete' | 'upsert'
 export interface CallRecord {
   table: string
   op: Op
-  /** Argumento pasado a insert/update/upsert. */
+  /** Argument passed to insert/update/upsert. */
   payload?: unknown
-  /** Segundo argumento de upsert (ej. { onConflict }). */
+  /** Second upsert argument (e.g. { onConflict }). */
   options?: unknown
-  /** Filtros encadenados: eq/in/order/etc. con sus argumentos. */
+  /** Chained filters: eq/in/order/etc. with their args. */
   filters: Array<{ method: string; args: unknown[] }>
-  /** true si se llamó .single() o .maybeSingle(). */
+  /** True if .single() or .maybeSingle() was called. */
   single: boolean
 }
 
 export interface MockConfig {
-  /** Usuario autenticado. `null` → no autenticado (auth.getUser devuelve user: null). */
+  /** Authenticated user; `null` → unauthenticated. */
   user?: { id: string } | null
-  /** Respuestas por `tabla` o `tabla.op`. Si no hay match → { data: null, error: null }. */
+  /** Responses by `table` or `table.op`; no match → { data: null, error: null }. */
   responses?: Record<string, ResponseValue>
 }
 
@@ -60,7 +38,6 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
     this.record = { table, op: 'select', filters: [], single: false }
   }
 
-  // ── Operaciones que fijan el tipo ──────────────────────────────────
   insert(payload: unknown) { return this.setOp('insert', payload) }
   update(payload: unknown) { return this.setOp('update', payload) }
   upsert(payload: unknown, options?: unknown) {
@@ -69,7 +46,7 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   }
   delete()                 { return this.setOp('delete') }
 
-  /** select no sobrescribe un op ya fijado (ej. insert().select()). */
+  /** select never overwrites an op already set (e.g. insert().select()). */
   select(_columns?: string) {
     if (!this.opSet) this.record.op = 'select'
     return this
@@ -82,7 +59,6 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
     return this
   }
 
-  // ── Filtros / modificadores chainable ──────────────────────────────
   private filter(method: string, args: unknown[]) {
     this.record.filters.push({ method, args })
     return this
@@ -103,7 +79,6 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   limit(...a: unknown[]) { return this.filter('limit', a) }
   range(...a: unknown[]) { return this.filter('range', a) }
 
-  // ── Terminales ─────────────────────────────────────────────────────
   single(): Promise<R>      { this.record.single = true; return this.resolve() }
   maybeSingle(): Promise<R> { this.record.single = true; return this.resolve() }
 
@@ -140,7 +115,7 @@ export class MockSupabaseClient {
     return new QueryBuilder(table, this)
   }
 
-  /** RPC simple: no encadena filtros; resuelve `responses['rpc.<fn>']`. */
+  /** Simple RPC: no chained filters; resolves `responses['rpc.<fn>']`. */
   rpc(fn: string, params?: unknown): Promise<MockResult> {
     this._rpcCalls.push({ fn, params })
     const v = this.responses[`rpc.${fn}`]
@@ -159,26 +134,25 @@ export class MockSupabaseClient {
     return typeof v === 'function' ? v(rec) : v
   }
 
-  // ── Helpers de assertion ───────────────────────────────────────────
-  /** Todas las llamadas a una tabla (opcionalmente filtradas por op). */
+  /** All calls to a table, optionally filtered by op. */
   callsTo(table: string, op?: Op): CallRecord[] {
     return this._calls.filter(
       (c) => c.table === table && (op === undefined || c.op === op),
     )
   }
-  /** ¿Se ejecutó al menos una operación `op` sobre `table`? */
+  /** Did at least one `op` run on `table`? */
   didCall(table: string, op: Op): boolean {
     return this.callsTo(table, op).length > 0
   }
-  /** Payload del primer insert a `table` (por defecto tipado como array de filas). */
+  /** Payload of the first insert to `table` (rows by default). */
   insertPayload<T = Record<string, unknown>[]>(table: string): T {
     return this.callsTo(table, 'insert')[0]?.payload as T
   }
-  /** Payload del primer update a `table` (por defecto una sola fila). */
+  /** Payload of the first update to `table` (a single row by default). */
   updatePayload<T = Record<string, unknown>>(table: string): T {
     return this.callsTo(table, 'update')[0]?.payload as T
   }
-  /** Payload del primer upsert a `table` (por defecto array de filas). */
+  /** Payload of the first upsert to `table` (rows by default). */
   upsertPayload<T = Record<string, unknown>[]>(table: string): T {
     return this.callsTo(table, 'upsert')[0]?.payload as T
   }
@@ -188,20 +162,18 @@ export function createMockSupabase(config: MockConfig = {}): MockSupabaseClient 
   return new MockSupabaseClient(config)
 }
 
-// ── Matchers de filtros (por columna, no por posición) ─────────────────
-// Para respuestas-función que ramifican según el filtro aplicado. Buscar por
-// columna en vez de `rec.filters[0]` evita que el test se rompa si el handler
-// reordena sus `.eq()` o agrega un `.order()`/filtro extra.
+// Match filters by column, not position: survives a handler reordering its
+// `.eq()` or adding an extra `.order()`.
 
-/** Encuentra un filtro encadenado por columna (y método, default 'eq'). */
+/** Finds a chained filter by column (and method, default 'eq'). */
 export function findFilter(rec: CallRecord, column: string, method = 'eq') {
   return rec.filters.find((f) => f.method === method && f.args[0] === column)
 }
-/** ¿El registro filtró por `column` (con `method`, default 'eq')? */
+/** Did the record filter by `column` (method default 'eq')? */
 export function hasFilter(rec: CallRecord, column: string, method = 'eq'): boolean {
   return findFilter(rec, column, method) !== undefined
 }
-/** Valor del filtro por `column` (segundo argumento de eq/in/etc.). */
+/** Value of the filter on `column` (second arg of eq/in/etc.). */
 export function filterValue(rec: CallRecord, column: string, method = 'eq'): unknown {
   return findFilter(rec, column, method)?.args[1]
 }

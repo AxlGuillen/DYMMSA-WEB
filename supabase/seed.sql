@@ -35,6 +35,34 @@ INSERT INTO auth.identities (
   'email', now(), now(), now()
 );
 
+-- Segundo usuario para los tests de RLS por usuario (#93). Credenciales:
+-- member@dymmsa.local / testpassword123. Su perfil lo crea el trigger del baseline.
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, created_at, updated_at,
+  raw_app_meta_data, raw_user_meta_data,
+  confirmation_token, recovery_token, email_change_token_new, email_change
+) VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-0000000000a2',
+  'authenticated', 'authenticated',
+  'member@dymmsa.local',
+  crypt('testpassword123', gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name":"Member"}'::jsonb,
+  '', '', '', ''
+);
+
+INSERT INTO auth.identities (
+  provider_id, user_id, identity_data, provider,
+  last_sign_in_at, created_at, updated_at
+) VALUES (
+  '00000000-0000-0000-0000-0000000000a2',
+  '00000000-0000-0000-0000-0000000000a2',
+  '{"sub":"00000000-0000-0000-0000-0000000000a2","email":"member@dymmsa.local"}'::jsonb,
+  'email', now(), now(), now()
+);
+
 -- ─── Fixtures de negocio (deterministas) ────────────────────────────────────
 -- Escenario que ejercita: match de catálogo + Desc. DYMMSA, los tres estados de
 -- is_sold, split de inventario al crear la orden, y mayoreo/menudeo/local en el
@@ -63,3 +91,11 @@ INSERT INTO public.urrea_catalog (code, brand, description, std) VALUES
 -- Inventario: solo 60001 con stock (para el split al crear la orden) + gaveta.
 INSERT INTO public.store_inventory (model_code, quantity, location) VALUES
   ('60001',5,'Gaveta S1');
+
+-- Roles para RLS (#93). Idempotente: resetDb() lo re-ejecuta en cada test, así un
+-- test que degrade o remapee no contamina al siguiente. a1 admin ⊇ member: los tests
+-- previos siguen válidos.
+UPDATE public.profiles SET role = 'admin',  clock_employee_id = NULL
+  WHERE id = '00000000-0000-0000-0000-0000000000a1';
+UPDATE public.profiles SET role = 'member', clock_employee_id = 5
+  WHERE id = '00000000-0000-0000-0000-0000000000a2';

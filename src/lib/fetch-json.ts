@@ -1,4 +1,4 @@
-/** Fetch compartido de los hooks: normaliza errores en ApiError (con offendingEtm si el backend lo reporta). */
+/** Shared fetch for hooks: normalizes errors into ApiError (with offendingEtm when the backend reports one). */
 
 export class ApiError extends Error {
   constructor(
@@ -12,13 +12,13 @@ export class ApiError extends Error {
   }
 }
 
-/** 401 → AUTH_EXPIRED, TypeError → NETWORK, 4xx/5xx → ApiError con el payload del body. */
+/** 401 → AUTH_EXPIRED, TypeError → NETWORK, 4xx/5xx → ApiError built from the body payload. */
 export async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {
     response = await fetch(url, init)
   } catch {
-    // TypeError (red caída, CORS, DNS) o AbortError
+    // TypeError (network down, CORS, DNS) or AbortError.
     throw new ApiError(
       'No se pudo conectar al servidor. Revisa tu conexión e intenta de nuevo.',
       'NETWORK',

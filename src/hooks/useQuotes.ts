@@ -6,25 +6,18 @@ import type { EtmProduct } from '@/types/database'
 interface LookupResponse {
   found: EtmProduct[]
   notFound: string[]
-  // code normalizado → descripción oficial del catálogo URREA (para la
-  // resolución de "Desc. DYMMSA"; incluye codes de productos encontrados
-  // y los modelCodes del Excel)
+  // Indexed by catalogKey, not by code (ADR-013).
   catalogDescriptions: Record<string, string>
 }
 
 interface LookupInput {
   etmCodes: string[]
-  // model_codes del Excel: resuelven descripción de catálogo también en filas
-  // que aún no existen en etm_products
+  // Resolve catalog descriptions for rows not yet in etm_products.
   modelCodes?: string[]
 }
 
-/**
- * Hook para buscar ETMs en la base de datos
- */
 export function useLookupEtms() {
-  // Lookup-only mutation: it reads matching ETMs and mutates no server state,
-  // so there is no cache to invalidate.
+  // Lookup-only: reads ETMs, mutates no server state, so nothing to invalidate.
   // oxlint-disable-next-line react-doctor/query-mutation-missing-invalidation
   return useMutation({
     mutationFn: async ({ etmCodes, modelCodes }: LookupInput): Promise<LookupResponse> => {

@@ -1,7 +1,4 @@
-/**
- * ColumnPicker (issue #18): solo lista columnas ocultables, el toggle pega al
- * store, restablecer limpia, y el badge refleja el conteo de ocultas.
- */
+/** ColumnPicker (#18): hideable columns only, toggle hits the store, badge counts the hidden ones. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -49,7 +46,7 @@ describe('ColumnPicker', () => {
     await user.click(screen.getByRole('menuitemcheckbox', { name: 'Marca' }))
 
     expect(useColumnStore.getState().hidden['t1']).toEqual(['brand'])
-    // onSelect preventDefault: el menú no se cerró
+    // onSelect preventDefault: the menu stayed open
     expect(screen.getByRole('menuitemcheckbox', { name: 'Precio' })).toBeInTheDocument()
   })
 
@@ -58,7 +55,7 @@ describe('ColumnPicker', () => {
     useColumnStore.setState({ hidden: { t1: ['brand', 'price'] } })
     renderWithProviders(<ColumnPicker tableId="t1" columns={COLUMNS} />)
 
-    // Badge con 2 (tras el frame de useMounted)
+    // Badge shows 2 (after the useMounted frame)
     expect(await screen.findByText('2')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /columnas/i }))
@@ -71,7 +68,7 @@ describe('ColumnPicker', () => {
     useColumnStore.setState({ hidden: { t1: ['columna-vieja'] } })
     renderWithProviders(<ColumnPicker tableId="t1" columns={COLUMNS} />)
 
-    // Un frame para useMounted; el badge no debe aparecer
+    // One frame for useMounted; the badge must not appear
     await new Promise((r) => requestAnimationFrame(r))
     expect(screen.queryByText('1')).not.toBeInTheDocument()
   })

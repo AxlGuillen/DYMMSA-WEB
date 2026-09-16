@@ -37,7 +37,7 @@ export default function PlannerPage({ params }: PlannerPageProps) {
   return <PurchasePlanner data={data} />
 }
 
-/** Esqueleto con la MISMA forma del planificador — un spinner centrado alarga la espera percibida. */
+/** Same shape as the planner: a centered spinner makes the wait feel longer. */
 function PlannerSkeleton() {
   return (
     <div className="space-y-6 pb-24">

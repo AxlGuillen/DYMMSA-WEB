@@ -4,13 +4,9 @@ import { sanitizeFilename, formatISODate } from '@/lib/format'
 import { receivedForCustomer } from '@/lib/business-rules'
 import type { EtmProduct, OrderItem } from '@/types/database'
 
-/**
- * Genera un archivo Excel de cotizacion con los productos encontrados
- */
 export function generateQuoteExcel(products: EtmProduct[]): Blob {
   const workbook = XLSX.utils.book_new()
 
-  // Preparar datos con headers
   const data = [
     ['ETM', 'Description', 'Descripcion', 'Modelo', 'Precio', 'Marca'],
     ...products.map((p) => [
@@ -23,15 +19,12 @@ export function generateQuoteExcel(products: EtmProduct[]): Blob {
     ]),
   ]
 
-  // Agregar fila de totales
   const total = products.reduce((sum, p) => sum + (p.price || 0), 0)
   data.push([])
   data.push(['', '', '', 'TOTAL:', total, ''])
 
-  // Crear worksheet
   const worksheet = XLSX.utils.aoa_to_sheet(data)
 
-  // Configurar anchos de columna
   worksheet["!cols"] = [
     { wch: 15 }, // ETM
     { wch: 35 }, // Description
@@ -43,22 +36,17 @@ export function generateQuoteExcel(products: EtmProduct[]): Blob {
 
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Cotizacion')
 
-  // Generar buffer binario
   const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
   return new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
 }
 
-/**
- * Descarga un Blob como archivo Excel
- */
 export function downloadExcel(blob: Blob, originalFilename: string) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
 
-  // Generar nombre de archivo: original_cotizacion.xlsx
   const baseName = originalFilename.replace(/\.[^/.]+$/, '')
   link.download = `${baseName}_cotizacion.xlsx`
 
@@ -68,14 +56,11 @@ export function downloadExcel(blob: Blob, originalFilename: string) {
   URL.revokeObjectURL(url)
 }
 
-// --- URREA Order Template (JSZip-based to preserve VBA macros) ---
+// URREA order template: driven through JSZip so the VBA macros survive.
 
 const SPREADSHEET_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 const RELS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
-/**
- * Finds the worksheet XML file path inside the .xlsm ZIP for a given sheet name
- */
 async function findSheetPath(zip: JSZip, sheetName: string): Promise<string> {
   const parser = new DOMParser()
 
@@ -116,12 +101,11 @@ function colLetterToIndex(col: string): number {
   return index
 }
 
-/** Escribe una celda en el XML preservando las demás de la fila (fórmulas intactas). */
+/** Writes one cell into the XML, leaving the rest of the row (and its formulas) intact. */
 function setCellValue(doc: Document, sheetData: Element, ref: string, value: string | number) {
   const rowNum = parseInt(ref.replace(/[A-Z]+/, ''))
   const colLetter = ref.replace(/[0-9]+/, '')
 
-  // Find the row
   const rows = sheetData.getElementsByTagNameNS(SPREADSHEET_NS, 'row')
   let rowEl: Element | null = null
   for (let i = 0; i < rows.length; i++) {
@@ -145,7 +129,6 @@ function setCellValue(doc: Document, sheetData: Element, ref: string, value: str
     if (!inserted) sheetData.appendChild(rowEl)
   }
 
-  // Find or create the cell
   const cells = rowEl.getElementsByTagNameNS(SPREADSHEET_NS, 'c')
   let cellEl: Element | null = null
   for (let i = 0; i < cells.length; i++) {
@@ -158,7 +141,7 @@ function setCellValue(doc: Document, sheetData: Element, ref: string, value: str
   if (!cellEl) {
     cellEl = doc.createElementNS(SPREADSHEET_NS, 'c')
     cellEl.setAttribute('r', ref)
-    // Insert in column order to maintain valid XML
+    // Insert in column order: out-of-order cells are invalid XML
     const colIndex = colLetterToIndex(colLetter)
     let inserted = false
     for (let i = 0; i < cells.length; i++) {
@@ -172,7 +155,6 @@ function setCellValue(doc: Document, sheetData: Element, ref: string, value: str
     if (!inserted) rowEl.appendChild(cellEl)
   }
 
-  // Clear existing content
   while (cellEl.firstChild) cellEl.removeChild(cellEl.firstChild)
 
   if (typeof value === 'string') {
@@ -190,21 +172,17 @@ function setCellValue(doc: Document, sheetData: Element, ref: string, value: str
   }
 }
 
-/** Fila del pedido URREA: código de catálogo + PIEZAS (múltiplo de STD, ADR-018). */
+/** URREA order row: catalog code + PIECES (a multiple of STD, ADR-018). */
 export interface UrreaOrderRow {
   code: string
   pieces: number
 }
 
-// El template trae fórmulas pre-cargadas hasta la fila 1026; con datos desde
-// la 15 caben 1012 filas. Más allá, las filas quedarían sin fórmulas.
+// The template pre-loads formulas up to row 1026; starting at 15 that leaves 1012 usable rows.
 const URREA_TEMPLATE_START_ROW = 15
 const URREA_TEMPLATE_MAX_ROWS = 1012
 
-/**
- * Pedido URREA sobre el template .xlsm (ZIP directo para no romper macros):
- * solo llena A/B de FORMATO. Las filas ya vienen decididas del planificador.
- */
+/** Only fills A/B of the FORMATO sheet; the rows arrive already decided by the planner. */
 export async function generateUrreaOrderExcel(rows: UrreaOrderRow[]): Promise<Blob> {
   if (rows.length > URREA_TEMPLATE_MAX_ROWS) {
     throw new Error(
@@ -220,7 +198,6 @@ export async function generateUrreaOrderExcel(rows: UrreaOrderRow[]): Promise<Bl
 
   const zip = await JSZip.loadAsync(templateBuffer)
 
-  // Find the worksheet XML path for FORMATO sheet
   const sheetPath = await findSheetPath(zip, 'FORMATO')
 
   const sheetXml = await zip.file(sheetPath)?.async('string')
@@ -232,14 +209,13 @@ export async function generateUrreaOrderExcel(rows: UrreaOrderRow[]): Promise<Bl
   const sheetData = doc.getElementsByTagNameNS(SPREADSHEET_NS, 'sheetData')[0]
   if (!sheetData) throw new Error('No se encontró sheetData en la hoja FORMATO')
 
-  // Fill column A (CÓDIGO O CLAVE) and column B (CANTIDAD) starting at row 15
+  // Column A = CÓDIGO O CLAVE, column B = CANTIDAD
   rows.forEach((item, index) => {
     const row = URREA_TEMPLATE_START_ROW + index
     setCellValue(doc, sheetData, `A${row}`, item.code)
     setCellValue(doc, sheetData, `B${row}`, item.pieces)
   })
 
-  // Serialize modified XML back and replace in ZIP
   const serializer = new XMLSerializer()
   const modifiedXml = serializer.serializeToString(doc)
   zip.file(sheetPath, modifiedXml)
@@ -252,7 +228,7 @@ export async function generateUrreaOrderExcel(rows: UrreaOrderRow[]): Promise<Bl
 
 const IVA_RATE = 0.16
 
-/** Excel de entrega: surtido = stock + min(recibido, pedido); el excedente jamás se entrega (ADR-019). */
+/** Delivered = stock + min(received, ordered); the excess is never delivered (ADR-019). */
 export function generateDeliveryExcel(items: OrderItem[], _customerName: string): Blob {
   const deliveredItems = items.filter(
     (item) => item.quantity_in_stock + receivedForCustomer(item) > 0
@@ -324,9 +300,6 @@ export function generateDeliveryExcel(items: OrderItem[], _customerName: string)
   })
 }
 
-/**
- * Descarga el Excel de entrega al cliente
- */
 export function downloadDeliveryExcel(blob: Blob, customerName: string) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -342,18 +315,18 @@ export function downloadDeliveryExcel(blob: Blob, customerName: string) {
   URL.revokeObjectURL(url)
 }
 
-// --- Pedido de material de corte (tubos y placas DYMMSA, issue #59) ---
+// Cut material order (DYMMSA tubes and plates, #59).
 
-/** Fila del pedido al proveedor: la necesidad NETA por medida (momento 1). */
+/** Supplier order row: the NET need per measure (moment 1). */
 export interface CutRequestRow {
   material: string
   measure: string
   pieces: number
-  /** "1.28 m" (tubos) o "300 mm de tira de 200 mm" / "área 0.13 m²" (placas). */
+  /** "1.28 m" (tubes) or "300 mm de tira de 200 mm" / "área 0.13 m²" (plates). */
   request: string
 }
 
-/** Pedido de materia prima: una fila por medida, desde la necesidad neta (ADR-022). */
+/** Raw material order: one row per measure, from the net need (ADR-022). */
 export function generateCutRequestExcel(rows: CutRequestRow[]): Blob {
   const data: (string | number)[][] = [
     ['Material', 'Medida', 'Piezas', 'A pedir'],
@@ -377,9 +350,6 @@ export function generateCutRequestExcel(rows: CutRequestRow[]): Blob {
   })
 }
 
-/**
- * Descarga el Excel de pedido de material de corte
- */
 export function downloadCutRequestExcel(blob: Blob, customerName: string) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -395,25 +365,22 @@ export function downloadCutRequestExcel(blob: Blob, customerName: string) {
   URL.revokeObjectURL(url)
 }
 
-// --- Lista de compra local (menudeo, ADR-018) ---
+// Local retail purchase list (ADR-018).
 
-/** Fila de la lista de compra local: restos a menudeo + productos sin catálogo. */
+/** Local purchase row: retail remainders + products missing from the catalog. */
 export interface LocalPurchaseRow {
   code: string
   brand: string
   description: string
   etm: string
   quantity: number
-  /** Precio de venta de referencia (proxy — NO es el costo del proveedor). */
+  /** Reference sale price (a proxy — NOT the supplier cost). */
   unitPrice: number | null
-  /** 'resto menudeo' (decisión del planificador) o 'sin catálogo'. */
+  /** 'resto menudeo' (planner decision) or 'sin catálogo'. */
   origin: string
 }
 
-/**
- * Genera el Excel de compra local (menudeo): lo decidido a menudeo en el
- * planificador + los productos que no están en el catálogo URREA.
- */
+/** What the planner sent to retail + everything absent from the URREA catalog. */
 export function generateLocalPurchaseExcel(rows: LocalPurchaseRow[]): Blob {
   const headers = ['Código', 'Marca', 'Descripción', 'ETM', 'Cantidad', 'Precio venta', 'Origen']
 
@@ -451,9 +418,6 @@ export function generateLocalPurchaseExcel(rows: LocalPurchaseRow[]): Blob {
   })
 }
 
-/**
- * Descarga el Excel de compra local
- */
 export function downloadLocalPurchaseExcel(blob: Blob, customerName: string) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -469,9 +433,6 @@ export function downloadLocalPurchaseExcel(blob: Blob, customerName: string) {
   URL.revokeObjectURL(url)
 }
 
-/**
- * Descarga el Excel de pedido URREA
- */
 export function downloadUrreaOrder(blob: Blob, customerName: string) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

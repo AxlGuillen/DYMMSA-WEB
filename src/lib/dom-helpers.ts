@@ -1,4 +1,4 @@
-/** Scroll suave a la fila data-row-id (ítem ofensor tras validación); no-op en SSR. */
+/** Smooth-scroll to the `data-row-id` row; no-op in SSR. */
 export function scrollToRow(id: string): void {
   if (typeof document === 'undefined') return
   const el = document.querySelector(`[data-row-id="${CSS.escape(id)}"]`)
@@ -7,7 +7,7 @@ export function scrollToRow(id: string): void {
   }
 }
 
-/** Enfoca el input por id (campo faltante tras validación); no-op en SSR. */
+/** Focus an input by id; no-op in SSR. */
 export function focusById(id: string): void {
   if (typeof document === 'undefined') return
   const el = document.getElementById(id)

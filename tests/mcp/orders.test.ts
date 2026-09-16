@@ -1,4 +1,4 @@
-/** Tools MCP de órdenes. */
+/** MCP order tools. */
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue } from '../helpers/supabase-mock'
@@ -44,9 +44,9 @@ describe('getOrder', () => {
 
     const result = await getOrder(asDb(client), 'o1')
 
-    expect(result.total).toBe(150) // 5*10 + 1*100, separador excluido
+    expect(result.total).toBe(150) // 5*10 + 1*100, separator excluded
     expect(result.items_count).toBe(2)
-    // Solo E1 está pendiente con URREA Y tiene quantity_to_order > 0
+    // Only E1 is pending with URREA AND has quantity_to_order > 0
     expect(result.pending_urrea_items).toBe(1)
     expect(result.items[0]).toEqual({ item_type: 'separator', section_label: 'Herramienta' })
   })

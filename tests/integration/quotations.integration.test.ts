@@ -1,9 +1,6 @@
 /**
- * Integración (Fase C1) — guardar cotización contra el Supabase LOCAL.
- * Ejerce auth + RLS + SQL reales: el handler corre igual que en producción,
- * solo que `createClient()` devuelve un cliente autenticado contra el local.
- *
- * Requiere `bunx supabase start` corriendo. Correr con: bun run test:integration
+ * Saving a quotation against local Supabase (ADR-021): exercises real auth,
+ * RLS and SQL — only `createClient()` differs from production.
  */
 import { describe, test, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -28,7 +25,7 @@ afterAll(async () => {
   await closePool()
 })
 
-/** Ítem de producto mínimo con la forma que espera el handler. */
+/** Minimal product item in the shape the handler expects. */
 function product(over: Record<string, unknown> = {}) {
   return {
     _id: crypto.randomUUID(),
@@ -56,10 +53,9 @@ describe('POST /quotations/save (integración local)', () => {
         name: 'Q Integración',
         customer_name: 'ACME',
         items: [
-          // Producto del catálogo (60001|URREA): su Desc. DYMMSA debe resolverse
-          // a la OFICIAL del urrea_catalog real y congelarse en el ítem.
+          // Catalog product: its DYMMSA description resolves to the official one.
           product({ etm: 'SEED-URREA-1', model_code: '60001', brand: 'URREA', unit_price: 100, quantity: 2, is_sold: true, _inDb: true }),
-          // Producto NUEVO (no está en etm_products) → auto-learn debe agregarlo.
+          // New product: auto-learn must add it.
           product({ etm: 'NEW-INT-1', model_code: '70001', brand: 'URREA', description: 'Martillo nuevo', unit_price: 40, quantity: 5 }),
         ],
       }),
@@ -69,7 +65,6 @@ describe('POST /quotations/save (integración local)', () => {
     const json = await readJson<{ quotation_id: string; auto_learn: { added: number } }>(res)
     expect(json.quotation_id).toBeTruthy()
 
-    // 1. Filas reales en la BD, con sort_order = index e is_approved = null.
     const items = await sql<{ etm: string; sort_order: number; is_approved: boolean | null; dymmsa_description: string | null }>(
       'SELECT etm, sort_order, is_approved, dymmsa_description FROM quotation_items WHERE quotation_id = $1 ORDER BY sort_order',
       [json.quotation_id],
@@ -77,14 +72,13 @@ describe('POST /quotations/save (integración local)', () => {
     expect(items.map((i) => i.etm)).toEqual(['SEED-URREA-1', 'NEW-INT-1'])
     expect(items.every((i) => i.is_approved === null)).toBe(true)
 
-    // 2. Jerarquía Desc. DYMMSA (ADR-013): el catálogo oficial gana y se congela.
+    // The official catalog description wins and is frozen (ADR-013).
     expect(items[0].dymmsa_description).toBe('Botador de cobre 30/300mm (oficial URREA)')
 
-    // 3. Total: 100×2 + 40×5 = 400.
+    // Total: 100x2 + 40x5 = 400.
     const [q] = await sql<{ total_amount: string }>('SELECT total_amount FROM quotations WHERE id = $1', [json.quotation_id])
     expect(Number(q.total_amount)).toBe(400)
 
-    // 4. Auto-learn agregó el producto nuevo a etm_products.
     expect(json.auto_learn.added).toBeGreaterThanOrEqual(1)
     const learned = await sql("SELECT etm FROM etm_products WHERE etm = 'NEW-INT-1'")
     expect(learned).toHaveLength(1)

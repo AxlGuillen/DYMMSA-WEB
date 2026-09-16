@@ -10,9 +10,8 @@ export function ThemeToggle() {
   const toggleTheme = (e: React.MouseEvent<HTMLButtonElement>) => {
     const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
 
-    // Tema al DOM SÍNCRONO: next-themes lo hace en efecto pasivo y el snapshot
-    // "new" de startViewTransition capturaría el tema viejo. ACOPLADO a
-    // attribute="class" del provider — si eso cambia, actualizar este bloque.
+    // Theme applied to the DOM SYNCHRONOUSLY, or startViewTransition's "new" snapshot
+    // catches the old one. COUPLED to the provider's attribute="class".
     const applyTheme = () => {
       const root = document.documentElement
       root.classList.remove('light', 'dark')

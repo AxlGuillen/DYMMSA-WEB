@@ -3,6 +3,48 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-09
+
+### Nuevo
+- **Ingresos en Finanzas, leídos de Odoo.** El overview ahora muestra lo
+  **cobrado del mes** (por la fecha en que entró el dinero, igual que los
+  egresos van por fecha de pago), lo **por cobrar** y lo **vencido por cobrar**,
+  y calcula el **cierre del mes**: real (cobrado − pagado) y proyectado (si se
+  pagara todo lo pendiente). Abajo, la lista de cobros del mes con cliente y
+  folio. Nada se captura a mano: Odoo sigue siendo la única fuente.
+- Los datos de Odoo se guardan 15 minutos para que la pantalla abra rápido; el
+  botón **Actualizar** los vuelve a leer. Si Odoo no responde, la pantalla sigue
+  mostrando los egresos y avisa que los ingresos no están disponibles.
+
+## 2026-09-08
+
+### Nuevo
+- **Módulo de Horas.** Nueva sección en el menú. En **Mi semana** cada quien ve
+  sus checadas de entrada y salida por día, con el total diario y el de la
+  semana; las salidas que faltaron se marcan en ámbar y no suman. Se puede
+  navegar semana por semana.
+- **Importar el reporte del checador.** Los administradores suben el Excel
+  semanal del NGTeco tal cual sale del aparato. Se ve cuántas checadas entraron,
+  cuántas se actualizaron y si algún empleado del reporte aún no tiene usuario
+  asignado. Volver a subir la misma semana no duplica nada.
+- **Correcciones con rastro.** Un administrador puede corregir una checada o
+  registrar una a mano; queda marcada con quién la editó y cuándo, y el dato
+  original del checador se conserva. Un reporte posterior no pisa lo corregido.
+- **Equipo.** Los administradores asignan el rol de cada persona y el número con
+  el que aparece en el reporte del checador.
+
+## 2026-09-07
+
+### Mejorado
+- **Plazo de pago del proveedor como lista.** En vez de teclear los días, eliges
+  Contado, 1 semana, 15 días, 1 mes, 2 meses o 3 meses. Si un proveedor maneja
+  otro plazo, la opción **Otro…** abre el campo libre — y si ya tenía guardado un
+  número fuera de la lista, el formulario abre ahí con ese número, no en blanco.
+- **Formato de fecha a tu gusto en Facturas por pagar.** Un selector nuevo junto
+  al de columnas permite ver las fechas como `15-09-2026`, `15/09/2026`,
+  `2026-09-15`, `15 sep 2026` o en largo. La elección se recuerda en este
+  navegador y aplica también a los vencimientos del overview.
+
 ## 2026-09-05
 
 ### Nuevo

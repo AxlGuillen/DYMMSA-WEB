@@ -10,8 +10,8 @@ import {
 } from '@/lib/purchase-plan'
 
 /**
- * Plan de compra al vuelo (ADR-018) con staleness por grupo; catálogo y
- * settings degradan a defaults — solo la orden/ítems es fatal.
+ * On-the-fly purchase plan (ADR-018) with per-group staleness; catalog and
+ * settings degrade to defaults — only order/items failures are fatal.
  */
 export async function GET(
   _request: NextRequest,

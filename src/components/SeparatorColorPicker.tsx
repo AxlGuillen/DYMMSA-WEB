@@ -11,17 +11,14 @@ import {
 import { cn } from '@/lib/utils'
 
 interface SeparatorColorPickerProps {
-  /** Override guardado; null = color automático por índice de sección. */
+  /** Saved override; null means the automatic color by section index. */
   value: string | null | undefined
   onChange: (color: string | null) => void
   disabled?: boolean
 }
 
-/**
- * Selector de color de un separador (issue #73): swatches fijos de la paleta
- * + "Automático" para volver a la rotación por sección. Vive dentro de la
- * celda del label (no agrega columnas a la tabla).
- */
+/** Separator color picker (#73). It lives inside the label cell so the table
+ *  gains no extra column. */
 export function SeparatorColorPicker({ value, onChange, disabled }: SeparatorColorPickerProps) {
   const [open, setOpen] = useState(false)
   const current = isSeparatorColor(value) ? value : null

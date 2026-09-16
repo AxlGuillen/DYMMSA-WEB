@@ -1,9 +1,5 @@
-/**
- * POST /approve/[token] — decisiones del cliente (público, admin client).
- *   - guardar avance (finalize=false): reset a null + aprobar; NO cambia status
- *   - finalizar (finalize=true): reset a false + aprobar; status + approved_at
- *   - guardas: token inexistente (404), ya procesada (400), payload inválido (400)
- */
+/** POST /approve/[token], public and on the admin client: save progress vs
+ *  finalize, plus the guards (missing token, already processed, bad payload). */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
@@ -66,9 +62,9 @@ describe('POST /approve/[token]', () => {
     expect(body).toMatchObject({ saved: true, finalized: false, approvedCount: 2 })
 
     const updates = adminClient.callsTo('quotation_items', 'update')
-    expect(updates[0].payload).toMatchObject({ is_approved: null }) // reset = pendiente
-    expect(updates[1].payload).toMatchObject({ is_approved: true }) // aprobados
-    // NO cambia el status de la cotización
+    expect(updates[0].payload).toMatchObject({ is_approved: null }) // reset = pending
+    expect(updates[1].payload).toMatchObject({ is_approved: true }) // approved
+    // The quotation status does not change.
     expect(adminClient.didCall('quotations', 'update')).toBe(false)
   })
 
@@ -80,7 +76,7 @@ describe('POST /approve/[token]', () => {
     expect(body).toMatchObject({ finalized: true, status: 'approved' })
 
     const resetPayload = adminClient.callsTo('quotation_items', 'update')[0].payload as Record<string, unknown>
-    expect(resetPayload.is_approved).toBe(false) // reset = rechazado
+    expect(resetPayload.is_approved).toBe(false) // reset = rejected
 
     const q = adminClient.updatePayload<Record<string, unknown>>('quotations')
     expect(q.status).toBe('approved')
@@ -98,8 +94,8 @@ describe('POST /approve/[token]', () => {
   })
 
   test('REGLA: aprobación PARCIAL notifica el total de lo aprobado, no el de toda la cotización', async () => {
-    // total_amount=1500 (cotización completa), pero el cliente solo aprobó 2 ítems
-    // que suman 250 → el correo debe decir 250.
+    // total_amount is 1500 for the whole quotation, but the client approved only
+    // 2 items worth 250 → the mail must say 250.
     adminClient = createMockSupabase({
       responses: {
         'quotations.select': {
@@ -129,7 +125,7 @@ describe('POST /approve/[token]', () => {
   })
 
   test('si la lectura de ítems aprobados falla, cae al total_amount de la cotización', async () => {
-    // sentClient no configura quotation_items.select → data null → fallback.
+    // sentClient does not stub quotation_items.select → data null → fallback.
     adminClient = sentClient()
     await post({ approvedIds: ['i1', 'i2'], finalize: true })
     expect(mockNotify).toHaveBeenCalledWith(
@@ -159,7 +155,7 @@ describe('POST /approve/[token]', () => {
   })
 
   test('finalizar concurrente: si otro request ya finalizó (0 filas), responde 409 y NO notifica', async () => {
-    // La guarda .eq('status','sent_for_approval') matchea 0 filas → update devuelve [].
+    // The .eq('status','sent_for_approval') guard matches 0 rows → update returns [].
     adminClient = createMockSupabase({
       responses: {
         'quotations.select': {

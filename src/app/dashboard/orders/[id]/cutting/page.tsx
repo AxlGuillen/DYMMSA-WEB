@@ -37,7 +37,7 @@ export default function CuttingPage({ params }: CuttingPageProps) {
   return <CutPlanner data={data} />
 }
 
-/** Silueta del contenido real (encabezado, lista y un grupo de diámetro). */
+/** Silhouette of the real content: header, list, one diameter group. */
 function CuttingSkeleton() {
   return (
     <div className="space-y-6 pb-24">

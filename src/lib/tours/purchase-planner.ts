@@ -1,6 +1,6 @@
 import type { OverviewStep } from '@/lib/tours'
 
-/** Overview del planificador de compra: el modelo mayoreo vs menudeo (ADR-018). */
+/** Purchase planner overview: the wholesale vs retail model (ADR-018). */
 export const PURCHASE_PLANNER_TOUR: OverviewStep[] = [
   {
     selector: '[data-tour="plan-summary"]',
@@ -13,7 +13,7 @@ export const PURCHASE_PLANNER_TOUR: OverviewStep[] = [
     title: 'Umbrales de decisión',
     description:
       'Las dos perillas de la recomendación: el <b>dinero parado máximo</b> y el <b>% del paquete</b> que aceptas parar. Son ajuste global del sistema; al cambiarlos se recalcula el plan y te dice cuántos productos cambiaron de recomendación.',
-    // En el header: abajo explícito para no tapar la barra de controles.
+    // In the header: bottom placement so it doesn't cover the controls bar.
     side: 'bottom',
   },
   {
@@ -46,7 +46,7 @@ export const PURCHASE_PLANNER_TOUR: OverviewStep[] = [
     title: 'Los dos Excel',
     description:
       '<b>Pedido URREA</b> sale de las decisiones GUARDADAS (piezas en múltiplos de STD): si tienes cambios en pantalla, el botón guarda y descarga en un solo paso; con grupos "por revisar" no genera y te avisa. <b>Compra local</b> arma el listado para el menudeo.',
-    // El footer es fijo al fondo: el popover abre hacia arriba.
+    // The footer is pinned to the bottom, so the popover opens upward.
     side: 'top',
   },
   {

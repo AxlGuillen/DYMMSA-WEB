@@ -1,9 +1,6 @@
 /**
- * Integración (Tier 1) — UPDATE de cotización contra el Supabase LOCAL.
- * El handler más intrincado: delete+reinsert preservando is_approved, con
- * rollback si el re-insert falla. Es el que más se toca (Fase 5.5) y una
- * regresión aquí PIERDE decisiones del cliente — de ahí el valor de probarlo
- * contra la BD real.
+ * Quotation update against local Supabase (ADR-021): delete+reinsert with
+ * rollback; a regression here loses customer decisions.
  */
 import { describe, test, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -35,8 +32,8 @@ describe('PATCH /quotations/[id]/update (integración local)', () => {
       ],
     })
 
-    // La UI reenvía los 2 existentes con su _dbId y SIN is_approved (→ fallback a
-    // la decisión persistida) + 1 producto nuevo.
+    // The UI resends existing items with _dbId and without is_approved, so the
+    // persisted decision is the fallback.
     const res = await patch(id, {
       name: 'Editada', customer_name: 'ACME',
       items: [
@@ -51,9 +48,9 @@ describe('PATCH /quotations/[id]/update (integración local)', () => {
       'SELECT etm, is_approved FROM quotation_items WHERE quotation_id = $1 ORDER BY sort_order', [id],
     )
     expect(items).toEqual([
-      { etm: 'A', is_approved: true },   // decisión preservada
-      { etm: 'B', is_approved: false },  // decisión preservada
-      { etm: 'C', is_approved: null },   // nuevo → pendiente
+      { etm: 'A', is_approved: true },
+      { etm: 'B', is_approved: false },
+      { etm: 'C', is_approved: null },   // new → pending
     ])
   })
 
@@ -76,14 +73,14 @@ describe('PATCH /quotations/[id]/update (integración local)', () => {
       items: [{ etm: 'A', model_code: '60001', brand: 'URREA', unit_price: 100, quantity: 2, is_approved: true }],
     })
 
-    // quantity 0 viola quotation_items_quantity_check → el insert falla.
+    // quantity 0 violates quotation_items_quantity_check → the insert fails.
     const res = await patch(id, {
       name: 'X', customer_name: 'ACME',
       items: [{ item_type: 'product', etm: 'A', model_code: '60001', brand: 'URREA', unit_price: 100, quantity: 0, delivery_time: 'immediate' }],
     })
     expect(res.status).toBe(400)
 
-    // Rollback: el delete ya había borrado, pero el original volvió intacto.
+    // Rollback: the delete already ran, but the original came back intact.
     const items = await sql<{ etm: string; is_approved: boolean | null; quantity: number }>(
       'SELECT etm, is_approved, quantity FROM quotation_items WHERE quotation_id = $1', [id],
     )

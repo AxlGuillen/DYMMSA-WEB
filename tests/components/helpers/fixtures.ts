@@ -1,8 +1,4 @@
-/**
- * Fixtures con el shape de la UI (distintas a tests/helpers/factories.ts, que
- * son payloads de API). Builders para QuotationItemRow, QuotationItem,
- * QuotationWithItems y EtmProduct.
- */
+/** UI-shaped fixtures; tests/helpers/factories.ts holds the API payload ones. */
 
 import type {
   QuotationItemRow,
@@ -14,7 +10,7 @@ import type {
 let seq = 0
 const uid = (prefix: string) => `${prefix}-${++seq}`
 
-/** Fila editable de producto (estado local del cotizador / detalle). */
+/** Editable product row (local state of the quoter / detail). */
 export function quotationItemRow(overrides: Partial<QuotationItemRow> = {}): QuotationItemRow {
   return {
     _id: uid('row'),
@@ -34,7 +30,7 @@ export function quotationItemRow(overrides: Partial<QuotationItemRow> = {}): Quo
   }
 }
 
-/** Fila separadora editable. */
+/** Editable separator row. */
 export function separatorRow(overrides: Partial<QuotationItemRow> = {}): QuotationItemRow {
   return quotationItemRow({
     item_type: 'separator',
@@ -51,7 +47,7 @@ export function separatorRow(overrides: Partial<QuotationItemRow> = {}): Quotati
   })
 }
 
-/** Item de cotización con shape de BD (para QuotationWithItems). */
+/** Quotation item with the DB shape (for QuotationWithItems). */
 export function quotationItem(overrides: Partial<QuotationItem> = {}): QuotationItem {
   return {
     id: uid('qi'),
@@ -75,7 +71,7 @@ export function quotationItem(overrides: Partial<QuotationItem> = {}): Quotation
   }
 }
 
-/** Cotización con items (prop de QuotationDetail). */
+/** Quotation with items (QuotationDetail prop). */
 export function quotationWithItems(
   overrides: Partial<QuotationWithItems> = {},
 ): QuotationWithItems {
@@ -96,7 +92,7 @@ export function quotationWithItems(
   }
 }
 
-/** Producto de catálogo (para QuotePreview). */
+/** Catalog product (for QuotePreview). */
 export function etmProduct(overrides: Partial<EtmProduct> = {}): EtmProduct {
   return {
     id: uid('etm'),

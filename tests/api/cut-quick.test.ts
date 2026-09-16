@@ -1,10 +1,5 @@
-/**
- * Corte rápido (issue #71) — routes nuevas con Supabase mockeado:
- *   - GET material-presentations: catálogo completo con coerción numeric→number.
- *   - DELETE material-presentations/[id]: corregir capturas erróneas; 404 si no existe.
- *   - GET quotations/[id]/cut-candidates: siembra del modo rápido desde la
- *     cotización — separadores fuera, is_sold=false fuera, marca trim+upper.
- */
+/** Quick cut (#71): presentations catalog + delete, and cut-candidates seeding
+ *  (separators and is_sold=false stay out, brand trim+upper). */
 
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
@@ -99,9 +94,9 @@ describe('GET /quotations/[id]/cut-candidates', () => {
         'quotations.select': { data: QUOTATION, error: null },
         'quotation_items.select': {
           data: [
-            // ' dymmsa ' con basura: misma normalización que el botón del detalle.
+            // Same normalization as the detail button.
             { id: 'i1', etm: 'DY-1', description: 'Botador', quantity: 4, item_type: 'product', brand: ' dymmsa ', is_sold: null },
-            // "No lo vendemos" no se manda a hacer.
+            // "Not sold" is never sent out to be made.
             { id: 'i2', etm: 'DY-2', description: 'Punta', quantity: 2, item_type: 'product', brand: 'DYMMSA', is_sold: false },
             { id: 'i3', etm: null, description: 'Proyecto A', quantity: 0, item_type: 'separator', brand: 'DYMMSA', is_sold: null },
             { id: 'i4', etm: 'U-1', description: 'Llave', quantity: 2, item_type: 'product', brand: 'URREA', is_sold: true },
@@ -119,7 +114,7 @@ describe('GET /quotations/[id]/cut-candidates', () => {
     const body = await res.json()
     expect(body.quotation).toMatchObject({ id: 'q1', quotation_number: 'COT-001' })
     expect(body.candidates).toHaveLength(1)
-    // numeric-string del nominal coercido a number (misma trampa de supabase-js).
+    // Nominal numeric-string coerced to number (the same supabase-js trap).
     expect(body.candidates[0]).toMatchObject({
       itemId: 'i1', etm: 'DY-1', quantity: 4, cutKind: 'tube', diameterMm: 30, lengthMm: 300,
     })

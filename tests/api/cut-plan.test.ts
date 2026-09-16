@@ -1,11 +1,5 @@
-/**
- * Módulo de corte (issue #59) — route handlers con Supabase mockeado.
- *   - GET: coerción numeric-string → number (trampa de supabase-js), candidatos
- *     DYMMSA sin separadores, margen desde settings.
- *   - PUT: replace-all con espejo del CHECK de forma (mensajes claros), orden
- *     read-only bloqueada, restauración si el insert falla.
- *   - presentations POST: upsert contra el UNIQUE con last_used_at fresco.
- */
+/** Cut module (#59) route handlers: numeric-string coercion (supabase-js trap),
+ *  shape CHECK mirrored in messages, read-only order guard, restore on failure. */
 
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, filterValue } from '../helpers/supabase-mock'
@@ -46,14 +40,13 @@ describe('GET /orders/[id]/cut-plan', () => {
       responses: {
         'orders.select': { data: ORDER, error: null },
         'cut_plan_pieces.select': {
-          // numeric llega como STRING: la respuesta debe salir en number.
+          // numeric arrives as a STRING: the response must come out as number.
           data: [{ id: 'p1', material_type: 'tube', diameter_mm: '30', thickness_mm: null, width_mm: null, length_mm: '300.5', quantity: 4 }],
           error: null,
         },
         'order_items.select': {
           data: [
-            // ' dymmsa ' con basura: la normalización debe ser la MISMA
-            // trim+upper que usa el botón de OrderDetail.
+            // Same trim+upper normalization the OrderDetail button uses.
             { id: 'i1', etm: 'DY-1', description: 'Botador', quantity_approved: 4, item_type: 'product', brand: ' dymmsa ' },
             { id: 'i2', etm: null, description: 'Proyecto A', quantity_approved: 0, item_type: 'separator', brand: 'DYMMSA' },
             { id: 'i3', etm: 'U-1', description: 'Llave', quantity_approved: 2, item_type: 'product', brand: 'URREA' },
@@ -79,7 +72,7 @@ describe('GET /orders/[id]/cut-plan', () => {
     expect(body.pieces[0].length_mm).toBe(300.5)
     expect(body.presentations[0].length_mm).toBe(6000)
     expect(body.marginMm).toBe(15)
-    // El separador DYMMSA no es candidato; el producto trae el nominal para pre-llenar.
+    // The separator is not a candidate; the product carries the nominal to pre-fill.
     expect(body.candidates).toHaveLength(1)
     expect(body.candidates[0]).toMatchObject({ itemId: 'i1', etm: 'DY-1', cutKind: 'tube', diameterMm: 30, lengthMm: 300 })
   })
@@ -118,12 +111,12 @@ describe('PUT /orders/[id]/cut-plan', () => {
 
   test('espejo del CHECK de forma: mensajes claros por pieza', async () => {
     const cases = [
-      { ...TUBE, diameter_mm: null },                    // tubo sin diámetro
-      { ...TUBE, width_mm: 100 },                        // tubo con ancho
-      { material_type: 'plate', thickness_mm: 5, length_mm: 300, quantity: 1 }, // placa sin ancho
-      { ...TUBE, quantity: 1.5 },                        // cantidad no entera
-      { ...TUBE, length_mm: 0 },                         // longitud 0
-      { ...TUBE, material_type: 'rod' },                 // tipo desconocido
+      { ...TUBE, diameter_mm: null },                    // tube without diameter
+      { ...TUBE, width_mm: 100 },                        // tube with width
+      { material_type: 'plate', thickness_mm: 5, length_mm: 300, quantity: 1 }, // plate without width
+      { ...TUBE, quantity: 1.5 },                        // non-integer quantity
+      { ...TUBE, length_mm: 0 },                         // length 0
+      { ...TUBE, material_type: 'rod' },                 // unknown type
     ]
     for (const piece of cases) {
       activeClient = createMockSupabase({ user: AUTH, responses: okOrder })
@@ -144,7 +137,7 @@ describe('PUT /orders/[id]/cut-plan', () => {
     })
     const res = await putPlan({
       pieces: [
-        { ...TUBE, requested_label: '  ' }, // vacío → null
+        { ...TUBE, requested_label: '  ' }, // empty → null
         { material_type: 'plate', thickness_mm: 5, width_mm: 200, length_mm: 300, quantity: 2 },
       ],
     })
@@ -176,7 +169,7 @@ describe('PUT /orders/[id]/cut-plan', () => {
     const res = await putPlan({ pieces: [TUBE] })
     expect(res.status).toBe(500)
 
-    // Dos inserts: el que falló + la restauración (sin el id viejo).
+    // Two inserts: the failed one + the restore (without the old id).
     const inserts = activeClient.callsTo('cut_plan_pieces', 'insert')
     expect(inserts).toHaveLength(2)
     const restored = inserts[1].payload as Record<string, unknown>[]

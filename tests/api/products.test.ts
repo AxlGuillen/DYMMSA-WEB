@@ -1,13 +1,3 @@
-/**
- * Products — list / CRUD handlers (etm_products). Migrado a server side
- * (issue #55): el cliente ya no toca Supabase directo.
- *   - auth en todas las rutas
- *   - list: shape paginado, búsqueda saneada, whitelist de orden
- *   - create: ETM obligatorio, 23505 → 400 descriptivo
- *   - update: is_sold TRI-ESTADO (null explícito se persiste), sin cambios → 400
- *   - delete: .eq('id')
- */
-
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, findFilter, filterValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
@@ -61,7 +51,7 @@ describe('GET /products (list)', () => {
     const rec = activeClient.callsTo('etm_products', 'select')[0]
     const or = rec.filters.find((f) => f.method === 'or')
     expect(or).toBeTruthy()
-    // Ni separadores del .or() ni comodines de ilike (`%`, `*`) llegan al filtro.
+    // Neither .or() separators nor ilike wildcards (`%`, `*`) reach the filter.
     const term = String(or!.args[0]).split('etm.ilike.%')[1]?.split('%')[0] ?? ''
     expect(term).not.toMatch(/[,()*]/)
   })
@@ -92,7 +82,7 @@ describe('POST /products (create)', () => {
     const payload = activeClient.callsTo('etm_products', 'insert')[0].payload as Record<string, unknown>
     expect(payload.etm).toBe('A-1')
     expect(payload.brand).toBe('urrea')
-    expect(payload.dymmsa_description).toBeNull() // '' → null (única nullable)
+    expect(payload.dymmsa_description).toBeNull() // '' → null (the only nullable)
   })
 
   test('ETM duplicado (23505) → 400 descriptivo, no 500', async () => {

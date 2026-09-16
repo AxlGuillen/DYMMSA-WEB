@@ -1,8 +1,4 @@
-/**
- * Store de sonido (issue #28). El default se decide al crear el store
- * (import), así que el caso reduced-motion re-importa el módulo con
- * matchMedia mockeado y localStorage limpio (sin persist que lo pise).
- */
+/** Sound store (#28): the default is decided at import, so the reduced-motion case re-imports the module. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 
@@ -38,13 +34,13 @@ describe('soundStore', () => {
   })
 
   test('la preferencia persistida gana sobre el default', async () => {
-    mockMatchMedia(true) // el default diría "apagado"...
+    mockMatchMedia(true) // the default would say "off"...
     localStorage.setItem(
       'dymmsa-sound',
       JSON.stringify({ state: { soundEnabled: true }, version: 0 }),
     )
     const { useSoundStore } = await import('@/stores/soundStore')
-    // ...pero el usuario lo había activado a mano.
+    // ...but the user had turned it on by hand.
     expect(useSoundStore.getState().soundEnabled).toBe(true)
   })
 

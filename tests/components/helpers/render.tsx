@@ -1,9 +1,6 @@
 /**
- * Render helper para tests de componentes.
- *
- * Envuelve el árbol en un QueryClientProvider con un cliente nuevo por llamada
- * (retry off, sin staleTime) para que los componentes que tocan el contexto de
- * TanStack Query funcionen aunque sus hooks estén mockeados.
+ * Render helper: wraps the tree in a QueryClientProvider with a fresh client per call, so
+ * components touching the TanStack Query context work even with mocked hooks.
  */
 
 import type { ReactElement, ReactNode } from 'react'
@@ -28,7 +25,7 @@ export function renderWithProviders(ui: ReactElement, options?: Omit<RenderOptio
   return { client, ...render(ui, { wrapper, ...options }) }
 }
 
-/** userEvent ya configurado; usar `const user = setupUser()` al inicio del test. */
+/** Preconfigured userEvent; call `const user = setupUser()` at the top of the test. */
 export const setupUser = () => userEvent.setup()
 
 export * from '@testing-library/react'

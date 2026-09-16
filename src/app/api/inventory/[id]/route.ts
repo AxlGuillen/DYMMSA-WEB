@@ -7,7 +7,7 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-// PATCH /api/inventory/[id] → actualizar producto de inventario
+// PATCH /api/inventory/[id] — update an inventory item
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const supabase = await createClient()
@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-// DELETE /api/inventory/[id] → eliminar producto de inventario
+// DELETE /api/inventory/[id] — delete an inventory item
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
     const supabase = await createClient()

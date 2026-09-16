@@ -8,7 +8,7 @@ import type { UrreaCatalogInsert } from '@/types/database'
 
 type RawRow = Record<string, unknown>
 
-/** Lee una columna por varios alias (case-insensitive). */
+/** Reads a column by any of several aliases, case-insensitively. */
 function pick(row: RawRow, keys: string[]): unknown {
   const lowerMap = new Map(
     Object.keys(row).map((k) => [k.trim().toLowerCase(), row[k]])
@@ -44,7 +44,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'El archivo no contiene datos' }, { status: 400 })
     }
 
-    // Validar que exista la columna de código
     if (pick(rows[0], ['codigo', 'código', 'code']) === undefined) {
       return NextResponse.json(
         { message: 'Columna faltante: codigo (o code)' },
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Normalizar filas
     const payload: UrreaCatalogInsert[] = []
     let errors = 0
     for (const row of rows) {
@@ -64,11 +62,10 @@ export async function POST(request: NextRequest) {
       const std = parseInteger(pick(row, ['std']))
       const brand = pick(row, ['marca', 'brand'])
       payload.push({
-        // Normalizada (trim+upper): es la llave de cruce con model_code para
-        // resolver la Descripción DYMMSA; sin normalizar, el match falla en silencio.
+        // trim+upper: this is the join key against model_code for the DYMMSA description;
+        // unnormalized, the match fails silently.
         code: normalizeCatalogCode(String(code)),
-        // Marca normalizada (trim+upper); ausente → DEFAULT_BRAND. Parte de la
-        // identidad (code, brand): el mismo código puede existir en varias marcas.
+        // Part of the (code, brand) identity: the same code can exist under several brands.
         brand: normalizeCatalogBrand(brand === undefined ? undefined : String(brand)),
         description: ((pick(row, ['descripcion', 'descripción', 'description']) as string) ?? null) || null,
         std: std != null && std > 0 ? std : 1,
@@ -83,7 +80,7 @@ export async function POST(request: NextRequest) {
       const { error: deleteError } = await supabase
         .from('urrea_catalog')
         .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000') // borra todo
+        .neq('id', '00000000-0000-0000-0000-000000000000') // neq a nil UUID matches every row
 
       if (deleteError) {
         console.error('Error clearing urrea_catalog:', deleteError)
@@ -98,7 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ imported: payload.length, updated: 0, errors, total: rows.length, mode })
     }
 
-    // upsert por (code, brand) — la identidad del catálogo con marca
+    // Upsert on (code, brand) — the catalog identity.
     const { error: upsertError } = await supabase
       .from('urrea_catalog')
       .upsert(payload, { onConflict: 'code,brand' })

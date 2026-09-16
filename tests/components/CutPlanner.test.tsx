@@ -1,8 +1,4 @@
-/**
- * CutPlanner (issue #59, Fases 3-4): necesidad neta de tubos y placas desde el
- * fixture, acomodo al capturar la presentación (barra / hoja de placa), payload
- * del guardado con AMBOS tipos, y los diagramas SVG en sus estados clave.
- */
+/** CutPlanner (#59): net need, layout on capturing a presentation, save payload and SVG states. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -69,9 +65,9 @@ describe('CutPlanner', () => {
 
   test('necesidad neta: tubos con margen por pieza; placas con área y ancho mínimo', () => {
     renderWithProviders(<CutPlanner data={data()} />)
-    // Tubos: 4 × (300 + 20) = 1280 → "1.28 m"
+    // Tubes: 4 × (300 + 20) = 1280 → "1.28 m"
     expect(screen.getByText(/pedir 1\.28 m · 4 pzs/)).toBeInTheDocument()
-    // Placas: 2 × (200×300) = 120,000 mm² → "1200 cm²"; la pieza más ancha manda.
+    // Plates: 2 × (200×300) = 120,000 mm² → "1200 cm²"; the widest piece wins.
     expect(screen.getByText(/Placa 5 mm/)).toBeInTheDocument()
     expect(screen.getByText(/2 pzs · área 1200 cm²/)).toBeInTheDocument()
     expect(screen.getByText(/ancho mínimo 200 mm/)).toBeInTheDocument()
@@ -84,7 +80,7 @@ describe('CutPlanner', () => {
     await user.click(screen.getByRole('button', { name: '6 m' }))
 
     expect(screen.getByText('Barra 1')).toBeInTheDocument()
-    // 4×300 + 4 cortes de 20 = 1280 usados → sobran 4720.
+    // 4×300 + 4 cuts of 20 = 1280 used → 4720 left.
     expect(screen.getByText(/Sobrante: 4\.72 m/)).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Barra de 6 m con 4 piezas/ })).toBeInTheDocument()
   })
@@ -93,8 +89,8 @@ describe('CutPlanner', () => {
     const user = userEvent.setup()
     renderWithProviders(<CutPlanner data={data()} />)
 
-    // 2 piezas de 200 de ancho en hoja de 450 × 400: 200+20+200 = 420 ≤ 450 →
-    // una fila de 300 mm en UNA hoja; sobrante 100 mm de largo.
+    // Two 200-wide pieces on a 450 × 400 sheet: 200+20+200 = 420 ≤ 450 → one
+    // 300 mm row on ONE sheet, 100 mm of length left.
     await user.type(screen.getByLabelText(/Ancho de la hoja del proveedor/), '450')
     await user.type(screen.getByLabelText(/Largo de la hoja del proveedor/), '400')
     expect(screen.getByText('Hoja 1')).toBeInTheDocument()
@@ -107,8 +103,8 @@ describe('CutPlanner', () => {
     const user = userEvent.setup()
     renderWithProviders(<CutPlanner data={data()} />)
 
-    // Hoja angosta (220): las 2 piezas de 200 no comparten fila → 2 filas de
-    // 300; largo 350 no aguanta 300+20+300 → cada fila en su hoja.
+    // Narrow sheet (220): the two 200-wide pieces can't share a row → 2 rows of
+    // 300, and 350 of length can't take 300+20+300 → one sheet per row.
     await user.type(screen.getByLabelText(/Ancho de la hoja del proveedor/), '220')
     await user.type(screen.getByLabelText(/Largo de la hoja del proveedor/), '350')
     expect(screen.getByText('Hoja 1')).toBeInTheDocument()
@@ -118,8 +114,7 @@ describe('CutPlanner', () => {
   test('rotación (#81): la pieza más ancha que la hoja se gira; el toggle lo apaga', async () => {
     const user = userEvent.setup()
     const d = data()
-    // Una sola placa de 300 de ancho × 140 de largo: derecha no cabe en hoja
-    // de 150 de ancho, ROTADA (140×300) sí.
+    // A single 300 × 140 plate does not fit a 150-wide sheet upright, but ROTATED it does.
     d.pieces = [{
       id: 'pr', order_id: 'o1', material_type: 'plate',
       diameter_mm: null, thickness_mm: 5, width_mm: 300, length_mm: 140,
@@ -131,11 +126,11 @@ describe('CutPlanner', () => {
     await user.type(screen.getByLabelText(/Ancho de la hoja del proveedor/), '150')
     await user.type(screen.getByLabelText(/Largo de la hoja del proveedor/), '400')
 
-    // Con rotación (default) el acomodo existe.
+    // With rotation (default) a layout exists.
     expect(screen.getByText('Hoja 1')).toBeInTheDocument()
     expect(screen.queryByText(/no cabe/)).not.toBeInTheDocument()
 
-    // Apagar la rotación (veta manda) → vuelve el aviso.
+    // Turning rotation off (grain wins) brings the warning back.
     await user.click(screen.getByLabelText('Permitir rotar piezas de 5 mm'))
     expect(screen.queryByText('Hoja 1')).not.toBeInTheDocument()
     expect(screen.getByText(/no cabe/)).toBeInTheDocument()
@@ -172,7 +167,7 @@ describe('CutPlanner', () => {
         quantity: 2, requested_label: 'Placa X', source_item_id: null,
       },
     ])
-    // Barra Y hoja capturadas quedan como presentaciones del proveedor (#64).
+    // Bar AND sheet captured become supplier presentations (#64).
     expect(presMut).toHaveBeenCalledWith({ material_type: 'tube', diameter_mm: 30, length_mm: 6000 })
     expect(presMut).toHaveBeenCalledWith({ material_type: 'plate', thickness_mm: 5, width_mm: 450, length_mm: 400 })
   })
@@ -184,21 +179,18 @@ describe('CutPlanner', () => {
     await user.click(screen.getByRole('button', { name: '6 m' }))
     expect(screen.queryByText('Barra 2')).not.toBeInTheDocument()
 
-    // Mover la primera pieza de la última barra a una nueva.
     await user.click(screen.getAllByRole('button', { name: 'Mover a una barra nueva' })[0])
     expect(screen.getByText('Barra 2')).toBeInTheDocument()
 
-    // Cambiar el margen invalida la firma → el layout manual se descarta y
-    // vuelve el acomodo automático (una sola barra). Nunca queda un layout
-    // manual obsoleto en silencio.
+    // Changing the margin invalidates the signature: the manual layout is dropped
+    // instead of silently going stale.
     await user.clear(screen.getByLabelText(/Margen por corte/))
     await user.type(screen.getByLabelText(/Margen por corte/), '30')
     expect(screen.queryByText('Barra 2')).not.toBeInTheDocument()
   })
 
   test('vista guiada: todos los selectores del tour existen en la página (anti-drift)', () => {
-    // Si un data-tour se renombra o se borra en el componente, este test
-    // truena ANTES de que el paso desaparezca del tour en silencio.
+    // Fails here if a data-tour is renamed or dropped, before the step vanishes silently.
     renderWithProviders(<CutPlanner data={data()} />)
     for (const step of CUT_PLANNER_TOUR) {
       expect(document.querySelector(step.selector), step.selector).not.toBeNull()
@@ -213,8 +205,7 @@ describe('CutPlanner', () => {
 
     expect(driveMock).toHaveBeenCalledOnce()
     const config = driverMock.mock.calls[0][0]
-    // Con el fixture completo (candidato + tubos + placa) están los 8 bloques,
-    // cada paso con su ELEMENTO ya resuelto (no el selector).
+    // Full fixture → all 8 blocks, each step with its resolved ELEMENT.
     expect(config.steps.map((s: { element: Element }) => s.element)).toEqual(
       CUT_PLANNER_TOUR.map((s) => document.querySelector(s.selector)),
     )
@@ -228,10 +219,9 @@ describe('CutPlanner', () => {
     expect(screen.getByText('Botador 25')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /agregar$/i }))
 
-    // Aparece el grupo del diámetro pre-llenado: 2 × (250+20) = 540 mm.
+    // Pre-filled diameter group: 2 × (250+20) = 540 mm.
     expect(screen.getByText(/Ø25 mm/)).toBeInTheDocument()
     expect(screen.getByText(/pedir 540 mm · 2 pzs/)).toBeInTheDocument()
-    // Y el candidato desaparece de la lista (ya está en la lista de corte).
     expect(screen.queryByRole('button', { name: /agregar$/i })).not.toBeInTheDocument()
   })
 })
@@ -262,7 +252,7 @@ describe('CutPlanner — modo rápido (issue #71)', () => {
     renderWithProviders(<CutPlanner data={standaloneData()} standalone={standaloneProps()} />)
     expect(screen.getByText(/Modo rápido/)).toBeInTheDocument()
     expect(screen.getByText(/no se guarda en el sistema/)).toBeInTheDocument()
-    // El footer cambia de contrato: registra medidas, no guarda lista.
+    // The footer changes contract here: it records measurements, it does not save a list.
     expect(screen.getByRole('button', { name: /registrar medidas del proveedor/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /guardar lista de corte/i })).not.toBeInTheDocument()
   })
@@ -276,7 +266,7 @@ describe('CutPlanner — modo rápido (issue #71)', () => {
     await user.click(screen.getByRole('button', { name: /registrar medidas del proveedor/i }))
 
     expect(presMut).toHaveBeenCalledWith({ material_type: 'tube', diameter_mm: 30, length_mm: 6000 })
-    // Efímero por diseño: el PUT de lista de corte no existe en este modo.
+    // Ephemeral by design: the cut-list PUT does not exist in this mode.
     expect(saveMut).not.toHaveBeenCalled()
   })
 
@@ -300,7 +290,7 @@ describe('CutPlanner — modo rápido (issue #71)', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /^limpiar$/i }))
-    // Con el dialog abierto hay dos "Limpiar": el trigger y la acción — la acción al final.
+    // With the dialog open there are two "Limpiar": trigger and action; the action is last.
     const limpiarButtons = screen.getAllByRole('button', { name: /^limpiar$/i })
     await user.click(limpiarButtons[limpiarButtons.length - 1])
     expect(onClear).toHaveBeenCalled()
@@ -327,7 +317,7 @@ describe('CutBarDiagram', () => {
         ]}
       />,
     )
-    // 2000 + 2 cortes de 20 = 2040 → excede por 240.
+    // 2000 + 2 cuts of 20 = 2040 → 240 over.
     expect(screen.getByText(/Excede la barra por 240 mm/)).toBeInTheDocument()
   })
 })

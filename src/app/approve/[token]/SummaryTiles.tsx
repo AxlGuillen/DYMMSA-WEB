@@ -7,7 +7,6 @@ interface SummaryTilesProps {
   subtotal: number
 }
 
-/** Tiles de resumen de la cotización (glass) — Cliente / Productos / Subtotal. */
 export function SummaryTiles({ customerName, createdAt, productCount, subtotal }: SummaryTilesProps) {
   const tile =
     'rounded-2xl border border-border/60 bg-card/70 backdrop-blur-xl p-6 shadow-sm'

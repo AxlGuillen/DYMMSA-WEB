@@ -1,13 +1,3 @@
-/**
- * Fase 2 — Cotizaciones.
- *
- * Cubre las reglas de negocio críticas de los handlers de cotización:
- *   - save:        validación, status='draft', sort_order=index, is_approved=null,
- *                  separadores con campos null, total excluye separadores, rollback.
- *   - update:      guardas de estado, preservación de is_approved en aprobadas, rollback.
- *   - create-order: solo productos aprobados + separadores, deduce stock, rollback.
- */
-
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
@@ -23,8 +13,6 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 let activeClient: MockSupabaseClient
 injectSupabaseServer(() => activeClient)
-
-// ─── quotations/save ───────────────────────────────────────────────────
 
 describe('POST /quotations/save', () => {
   test('400 si falta el nombre', async () => {
@@ -63,7 +51,6 @@ describe('POST /quotations/save', () => {
     expect(body.items_count).toBe(2)
     expect(body.total_amount).toBe(400) // 100*2 + 50*4
 
-    // quotation insertada con status draft
     const qPayload = activeClient.callsTo('quotations', 'insert')[0].payload as Record<string, unknown>
     expect(qPayload.status).toBe('draft')
     expect(qPayload.created_by).toBe('user-1')
@@ -83,17 +70,14 @@ describe('POST /quotations/save', () => {
     }))
     const items = activeClient.insertPayload('quotation_items')
     expect(items).toHaveLength(3)
-    // sort_order = posición en el array
     expect(items.map((i) => i.sort_order)).toEqual([0, 1, 2])
-    // todos los nuevos arrancan is_approved=null
     expect(items.every((i) => i.is_approved === null)).toBe(true)
-    // separador con campos de producto en null
     const sep = items[1]
     expect(sep.item_type).toBe('separator')
     expect(sep.etm).toBeNull()
     expect(sep.unit_price).toBeNull()
     expect(sep.section_label).toBe('Sección A')
-    // sin override → null (color automático); en productos siempre null
+    // no override → null (automatic color); products are always null
     expect(sep.separator_color).toBeNull()
     expect(items[0].separator_color).toBeNull()
   })
@@ -110,7 +94,7 @@ describe('POST /quotations/save', () => {
       name: 'Q', customer_name: 'ACME',
       items: [
         separator({ separator_color: 'rose' }),
-        // Un producto con color (payload malicioso/bug) NO lo persiste.
+        // A product carrying a color (bad payload / bug) is NOT persisted.
         product({ separator_color: 'teal' }),
       ],
     }))
@@ -133,9 +117,9 @@ describe('POST /quotations/save', () => {
     }))
     const items = activeClient.insertPayload('quotation_items')
     expect(items[0].is_sold).toBe(false)
-    expect(items[1].is_sold).toBeNull() // separador
+    expect(items[1].is_sold).toBeNull() // separator
     expect(items[2].is_sold).toBe(true)
-    expect(items[3].is_sold).toBeNull() // sin definir
+    expect(items[3].is_sold).toBeNull() // not defined
   })
 
   test('REGLA: total excluye separadores', async () => {
@@ -151,7 +135,7 @@ describe('POST /quotations/save', () => {
       items: [product({ unit_price: 100, quantity: 2 }), separator({ unit_price: 999, quantity: 5 })],
     }))
     const body = await res.json()
-    expect(body.total_amount).toBe(200) // separador ignorado
+    expect(body.total_amount).toBe(200) // separator ignored
   })
 
   test('REGLA: rollback — si falla insert de items, borra la quotation', async () => {
@@ -185,15 +169,15 @@ describe('POST /quotations/save', () => {
       name: 'Q', customer_name: 'ACME',
       items: [
         product({ etm: 'OK-1', quantity: 5 }),
-        product({ etm: 'BAD-1', quantity: 0 }), // ofensor
+        product({ etm: 'BAD-1', quantity: 0 }), // offender
       ],
     }))
-    expect(res.status).toBe(400) // violación de regla, no 500
+    expect(res.status).toBe(400) // rule violation, not a 500
     const body = await res.json()
     expect(body.offendingEtm).toBe('BAD-1')
     expect(body.message).toContain('BAD-1')
     expect(body.message).toMatch(/cantidad/i)
-    expect(activeClient.didCall('quotations', 'delete')).toBe(true) // rollback igual
+    expect(activeClient.didCall('quotations', 'delete')).toBe(true) // rollback anyway
   })
 
   test('REGLA: constraint price_check → 400 con offendingEtm', async () => {
@@ -221,8 +205,8 @@ describe('POST /quotations/save', () => {
   })
 
   test('REGLA: save sobrevive a fallo de auto-learn (warning, NO 500)', async () => {
-    // El try/catch en torno a processAutoLearn protege el save: si auto-learn
-    // tira excepción, la cotización YA está guardada → 200 + warning.
+    // The try/catch around processAutoLearn protects the save: if auto-learn
+    // throws, the quotation is ALREADY stored → 200 + warning.
     const spy = vi.spyOn(autoLearnModule, 'processAutoLearn')
       .mockRejectedValueOnce(new Error('auto-learn boom'))
     try {
@@ -240,7 +224,7 @@ describe('POST /quotations/save', () => {
       const body = await res.json()
       expect(body.quotation_id).toBe('q1')
       expect(body.warning).toBe('auto_learn_failed')
-      // No se ejecutó rollback: la cotización está bien guardada.
+      // No rollback ran: the quotation is stored fine.
       expect(activeClient.didCall('quotations', 'delete')).toBe(false)
     } finally {
       spy.mockRestore()
@@ -253,18 +237,18 @@ describe('POST /quotations/save', () => {
       responses: {
         'quotations.insert': { data: { id: 'q1' }, error: null },
         'quotation_items.insert': { data: null, error: null },
-        // El catálogo trae MC1; MC2 no está.
+        // The catalog has MC1; MC2 is missing.
         'urrea_catalog.select': { data: [{ code: 'MC1', description: 'Oficial URREA' }], error: null },
       },
     })
     await save.POST(makeRequest({
       name: 'Q', customer_name: 'ACME',
       items: [
-        // match de catálogo: gana la oficial aunque exista curada
+        // catalog match: the official one wins over the curated
         product({ model_code: 'MC1', dymmsa_description: 'curada vieja' }),
-        // sin match: queda la curada
+        // no match: the curated one stays
         product({ etm: 'ETM-2', model_code: 'MC2', dymmsa_description: 'Martillo curado' }),
-        // sin match ni curada: null (celda vacía)
+        // no match and no curated: null (empty cell)
         product({ etm: 'ETM-3', model_code: 'MC3', dymmsa_description: '' }),
         separator(),
       ],
@@ -273,7 +257,7 @@ describe('POST /quotations/save', () => {
     expect(rows[0].dymmsa_description).toBe('Oficial URREA')
     expect(rows[1].dymmsa_description).toBe('Martillo curado')
     expect(rows[2].dymmsa_description).toBeNull()
-    expect(rows[3].dymmsa_description).toBeNull() // separador
+    expect(rows[3].dymmsa_description).toBeNull() // separator
   })
 
   test('REGLA: match de catálogo normaliza el model_code (espacios/minúsculas)', async () => {
@@ -293,8 +277,6 @@ describe('POST /quotations/save', () => {
     expect(rows[0].dymmsa_description).toBe('Oficial')
   })
 })
-
-// ─── quotations/[id]/update ──────────────────────────────────────────────
 
 describe('PATCH /quotations/[id]/update', () => {
   test('404 si la cotización no existe', async () => {
@@ -322,7 +304,7 @@ describe('PATCH /quotations/[id]/update', () => {
   })
 
   test('sent_for_approval es editable (200) — el API lo permite aunque el UI canEdit no', async () => {
-    // canEdit del UI = isDraft || isApproved, pero el route admite además sent_for_approval.
+    // The UI's canEdit is isDraft || isApproved, but the route also allows sent_for_approval.
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
@@ -361,7 +343,7 @@ describe('PATCH /quotations/[id]/update', () => {
     expect(res.status).toBe(200)
     const items = activeClient.insertPayload('quotation_items')
     expect(items[0].separator_color).toBe('amber')
-    expect(items[1].separator_color).toBeNull()   // producto: siempre null
+    expect(items[1].separator_color).toBeNull()   // product: always null
   })
 
   test('REGLA: en aprobada, preserva is_approved del item (true/false) y deja null a los nuevos', async () => {
@@ -381,7 +363,7 @@ describe('PATCH /quotations/[id]/update', () => {
         items: [
           product({ is_approved: true }),
           product({ is_approved: false }),
-          product({ is_approved: null }), // nuevo / pendiente
+          product({ is_approved: null }), // new / pending
         ],
       }),
       makeParams({ id: 'q1' }),
@@ -406,8 +388,8 @@ describe('PATCH /quotations/[id]/update', () => {
       makeRequest({
         name: 'Q', customer_name: 'ACME',
         items: [
-          product({ is_approved: true }),  // aprobado antes de reabrir → se conserva
-          product({ is_approved: null }),  // nuevo agregado tras reabrir → pendiente
+          product({ is_approved: true }),  // approved before reopening → preserved
+          product({ is_approved: null }),  // added after reopening → pending
         ],
       }),
       makeParams({ id: 'q1' }),
@@ -432,7 +414,7 @@ describe('PATCH /quotations/[id]/update', () => {
       makeParams({ id: 'q1' }),
     )
     expect(res.status).toBe(500)
-    // dos inserts: el fallido + el de restauración
+    // two inserts: the failed one + the restore
     expect(activeClient.callsTo('quotation_items', 'insert')).toHaveLength(2)
     const restored = activeClient.callsTo('quotation_items', 'insert')[1].payload
     expect(restored).toEqual(existing)
@@ -459,9 +441,9 @@ describe('PATCH /quotations/[id]/update', () => {
       makeRequest({
         name: 'Q', customer_name: 'ACME',
         items: [
-          // con match de catálogo: la oficial pisa cualquier curada
+          // catalog match: the official one overrides any curated
           product({ _dbId: 'db1', model_code: 'MC1', dymmsa_description: 'curada UI' }),
-          // sin match y SIN campo (cliente viejo): fallback al snapshot en BD
+          // no match and NO field (old client): falls back to the DB snapshot
           (() => { const it = product({ _dbId: 'db1', etm: 'ETM-2', model_code: 'MC2' }); delete it.dymmsa_description; return it })(),
         ],
       }, { method: 'PATCH' }),
@@ -473,8 +455,6 @@ describe('PATCH /quotations/[id]/update', () => {
     expect(rows[1].dymmsa_description).toBe('curada guardada')
   })
 })
-
-// ─── quotations/[id]/create-order ────────────────────────────────────────
 
 describe('POST /quotations/[id]/create-order', () => {
   test('404 si la cotización no existe', async () => {
@@ -529,7 +509,7 @@ describe('POST /quotations/[id]/create-order', () => {
           },
           error: null,
         },
-        'store_inventory.select': { data: { quantity: 10 }, error: null }, // stock cubre los 3 de MC1
+        'store_inventory.select': { data: { quantity: 10 }, error: null }, // stock covers the 3 of MC1
         'orders.insert': { data: { id: 'o1' }, error: null },
         'order_items.insert': { data: null, error: null },
         'store_inventory.update': { data: null, error: null },
@@ -540,20 +520,20 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.order_id).toBe('o1')
-    expect(body.items_count).toBe(1)       // 1 producto aprobado
-    expect(body.total_amount).toBe(300)    // 100*3 (p2 rechazado excluido)
+    expect(body.items_count).toBe(1)       // 1 approved product
+    expect(body.total_amount).toBe(300)    // 100*3 (rejected p2 excluded)
 
     const items = activeClient.insertPayload('order_items')
-    expect(items).toHaveLength(2)          // separador + p1 aprobado
+    expect(items).toHaveLength(2)          // separator + approved p1
     expect(items.map((i) => i.item_type)).toEqual(['separator', 'product'])
-    // el color del separador viaja a la orden (issue #73)
+    // the separator color travels to the order (#73)
     expect(items[0].separator_color).toBe('violet')
     const p1 = items.find((i) => i.item_type === 'product')!
     expect(p1.quantity_approved).toBe(3)
-    expect(p1.quantity_in_stock).toBe(3)   // stock 10 cubre los 3
+    expect(p1.quantity_in_stock).toBe(3)   // stock 10 covers the 3
     expect(p1.quantity_to_order).toBe(0)
 
-    // dedujo inventario y marcó la cotización como convertida
+    // deducted inventory and marked the quotation as converted
     expect(activeClient.didCall('store_inventory', 'update')).toBe(true)
     const upd = activeClient.updatePayload('quotations')
     expect(upd.status).toBe('converted_to_order')
@@ -582,8 +562,8 @@ describe('POST /quotations/[id]/create-order', () => {
     const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.items_count).toBe(1)     // solo p1; p2 (no vendible) excluido
-    expect(body.total_amount).toBe(200)  // 100*2, sin el 999 de p2
+    expect(body.items_count).toBe(1)     // only p1; p2 (not sold) excluded
+    expect(body.total_amount).toBe(200)  // 100*2, without p2's 999
     const items = activeClient.insertPayload('order_items')
     expect(items.every((i) => i.etm !== 'E2')).toBe(true)
   })
@@ -645,7 +625,7 @@ describe('POST /quotations/[id]/create-order', () => {
           data: {
             id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
             quotation_items: [
-              // Aprobado con quantity 0 → violará quantity_approved_check al insertar order_items
+              // Approved with quantity 0 → violates quantity_approved_check on insert
               { id: 'p1', item_type: 'product', is_approved: true, sort_order: 0, model_code: 'MC1', quantity: 0, unit_price: 10, etm: 'BAD-1', brand: 'URREA' },
             ],
           },
@@ -662,16 +642,14 @@ describe('POST /quotations/[id]/create-order', () => {
       },
     })
     const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
-    expect(res.status).toBe(400) // violación de regla, no 500
+    expect(res.status).toBe(400) // rule violation, not a 500
     const body = await res.json()
     expect(body.offendingEtm).toBe('BAD-1')
     expect(body.message).toContain('BAD-1')
     expect(body.message).toMatch(/cantidad/i)
-    expect(activeClient.didCall('orders', 'delete')).toBe(true) // rollback igual
+    expect(activeClient.didCall('orders', 'delete')).toBe(true) // rollback anyway
   })
 })
-
-// ─── quotations/[id]/status (cambio manual de estado) ────────────────────
 
 describe('PATCH /quotations/[id]/status', () => {
   test('401 sin usuario autenticado', async () => {
@@ -728,7 +706,7 @@ describe('PATCH /quotations/[id]/status', () => {
   })
 
   test('sella approved_at al marcar approved por primera vez; lo PRESERVA en otros estados', async () => {
-    // 1. Marca approved sin fecha previa → sella ahora.
+    // 1. Marks approved with no previous date → stamps it now.
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
@@ -739,7 +717,7 @@ describe('PATCH /quotations/[id]/status', () => {
     await status.PATCH(makeRequest({ status: 'approved' }), makeParams({ id: 'q1' }))
     expect(activeClient.updatePayload<{ approved_at?: string | null }>('quotations').approved_at).toBeTruthy()
 
-    // 2. Sale de approved → NO borra: approved_at ausente del payload = preservado.
+    // 2. Leaves approved → not cleared: approved_at absent from the payload = preserved.
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
@@ -750,7 +728,7 @@ describe('PATCH /quotations/[id]/status', () => {
     await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
     expect('approved_at' in activeClient.updatePayload('quotations')).toBe(false)
 
-    // 3. Re-marca approved teniendo fecha previa → conserva la original (no re-sella).
+    // 3. Re-marks approved with a previous date → keeps the original.
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
@@ -767,7 +745,7 @@ describe('PATCH /quotations/[id]/status', () => {
       user: AUTH,
       responses: {
         'quotations.select': { data: { id: 'q1', status: 'converted_to_order' }, error: null },
-        // La orden existe (incluso cancelada bloquea: hay que eliminarla).
+        // The order exists (even a cancelled one blocks: it has to be deleted).
         'orders.select': { data: [{ id: 'o1' }], error: null },
       },
     })

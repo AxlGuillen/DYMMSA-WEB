@@ -7,7 +7,7 @@ import type { UrreaCatalogInsert } from '@/types/database'
 const SORT_FIELDS = ['code', 'brand', 'description', 'std'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
-/** Quita los caracteres que rompen la sintaxis del filtro `.or()` de PostgREST. */
+/** Removes the characters that break PostgREST's `.or()` filter syntax. */
 function sanitizeSearch(raw: string): string {
   return raw.replace(/[,()%]/g, ' ').trim()
 }
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/urrea-catalog  → crear producto
+// POST /api/urrea-catalog — create a catalog item
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -73,12 +73,11 @@ export async function POST(request: NextRequest) {
     if ('error' in auth) return auth.error
 
     const body = (await request.json()) as Partial<UrreaCatalogInsert>
-    // Normalizada: llave de cruce con model_code (resolución Descripción DYMMSA)
+    // Normalized: join key against model_code for the DYMMSA description (ADR-013).
     const code = typeof body.code === 'string' ? normalizeCatalogCode(body.code) : ''
     if (!code) return badRequest('El código es obligatorio')
 
-    // Guard de tipo espejo al de `code`: sin él, un `brand` no-string (ej. 123)
-    // revienta en .trim() → 500. Ausente/no-string → DEFAULT_BRAND.
+    // Type guard mirroring `code`: a non-string brand (e.g. 123) would blow up in .trim() → 500.
     if (body.brand !== undefined && typeof body.brand !== 'string') {
       return badRequest('La marca debe ser texto')
     }

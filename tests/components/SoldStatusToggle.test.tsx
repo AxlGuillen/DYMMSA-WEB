@@ -1,9 +1,6 @@
 /**
- * Toggle de "¿lo vendemos?" (issue #55). `is_sold` es TRI-ESTADO
- * (null / true / false) y solo los valores explícitos pisan el catálogo vía
- * auto-learn: lo que se protege aquí es que se pueda volver a `null` haciendo
- * click en el botón ya activo — si no, una marca por error sería irreversible
- * desde la tabla.
+ * "Do we sell it?" toggle (#55). `is_sold` is tri-state: clicking the active button must
+ * return to `null`, otherwise a mis-click would be irreversible from the table.
  */
 
 import { describe, test, expect, vi } from 'vitest'
@@ -18,8 +15,8 @@ const setup = (value: boolean | null) => {
   return { onChange }
 }
 
-// Por posición: las etiquetas cambian con el estado ("Marcar…" / "Quitar…") y
-// "…no se vende" contiene a "…se vende", así que un regex sería ambiguo.
+// By position: labels change with state and "…no se vende" contains "…se vende",
+// so a regex would be ambiguous.
 const siButton = () => screen.getAllByRole('button')[0]
 const noButton = () => screen.getAllByRole('button')[1]
 

@@ -1,7 +1,5 @@
-/**
- * Acceso al catálogo URREA: query por código, mapa indexado por catalogKey
- * (code+brand) — quien resuelve elige la fila de SU marca (ADR-013).
- */
+/** URREA catalog access. Maps are indexed by catalogKey (code+brand) so the caller picks the row of
+ *  ITS own brand (ADR-013). */
 
 import { catalogKey, normalizeCatalogCode } from '@/lib/business-rules'
 import type { CatalogEntry } from '@/lib/purchase-plan'
@@ -9,7 +7,7 @@ import type { createClient } from '@/lib/supabase/server'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
-/** Descripciones por lote en una query → Map<catalogKey, descripción> para resolveDymmsaDescription. */
+/** Batched descriptions → Map<catalogKey, description> for resolveDymmsaDescription. */
 export async function fetchCatalogDescriptionMap(
   supabase: SupabaseServerClient,
   codes: (string | null | undefined)[],
@@ -23,8 +21,7 @@ export async function fetchCatalogDescriptionMap(
     .in('code', normalized)
 
   if (error || !data) {
-    // La resolución degrada a "sin catálogo" (curada/vacío); el guardado no debe
-    // fallar porque el catálogo no respondió.
+    // Degrade to "no catalog" (curated/empty): saving must not fail because the catalog went quiet.
     if (error) console.warn('fetchCatalogDescriptionMap error (ignored):', error)
     return new Map()
   }
@@ -32,7 +29,7 @@ export async function fetchCatalogDescriptionMap(
   return new Map(data.map((row) => [catalogKey(row.code, row.brand), row.description]))
 }
 
-/** Variante con STD para el planificador (ADR-018); si el catálogo falla → mapa vacío, el plan no truena. */
+/** Variant with STD for the planner (ADR-018); on failure an empty map keeps the plan alive. */
 export async function fetchCatalogEntryMap(
   supabase: SupabaseServerClient,
   codes: (string | null | undefined)[],

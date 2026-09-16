@@ -70,12 +70,11 @@ interface Props {
 
 const dash = <span className="text-muted-foreground">—</span>
 
-// oxlint-disable-next-line react-doctor/no-giant-component -- página pública standalone; se apoya en subcomponentes colocados
+// oxlint-disable-next-line react-doctor/no-giant-component -- standalone public page; leans on colocated subcomponents
 export function ApprovalClient({ quotation, token }: Props) {
   const isEditable = quotation.status === 'sent_for_approval'
 
-  // Solo los productos reciben decisión. Los "no lo vendemos" (is_sold===false)
-  // se muestran como "No disponible": no cuentan ni suman al total.
+  // Only products get a decision; is_sold===false renders read-only and never counts toward the total.
   const productItems = filterProductItems(quotation.quotation_items).filter(
     (item) => item.is_sold !== false,
   )
@@ -83,7 +82,7 @@ export function ApprovalClient({ quotation, token }: Props) {
   const [decisions, setDecisions] = useState<ItemDecision[]>(() =>
     productItems.map((item) => ({
       item_id: item.id,
-      is_approved: item.is_approved === true, // preserva si retoma
+      is_approved: item.is_approved === true, // preserved when resuming
     })),
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -94,19 +93,17 @@ export function ApprovalClient({ quotation, token }: Props) {
     () => productItems.filter((item) => item.is_approved === true).length,
   )
 
-  // ── Filtros por marca y proyecto/sección (issue #24) ────────────────
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   const items = quotation.quotation_items
   const brands = useMemo(() => listBrands(productItems), [productItems])
   const sections = useMemo(() => listSections(items), [items])
   const sectionsMap = useMemo(() => deriveItemSections(items), [items])
   const visibleIds = useMemo(() => computeVisibleItemIds(items, filters), [items, filters])
-  // Productos (aprobables) visibles bajo el filtro → para "aprobar visibles".
   const visibleProductIds = useMemo(
     () => productItems.filter((item) => visibleIds.has(item.id)).map((item) => item.id),
     [productItems, visibleIds],
   )
-  // Un separador se muestra solo si su sección tiene ≥1 ítem visible.
+  // A separator shows only if its section has at least one visible item.
   const visibleSections = useMemo(() => {
     const set = new Set<string>()
     for (const item of items) {
@@ -117,8 +114,7 @@ export function ApprovalClient({ quotation, token }: Props) {
     return set
   }, [items, visibleIds, sectionsMap])
 
-  // Índice de sección por separador sobre la lista completa: el color
-  // automático no cambia al filtrar (issue #73).
+  // Indexed over the full list so the automatic color does not shift when filtering (#73).
   const sectionIndexById = useMemo(() => {
     const map = new Map<string, number>()
     let n = 0
@@ -143,7 +139,6 @@ export function ApprovalClient({ quotation, token }: Props) {
     )
   }
 
-  // Aprueba solo los productos visibles bajo el filtro activo (contextual).
   const handleApproveVisible = () => {
     const visible = new Set(visibleProductIds)
     setDecisions((prev) =>
@@ -207,10 +202,8 @@ export function ApprovalClient({ quotation, token }: Props) {
   return (
     <div className="min-h-screen bg-background [background-image:radial-gradient(1100px_540px_at_72%_-8%,rgba(163,3,5,0.07),transparent_58%),radial-gradient(900px_520px_at_6%_4%,rgba(80,80,120,0.08),transparent_55%),radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:auto,auto,22px_22px]">
       <SplashIntro />
-      {/* Sin sonidos en la página del cliente (issue #64, 2026-08-13): se
-          retiró el toggle y el init — vuelve la exclusión original de ADR-017. */}
+      {/* No sounds on the client-facing page (#64) — back to the original ADR-017 exclusion. */}
 
-      {/* Header glass sticky */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
@@ -270,7 +263,6 @@ export function ApprovalClient({ quotation, token }: Props) {
           </div>
         )}
 
-        {/* Tabla de productos */}
         <div data-tour="approval-table" className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-border/60 px-5 py-4">
             <div className="flex items-center gap-2.5">
@@ -280,7 +272,6 @@ export function ApprovalClient({ quotation, token }: Props) {
                 {productItems.length}
               </span>
             </div>
-            {/* Filtros arriba de la tabla, integrados al header de la card */}
             {isEditable && (
               <ApprovalFilters
                 brands={brands}
@@ -311,8 +302,7 @@ export function ApprovalClient({ quotation, token }: Props) {
               </TableHeader>
               <TableBody>
                 {quotation.quotation_items.map((item) => {
-                  // Separador → fila de sección. Solo si su sección tiene ≥1 ítem
-                  // visible bajo el filtro (evita secciones vacías al filtrar).
+                  // Section row; skipped when the filter leaves its section empty.
                   if (item.item_type === 'separator') {
                     const label = item.section_label?.trim() || 'General'
                     if (!visibleSections.has(label)) return null
@@ -332,10 +322,9 @@ export function ApprovalClient({ quotation, token }: Props) {
                     )
                   }
 
-                  // Filtro por marca/proyecto: oculta ítems que no pasan.
                   if (!visibleIds.has(item.id)) return null
 
-                  // "No lo vendemos" → fila informativa read-only
+                  // "Not sold" → read-only informational row.
                   if (item.is_sold === false) {
                     return (
                       <TableRow key={item.id} className="border-border/40 bg-muted/40 text-muted-foreground">
@@ -442,7 +431,6 @@ export function ApprovalClient({ quotation, token }: Props) {
           </div>
         </div>
 
-        {/* Fin del documento */}
         <div className="rounded-2xl border border-border/60 bg-card/40 p-8 text-center backdrop-blur-xl">
           <Image src="/dymmsa-logo.webp" alt="DYMMSA" width={110} height={44} className="mx-auto object-contain opacity-60" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">Has llegado al final de la cotización</p>
@@ -452,7 +440,6 @@ export function ApprovalClient({ quotation, token }: Props) {
         </div>
       </div>
 
-      {/* Dock sticky de acciones */}
       {isEditable && (
         <ApprovalDock
           approvedCount={approvedCount}
@@ -465,7 +452,6 @@ export function ApprovalClient({ quotation, token }: Props) {
         />
       )}
 
-      {/* Confirmación de envío definitivo */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

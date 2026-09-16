@@ -57,16 +57,13 @@ import { CutSheetDiagram } from '@/components/orders/CutSheetDiagram'
 import { TourButton } from '@/components/tours/TourButton'
 import type { CutMaterialType, CutPlanPiece } from '@/types/database'
 
-/**
- * Modo rápido (issue #71): planificador SIN orden — efímero por diseño (las
- * piezas viven en el borrador localStorage del caller, nunca en BD; las
- * presentaciones del proveedor SÍ persisten, son globales).
- */
+/** Quick mode (#71): pieces stay ephemeral in the caller's draft, never in the
+ *  DB; supplier presentations DO persist and are global. */
 interface StandaloneMode {
   initialDrafts: PieceDraft[]
   onDraftsChange: (drafts: PieceDraft[]) => void
   onClear: () => void
-  /** Cotización que sembró los candidatos (contexto en header y card). */
+  /** Quotation that seeded the candidates. */
   seededFrom: string | null
 }
 
@@ -75,7 +72,7 @@ interface CutPlannerProps {
   standalone?: StandaloneMode
 }
 
-/** Fila editable (inputs como string; se parsea al calcular/guardar). */
+/** Editable row: inputs stay strings and are parsed when computing or saving. */
 export interface PieceDraft {
   key: string
   type: CutMaterialType
@@ -89,7 +86,7 @@ export interface PieceDraft {
   etm: string | null
 }
 
-/** Unidad física ya acomodada (pieza × ocurrencia) — identidad para mover. */
+/** A packed physical unit (piece × occurrence); its identity allows moving it. */
 interface UnitRef {
   unitKey: string
   lengthMm: number
@@ -132,11 +129,11 @@ const parsePlate = (draft: PieceDraft): PlatePieceInput | null => {
   return { id: draft.key, thicknessMm, widthMm, ...base }
 }
 
-/** Firma de las entradas del acomodo: si cambia, el layout manual se descarta. */
+/** Packing input signature: if it changes, the manual layout is discarded. */
 const layoutSignature = (pieces: TubePieceInput[], barLengthMm: number, marginMm: number) =>
   JSON.stringify([barLengthMm, marginMm, pieces.map((p) => [p.lengthMm, p.quantity]).sort()])
 
-/** Da identidad estable a cada unidad del acomodo automático (para moverlas). */
+/** Stable identity per auto-packed unit, so units can be moved. */
 function toUnitBars(bars: { segments: { lengthMm: number }[] }[]): UnitRef[][] {
   let counter = 0
   return bars.map((bar) =>
@@ -148,8 +145,7 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
   const { order } = data
   const { push } = useRouter()
   const isStandalone = !!standalone
-  // En standalone el id es sintético: saveCutPlan jamás se invoca ahí y la
-  // invalidación de useSavePresentation cae en PRESENTATIONS_KEY.
+  // In standalone the id is synthetic: saveCutPlan is never called there.
   const saveCutPlan = useSaveCutPlan(order.id)
   const savePresentation = useSavePresentation(order.id)
   const updateSettings = useUpdateSettings()
@@ -160,9 +156,8 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
     () => standalone?.initialDrafts ?? data.pieces.map(toDraft),
   )
 
-  // Persistencia del borrador rápido: cada cambio va al store del caller
-  // (localStorage) — un refresh no pierde la captura. Ref para no re-disparar
-  // por identidad del objeto `standalone`.
+  // Every change goes to the caller's localStorage store so a refresh keeps the
+  // capture; the ref avoids re-firing on `standalone` object identity.
   const onDraftsChangeRef = useRef(standalone?.onDraftsChange)
   onDraftsChangeRef.current = standalone?.onDraftsChange
   useEffect(() => {
@@ -170,10 +165,9 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
   }, [drafts])
   const [margin, setMargin] = useState(String(data.marginMm))
   const [barLen, setBarLen] = useState<Record<string, string>>({})
-  // Hoja del proveedor por espesor (issue #64): la placa se vende como HOJA
-  // de ancho × largo fijos, no como tira por largo.
+  // Plate is sold as a fixed width × length SHEET, not as a strip (#64).
   const [sheetDims, setSheetDims] = useState<Record<string, { w: string; l: string }>>({})
-  // Rotar 90° si así cabe (#81): default activado; se apaga cuando la veta manda.
+  // Rotate 90° when it fits (#81); turned off when the grain direction matters.
   const [allowRotate, setAllowRotate] = useState<Record<string, boolean>>({})
   const [manualLayouts, setManualLayouts] = useState<
     Record<string, { sig: string; bars: UnitRef[][] }>
@@ -221,7 +215,7 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
       },
     ])
 
-  /** Mueve una unidad a la barra vecina (en la última, ▶ abre barra nueva). */
+  /** Moves a unit to the neighboring bar; on the last one, ▶ opens a new bar. */
   const moveUnit = (
     diameterKey: string,
     sig: string,
@@ -268,10 +262,9 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
     }),
   ]
 
-  /** Promesas de las presentaciones capturadas en pantalla (barras y hojas). */
+  /** Presentations captured on screen (bars and sheets). */
   const buildPresentationCaptures = () => [
-    // Catálogo que se arma solo: barras de tubo y, desde issue #64, también
-    // las HOJAS de placa (medida fija del proveedor: ancho × largo).
+    // Self-building catalog: tube bars and, since #64, plate sheets too.
     ...tubeNeeds
       .map((group) => ({ diameter: group.diameterMm, length: Number(barLen[String(group.diameterMm)]) }))
       .filter(({ length }) => length > 0)
@@ -297,8 +290,7 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
       )
       return
     }
-    // Modo rápido: las piezas NO van a BD (efímero por diseño, issue #71) —
-    // el botón solo registra las medidas del proveedor capturadas.
+    // Quick mode: pieces never reach the DB (#71); only supplier sizes are saved.
     if (isStandalone) {
       const captures = buildPresentationCaptures()
       if (captures.length === 0) {
@@ -335,7 +327,7 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
     }
   }
 
-  /** Excel del pedido al proveedor: la necesidad neta por medida (momento 1). */
+  /** Supplier order Excel: net need per size. */
   const handleExportRequest = async () => {
     const rows = [
       ...tubeNeeds.map((group) => ({
@@ -366,7 +358,7 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
       return
     }
     try {
-      // Carga diferida: xlsx solo baja al exportar.
+      // Lazy: xlsx only downloads on export.
       const { generateCutRequestExcel, downloadCutRequestExcel } = await import('@/lib/excel/generator')
       downloadCutRequestExcel(generateCutRequestExcel(rows), order.customer_name)
       toast.success(`Pedido de material descargado (${rows.length} medidas)`)
@@ -475,7 +467,6 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start gap-4 print:hidden">
         <Button
           variant="ghost" size="icon" className="mt-0.5 shrink-0"
@@ -546,7 +537,6 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
         </div>
       </div>
 
-      {/* Candidatos DYMMSA de la orden */}
       {!isReadOnly && candidates.length > 0 && (
         <Card data-tour="cut-candidates" className="print:hidden">
           <CardHeader>
@@ -572,7 +562,7 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
                     Agregar
                   </Button>
                 ) : (
-                  // Sin medidas nominales no se sabe qué es: el usuario decide.
+                  // Without nominal sizes the shape is unknown; the user decides.
                   <div className="flex gap-1">
                     <Button size="sm" variant="outline" onClick={() => addDraft('tube', candidate)}>
                       Tubo
@@ -588,7 +578,6 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
         </Card>
       )}
 
-      {/* Lista de corte: tubos */}
       <Card data-tour="cut-tubes">
         <CardHeader className="print:hidden">
           <CardTitle className="text-base">Lista de corte — tubos ({tubeDrafts.length})</CardTitle>
@@ -608,7 +597,6 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
         </CardContent>
       </Card>
 
-      {/* Lista de corte: placas */}
       <Card data-tour="cut-plates">
         <CardHeader className="print:hidden">
           <CardTitle className="text-base">Lista de corte — placas ({plateDrafts.length})</CardTitle>
@@ -628,7 +616,6 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
         </CardContent>
       </Card>
 
-      {/* Tubos: necesidad + acomodo por diámetro */}
       {tubeNeeds.map((group) => {
         const diameterKey = String(group.diameterMm)
         const barLength = Number(barLen[diameterKey])
@@ -738,7 +725,6 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
         )
       })}
 
-      {/* Placas: necesidad + acomodo en hojas de medida fija por espesor */}
       {plateNeeds.map((group) => {
         const thicknessKey = String(group.thicknessMm)
         const dims = sheetDims[thicknessKey]
@@ -841,10 +827,8 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
         )
       })}
 
-      {/* Footer sticky. `sticky` (no `fixed`): vive DENTRO de la columna de
-          contenido, así respeta el ancho del sidebar (fixed abarcaba todo el
-          viewport y el texto quedaba oculto tras el menú expandido). Los
-          márgenes negativos lo hacen full-bleed sobre el padding del main. */}
+      {/* `sticky`, not `fixed`: it must live INSIDE the content column so the
+          sidebar width is respected. Negative margins make it full-bleed. */}
       <div className="sticky bottom-0 z-30 -mx-4 -mb-6 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-8 md:-mb-8 print:hidden">
         <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-8">
           <p className="text-sm text-muted-foreground">

@@ -6,7 +6,6 @@ interface SuccessScreenProps {
   notApprovedCount: number
 }
 
-/** Confirmación del envío definitivo — mismo lenguaje glass del resto de la página (#24). */
 export function SuccessScreen({ approvedCount, notApprovedCount }: SuccessScreenProps) {
   const label = 'font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground'
 

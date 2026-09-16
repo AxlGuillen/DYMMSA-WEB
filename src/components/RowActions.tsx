@@ -6,14 +6,12 @@ import { Pencil, Trash2 } from '@/components/icons'
 interface RowActionsProps {
   onEdit: () => void
   onDelete: () => void
-  /** Para lectores de pantalla y tooltip nativo: "Editar {qué}". */
+  /** For screen readers and the native tooltip: "Editar {what}". */
   what?: string
 }
 
-/**
- * Acciones de fila siempre visibles (#55): hover no existe en táctil ni teclado.
- * El borrado conserva su AlertDialog — más alcanzable exige conservar la red.
- */
+/** Always visible (#55): hover exists on neither touch nor keyboard. Delete keeps
+ *  its AlertDialog — easier to reach means the net must stay. */
 export function RowActions({ onEdit, onDelete, what }: RowActionsProps) {
   const suffix = what ? ` ${what}` : ''
 

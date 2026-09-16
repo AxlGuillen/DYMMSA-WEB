@@ -37,11 +37,8 @@ const TOURS = {
 
 export type TourId = keyof typeof TOURS
 
-/**
- * Botón "Vista guiada" — la ÚNICA puerta a los tours (ADR-024): siempre
- * opcionales, nunca se lanzan solos. El id resuelve los pasos aquí (client)
- * para que las páginas server puedan colocarlo sin pasar funciones.
- */
+/** The ONLY entry point to tours (ADR-024): always optional, never auto-started.
+ *  Steps resolve client-side so server pages can place it without passing functions. */
 export function TourButton({ tour, className }: { tour: TourId; className?: string }) {
   return (
     <Button

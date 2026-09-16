@@ -1,8 +1,5 @@
-/**
- * Parser del changelog técnico de la bóveda (pestaña Actividad). Lo que se
- * cuida aquí es la heterogeneidad del formato: los meses viejos escriben los
- * bloques distinto que los recientes y ambos tienen que renderizar.
- */
+/** Vault changelog parser: old months format their blocks differently than recent
+ *  ones and both have to render. */
 
 import { describe, test, expect } from 'vitest'
 import { parseVaultChangelog, groupActivityByMonth } from '@/lib/vault-changelog'
@@ -51,7 +48,7 @@ describe('parseVaultChangelog — estructura del día', () => {
 `)
     expect(day.label).toBe('III')
     expect(day.blocks.map((b) => b.area)).toEqual(['Feature', 'Fix'])
-    // El Total es del día: pegarlo al último bloque lo atribuiría solo al Fix.
+    // The Total belongs to the day: attaching it to the last block would credit only the Fix.
     expect(day.total).toBe('636 tests, 0 fallos.')
     expect(day.blocks[1].details).toEqual(['otro detalle'])
   })
@@ -80,7 +77,7 @@ Renombró los estados de \`orders.status\`:
 `)
     expect(day.blocks[0].area).toBe('Migración')
     expect(day.blocks[0].title).toBe('`20260409055423` — `rename_order_statuses_to_generic`')
-    // El párrafo suelto también es cuerpo del bloque.
+    // The loose paragraph is body of the block too.
     expect(day.blocks[0].details).toEqual([
       'Renombró los estados de `orders.status`:',
       '`pending_urrea_order` → `ordered`',
@@ -123,7 +120,7 @@ describe('parseVaultChangelog — ruido', () => {
 
 describe('groupActivityByMonth', () => {
   test('agrupa por el mes de la FECHA, no por el archivo que la contiene', () => {
-    // `2026-04.md` arrastra días de marzo: agrupar por archivo los mandaría a abril.
+    // `2026-04.md` drags March days: grouping by file would push them into April.
     const months = groupActivityByMonth([
       { date: '2026-04-01', blocks: [] },
       { date: '2026-03-30', blocks: [] },

@@ -11,7 +11,7 @@ export interface PurchasePlanResponse {
   plan: PurchasePlan
 }
 
-/** Plan de compra server-side (ADR-018); key bajo [ORDERS_KEY, id] → se recalcula con cada mutación. */
+/** ADR-018. Keyed under [ORDERS_KEY, id] so any order mutation recomputes it. */
 export function usePurchasePlan(orderId: string) {
   return useQuery({
     queryKey: [...ORDERS_KEY, orderId, 'purchase-plan'],
@@ -30,7 +30,7 @@ export interface SaveDecisionInput {
   qty_retail: number
 }
 
-/** Reemplaza el set completo de decisiones de compra de la orden. */
+/** Replace-all: the body is the full decision set. */
 export function useSavePurchaseDecisions(orderId: string) {
   const queryClient = useQueryClient()
 

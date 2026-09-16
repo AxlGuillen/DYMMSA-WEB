@@ -1,4 +1,4 @@
-/** Tools MCP de tareas — GitHub se mockea con vi.spyOn(fetch), como en tests/api/tasks.test.ts. */
+/** MCP task tools — GitHub is mocked with vi.spyOn(fetch), as in tests/api/tasks.test.ts. */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import { listTasks, getTask, createTask, updateTask } from '@/lib/mcp/tools/tasks'
@@ -100,7 +100,7 @@ describe('updateTask (issue #72)', () => {
 
   test('validaciones estrictas: state y priority inválidos truenan (no fallan en silencio)', async () => {
     await expect(updateTask({ task_number: 5, state: 'done' })).rejects.toThrow(/open.*closed/)
-    // A diferencia de crear, un typo aquí QUITARÍA la prioridad — se rechaza.
+    // Unlike creating, a typo here would REMOVE the priority — so it is rejected.
     await expect(updateTask({ task_number: 5, priority: 'urgent' })).rejects.toThrow(/priority inválida/)
     expect(fetchSpy).not.toHaveBeenCalled()
   })
