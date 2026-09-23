@@ -1,7 +1,7 @@
-/** Income math (#94): month range, collections sum, due/overdue split, closing. */
+/** Income math (#94, #102): month range, collections sum, due/overdue split, credit notes, closing. */
 
 import { describe, test, expect } from 'vitest'
-import { summarizeCollections, splitReceivables, summarizeIncome, monthClosing, foreignCurrencies } from '@/lib/income'
+import { summarizeCollections, splitReceivables, summarizeCreditNotes, summarizeIncome, buildIncomeOverview, monthClosing, foreignCurrencies } from '@/lib/income'
 import { monthRange } from '@/lib/month'
 import type { OdooCollection, OdooOpenInvoice } from '@/lib/odoo/income'
 
@@ -9,8 +9,9 @@ const pay = (o: Partial<OdooCollection>): OdooCollection => ({
   id: 1, folio: 'PAY1', customer: 'Andritz', date: '2026-08-12', amount: 100, currency: 'MXN', state: 'paid', memo: null, ...o,
 })
 const inv = (o: Partial<OdooOpenInvoice>): OdooOpenInvoice => ({
-  id: 1, folio: 'F1', customer: 'Andritz', invoiceDate: '2026-08-01', dueDate: '2026-09-01', total: 100, residual: 100, currency: 'MXN', paymentState: 'not_paid', ...o,
+  id: 1, moveType: 'out_invoice', folio: 'F1', customer: 'Andritz', invoiceDate: '2026-08-01', dueDate: '2026-09-01', total: 100, residual: 100, currency: 'MXN', paymentState: 'not_paid', ...o,
 })
+const credit = (o: Partial<OdooOpenInvoice>): OdooOpenInvoice => inv({ id: 9, moveType: 'out_refund', folio: 'RINV1', ...o })
 
 describe('monthRange', () => {
   test('fin exclusivo: febrero cierra el 1 de marzo, diciembre el 1 de enero', () => {
@@ -43,13 +44,42 @@ describe('splitReceivables', () => {
       receivableCurrencies: [], overdueCurrencies: ['USD'],
     })
   })
+
+  test('las notas de crédito no restan ni cuentan: el por cobrar queda bruto (decisión #102)', () => {
+    const today = '2026-09-09'
+    const withCredit = splitReceivables([
+      inv({ dueDate: '2026-09-01', residual: 200 }),
+      inv({ dueDate: '2026-10-01', residual: 300 }),
+      credit({ dueDate: '2026-09-01', residual: 150, currency: 'USD' }),
+    ], today)
+    const without = splitReceivables([
+      inv({ dueDate: '2026-09-01', residual: 200 }),
+      inv({ dueDate: '2026-10-01', residual: 300 }),
+    ], today)
+    expect(withCredit).toEqual(without)
+    expect(withCredit.overdueCurrencies).toEqual([])
+  })
+})
+
+describe('summarizeCreditNotes', () => {
+  test('suma el saldo de las out_refund, las cuenta y lista sus monedas; ignora facturas', () => {
+    expect(summarizeCreditNotes([
+      inv({ residual: 1000 }),
+      credit({ residual: 150 }),
+      credit({ id: 10, residual: 50.5, currency: 'USD' }),
+    ])).toEqual({ creditNotesTotal: 200.5, creditNotesCount: 2, creditNoteCurrencies: ['USD'] })
+  })
+
+  test('vacío → 0', () => {
+    expect(summarizeCreditNotes([inv({})])).toEqual({ creditNotesTotal: 0, creditNotesCount: 0, creditNoteCurrencies: [] })
+  })
 })
 
 describe('summarizeIncome', () => {
-  test('junta cobros, por cobrar, vencido, truncado por lado y monedas de ambos lados', () => {
+  test('junta cobros, por cobrar, vencido, notas de crédito, truncado por lado y monedas de cada lado', () => {
     const s = summarizeIncome(
       [pay({ amount: 10 })],
-      [inv({ dueDate: '2026-01-01', residual: 5, currency: 'USD' })],
+      [inv({ dueDate: '2026-01-01', residual: 5, currency: 'USD' }), credit({ residual: 3 })],
       '2026-09-09',
       { collections: false, receivables: true },
     )
@@ -57,12 +87,28 @@ describe('summarizeIncome', () => {
       collectedTotal: 10, collectedCount: 1,
       receivableTotal: 0, receivableCount: 0,
       overdueTotal: 5, overdueCount: 1,
+      creditNotesTotal: 3, creditNotesCount: 1,
       collectionsTruncated: false,
       receivablesTruncated: true,
       collectionCurrencies: [],
       receivableCurrencies: [],
       overdueCurrencies: ['USD'],
+      creditNoteCurrencies: [],
     })
+  })
+})
+
+describe('buildIncomeOverview', () => {
+  test('expone solo las notas de crédito en creditNotes y el fetchedAt más viejo', () => {
+    const out = buildIncomeOverview(
+      '2026-09', '2026-09-09',
+      { rows: [pay({})], truncated: false, fetchedAt: '2026-09-09T10:00:00Z' },
+      { rows: [inv({}), credit({})], truncated: false, fetchedAt: '2026-09-09T09:00:00Z' },
+    )
+    expect(out.creditNotes.map((c) => c.folio)).toEqual(['RINV1'])
+    // The invoice (due 09-01) is overdue; the credit note counts nowhere but creditNotes.
+    expect(out.income).toMatchObject({ overdueCount: 1, receivableCount: 0, creditNotesCount: 1 })
+    expect(out.fetchedAt).toBe('2026-09-09T09:00:00Z')
   })
 })
 

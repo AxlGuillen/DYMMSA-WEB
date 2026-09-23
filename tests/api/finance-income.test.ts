@@ -31,14 +31,18 @@ const PAY00068 = {
   payment_type: 'inbound', state: 'paid', memo: false, currency_id: [33, 'MXN'],
 }
 const OPEN_INVOICE = {
-  id: 780, name: 'F00387', partner_id: [24, 'Andritz'], invoice_date: '2026-08-11', invoice_date_due: '2026-05-10',
+  id: 780, name: 'F00387', move_type: 'out_invoice', partner_id: [24, 'Andritz'], invoice_date: '2026-08-11', invoice_date_due: '2026-05-10',
   amount_total: 18781.1, amount_residual: 18781.1, payment_state: 'not_paid', currency_id: [33, 'MXN'],
+}
+const OPEN_CREDIT = {
+  ...OPEN_INVOICE, id: 887, name: 'RINV/2026/00012', move_type: 'out_refund', invoice_date: '2026-09-01', invoice_date_due: '2026-09-01',
+  amount_total: 1500, amount_residual: 1500,
 }
 
 function scriptOdoo() {
   vi.mocked(callOdoo).mockImplementation(async (model) => {
     if (model === 'account.payment') return [PAY00068]
-    if (model === 'account.move') return [OPEN_INVOICE]
+    if (model === 'account.move') return [OPEN_INVOICE, OPEN_CREDIT]
     throw new Error(`modelo inesperado ${model}`)
   })
 }
@@ -91,7 +95,7 @@ describe('GET /api/finance/income', () => {
     expect((await get()).status).toBe(500)
   })
 
-  test('camino feliz: cobros del mes, por cobrar/vencido y fetchedAt', async () => {
+  test('camino feliz: cobros del mes, por cobrar/vencido, notas de crédito aparte y fetchedAt', async () => {
     scriptOdoo()
     const res = await get()
     expect(res.status).toBe(200)
@@ -101,10 +105,13 @@ describe('GET /api/finance/income', () => {
       collectedTotal: 59868.07, collectedCount: 1,
       overdueTotal: 18781.1, overdueCount: 1,
       receivableTotal: 0, receivableCount: 0,
+      // The credit note is reported apart and NOT subtracted from receivable/overdue (#102).
+      creditNotesTotal: 1500, creditNotesCount: 1,
       collectionsTruncated: false, receivablesTruncated: false,
-      collectionCurrencies: [], receivableCurrencies: [], overdueCurrencies: [],
+      collectionCurrencies: [], receivableCurrencies: [], overdueCurrencies: [], creditNoteCurrencies: [],
     })
     expect(body.collections).toEqual([expect.objectContaining({ folio: 'PAY00068', customer: 'Andritz', amount: 59868.07 })])
+    expect(body.creditNotes).toEqual([expect.objectContaining({ folio: 'RINV/2026/00012', moveType: 'out_refund', residual: 1500 })])
     expect(typeof body.fetchedAt).toBe('string')
     expect(callOdoo).toHaveBeenCalledTimes(2)
     const paymentCall = vi.mocked(callOdoo).mock.calls.find((c) => c[0] === 'account.payment')!

@@ -17,14 +17,19 @@ export interface IncomeMonthSummary {
   overdueCount: number
   /** The payments read filled its limit: collected may be short. */
   collectionsTruncated: boolean
-  /** The open-invoices read filled its limit: receivable/overdue may be short. */
+  /** The open-moves read filled its limit: receivable/overdue AND credit notes may be short. */
   receivablesTruncated: boolean
+  /** Posted credit notes not yet applied: customer credit, NOT subtracted from receivables (#102). */
+  creditNotesTotal: number
+  creditNotesCount: number
   /** Non-MXN currencies among the month's collections; amounts are NOT converted. */
   collectionCurrencies: string[]
   /** Non-MXN currencies among open invoices due today or later (month-independent). */
   receivableCurrencies: string[]
   /** Non-MXN currencies among overdue open invoices. */
   overdueCurrencies: string[]
+  /** Non-MXN currencies among unapplied credit notes. */
+  creditNoteCurrencies: string[]
 }
 
 export interface MonthClosing {
@@ -47,7 +52,12 @@ export function summarizeCollections(rows: readonly OdooCollection[]): Pick<Inco
   }
 }
 
-/** Same `<` as overdueDomain and payables: due today is still "por cobrar". */
+export const isCreditNote = (r: Pick<OdooOpenInvoice, 'moveType'>) => r.moveType === 'out_refund'
+
+/**
+ * Same `<` as overdueDomain and payables: due today is still "por cobrar". Credit notes are
+ * skipped, never subtracted: whether the customer uses them is unknown (#102, decision 2026-09-21).
+ */
 export function splitReceivables(
   rows: readonly OdooOpenInvoice[],
   today: ISODate,
@@ -56,6 +66,7 @@ export function splitReceivables(
   const dueCurrencies = new Set<string>()
   const overdueCurrencies = new Set<string>()
   for (const r of rows) {
+    if (isCreditNote(r)) continue
     const foreign = r.currency && r.currency !== 'MXN' ? r.currency : null
     if (r.dueDate && r.dueDate < today) {
       out.overdueTotal += r.residual
@@ -70,15 +81,28 @@ export function splitReceivables(
   return { ...out, receivableCurrencies: [...dueCurrencies], overdueCurrencies: [...overdueCurrencies] }
 }
 
+/** Customer credit sitting in Odoo; reported apart from what customers owe. */
+export function summarizeCreditNotes(
+  rows: readonly OdooOpenInvoice[],
+): Pick<IncomeMonthSummary, 'creditNotesTotal' | 'creditNotesCount' | 'creditNoteCurrencies'> {
+  const credits = rows.filter(isCreditNote)
+  return {
+    creditNotesTotal: credits.reduce((sum, r) => sum + r.residual, 0),
+    creditNotesCount: credits.length,
+    creditNoteCurrencies: foreignCurrencies(credits),
+  }
+}
+
 export function summarizeIncome(
   collections: readonly OdooCollection[],
-  openInvoices: readonly OdooOpenInvoice[],
+  openMoves: readonly OdooOpenInvoice[],
   today: ISODate,
   truncated: { collections: boolean; receivables: boolean },
 ): IncomeMonthSummary {
   return {
     ...summarizeCollections(collections),
-    ...splitReceivables(openInvoices, today),
+    ...splitReceivables(openMoves, today),
+    ...summarizeCreditNotes(openMoves),
     collectionsTruncated: truncated.collections,
     receivablesTruncated: truncated.receivables,
     collectionCurrencies: foreignCurrencies(collections),
@@ -97,6 +121,8 @@ export interface IncomeOverviewResponse {
   /** null → Odoo unavailable; the overview still renders payables. */
   income: IncomeMonthSummary | null
   collections: OdooCollection[]
+  /** Unapplied credit notes, in the read's order (due date); the card lists them (#102). */
+  creditNotes: OdooOpenInvoice[]
   /** Oldest of the cached reads; null when unavailable. */
   fetchedAt: string | null
   unavailable?: { reason: IncomeUnavailableReason; message: string }
@@ -109,7 +135,7 @@ export const INCOME_UNAVAILABLE_MESSAGES: Record<IncomeUnavailableReason, string
 
 export function incomeUnavailable(month: string, today: ISODate, reason: IncomeUnavailableReason): IncomeOverviewResponse {
   return {
-    month, today, income: null, collections: [], fetchedAt: null,
+    month, today, income: null, collections: [], creditNotes: [], fetchedAt: null,
     unavailable: { reason, message: INCOME_UNAVAILABLE_MESSAGES[reason] },
   }
 }
@@ -125,6 +151,7 @@ export function buildIncomeOverview(
     today,
     income: summarizeIncome(collections.rows, open.rows, today, { collections: collections.truncated, receivables: open.truncated }),
     collections: collections.rows,
+    creditNotes: open.rows.filter(isCreditNote),
     fetchedAt: collections.fetchedAt < open.fetchedAt ? collections.fetchedAt : open.fetchedAt,
   }
 }

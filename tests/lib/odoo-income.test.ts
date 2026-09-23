@@ -3,8 +3,8 @@
 import { describe, test, expect } from 'vitest'
 import type { OdooCaller } from '@/lib/odoo/client'
 import { ODOO_CATALOG } from '@/lib/odoo/catalog'
-import { OPEN_RECEIVABLES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
-import { fetchMonthCollections, fetchOpenReceivables, INCOME_FETCH_LIMIT } from '@/lib/odoo/income'
+import { OPEN_CREDIT_NOTES_DOMAIN, OPEN_CUSTOMER_MOVES_DOMAIN, OPEN_RECEIVABLES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
+import { fetchMonthCollections, fetchOpenCustomerMoves, INCOME_FETCH_LIMIT } from '@/lib/odoo/income'
 import { daysSince, todayIso } from '@/lib/odoo/normalize'
 
 type Call = { model: string; method: string; payload: Record<string, unknown> }
@@ -38,6 +38,7 @@ const PAY00068 = {
 const INVOICE_RAW = {
   id: 780,
   name: 'F00387',
+  move_type: 'out_invoice',
   partner_id: [24, 'Andritz'],
   invoice_date: '2026-08-11',
   invoice_date_due: '2026-05-10',
@@ -96,19 +97,22 @@ describe('fetchMonthCollections', () => {
   })
 })
 
-describe('fetchOpenReceivables', () => {
-  test('una llamada: facturas de cliente publicadas con saldo, sin filtro de fecha', async () => {
+describe('fetchOpenCustomerMoves', () => {
+  test('una llamada: facturas Y notas de crédito publicadas con saldo, sin filtro de fecha', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.move.search_read': [[INVOICE_RAW]] })
-    const result = await fetchOpenReceivables(odoo)
+    const result = await fetchOpenCustomerMoves(odoo)
 
     expect(calls).toHaveLength(1)
-    expect(calls[0].payload.domain).toEqual(OPEN_RECEIVABLES_DOMAIN)
+    expect(calls[0].payload.domain).toEqual(OPEN_CUSTOMER_MOVES_DOMAIN)
+    expect(calls[0].payload.domain).toContainEqual(['move_type', 'in', ['out_invoice', 'out_refund']])
     expect(calls[0].payload.order).toBe('invoice_date_due asc')
+    expect(calls[0].payload.fields).toContain('move_type')
     for (const field of calls[0].payload.fields as string[]) {
       expect(ODOO_CATALOG['account.move'].fields).toContain(field)
     }
     expect(result.rows).toEqual([{
       id: 780,
+      moveType: 'out_invoice',
       folio: 'F00387',
       customer: 'Andritz',
       invoiceDate: '2026-08-11',
@@ -122,8 +126,15 @@ describe('fetchOpenReceivables', () => {
 
   test('vencimiento vacío (false) llega como null', async () => {
     const { odoo } = fakeOdoo({ 'account.move.search_read': [[{ ...INVOICE_RAW, invoice_date_due: false }]] })
-    const result = await fetchOpenReceivables(odoo)
+    const result = await fetchOpenCustomerMoves(odoo)
     expect(result.rows[0].dueDate).toBeNull()
+  })
+
+  test('una nota de crédito llega como out_refund con el saldo en positivo aunque Odoo lo firme', async () => {
+    const credit = { ...INVOICE_RAW, id: 887, name: 'RINV/2026/00012', move_type: 'out_refund', amount_total: -1500, amount_residual: -1500 }
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [[credit]] })
+    const result = await fetchOpenCustomerMoves(odoo)
+    expect(result.rows[0]).toMatchObject({ id: 887, moveType: 'out_refund', total: 1500, residual: 1500 })
   })
 })
 
@@ -147,5 +158,13 @@ describe('dominios compartidos', () => {
       ...OPEN_RECEIVABLES_DOMAIN,
       ['invoice_date_due', '<', '2026-09-09'],
     ])
+  })
+
+  test('las vencidas siguen siendo SOLO facturas; las notas de crédito tienen su propio dominio', () => {
+    expect(OPEN_RECEIVABLES_DOMAIN[0]).toEqual(['move_type', '=', 'out_invoice'])
+    expect(OPEN_CREDIT_NOTES_DOMAIN[0]).toEqual(['move_type', '=', 'out_refund'])
+    // Same open-balance conditions on both: a difference here would be a silent bug.
+    expect(OPEN_CREDIT_NOTES_DOMAIN.slice(1)).toEqual(OPEN_RECEIVABLES_DOMAIN.slice(1))
+    expect(OPEN_CUSTOMER_MOVES_DOMAIN.slice(1)).toEqual(OPEN_RECEIVABLES_DOMAIN.slice(1))
   })
 })

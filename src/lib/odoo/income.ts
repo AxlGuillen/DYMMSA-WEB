@@ -5,7 +5,7 @@
 
 import type { OdooCaller } from './client'
 import { allowedFields, assertDomainAllowed, type DomainTriple } from './catalog'
-import { OPEN_RECEIVABLES_DOMAIN } from './domains'
+import { OPEN_CUSTOMER_MOVES_DOMAIN } from './domains'
 import { normalizeRecords } from './normalize'
 import { monthRange } from '@/lib/month'
 
@@ -26,9 +26,13 @@ export interface OdooCollection {
   memo: string | null
 }
 
-/** Posted customer invoice with an outstanding balance. */
+export type OdooCustomerMoveType = 'out_invoice' | 'out_refund'
+
+/** Posted customer invoice OR credit note with an outstanding balance (#102). */
 export interface OdooOpenInvoice {
   id: number
+  /** out_refund = credit note: customer credit, reported apart and never subtracted. */
+  moveType: OdooCustomerMoveType
   folio: string
   customer: string | null
   invoiceDate: string | null
@@ -47,8 +51,8 @@ export interface OdooRows<T> {
 }
 
 const COLLECTION_FIELDS = ['name', 'partner_id', 'date', 'amount', 'state', 'memo', 'currency_id']
-const OPEN_INVOICE_FIELDS = [
-  'name', 'partner_id', 'invoice_date', 'invoice_date_due', 'amount_total', 'amount_residual', 'payment_state', 'currency_id',
+const OPEN_MOVE_FIELDS = [
+  'name', 'move_type', 'partner_id', 'invoice_date', 'invoice_date_due', 'amount_total', 'amount_residual', 'payment_state', 'currency_id',
 ]
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
@@ -89,14 +93,17 @@ export async function fetchMonthCollections(odoo: OdooCaller, month: string): Pr
   }
 }
 
-/** Every open receivable; the due/overdue split happens in lib/income.ts with an injected `today`. */
-export async function fetchOpenReceivables(odoo: OdooCaller): Promise<OdooRows<OdooOpenInvoice>> {
-  const domain = [...OPEN_RECEIVABLES_DOMAIN]
+/**
+ * Every open invoice and credit note in ONE read (the queue makes each call cost 1.1 s);
+ * the due/overdue split and the credit-note summary happen in lib/income.ts.
+ */
+export async function fetchOpenCustomerMoves(odoo: OdooCaller): Promise<OdooRows<OdooOpenInvoice>> {
+  const domain = [...OPEN_CUSTOMER_MOVES_DOMAIN]
   assertDomainAllowed('account.move', domain)
   const records = normalizeRecords(
     await odoo('account.move', 'search_read', {
       domain,
-      fields: allowedFields('account.move', OPEN_INVOICE_FIELDS),
+      fields: allowedFields('account.move', OPEN_MOVE_FIELDS),
       limit: INCOME_FETCH_LIMIT,
       order: 'invoice_date_due asc',
     }),
@@ -104,12 +111,14 @@ export async function fetchOpenReceivables(odoo: OdooCaller): Promise<OdooRows<O
   return {
     rows: records.map((r) => ({
       id: num(r.id),
+      moveType: r.move_type === 'out_refund' ? 'out_refund' : 'out_invoice',
       folio: str(r.name) ?? '',
       customer: str(r.partner_id),
       invoiceDate: str(r.invoice_date),
       dueDate: str(r.invoice_date_due),
-      total: num(r.amount_total),
-      residual: num(r.amount_residual),
+      // Unsigned in Odoo 17+, also on refunds; abs guards a signed instance from netting by accident.
+      total: Math.abs(num(r.amount_total)),
+      residual: Math.abs(num(r.amount_residual)),
       currency: str(r.currency_id),
       paymentState: str(r.payment_state) ?? '',
     })),
