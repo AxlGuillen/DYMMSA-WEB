@@ -3,6 +3,18 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-21
+
+### Nuevo
+- **Notas de crédito sin aplicar, en Finanzas.** Debajo de los cobros del mes
+  aparece una lista con las notas de crédito de Odoo que siguen abiertas: a
+  qué cliente pertenecen, su folio y su saldo. Es **saldo a favor del cliente**,
+  no deuda: por eso **no se resta** de "Por cobrar" ni de "Vencido por cobrar"
+  — esas cifras siguen diciendo exactamente lo mismo que la lista de Odoo. La
+  lista sirve para saber que el saldo existe antes de cobrar o de aplicarlo.
+- El asistente (MCP) también las reporta aparte al preguntar por cartera
+  vencida, resumen de facturación o el perfil de un cliente.
+
 ## 2026-09-09
 
 ### Nuevo

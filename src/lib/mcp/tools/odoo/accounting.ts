@@ -3,7 +3,7 @@
 import type { OdooCaller } from '@/lib/odoo/client'
 import { allowedFields, assertDomainAllowed, catalogEntry, type DomainTriple } from '@/lib/odoo/catalog'
 import { daysSince, normalizeGroups, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
-import { overdueDomain } from '@/lib/odoo/domains'
+import { OPEN_CREDIT_NOTES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
 import { ToolError } from '../../shared'
 
 const MAX_LIMIT = 50
@@ -84,11 +84,37 @@ export async function odooAggregate(odoo: OdooCaller, input: OdooAggregateInput)
   return { model: input.model, agrupado_por: input.group_by, grupos: normalizeGroups(groups) }
 }
 
+/** Unsigned like the app loader: a signed instance must not net by accident (ADR-027 §8). */
+const abs = (v: unknown) => Math.abs((v as number) ?? 0)
+
+/** Unapplied credit notes per customer, aggregated (exact total): informed apart, never netted (#102). */
+export async function creditNotesByCustomer(odoo: OdooCaller, extra: DomainTriple[] = []) {
+  const groups = normalizeGroups(
+    await odoo('account.move', 'read_group', {
+      domain: [...OPEN_CREDIT_NOTES_DOMAIN, ...extra],
+      fields: ['amount_residual:sum'],
+      groupby: ['partner_id'],
+    }),
+  )
+  const porCliente = groups
+    .map((g) => ({
+      cliente: (g.partner_id as string | null) ?? 'Sin cliente',
+      notas: (g.count as number) ?? 0,
+      saldo_a_favor: abs(g.amount_residual),
+    }))
+    .sort((a, b) => b.saldo_a_favor - a.saldo_a_favor)
+  return {
+    total: porCliente.reduce((sum, c) => sum + c.saldo_a_favor, 0),
+    documentos: porCliente.reduce((sum, c) => sum + c.notas, 0),
+    por_cliente: porCliente,
+  }
+}
+
 export async function odooOverdueInvoices(odoo: OdooCaller, input: { limit?: number } = {}) {
   const today = todayIso()
   const domain = overdueDomain(today)
 
-  // Exactly 2 calls (rate limit): aggregate per customer + the most overdue ones.
+  // Exactly 3 calls (rate limit): aggregate per customer, the most overdue ones, credit notes.
   const byCustomer = normalizeGroups(
     await odoo('account.move', 'read_group', {
       domain,
@@ -114,11 +140,14 @@ export async function odooOverdueInvoices(odoo: OdooCaller, input: { limit?: num
     }))
     .sort((a, b) => b.monto_pendiente - a.monto_pendiente)
 
+  const notasCredito = await creditNotesByCustomer(odoo)
+
   return {
     corte: today,
     total_vencido: porCliente.reduce((sum, c) => sum + c.monto_pendiente, 0),
     facturas_vencidas: porCliente.reduce((sum, c) => sum + c.facturas, 0),
     por_cliente: porCliente,
+    notas_credito_sin_aplicar: notasCredito,
     mas_vencidas: oldest.map((inv) => ({
       folio: inv.name,
       cliente: inv.partner_id,
@@ -148,12 +177,11 @@ export async function odooInvoicesSummary(odoo: OdooCaller, input: InvoicesSumma
   for (const date of [input.date_from, input.date_to]) {
     if (date && !DATE_RE.test(date)) throw new ToolError(`Fecha inválida "${date}" — usa YYYY-MM-DD`)
   }
-  const domain: DomainTriple[] = [
-    ['move_type', '=', 'out_invoice'],
-    ['state', '=', 'posted'],
+  const period: DomainTriple[] = [
     ...(input.date_from ? [['invoice_date', '>=', input.date_from] as DomainTriple] : []),
     ...(input.date_to ? [['invoice_date', '<=', input.date_to] as DomainTriple] : []),
   ]
+  const domain: DomainTriple[] = [['move_type', '=', 'out_invoice'], ['state', '=', 'posted'], ...period]
   const groupBy = GROUP_FIELD[input.group_by ?? 'estado_pago']
 
   const grupos = normalizeGroups(
@@ -163,6 +191,14 @@ export async function odooInvoicesSummary(odoo: OdooCaller, input: InvoicesSumma
       groupby: [groupBy],
     }),
   )
+  // Credit notes of the same period, apart: they are customer credit, not invoicing (#102).
+  const notas = normalizeGroups(
+    await odoo('account.move', 'read_group', {
+      domain: [['move_type', '=', 'out_refund'], ['state', '=', 'posted'], ...period],
+      fields: ['amount_total:sum', 'amount_residual:sum'],
+      groupby: ['payment_state'],
+    }),
+  )
 
   return {
     periodo: { desde: input.date_from ?? 'inicio', hasta: input.date_to ?? 'hoy' },
@@ -170,5 +206,10 @@ export async function odooInvoicesSummary(odoo: OdooCaller, input: InvoicesSumma
     total_facturado: grupos.reduce((sum, g) => sum + ((g.amount_total as number) ?? 0), 0),
     total_pendiente: grupos.reduce((sum, g) => sum + ((g.amount_residual as number) ?? 0), 0),
     grupos,
+    notas_credito: {
+      total: notas.reduce((sum, g) => sum + abs(g.amount_total), 0),
+      sin_aplicar: notas.reduce((sum, g) => sum + abs(g.amount_residual), 0),
+      documentos: notas.reduce((sum, g) => sum + ((g.count as number) ?? 0), 0),
+    },
   }
 }

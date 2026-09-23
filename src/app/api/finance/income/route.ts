@@ -6,7 +6,7 @@ import { buildIncomeOverview, incomeUnavailable } from '@/lib/income'
 import { ISO_MONTH } from '@/lib/month'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
-import { cachedMonthCollections, cachedOpenReceivables } from '@/lib/odoo/income-cache'
+import { cachedMonthCollections, cachedOpenCustomerMoves } from '@/lib/odoo/income-cache'
 
 // Two cold Odoo reads can exceed Vercel's default function timeout (same as /api/mcp).
 export const maxDuration = 60
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     try {
       // The Odoo queue serializes these; Promise.all only overlaps the cache lookups.
-      const [collections, open] = await Promise.all([cachedMonthCollections(month), cachedOpenReceivables()])
+      const [collections, open] = await Promise.all([cachedMonthCollections(month), cachedOpenCustomerMoves()])
       return NextResponse.json(buildIncomeOverview(month, today, collections, open))
     } catch (error) {
       if (!(error instanceof OdooError)) throw error
