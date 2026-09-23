@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MetricCard } from '@/components/dashboard/MetricCard'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, DollarSign, AlertTriangle, Clock, Check, Receipt, RefreshCw } from '@/components/icons'
+import { ChevronLeft, ChevronRight, DollarSign, AlertTriangle, Clock, Check, Receipt, RefreshCw, RotateCcw } from '@/components/icons'
 import { toast } from 'sonner'
 import { usePayablesOverview } from '@/hooks/usePayables'
 import { useIncomeOverview, useRefreshIncome } from '@/hooks/useIncome'
@@ -232,7 +232,7 @@ export function FinanceOverview() {
       )}
       {income?.receivablesTruncated && (
         <p className="text-xs text-muted-foreground">
-          Facturas abiertas: la lectura llegó a su límite; por cobrar y vencido pueden quedar cortos.
+          Facturas abiertas: la lectura llegó a su límite; por cobrar, vencido y notas de crédito pueden quedar cortos.
         </p>
       )}
 
@@ -312,6 +312,41 @@ export function FinanceOverview() {
             {income.collectionsTruncated && (
               <p className="pt-1 text-xs text-muted-foreground">La lista de cobros llegó al límite de la lectura; el total puede quedar corto.</p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Customer credit is informed, never subtracted: nobody knows yet if it will be used (#102). */}
+      {income && (
+        <Card data-testid="credit-notes">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <RotateCcw className="size-4" />
+              Notas de crédito sin aplicar
+            </CardTitle>
+            <span className="text-sm tabular-nums text-muted-foreground">
+              {fmt(income.creditNotesTotal)} · {income.creditNotesCount} nota{income.creditNotesCount !== 1 ? 's' : ''}
+            </span>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {incomeData?.creditNotes.length === 0 && (
+              <p className="text-sm text-muted-foreground">Sin notas de crédito sin aplicar en Odoo.</p>
+            )}
+            {incomeData?.creditNotes.map((n) => (
+              <div key={n.id} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
+                <span className="min-w-0 truncate">
+                  <span className="font-medium">{n.customer ?? 'Sin cliente'}</span>
+                  <span className="text-muted-foreground"> · {n.folio}</span>
+                  {n.currency && n.currency !== 'MXN' && <Badge variant="secondary" className="ml-2">{n.currency}</Badge>}
+                </span>
+                <span className="ml-3 shrink-0 tabular-nums">
+                  {n.invoiceDate ? `${fmtDay(n.invoiceDate)} · ` : ''}{fmt(n.residual)}
+                </span>
+              </div>
+            ))}
+            <p className="pt-1 text-xs text-muted-foreground">
+              Saldo a favor de clientes. No se resta del por cobrar: no sabemos si el cliente lo usará o si se aplicará a una factura.
+            </p>
           </CardContent>
         </Card>
       )}

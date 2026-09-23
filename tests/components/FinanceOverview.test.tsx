@@ -47,12 +47,20 @@ const INCOME_OK: IncomeOverviewResponse = {
     collectedTotal: 10000, collectedCount: 2,
     receivableTotal: 3000, receivableCount: 1,
     overdueTotal: 18781.1, overdueCount: 1,
+    creditNotesTotal: 1500, creditNotesCount: 1,
     collectionsTruncated: false,
     receivablesTruncated: false,
     collectionCurrencies: ['USD'],
     receivableCurrencies: [],
     overdueCurrencies: ['USD'],
+    creditNoteCurrencies: [],
   },
+  creditNotes: [
+    {
+      id: 887, moveType: 'out_refund', folio: 'RINV/2026/00012', customer: 'Siemens', invoiceDate: '2026-09-01', dueDate: '2026-09-01',
+      total: 1500, residual: 1500, currency: 'MXN', paymentState: 'not_paid',
+    },
+  ],
   collections: [
     { id: 71, folio: 'PAY00068', customer: 'Andritz', date: '2026-08-12', amount: 9000, currency: 'MXN', state: 'paid', memo: null },
     { id: 72, folio: 'PAY00069', customer: 'GE', date: '2026-08-20', amount: 1000, currency: 'USD', state: 'in_process', memo: null },
@@ -92,9 +100,28 @@ describe('FinanceOverview — ingresos', () => {
     expect(screen.getByText('Incluye USD sin convertir')).toBeInTheDocument()
   })
 
+  test('las notas de crédito se listan aparte y NO bajan el por cobrar ni el vencido (#102)', () => {
+    renderWithProviders(<FinanceOverview />)
+    const card = screen.getByTestId('credit-notes')
+    expect(card).toHaveTextContent('Notas de crédito sin aplicar')
+    expect(card).toHaveTextContent('$1,500.00 · 1 nota')
+    expect(card).toHaveTextContent('RINV/2026/00012')
+    expect(card).toHaveTextContent(/No se resta del por cobrar/)
+    // Gross figures, exactly as Odoo lists them.
+    expect(screen.getByText('Por cobrar').closest('[data-slot="card"]')).toHaveTextContent('$3,000.00')
+    expect(screen.getByText('Vencido por cobrar').closest('[data-slot="card"]')).toHaveTextContent('$18,781.10')
+  })
+
+  test('sin notas de crédito la card lo dice en vez de desaparecer', () => {
+    state.income = { ...INCOME_OK, creditNotes: [], income: { ...INCOME_OK.income!, creditNotesTotal: 0, creditNotesCount: 0 } }
+    renderWithProviders(<FinanceOverview />)
+    expect(screen.getByTestId('credit-notes')).toHaveTextContent('Sin notas de crédito sin aplicar en Odoo.')
+    expect(screen.getByTestId('credit-notes')).toHaveTextContent('$0.00 · 0 notas')
+  })
+
   test('sin Odoo muestra "Ingresos no disponibles" y sigue mostrando los egresos', () => {
     state.income = {
-      month: '2026-08', today: '2026-09-09', income: null, collections: [], fetchedAt: null,
+      month: '2026-08', today: '2026-09-09', income: null, collections: [], creditNotes: [], fetchedAt: null,
       unavailable: { reason: 'odoo_error', message: 'No se pudo leer Odoo; se muestran solo los egresos.' },
     }
     renderWithProviders(<FinanceOverview />)
