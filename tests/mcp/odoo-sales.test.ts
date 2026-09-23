@@ -97,15 +97,16 @@ describe('odoo_customer_profile', () => {
         { payment_state: 'paid', payment_state_count: 60, amount_total: 700000, amount_residual: 0, __domain: [] },
         { payment_state: 'not_paid', payment_state_count: 5, amount_total: 20253.47, amount_residual: 20253.47, __domain: [] },
       ]],
-      'account.move.search_read': [[
-        { id: 1, name: 'F00078', invoice_date_due: '2026-06-05', amount_residual: 6558.64 },
-      ]],
+      'account.move.search_read': [
+        [{ id: 1, name: 'F00078', invoice_date_due: '2026-06-05', amount_residual: 6558.64 }],
+        [{ id: 887, name: 'RINV/2026/00012', invoice_date: '2026-09-01', amount_residual: 1500 }],
+      ],
     })
 
     const result = await odooCustomerProfile(odoo, { cliente: 'Andritz' })
 
-    expect(calls).toHaveLength(4)
-    // The 3 detail calls filter by the id of the partner found.
+    expect(calls).toHaveLength(5)
+    // The 4 detail calls filter by the id of the partner found.
     for (const call of calls.slice(1)) {
       expect(call.payload.domain).toContainEqual(['partner_id', '=', 24])
     }
@@ -117,6 +118,12 @@ describe('odoo_customer_profile', () => {
       expect(result.facturacion.total_pendiente).toBeCloseTo(20253.47)
       expect(result.facturas_vencidas[0]).toMatchObject({ folio: 'F00078', monto_pendiente: 6558.64 })
       expect(result.facturas_vencidas[0].dias_vencida).toBeGreaterThan(0)
+      // Credit notes apart; total_pendiente stays gross (#102).
+      expect(calls[4].payload.domain).toContainEqual(['move_type', '=', 'out_refund'])
+      expect(result.notas_credito_sin_aplicar).toEqual({
+        saldo_a_favor: 1500,
+        notas: [{ folio: 'RINV/2026/00012', fecha: '2026-09-01', saldo: 1500 }],
+      })
     }
   })
 
