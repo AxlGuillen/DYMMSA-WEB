@@ -362,7 +362,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Cartera vencida (Odoo)',
       description:
-        'Responde "¿quién nos debe y desde cuándo?" desde la facturación oficial (Odoo): total vencido, desglose por cliente ordenado por monto, y las facturas más vencidas con sus días de atraso. Solo facturas de cliente contabilizadas con saldo pendiente y fecha de vencimiento superada. Aparte, `notas_credito_sin_aplicar`: saldo a favor de clientes que NO se resta del vencido.',
+        'Responde "¿quién nos debe y desde cuándo?" desde la facturación oficial (Odoo): total vencido, desglose por cliente ordenado por monto, y las facturas más vencidas con sus días de atraso. Solo facturas de cliente contabilizadas con saldo pendiente y fecha de vencimiento superada. Aparte, `notas_credito_sin_aplicar`: notas de crédito abiertas A HOY (sin corte de fecha), saldo a favor de clientes que NO se resta del vencido.',
       inputSchema: {
         limit: z.number().int().min(1).max(50).optional().describe('Cuántas facturas "más vencidas" listar (default 10)'),
       },
@@ -376,7 +376,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Resumen de facturación (Odoo)',
       description:
-        'Resumen de las facturas de cliente contabilizadas en Odoo por periodo: total facturado y pendiente, agrupado por estado_pago (default), cliente o mes. Úsala para "¿cómo cerró julio?" o "facturación por cliente del año". Las notas de crédito del periodo van aparte en `notas_credito` (no restan del facturado).',
+        'Resumen de las facturas de cliente contabilizadas en Odoo por periodo: total facturado y pendiente, agrupado por estado_pago (default), cliente o mes. Úsala para "¿cómo cerró julio?" o "facturación por cliente del año". Las notas de crédito EMITIDAS EN EL PERIODO van aparte en `notas_credito` (total, sin_aplicar; no restan del facturado) — distinto de las abiertas a hoy que da odoo_overdue_invoices.',
       inputSchema: {
         date_from: z.string().optional().describe('Desde (YYYY-MM-DD, sobre invoice_date)'),
         date_to: z.string().optional().describe('Hasta (YYYY-MM-DD)'),
@@ -409,7 +409,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Perfil de cliente (Odoo)',
       description:
-        'El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), ventas por estado, facturación con pendiente de pago, sus facturas vencidas con días de atraso y sus notas de crédito sin aplicar (saldo a favor, no restado de lo pendiente). Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.',
+        'El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), ventas por estado, facturación con pendiente de pago, sus facturas vencidas con días de atraso y sus notas de crédito abiertas a hoy (`notas_credito_sin_aplicar`: saldo a favor exacto + las últimas 10, no restado de lo pendiente). Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.',
       inputSchema: {
         cliente: z.string().min(1).describe('Nombre (o parte) del cliente, p. ej. "GE" o "Andritz"'),
       },

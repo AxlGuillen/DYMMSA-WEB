@@ -84,8 +84,11 @@ export async function odooAggregate(odoo: OdooCaller, input: OdooAggregateInput)
   return { model: input.model, agrupado_por: input.group_by, grupos: normalizeGroups(groups) }
 }
 
-/** Unapplied credit notes per customer: informed apart, never netted against debt (#102). */
-async function creditNotesByCustomer(odoo: OdooCaller, extra: DomainTriple[] = []) {
+/** Unsigned like the app loader: a signed instance must not net by accident (ADR-027 §8). */
+const abs = (v: unknown) => Math.abs((v as number) ?? 0)
+
+/** Unapplied credit notes per customer, aggregated (exact total): informed apart, never netted (#102). */
+export async function creditNotesByCustomer(odoo: OdooCaller, extra: DomainTriple[] = []) {
   const groups = normalizeGroups(
     await odoo('account.move', 'read_group', {
       domain: [...OPEN_CREDIT_NOTES_DOMAIN, ...extra],
@@ -97,7 +100,7 @@ async function creditNotesByCustomer(odoo: OdooCaller, extra: DomainTriple[] = [
     .map((g) => ({
       cliente: (g.partner_id as string | null) ?? 'Sin cliente',
       notas: (g.count as number) ?? 0,
-      saldo_a_favor: (g.amount_residual as number) ?? 0,
+      saldo_a_favor: abs(g.amount_residual),
     }))
     .sort((a, b) => b.saldo_a_favor - a.saldo_a_favor)
   return {
@@ -204,8 +207,8 @@ export async function odooInvoicesSummary(odoo: OdooCaller, input: InvoicesSumma
     total_pendiente: grupos.reduce((sum, g) => sum + ((g.amount_residual as number) ?? 0), 0),
     grupos,
     notas_credito: {
-      total: notas.reduce((sum, g) => sum + ((g.amount_total as number) ?? 0), 0),
-      sin_aplicar: notas.reduce((sum, g) => sum + ((g.amount_residual as number) ?? 0), 0),
+      total: notas.reduce((sum, g) => sum + abs(g.amount_total), 0),
+      sin_aplicar: notas.reduce((sum, g) => sum + abs(g.amount_residual), 0),
       documentos: notas.reduce((sum, g) => sum + ((g.count as number) ?? 0), 0),
     },
   }

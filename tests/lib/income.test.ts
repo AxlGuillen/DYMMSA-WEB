@@ -103,11 +103,12 @@ describe('buildIncomeOverview', () => {
     const out = buildIncomeOverview(
       '2026-09', '2026-09-09',
       { rows: [pay({})], truncated: false, fetchedAt: '2026-09-09T10:00:00Z' },
-      { rows: [inv({}), credit({})], truncated: false, fetchedAt: '2026-09-09T09:00:00Z' },
+      { rows: [inv({}), credit({ invoiceDate: '2026-08-01' }), credit({ id: 10, folio: 'RINV2', invoiceDate: '2026-09-01' })], truncated: false, fetchedAt: '2026-09-09T09:00:00Z' },
     )
-    expect(out.creditNotes.map((c) => c.folio)).toEqual(['RINV1'])
+    // Newest first: the read comes ordered by due date, which is not what the card shows.
+    expect(out.creditNotes.map((c) => c.folio)).toEqual(['RINV2', 'RINV1'])
     // The invoice (due 09-01) is overdue; the credit note counts nowhere but creditNotes.
-    expect(out.income).toMatchObject({ overdueCount: 1, receivableCount: 0, creditNotesCount: 1 })
+    expect(out.income).toMatchObject({ overdueCount: 1, receivableCount: 0, creditNotesCount: 2 })
     expect(out.fetchedAt).toBe('2026-09-09T09:00:00Z')
   })
 })

@@ -325,7 +325,7 @@ export function FinanceOverview() {
               Notas de crédito sin aplicar
             </CardTitle>
             <span className="text-sm tabular-nums text-muted-foreground">
-              {fmt(income.creditNotesTotal)} · {income.creditNotesCount} nota{income.creditNotesCount !== 1 ? 's' : ''}
+              {fmt(income.creditNotesTotal)} · {income.creditNotesCount} nota{income.creditNotesCount !== 1 ? 's' : ''}{currencyNote(income.creditNoteCurrencies)}
             </span>
           </CardHeader>
           <CardContent className="space-y-1">

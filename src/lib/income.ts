@@ -121,7 +121,7 @@ export interface IncomeOverviewResponse {
   /** null → Odoo unavailable; the overview still renders payables. */
   income: IncomeMonthSummary | null
   collections: OdooCollection[]
-  /** Unapplied credit notes, in the read's order (due date); the card lists them (#102). */
+  /** Unapplied credit notes, newest first; the card lists them (#102). */
   creditNotes: OdooOpenInvoice[]
   /** Oldest of the cached reads; null when unavailable. */
   fetchedAt: string | null
@@ -151,7 +151,7 @@ export function buildIncomeOverview(
     today,
     income: summarizeIncome(collections.rows, open.rows, today, { collections: collections.truncated, receivables: open.truncated }),
     collections: collections.rows,
-    creditNotes: open.rows.filter(isCreditNote),
+    creditNotes: open.rows.filter(isCreditNote).sort((a, b) => (b.invoiceDate ?? '').localeCompare(a.invoiceDate ?? '')),
     fetchedAt: collections.fetchedAt < open.fetchedAt ? collections.fetchedAt : open.fetchedAt,
   }
 }

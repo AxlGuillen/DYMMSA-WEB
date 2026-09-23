@@ -112,6 +112,12 @@ describe('FinanceOverview — ingresos', () => {
     expect(screen.getByText('Vencido por cobrar').closest('[data-slot="card"]')).toHaveTextContent('$18,781.10')
   })
 
+  test('el total de notas de crédito avisa la moneda sin convertir, como las cards hermanas', () => {
+    state.income = { ...INCOME_OK, income: { ...INCOME_OK.income!, creditNoteCurrencies: ['USD'] } }
+    renderWithProviders(<FinanceOverview />)
+    expect(screen.getByTestId('credit-notes')).toHaveTextContent('1 nota · incluye USD sin convertir')
+  })
+
   test('sin notas de crédito la card lo dice en vez de desaparecer', () => {
     state.income = { ...INCOME_OK, creditNotes: [], income: { ...INCOME_OK.income!, creditNotesTotal: 0, creditNotesCount: 0 } }
     renderWithProviders(<FinanceOverview />)

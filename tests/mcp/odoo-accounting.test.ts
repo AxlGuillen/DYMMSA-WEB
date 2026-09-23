@@ -125,7 +125,8 @@ describe('odoo_overdue_invoices', () => {
           { partner_id: [17, 'GE POWER SERVICES MEXICO'], partner_id_count: 2, amount_residual: 49088.5, __domain: [] },
           { partner_id: [24, 'Andritz'], partner_id_count: 1, amount_residual: 18781.1, __domain: [] },
         ],
-        [{ partner_id: [24, 'Andritz'], partner_id_count: 1, amount_residual: 1500, __domain: [] }],
+        // Signed on purpose: the block reports credit unsigned, like the app loader.
+        [{ partner_id: [24, 'Andritz'], partner_id_count: 1, amount_residual: -1500, __domain: [] }],
       ],
       'account.move.search_read': [[INVOICE_RAW]],
     })
