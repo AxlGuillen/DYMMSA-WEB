@@ -178,9 +178,9 @@ tests/
 - **Componentes:** jsdom + Testing Library. Hooks de TanStack se mockean a nivel de módulo (`vi.mock('@/hooks/*')` → `{ mutateAsync: vi.fn(), isPending: false }`); los stores Zustand se resetean con `resetStores()`. DnD (drag&drop) y flujos completos quedan para E2E.
 - **Al agregar/cambiar lógica de negocio o un route handler, agregar o actualizar su test.**
 
-### Integración + E2E contra Supabase local (ADR-021, fuera del CI)
+### Integración + E2E contra Supabase local (ADR-021)
 
-Complemento a la batería mockeada: corren contra un **Supabase local real** (CLI + Docker), así que validan lo que el mock finge (constraints, RLS/GRANT, transaccionalidad, flujos encadenados, login/upload). **NO** entran en `bun run check`/CI (necesitan el stack local).
+Complemento a la batería mockeada: corren contra un **Supabase local real** (CLI + Docker), así que validan lo que el mock finge (constraints, RLS/GRANT, transaccionalidad, flujos encadenados, login/upload). **NO** entran en `bun run check`. En CI corre **solo la integración** vía `.github/workflows/integration.yml` (#104): levanta el stack local y ejecuta `bun run test:integration` únicamente cuando el PR toca `supabase/**` — la red automática para cambios de schema/RLS (no marcarlo required: es condicional por paths). E2E sigue siendo local a mano.
 
 ```bash
 bunx supabase start          # levanta el stack local (Docker) — una vez
