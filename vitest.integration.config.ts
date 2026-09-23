@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config'
 
 // Tests de INTEGRACIÓN (Fase C1): route handlers reales contra el Supabase
 // LOCAL (`bunx supabase start`). Config SEPARADA a propósito — NO entra en
-// `bun run check` ni en el CI (que no tienen el stack local). Se corre a mano:
+// `bun run check`; en CI corre solo el workflow Integration cuando el PR
+// toca `supabase/` (#104). Se corre a mano:
 //   bun run test:integration
 // Requiere: supabase start corriendo + fixtures del seed (db reset los aplica).
 export default defineConfig({

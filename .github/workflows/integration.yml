@@ -1,0 +1,47 @@
+# Red automática para cambios de schema/RLS: levanta el Supabase local (Docker)
+# y corre los tests de integración — lo que `bun run check` no puede validar
+# porque el mock finge la BD (constraints, RLS/GRANT, transaccionalidad).
+#
+# Corre SOLO cuando el PR toca `supabase/` (migraciones, baseline, seed, schema).
+# OJO: por ser condicional por paths, NO marcarlo como required status check en
+# branch protection — bloquearía los PRs donde el job ni corre.
+name: Integration
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/**'
+
+jobs:
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      # Sin .env.test: los helpers de integración traen las llaves demo del
+      # stack local como fallback (tests/integration/helpers/db.ts).
+      - name: Integration tests
+        run: bun run test:integration
