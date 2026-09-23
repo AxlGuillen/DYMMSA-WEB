@@ -53,6 +53,16 @@ El refresh (`POST /api/finance/income/refresh`) purga el tag y responde con los 
 - **Data Cache entre instancias**: tras un refresh, otra instancia podría servir una vez el dato viejo; el POST devuelve datos frescos y el hook los siembra.
 - **Fuera de alcance**: simulación de mover pagos entre meses (lo único que queda de #84 fase 2), tools MCP nuevas, histórico anual.
 
+### 8. Notas de crédito: se informan, nunca se restan (#102, 2026-09-21)
+
+`OPEN_RECEIVABLES_DOMAIN` filtra `move_type = 'out_invoice'`, así que las notas de crédito (`out_refund`) no entraban por ningún lado. Una nota posteada y sin aplicar es **saldo a favor del cliente**, no deuda — y con $491,063 en "Vencido por cobrar" en pantalla, nadie sabía si parte de eso ya estaba compensado.
+
+**Decisión del negocio: no se netea.** No sabemos si el cliente va a usar la nota, si nosotros la aplicaremos a una factura, o si se le reembolsará; descontarla de una factura concreta (o del total) inventaría una asignación que Odoo no ha hecho y confundiría la deuda real. Las tarjetas *Por cobrar* / *Vencido por cobrar* siguen diciendo **lo mismo que la lista de Odoo**, y las notas se muestran **aparte**, con su total y su detalle por cliente, en la card "Notas de crédito sin aplicar".
+
+Cómo se lee sin gastar otro turno de la cola: la lectura de facturas abiertas pasó a ser `OPEN_CUSTOMER_MOVES_DOMAIN` (`move_type in [out_invoice, out_refund]` + las mismas condiciones de saldo, factorizadas en `OPEN_BALANCE_CONDITIONS`) pidiendo también `move_type`; `fetchOpenCustomerMoves` trae ambos y `splitReceivables` **salta** las `out_refund` mientras `summarizeCreditNotes` las suma. Siguen siendo 2 llamadas por mes; el límite de 500 y `receivablesTruncated` cubren a los dos tipos. La key del Data Cache cambió a `open-moves` porque las entradas viejas no traen `moveType` y vivían 15 min tras el deploy. `amount_residual` es sin signo en Odoo 17+ también en las notas; el loader aplica `Math.abs()` por si una instancia lo firmara — un residual negativo colándose en la suma sería justo el neteo que se decidió no hacer.
+
+Las tools MCP siguen la misma regla con **una llamada más cada una**: `odoo_overdue_invoices` agrega `notas_credito_sin_aplicar` (total, documentos, por cliente) sin tocar `total_vencido`; `odoo_invoices_summary` agrega `notas_credito` del mismo periodo sin tocar `total_facturado`/`total_pendiente`; `odoo_customer_profile` lista las notas abiertas del cliente. `SERVER_INSTRUCTIONS` le dice al modelo que tampoco netee por su cuenta. `OPEN_RECEIVABLES_DOMAIN` y `overdueDomain` **no cambiaron**: las vencidas siguen siendo solo facturas, y un test fija que los tres dominios comparten las mismas condiciones de saldo.
+
 ## Consecuencias
 
 - `src/lib/odoo/` deja de ser exclusivo del MCP: `domains.ts` e `income.ts` los usa la app. El catálogo sigue siendo la frontera para ambos.
