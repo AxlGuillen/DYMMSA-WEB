@@ -1,4 +1,4 @@
-/** MCP tool registry: reads + 3 scoped writes (ADR-015). Each call's db comes from the OAuth token, no service_role (ADR-023). */
+/** MCP tool registry: reads + 5 scoped writes (ADR-015, ADR-030). Each call's db comes from the OAuth token, no service_role (ADR-023). */
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -20,6 +20,12 @@ import { searchUrreaCatalog } from './tools/urrea'
 import { listTasks, getTask, createTask, updateTask } from './tools/tasks'
 import { getBusinessSummary } from './tools/summary'
 import { getWeekHours, getHoursTrend, listTimeImports } from './tools/hours'
+import { listSuppliers } from './tools/suppliers'
+import { listPayables, getPayable, getPayablesOverview, markPayablePaid, createPayable } from './tools/payables'
+import { getMonthClosing } from './tools/finance'
+import { getCutPlan } from './tools/cutting'
+import { getPurchasePlan } from './tools/purchase'
+import { getAppSettings } from './tools/settings'
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
 
@@ -58,8 +64,12 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **is_approved es tri-estado**: null = pendiente de decisión del cliente, true = aprobado, false = rechazado.
 - **Descripción DYMMSA**: jerarquía catálogo URREA oficial > curada DYMMSA > vacía. En cotizaciones guardadas es un snapshot congelado al momento de guardar.
 - **Stock**: se deduce al CREAR la orden (no al confirmar recepción). Cancelar/eliminar la orden lo restaura. Invariante: quantity_in_stock + quantity_to_order = quantity_approved.
-- **A URREA solo se piden** ítems product con brand='URREA' y quantity_to_order > 0. urrea_status: pending → supplied/not_supplied.
+- **A URREA se pide** lo que está en el catálogo URREA (cualquier marca del catálogo: URREA/SURTEK/FOY…) según las decisiones de mayoreo guardadas: piezas = paquetes × STD. Lo que no está en el catálogo es compra local. urrea_status: pending → supplied/not_supplied.
+- **Planificador de compra**: la decisión mayoreo/menudeo es por orden y por grupo (código+marca); "revisar" significa que el usuario DEBE decidir. Solo se persiste la decisión del usuario, la recomendación es al vuelo.
+- **Corte**: piezas de tubo/placa que se MANDAN A HACER, siempre en mm; la necesidad neta suma un margen por corte (sobreestima a propósito, es cifra para pedir). El material de corte NO va en el Excel URREA.
 - **Inventario**: low_stock = 1..5 piezas; la ubicación (gaveta) solo se muestra si hay stock.
+- **Facturas por pagar** = registro propio de GASTOS (Odoo solo factura a clientes). paid_at es la fecha REAL de pago y puede diferir del vencimiento; las vencidas cuentan aunque vengan de meses previos; canceladas no cuentan para nada.
+- **Cierre del mes** = cobrado (Odoo) − pagado (app); proyectado = real − pendiente del mes − vencido arrastrado. Sin Odoo el cierre solo refleja egresos.
 - **Cambiar el estado de una cotización regenera su approval_token** → el link de aprobación compartido antes muere.
 - **Tareas** = GitHub Issues del repo; prioridad por label priority:*, "Descartada" = cerrada como not_planned.
 - **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB (solo lectura). Las cotizaciones/órdenes de aquí y las facturas de Odoo son mundos separados — no asumas cruces entre ambos.
@@ -73,11 +83,14 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 ## Bloque A — DYMMSA-WEB (la app de cotizaciones e inventario)
 - Panorama: get_business_summary (úsala primero para contexto global).
 - Cotizaciones: list_quotations, get_quotation, get_quotation_stats.
-- Órdenes: list_orders, get_order, get_order_by_quotation.
+- Órdenes: list_orders, get_order, get_order_by_quotation; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
 - Inventario de la TIENDA: search_inventory, get_inventory_stats; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
+- Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte).
+- Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
 - Horas del equipo (checador): get_week_hours, get_hours_trend, list_time_imports. Solo lectura. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
+- Configuración: get_app_settings (umbrales del planificador, margen de corte).
 
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
@@ -86,7 +99,9 @@ La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Ventas: odoo_sales_summary, odoo_customer_profile, odoo_sale_detail.
 - Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
 
-Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las tres del bloque A listadas arriba; todo lo demás es lectura.
+Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las cinco del bloque A listadas arriba (set_inventory_location, create_task, update_task, mark_payable_paid, create_payable); todo lo demás es lectura.
+
+Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
 
 Notas de crédito (Odoo): una nota de crédito sin aplicar es SALDO A FAVOR del cliente, no deuda. Las tools la reportan aparte (campos notas_credito*) y NUNCA la restan del vencido ni del por cobrar — es decisión del negocio (no se sabe si el cliente la usará o si se aplicará a una factura). No hagas ese neteo tú tampoco.
 
@@ -185,6 +200,30 @@ export function registerDymmsaTools(server: McpServer): void {
   )
 
   server.registerTool(
+    'get_cut_plan',
+    {
+      title: 'Lista de corte de una orden',
+      description:
+        'Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para "¿cuánto tubo necesito para la orden de X?". Acepta id o nombre parcial de la orden/cliente.',
+      inputSchema: { orden: z.string().min(1).describe('UUID, nombre de la orden o nombre del cliente (parcial)') },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db) => getCutPlan(db, input)),
+  )
+
+  server.registerTool(
+    'get_purchase_plan',
+    {
+      title: 'Planificador de compra de una orden',
+      description:
+        'Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). "revisar" = el usuario debe decidir. Acepta id o nombre parcial de la orden/cliente.',
+      inputSchema: { orden: z.string().min(1).describe('UUID, nombre de la orden o nombre del cliente (parcial)') },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db) => getPurchasePlan(db, input)),
+  )
+
+  server.registerTool(
     'search_inventory',
     {
       title: 'Buscar en inventario',
@@ -252,6 +291,113 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     ({ query }, extra) => run(extra, (db) => searchUrreaCatalog(db, query)),
+  )
+
+  server.registerTool(
+    'list_suppliers',
+    {
+      title: 'Proveedores de menudeo',
+      description:
+        'Proveedores locales con contacto, plazo de pago (días de crédito; "Contado" si no hay) y las marcas que surten. Filtra por texto (nombre/teléfono/email) o por marca. Úsala para "¿quién me surte SURTEK?" o "¿qué plazo da Perfiles?".',
+      inputSchema: {
+        buscar: z.string().optional().describe('Texto a buscar en nombre, teléfono, whatsapp o email'),
+        marca: z.string().optional().describe('Marca que debe surtir, p. ej. "SURTEK"'),
+        limit: z.number().int().min(1).max(100).optional().describe('Máx proveedores (default 50)'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db) => listSuppliers(db, input)),
+  )
+
+  server.registerTool(
+    'list_payables',
+    {
+      title: 'Facturas por pagar',
+      description:
+        'Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (pending | paid | cancelled), mes de VENCIMIENTO (YYYY-MM), proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.',
+      inputSchema: {
+        estado: z.string().optional().describe('pending | paid | cancelled'),
+        mes: z.string().optional().describe('Mes de vencimiento, YYYY-MM'),
+        proveedor: z.string().optional().describe('Nombre (o parte) del proveedor'),
+        concepto: z.string().optional().describe('Texto del concepto (parcial)'),
+        limit: z.number().int().min(1).max(100).optional().describe('Máx facturas (default 50)'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db) => listPayables(db, input)),
+  )
+
+  server.registerTool(
+    'get_payable',
+    {
+      title: 'Detalle de factura por pagar',
+      description:
+        'Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta id, o parte del concepto o del nombre del proveedor; con varias coincidencias devuelve la lista.',
+      inputSchema: { factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor') },
+      annotations: readOnly,
+    },
+    ({ factura }, extra) => run(extra, (db, ctx) => getPayable(db, ctx.userId, factura)),
+  )
+
+  server.registerTool(
+    'get_payables_overview',
+    {
+      title: 'Resumen de facturas por pagar del mes',
+      description:
+        'Responde "¿qué debo esta semana / este mes?": pendiente del mes por semana de vencimiento, vencido (incluye el arrastre de meses anteriores), por vencer en 7 días, pagado en el mes, y las próximas 15 facturas pendientes. mes = YYYY-MM (default: el actual).',
+      inputSchema: { mes: z.string().optional().describe('Mes, YYYY-MM (default actual)') },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db) => getPayablesOverview(db, input)),
+  )
+
+  server.registerTool(
+    'mark_payable_paid',
+    {
+      title: 'Marcar factura pagada',
+      description:
+        'Marca una factura de gasto como PAGADA con su fecha real de pago (default hoy), o la regresa a pendiente (pagada=false). ESCRIBE: usa solo cuando el usuario lo pida ("ya pagué la de Perfiles"); confirma antes cuál factura y con qué fecha. Identifica la factura por id, concepto o proveedor (prefiere las pendientes al marcar pagada); con varias coincidencias devuelve la lista para precisar. Si ya estaba pagada, solo cambia la fecha cuando se indica fecha_pago.',
+      inputSchema: {
+        factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor'),
+        pagada: z.boolean().optional().describe('true = marcar pagada (default); false = regresar a pendiente'),
+        fecha_pago: z.string().optional().describe('Fecha REAL de pago, YYYY-MM-DD (default hoy)'),
+      },
+      // Scoped write (#109, ADR-030): a symbolic expense record, not money nor inventory.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (db) => markPayablePaid(db, input)),
+  )
+
+  server.registerTool(
+    'create_payable',
+    {
+      title: 'Registrar factura por pagar',
+      description:
+        'Registra una factura de GASTO como pendiente: proveedor (nombre parcial, debe existir en Proveedores), concepto, monto, fecha de factura y vencimiento opcional — sin él se calcula con los días de crédito del proveedor, como en la app. ESCRIBE: usa solo cuando el usuario pida registrar una factura; confirma los datos antes. Con varios proveedores coincidentes devuelve la lista para precisar.',
+      inputSchema: {
+        proveedor: z.string().min(1).describe('Nombre (o parte) del proveedor'),
+        concepto: z.string().min(1).describe('Concepto de la factura'),
+        monto: z.number().positive().describe('Monto en MXN, mayor a 0'),
+        fecha_factura: z.string().describe('Fecha de la factura, YYYY-MM-DD'),
+        vencimiento: z.string().optional().describe('Vencimiento, YYYY-MM-DD (default: fecha + plazo del proveedor)'),
+        notas: z.string().optional().describe('Notas'),
+      },
+      // Scoped write (#109, ADR-030): always born pending; paying it is mark_payable_paid.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (db) => createPayable(db, input)),
+  )
+
+  server.registerTool(
+    'get_month_closing',
+    {
+      title: 'Cierre del mes',
+      description:
+        'Cómo cierra un mes: egresos de la app (pagado, pendiente del mes, vencido arrastrado) + ingresos leídos de Odoo (cobrado, por cobrar, vencido por cobrar, notas de crédito aparte) y el cierre real/proyectado. Si Odoo no está disponible lo dice y el cierre refleja solo egresos. mes = YYYY-MM (default actual).',
+      inputSchema: { mes: z.string().optional().describe('Mes, YYYY-MM (default actual)') },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db) => getMonthClosing(db, input)),
   )
 
   server.registerTool(
@@ -359,6 +505,18 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: { readOnlyHint: false, openWorldHint: false },
     },
     (input, extra) => run(extra, () => updateTask(input)),
+  )
+
+  server.registerTool(
+    'get_app_settings',
+    {
+      title: 'Configuración de la app',
+      description:
+        'Parámetros que usan los planificadores: umbrales del planificador de compra (dinero parado en MXN y % parado) y margen por corte en mm. Indica cuáles están guardados y cuáles corren con el default del código.',
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    (_input, extra) => run(extra, (db) => getAppSettings(db)),
   )
 
   // Block B — Odoo: the COMPANY's external invoicing system, read-only with the server API key.

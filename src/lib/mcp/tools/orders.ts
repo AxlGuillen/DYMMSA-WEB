@@ -1,10 +1,32 @@
 /** Order tools (read). The list query lives here: there is no GET /api/orders yet. */
 
 import { calculateOrderTotal, isProductItem } from '@/lib/business-rules'
-import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'
+import { isUuid, normalizePagination, requireSingleMatch, sanitizeSearch, ToolError, type Db } from '../shared'
 import type { Order, OrderStatus, OrderWithItems } from '@/types/database'
 
 const STATUSES: OrderStatus[] = ['ordered', 'received', 'delivered', 'completed', 'cancelled']
+
+export type OrderRef = Pick<Order, 'id' | 'name' | 'customer_name' | 'status'>
+
+/** An order by UUID or by (partial) name/customer — the lookup the cut and purchase tools share (#109). */
+export async function resolveOrder(db: Db, ref: string): Promise<OrderRef> {
+  const raw = ref.trim()
+  if (!raw) throw new ToolError('Indica la orden (id o nombre)')
+  const select = 'id, name, customer_name, status'
+  if (isUuid(raw)) {
+    const { data, error } = await db.from('orders').select(select).eq('id', raw).single()
+    if (error || !data) throw new ToolError('Orden no encontrada')
+    return data as OrderRef
+  }
+  const query = sanitizeSearch(raw)
+  const { data, error } = await db
+    .from('orders')
+    .select(select)
+    .or(`name.ilike.%${query}%,customer_name.ilike.%${query}%`)
+    .limit(6)
+  if (error) throw new ToolError(`Error al buscar la orden: ${error.message}`)
+  return requireSingleMatch((data ?? []) as OrderRef[], (o) => `${o.name} (${o.customer_name})`, 'orden', query)
+}
 
 export interface ListOrdersInput {
   status?: string
