@@ -1,4 +1,4 @@
-/** Odoo block, phase 8 (#113): receivable ranking from Odoo's own per-customer figures (captured 2026-09-25). */
+/** Odoo block, phase 8 (#113): receivable ranking from Odoo's own per-customer figures (captured 2026-09-24). */
 
 import { describe, test, expect } from 'vitest'
 import type { OdooCaller } from '@/lib/odoo/client'
@@ -36,8 +36,8 @@ const CUSTOMERS = [
 
 describe('receivableBlock', () => {
   test('digiere las cifras y redondea el DSO; false/ausente → null', () => {
-    expect(receivableBlock(CUSTOMERS[1])).toEqual({ deuda_total: 376024.81, vencido: 1390.26, por_cobrar: null, dias_promedio_de_pago: 88 })
-    expect(receivableBlock({ total_due: false, credit: 10 })).toEqual({ deuda_total: null, vencido: null, por_cobrar: 10, dias_promedio_de_pago: null })
+    expect(receivableBlock(CUSTOMERS[1])).toEqual({ deuda_total: 376024.81, vencido: 1390.26, dias_promedio_de_pago: 88 })
+    expect(receivableBlock({ total_due: false })).toEqual({ deuda_total: null, vencido: null, dias_promedio_de_pago: null })
   })
 })
 
@@ -47,7 +47,7 @@ describe('odoo_receivables_ranking', () => {
     const result = await odooReceivablesRanking(odoo, {})
 
     expect(calls).toHaveLength(1)
-    expect(calls[0].payload).toMatchObject({ domain: [['customer_rank', '>', 0]], limit: 200, offset: 0 })
+    expect(calls[0].payload).toMatchObject({ domain: [['customer_rank', '>', 0]], limit: 100, offset: 0 })
     // Computed fields are read explicitly and never ordered on the Odoo side.
     expect(calls[0].payload.order).toBe('customer_rank desc, id asc')
 
@@ -66,18 +66,30 @@ describe('odoo_receivables_ranking', () => {
     ])
     expect(result.mas_lentos[0]).toEqual({ cliente: 'GE POWER SERVICES MEXICO', dias_promedio_de_pago: 110, deuda_total: 1451917.94 })
     expect(result.nota).toBeNull()
+    expect(result.universo).toMatch(/customer_rank > 0/)
   })
 
-  test('limit recorta ambas listas; pagina por encima de 200 clientes', async () => {
-    const many = Array.from({ length: 200 }, (_, i) => partner(1000 + i, `C${i}`, 10, i, 5))
-    const { odoo, calls } = fakeOdoo({ 'res.partner.search_read': [many, [partner(5000, 'Último', 999, 999, 1)]] })
+  test('limit recorta ambas listas; pagina por encima de 100 clientes; nombre nulo no revienta', async () => {
+    const many = Array.from({ length: 100 }, (_, i) => partner(1000 + i, `C${i}`, 10, i, 5))
+    const { odoo, calls } = fakeOdoo({ 'res.partner.search_read': [many, [{ ...partner(5000, 'Último', 999, 999, 1), name: false }]] })
     const result = await odooReceivablesRanking(odoo, { limit: 3 })
-    expect(calls.map((c) => c.payload.offset)).toEqual([0, 200])
-    expect(result.clientes_con_saldo).toBe(201)
+    expect(calls.map((c) => c.payload.offset)).toEqual([0, 100])
+    expect(result.clientes_con_saldo).toBe(101)
     expect(result.por_vencido).toHaveLength(3)
-    expect(result.por_vencido[0].cliente).toBe('Último')
+    expect(result.por_vencido[0].cliente).toBe('Sin nombre')
     expect(result.mas_lentos).toHaveLength(3)
     expect(result.llamadas).toBe(2)
+  })
+
+  test('al tope de páginas un conteo decide si faltó alguien (sin falso aviso en múltiplos exactos)', async () => {
+    const pages = Array.from({ length: 10 }, (_, p) => Array.from({ length: 100 }, (_, i) => partner(p * 100 + i + 1, `C${p * 100 + i}`, 1, 0, 1)))
+    const exact = fakeOdoo({ 'res.partner.search_read': pages, 'res.partner.search_count': [1000] })
+    const a = await odooReceivablesRanking(exact.odoo, {})
+    expect(a).toMatchObject({ clientes_con_saldo: 1000, llamadas: 11, nota: null })
+
+    const more = fakeOdoo({ 'res.partner.search_read': pages, 'res.partner.search_count': [1200] })
+    const b = await odooReceivablesRanking(more.odoo, {})
+    expect(b.nota).toMatch(/1000 clientes leídos de 1200/)
   })
 })
 
@@ -85,6 +97,7 @@ describe('catálogo fase 8', () => {
   test('total_due/DSO se leen pidiéndolos explícito; filtrar u ordenar por ellos se rechaza', async () => {
     const { odoo } = fakeOdoo({ 'res.partner.search_read': [[CUSTOMERS[2]]] })
     const result = await odooQuery(odoo, { model: 'res.partner', fields: ['name', 'total_due', 'days_sales_outstanding'], limit: 1 })
+    await expect(odooQuery(odoo, { model: 'res.partner', fields: ['credit'] })).rejects.toThrow(/no está en el catálogo/)
     expect(result.items[0].total_due).toBe(1451917.94)
 
     await expect(odooQuery(odoo, { model: 'res.partner', domain: [['total_overdue', '>', 0]] })).rejects.toThrow(/computado sin almacenar/)

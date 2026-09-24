@@ -30,10 +30,9 @@ const ANDRITZ = {
   city: 'Morelia',
   country_id: [156, 'Mexico'],
   customer_rank: 116,
-  // #113 (captured 2026-09-25): Odoo's receivable figures, computed per partner.
+  // #113 (captured 2026-09-24): Odoo's receivable figures, computed per partner.
   total_due: 376024.81,
   total_overdue: 1390.26,
-  credit: 376024.81,
   days_sales_outstanding: 88.23042550254195,
 }
 
@@ -114,9 +113,11 @@ describe('odoo_customer_profile', () => {
 
     const result = await odooCustomerProfile(odoo, { cliente: 'Andritz' })
     // #113: the receivable figures ride along the partner read, digested apart from the contact.
-    expect(calls[0].payload.fields).toEqual(expect.arrayContaining(['total_due', 'total_overdue', 'credit', 'days_sales_outstanding']))
+    expect(calls[0].payload.fields).toEqual(expect.arrayContaining(['total_due', 'total_overdue', 'days_sales_outstanding']))
     if (result.encontrado) {
-      expect(result.cartera).toEqual({ deuda_total: 376024.81, vencido: 1390.26, por_cobrar: 376024.81, dias_promedio_de_pago: 88 })
+      expect(result.cartera).toMatchObject({ deuda_total: 376024.81, vencido: 1390.26, dias_promedio_de_pago: 88 })
+      // Net-of-credit-notes figures travel with their own warning so the model never subtracts twice (#102).
+      expect(result.cartera.nota).toMatch(/neto de notas de crédito/)
       expect(result.cliente).not.toHaveProperty('total_due')
     }
 

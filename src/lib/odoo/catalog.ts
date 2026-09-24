@@ -40,7 +40,7 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
     label: 'Contactos (clientes y proveedores)',
     fields: ['name', 'email', 'phone', 'vat', 'city', 'country_id', 'customer_rank', 'supplier_rank'],
     // Odoo's own receivable figures per customer (#113): computed, not stored — read per record only.
-    readOnlyFields: ['total_due', 'total_overdue', 'credit', 'days_sales_outstanding'],
+    readOnlyFields: ['total_due', 'total_overdue', 'days_sales_outstanding'],
   },
   'sale.order': {
     label: 'Órdenes de venta',

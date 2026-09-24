@@ -6,7 +6,7 @@ import { daysSince, normalizeGroups, normalizeRecord, normalizeRecords, todayIso
 import { ToolError } from '../../shared'
 import { OPEN_CREDIT_NOTES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
 import { creditNotesByCustomer } from './accounting'
-import { receivableBlock } from './receivables'
+import { CARTERA_NOTA, receivableBlock } from './receivables'
 
 import { assertDateRange } from './dates'
 
@@ -57,7 +57,7 @@ export async function odooSalesSummary(odoo: OdooCaller, input: SalesSummaryInpu
 
 const PARTNER_FIELDS = ['name', 'email', 'phone', 'vat', 'city', 'country_id', 'customer_rank']
 // Odoo's receivable figures, computed per partner (#113): requested explicitly, never filterable.
-const RECEIVABLE_FIELDS = ['total_due', 'total_overdue', 'credit', 'days_sales_outstanding']
+const RECEIVABLE_FIELDS = ['total_due', 'total_overdue', 'days_sales_outstanding']
 
 export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: string }) {
   const query = input.cliente?.trim()
@@ -86,7 +86,7 @@ export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: st
     }
   }
 
-  const { total_due, total_overdue, credit, days_sales_outstanding, ...partner } = matches[0]
+  const { total_due, total_overdue, days_sales_outstanding, ...partner } = matches[0]
   const partnerId = partner.id as number
 
   // 5 more calls (the queue serializes them): sales, invoicing, overdue, credit-note total and list.
@@ -130,7 +130,7 @@ export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: st
   return {
     encontrado: true as const,
     cliente: normalizeRecord(partner),
-    cartera: receivableBlock({ total_due, total_overdue, credit, days_sales_outstanding }),
+    cartera: { ...receivableBlock({ total_due, total_overdue, days_sales_outstanding }), nota: CARTERA_NOTA },
     ventas: {
       total_confirmado: ventas
         .filter((g) => CONFIRMED.has(g.state as string))

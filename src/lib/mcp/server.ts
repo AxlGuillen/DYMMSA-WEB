@@ -617,7 +617,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Perfil de cliente (Odoo)',
       description:
-        'El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), su CARTERA como la calcula Odoo (deuda total, vencido y días promedio que tarda en pagar — DSO), ventas por estado, facturación con pendiente de pago, sus facturas vencidas con días de atraso y sus notas de crédito abiertas a hoy (`notas_credito_sin_aplicar`: saldo a favor exacto + las últimas 10, no restado de lo pendiente). Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.',
+        'El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), su CARTERA como la calcula Odoo (deuda total, vencido y días promedio que tarda en pagar — DSO; saldo contable NETO de notas de crédito, no se cuadra contra la facturación bruta), ventas por estado, facturación con pendiente de pago, sus facturas vencidas con días de atraso y sus notas de crédito abiertas a hoy (`notas_credito_sin_aplicar`: saldo a favor exacto + las últimas 10, no restado de lo pendiente). Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.',
       inputSchema: {
         cliente: z.string().min(1).describe('Nombre (o parte) del cliente, p. ej. "GE" o "Andritz"'),
       },
@@ -631,7 +631,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Ranking de cobranza (Odoo)',
       description:
-        'Responde "¿a quién le cobro primero?" y "¿quién paga más lento?" desde la facturación oficial (Odoo): todos los clientes con saldo, con la deuda total, el vencido y los días promedio de pago (DSO) que Odoo calcula por cliente. Devuelve el top por vencido (luego por deuda) y el top de los más lentos, más los totales de cartera. Úsala para la revisión semanal de cobranza; para el detalle de uno, odoo_customer_profile.',
+        'Responde "¿a quién le cobro primero?" y "¿quién paga más lento?" desde la facturación oficial (Odoo): los clientes (customer_rank > 0) con saldo, con la deuda total, el vencido y los días promedio de pago (DSO) que Odoo calcula por cliente — saldos contables netos de notas de crédito. Devuelve el top por vencido (luego por deuda), el top de los más lentos ENTRE los que hoy tienen saldo (quien paga lento pero está al corriente no aparece) y los totales de esa cartera. Úsala para la revisión semanal de cobranza; para el detalle de uno, odoo_customer_profile.',
       inputSchema: {
         limit: z.number().int().min(1).max(50).optional().describe('Cuántos clientes por lista (default 10)'),
       },
