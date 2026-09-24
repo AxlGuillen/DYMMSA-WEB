@@ -3,6 +3,15 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-25
+
+### Nuevo
+- **Cobranza desde el asistente.** Pregúntale "¿a quién le cobro primero?" o
+  "¿quién paga más lento?": te da el ranking de clientes por saldo vencido y
+  por días promedio que tardan en pagar, con la deuda total de cada uno, tal
+  como lo calcula Odoo. El expediente de un cliente ahora incluye su cartera
+  (deuda total, vencido y días promedio de pago).
+
 ## 2026-09-24
 
 ### Nuevo

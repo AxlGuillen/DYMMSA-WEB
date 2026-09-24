@@ -102,6 +102,12 @@ Verificado con `fields_get` + muestras; cada rutina tiene su issue (#112–#115)
 | Márgenes | `sale.order.margin`, `sale.order.line.purchase_price` | **no existen** | módulo *Sale Margin* no instalado |
 | Actividades (seguimientos) | `mail.activity`: `res_model`, `res_name`, `summary`, `date_deadline`, `user_id` | sí | sin rutina pedida |
 
+## Tools Fase 8 (issue #113) — cartera y DSO por cliente
+
+- `res.partner` gana `readOnlyFields: total_due, total_overdue, credit, days_sales_outstanding` — las cifras de cobranza que Odoo calcula por cliente (computadas sin store, verificadas 2026-09-25). `odoo_customer_profile` las lee en la misma llamada del contacto y las digiere en `cartera` (deuda total, vencido, por cobrar, días promedio de pago redondeados); el contacto no arrastra las llaves crudas.
+- `odoo_receivables_ranking(limit?)` — lee TODOS los clientes (`customer_rank > 0`, páginas de 200, tope 1000 con nota) y ordena **en memoria**: `por_vencido` (vencido desc, luego deuda) y `mas_lentos` (DSO desc; sin DSO quedan fuera de esa lista). Odoo no puede ordenar por campos computados, por eso el orden del `search_read` es por relevancia (`customer_rank`) y el ranking se arma aquí. Totales de cartera al frente.
+- Descartado de la issue original: "cobros sin conciliar con banco" — los 82 cobros pagados de la instancia tienen `is_matched = true`; la rutina devolvería siempre cero.
+
 ## Operación
 
 - Env (server): `ODOO_URL`, `ODOO_API_KEY`, `ODOO_DB` (opcional). En Vercel para producción.
