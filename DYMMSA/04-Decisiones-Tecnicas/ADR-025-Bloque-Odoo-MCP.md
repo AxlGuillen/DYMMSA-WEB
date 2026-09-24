@@ -71,6 +71,20 @@ Hallazgos F6 (2026-08-20, exploración en vivo con PAY00068):
 - **El puente pago↔REP no es FK directa** (el pago tiene `move_id=false` en esta instancia): es por facturas conciliadas — `l10n_mx_edi.document` con `invoice_ids in [facturas del pago]` + `state like 'payment%'`. Heurística de cobertura: el doc cubre al pago si abarca TODAS sus facturas (con pagos parciales de una misma factura podría dar falso "en regla" — límite consciente, no afecta el patrón de cobro actual). Con varios docs (re-timbrado) manda el más reciente.
 - **`reconciled_invoice_ids` es computado pero filtrarlo NO truena: devuelve 0 resultados EN SILENCIO** (peor que el ValueError de `qty_available`). Nació el concepto **`readOnlyFields`** en el catálogo: campos legibles bajo demanda pero vedados en dominios/order, y fuera de la proyección por defecto.
 
+## Tools Fase 7 (issue #110) — vínculo real factura↔orden de venta
+
+- `odoo_invoice_link_check` — la revisión periódica en UNA llamada lógica: facturas de cliente contabilizadas del periodo (default 30 días, opcional cliente), leídas **por páginas de 200** por encima del tope de 50 de las primitivas (tope duro 2000 → nota), clasificadas por el vínculo REAL: `ligada` (`sale_order_count > 0`), `vinculo_roto` (0 ligadas pero `invoice_origin` menciona una orden) y `huerfana` (ni ligada ni origen). Devuelve solo las problemáticas (con `incluir_ligadas` también las buenas), cada una con notas al pie ya en texto (`pedido_pie`) y término de pago. Lista para una rutina programada (issue aparte).
+- `odoo_invoice_detail` gana `vinculo_venta` (órdenes ligadas + diagnóstico), `termino_pago`, `notas_pie` y por línea `unidad` + `ligada_a_venta` (por `sale_line_ids`). `odoo_sale_detail` gana `facturas` (folio/estado/pago — resueltas con una llamada extra solo si `invoice_ids` trae algo) y por línea `unidad`, `por_facturar` (`qty_to_invoice`) y `lineas_de_factura`.
+
+Hallazgos F7 (2026-09-24, `fields_get` + muestras en vivo, Odoo 19):
+
+- **`account.move.sale_order_count`: computado NO almacenado** — un dominio sobre él truena con `ValueError: Cannot convert ... not stored` (ruidoso, a diferencia de `reconciled_invoice_ids`). `readOnlyFields`. **`sale.order.invoice_ids`** igual: `readOnlyFields`.
+- **Sí almacenados** (mejor de lo que la issue temía): `account.move.line.sale_line_ids` e `sale.order.line.invoice_lines` (many2many, filtrables), **`qty_to_invoice`** (float), `narration` (html), `invoice_payment_term_id`, `product_uom_id` en ambas líneas.
+- `narration` llega como HTML con envoltorio de Odoo (`<p data-oe-version="2.0">PEDIDO: 4102931264</p>`) → `htmlToText()` en `normalize.ts` (bloques → saltos de línea, entidades decodificadas).
+- `invoice_origin` es texto libre: NO prueba el vínculo. En el smoke jul–sep (210 facturas): 194 ligadas, huérfanas de Andritz con el PO solo en el pie, y **vínculos rotos reales** (FieldCore: origen `S00482`/`S00509`/`S00576` con 0 órdenes ligadas) — invisibles para la inferencia por texto.
+- Una factura en borrador no tiene folio (`name = false`) → `odoo_sale_detail` la etiqueta "(borrador, sin folio)".
+- Opción (b) de la issue (`store=True` en Odoo) descartada: exige módulo Python custom y Odoo **Online** no lo admite (eso es Odoo.sh).
+
 ## Operación
 
 - Env (server): `ODOO_URL`, `ODOO_API_KEY`, `ODOO_DB` (opcional). En Vercel para producción.

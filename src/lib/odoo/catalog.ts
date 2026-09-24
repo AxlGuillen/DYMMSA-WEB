@@ -21,7 +21,11 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
       'l10n_mx_edi_cfdi_uuid', 'l10n_mx_edi_cfdi_state', 'l10n_mx_edi_cfdi_sat_state',
       // PUE/PPD payment policy (stored): PUE requires no REP.
       'l10n_mx_edi_payment_policy',
+      // #110: footer notes (HTML, digested to text) and the real payment term (stored, verified 2026-09-24).
+      'narration', 'invoice_payment_term_id',
     ],
+    // The "Sale Orders" button count: not stored — a domain on it raises in Odoo 19 (#110).
+    readOnlyFields: ['sale_order_count'],
   },
   'account.payment': {
     label: 'Pagos',
@@ -40,6 +44,8 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
     label: 'Órdenes de venta',
     // date_order is a DATETIME ("YYYY-MM-DD HH:MM:SS"), not a date.
     fields: ['name', 'partner_id', 'date_order', 'amount_untaxed', 'amount_total', 'state', 'invoice_status', 'user_id'],
+    // Computed, not stored (#110): the curated tool reads it per record and resolves the folios.
+    readOnlyFields: ['invoice_ids'],
   },
 
   // Odoo's warehouse, NOT the DYMMSA-WEB store. qty_available is out on purpose:
@@ -69,13 +75,15 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
   },
 
   // Document lines: the curated tools resolve folio → id and filter by the numeric FK (no traversal).
+  // #110: the real line-to-line link (sale_line_ids / invoice_lines are STORED many2many, filterable),
+  // the unit (10 pieces vs 4 boxes) and qty_to_invoice (stored) — all verified on the instance.
   'account.move.line': {
     label: 'Líneas de factura',
-    fields: ['move_id', 'name', 'product_id', 'quantity', 'price_unit', 'price_subtotal', 'price_total', 'display_type'],
+    fields: ['move_id', 'name', 'product_id', 'quantity', 'price_unit', 'price_subtotal', 'price_total', 'display_type', 'product_uom_id', 'sale_line_ids'],
   },
   'sale.order.line': {
     label: 'Líneas de orden de venta',
-    fields: ['order_id', 'name', 'product_id', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal', 'display_type'],
+    fields: ['order_id', 'name', 'product_id', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'qty_to_invoice', 'price_unit', 'price_subtotal', 'display_type', 'product_uom_id', 'invoice_lines'],
   },
 
   // REP complements: the truth of payment stamping, all stored (ADR-025).

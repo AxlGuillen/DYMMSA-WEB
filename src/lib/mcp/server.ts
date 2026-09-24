@@ -12,6 +12,7 @@ import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
 import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/odoo/operations'
 import { odooInvoiceDetail, odooSaleDetail } from './tools/odoo/documents'
 import { odooPaymentDetail, odooRepAudit } from './tools/odoo/payments'
+import { odooInvoiceLinkCheck } from './tools/odoo/links'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats, setInventoryLocation } from './tools/inventory'
@@ -73,6 +74,7 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Cambiar el estado de una cotización regenera su approval_token** → el link de aprobación compartido antes muere.
 - **Tareas** = GitHub Issues del repo; prioridad por label priority:*, "Descartada" = cerrada como not_planned.
 - **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB (solo lectura). Las cotizaciones/órdenes de aquí y las facturas de Odoo son mundos separados — no asumas cruces entre ambos.
+- **Vínculo factura↔orden de venta (Odoo)**: la verdad es ordenes_ligadas (el botón "Órdenes de venta" de la factura) y el vínculo línea a línea; origen (invoice_origin) es texto libre y NO prueba el vínculo — una factura con origen pero 0 órdenes ligadas tiene el vínculo roto. Las notas al pie (pedido_pie, "PEDIDO: …") vienen de Odoo, no de capturas.
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
 /** Grouping lives here because the MCP tool listing itself is flat (#72). */
@@ -95,7 +97,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
-- Contabilidad: odoo_overdue_invoices, odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit.
+- Contabilidad: odoo_overdue_invoices, odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit, odoo_invoice_link_check (facturas del periodo sin orden de venta ligada — la revisión periódica en una llamada).
 - Ventas: odoo_sales_summary, odoo_customer_profile, odoo_sale_detail.
 - Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
 
@@ -628,7 +630,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Detalle de factura (Odoo)',
       description:
-        'Una factura de Odoo (externo) completa por folio (p. ej. "F00167"): encabezado con montos y saldo, TIMBRADO CFDI (folio fiscal/UUID, estado ante el SAT) y sus líneas de producto con cantidades y precios. Acepta folio parcial; con varias coincidencias devuelve la lista.',
+        'Una factura de Odoo (externo) completa por folio (p. ej. "F00167"): encabezado con montos, saldo, término de pago real y notas al pie (p. ej. "PEDIDO: …"), el VÍNCULO con órdenes de venta (cuántas están ligadas de verdad + diagnóstico: ligada / vínculo roto / huérfana), TIMBRADO CFDI (folio fiscal/UUID, estado ante el SAT) y sus líneas con cantidad, unidad (piezas vs cajas) y si cada línea viene de una venta. Acepta folio parcial; con varias coincidencias devuelve la lista.',
       inputSchema: {
         folio: z.string().min(1).describe('Folio de la factura, p. ej. "F00167"'),
       },
@@ -642,7 +644,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Detalle de venta (Odoo)',
       description:
-        'Una orden de venta de Odoo (externo) completa por folio (p. ej. "S00247"): encabezado con estado y vendedor, y sus líneas con cantidades PEDIDO/ENTREGADO/FACTURADO por producto — útil para "¿ya se entregó todo lo de la venta X?". Acepta folio parcial.',
+        'Una orden de venta de Odoo (externo) completa por folio (p. ej. "S00247"): encabezado con estado y vendedor, las FACTURAS ligadas (folio, estado, pagada o no) y sus líneas con cantidades PEDIDO/ENTREGADO/FACTURADO/POR FACTURAR y unidad por producto — útil para "¿ya se entregó todo lo de la venta X?" o "¿qué falta por facturar?" (por_facturar > 0 distingue "falta facturar" de "no queda nada"). Acepta folio parcial.',
       inputSchema: {
         folio: z.string().min(1).describe('Folio de la orden de venta, p. ej. "S00247"'),
       },
@@ -678,6 +680,23 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, () => odooRepAudit(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_invoice_link_check',
+    {
+      title: 'Facturas sin orden de venta (Odoo)',
+      description:
+        'Revisión de que cada factura de cliente contabilizada en Odoo esté ligada a su orden de venta, en una llamada: lee las facturas del periodo (default últimos 30 días; opcionalmente un cliente) y devuelve las HUÉRFANAS (sin orden ligada ni origen) y las de VÍNCULO ROTO (el origen menciona una orden pero ninguna está ligada), cada una con folio, cliente, fecha, total, origen, notas al pie ("PEDIDO: …") y término de pago. Usa el vínculo real (botón "Órdenes de venta"), no el texto del origen. Pensada para la revisión periódica.',
+      inputSchema: {
+        date_from: z.string().optional().describe('Desde (YYYY-MM-DD, sobre invoice_date); default hace 30 días'),
+        date_to: z.string().optional().describe('Hasta (YYYY-MM-DD); default hoy'),
+        cliente: z.string().optional().describe('Nombre (o parte) del cliente para acotar'),
+        incluir_ligadas: z.boolean().optional().describe('true = también listar las facturas correctamente ligadas'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooInvoiceLinkCheck(callOdoo, input)),
   )
 
   server.registerTool(
