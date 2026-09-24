@@ -85,6 +85,23 @@ Hallazgos F7 (2026-09-24, `fields_get` + muestras en vivo, Odoo 19):
 - Una factura en borrador no tiene folio (`name = false`) → `odoo_sale_detail` la etiqueta "(borrador, sin folio)".
 - Opción (b) de la issue (`store=True` en Odoo) descartada: exige módulo Python custom y Odoo **Online** no lo admite (eso es Odoo.sh).
 
+### Exploración para rutinas futuras (2026-09-24, misma sesión; fuera del PR de #110 por decisión)
+
+Verificado con `fields_get` + muestras; cada rutina tiene su issue (#112–#115) para no re-explorar:
+
+| Capacidad | Modelo · campos | Almacenado | Dato de la instancia |
+|---|---|---|---|
+| Entregas pendientes/atrasadas | `stock.picking`: `name`, `partner_id`, `origin`, `state`, `scheduled_date`, `date_deadline`, `date_done`, `sale_id`, `picking_type_id` (id 2 = "Oficina: Delivery Orders") | sí (`picking_type_code` NO → readOnly) | 19 entregas `assigned` sin hacer, 503 `done`, 11 canceladas |
+| Ventas sin entregar | `sale.order.delivery_status` (`full`/`pending`), `commitment_date`, `picking_ids` | sí | `commitment_date` sin uso en la muestra |
+| Cotizaciones por expirar | `sale.order.validity_date` | sí | con datos (S00799 → 2026-10-24) |
+| Cobros sin conciliar | `account.payment.is_reconciled`, `is_matched`, `journal_id`, `payment_method_line_id` | sí | — |
+| Deuda/vencido por cliente | `res.partner.total_due`, `total_overdue`, `credit`, `days_sales_outstanding`, `use_partner_credit_limit` | **NO** → readOnly | FieldCore $997K deuda / $56.7K vencido; GE $1.45M / $334.6K |
+| Vendedor / equipo | `account.move.invoice_user_id`, `team_id`; `sale.order.team_id`, `payment_term_id` | sí | un solo equipo "Sales" |
+| PO del cliente en su campo | `sale.order.client_order_ref` | sí | **0 de 532 ventas confirmadas lo usan** — el PO vive en `narration` de la factura |
+| Límite de crédito | `res.partner.credit_limit` | sí | 0 en todos, `use_partner_credit_limit` apagado |
+| Márgenes | `sale.order.margin`, `sale.order.line.purchase_price` | **no existen** | módulo *Sale Margin* no instalado |
+| Actividades (seguimientos) | `mail.activity`: `res_model`, `res_name`, `summary`, `date_deadline`, `user_id` | sí | sin rutina pedida |
+
 ## Operación
 
 - Env (server): `ODOO_URL`, `ODOO_API_KEY`, `ODOO_DB` (opcional). En Vercel para producción.
