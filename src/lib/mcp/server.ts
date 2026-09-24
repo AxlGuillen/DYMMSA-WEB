@@ -68,7 +68,7 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Planificador de compra**: la decisión mayoreo/menudeo es por orden y por grupo (código+marca); "revisar" significa que el usuario DEBE decidir. Solo se persiste la decisión del usuario, la recomendación es al vuelo.
 - **Corte**: piezas de tubo/placa que se MANDAN A HACER, siempre en mm; la necesidad neta suma un margen por corte (sobreestima a propósito, es cifra para pedir). El material de corte NO va en el Excel URREA.
 - **Inventario**: low_stock = 1..5 piezas; la ubicación (gaveta) solo se muestra si hay stock.
-- **Facturas por pagar** = registro propio de GASTOS (Odoo solo factura a clientes). paid_at es la fecha REAL de pago y puede diferir del vencimiento; las vencidas cuentan aunque vengan de meses previos; canceladas no cuentan para nada. Quién marcó pagada vive en una bitácora que solo ve un administrador.
+- **Facturas por pagar** = registro propio de GASTOS (Odoo solo factura a clientes). paid_at es la fecha REAL de pago y puede diferir del vencimiento; las vencidas cuentan aunque vengan de meses previos; canceladas no cuentan para nada.
 - **Cierre del mes** = cobrado (Odoo) − pagado (app); proyectado = real − pendiente del mes − vencido arrastrado. Sin Odoo el cierre solo refleja egresos.
 - **Cambiar el estado de una cotización regenera su approval_token** → el link de aprobación compartido antes muere.
 - **Tareas** = GitHub Issues del repo; prioridad por label priority:*, "Descartada" = cerrada como not_planned.
@@ -87,7 +87,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Inventario de la TIENDA: search_inventory, get_inventory_stats; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte).
-- Finanzas de la app: list_payables, get_payable (detalle + historial), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
+- Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
 - Horas del equipo (checador): get_week_hours, get_hours_trend, list_time_imports. Solo lectura. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
@@ -332,11 +332,11 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Detalle de factura por pagar',
       description:
-        'Una factura de gasto con su historial (registrada, marcada pagada y por quién, regresada a pendiente, fecha corregida). El historial solo lo ve un administrador. Acepta id, o parte del concepto o del nombre del proveedor; con varias coincidencias devuelve la lista.',
+        'Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta id, o parte del concepto o del nombre del proveedor; con varias coincidencias devuelve la lista.',
       inputSchema: { factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor') },
       annotations: readOnly,
     },
-    ({ factura }, extra) => run(extra, (db) => getPayable(db, factura)),
+    ({ factura }, extra) => run(extra, (db, ctx) => getPayable(db, ctx.userId, factura)),
   )
 
   server.registerTool(
@@ -356,7 +356,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Marcar factura pagada',
       description:
-        'Marca una factura de gasto como PAGADA con su fecha real de pago (default hoy), o la regresa a pendiente (pagada=false). ESCRIBE: usa solo cuando el usuario lo pida ("ya pagué la de Perfiles"); confirma antes cuál factura y con qué fecha. Identifica la factura por id, concepto o proveedor (prefiere las pendientes al marcar pagada); con varias coincidencias devuelve la lista para precisar. Si ya estaba pagada, solo cambia la fecha cuando se indica fecha_pago. La bitácora registra quién lo hizo.',
+        'Marca una factura de gasto como PAGADA con su fecha real de pago (default hoy), o la regresa a pendiente (pagada=false). ESCRIBE: usa solo cuando el usuario lo pida ("ya pagué la de Perfiles"); confirma antes cuál factura y con qué fecha. Identifica la factura por id, concepto o proveedor (prefiere las pendientes al marcar pagada); con varias coincidencias devuelve la lista para precisar. Si ya estaba pagada, solo cambia la fecha cuando se indica fecha_pago.',
       inputSchema: {
         factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor'),
         pagada: z.boolean().optional().describe('true = marcar pagada (default); false = regresar a pendiente'),

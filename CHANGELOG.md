@@ -22,7 +22,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   solo sus propias horas, un administrador las de todos.
 - **El asistente ya cubre todos los módulos.** Puede responder sobre
   proveedores (contacto, plazo, marcas que surten), facturas por pagar ("¿qué
-  debo esta semana?", el detalle de una factura con su historial), el cierre
+  debo esta semana?", el detalle de una factura), el cierre
   del mes (egresos de aquí + ingresos de Odoo), la lista de corte de una orden
   (cuánto tubo o placa pedir y cuántas barras u hojas salen con cada
   presentación), el planificador de compra (qué va a mayoreo y qué a menudeo)

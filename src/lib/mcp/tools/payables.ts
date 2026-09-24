@@ -15,6 +15,7 @@ import {
   ISO_DATE,
   PAYABLE_STATUS_LABELS,
   PAYABLE_STATUSES,
+  paymentTermsLabel,
   resolvePaymentUpdate,
   summarizeMonth,
 } from '@/lib/payables'
@@ -119,8 +120,21 @@ export async function listPayables(db: Db, input: ListPayablesInput = {}) {
   }
 }
 
-export async function getPayable(db: Db, ref: string) {
+/** The caller's role, read with their own token (each profile row is visible to its owner). */
+async function isAdmin(db: Db, callerId: string): Promise<boolean> {
+  const { data } = await db.from('profiles').select('role').eq('id', callerId).single()
+  return (data as { role?: string } | null)?.role === 'admin'
+}
+
+export async function getPayable(db: Db, callerId: string, ref: string) {
   const payable = await resolvePayable(db, ref)
+  const detail = {
+    ...digest(payable, todayInMexico()),
+    plazo_proveedor_dias: payable.supplier?.payment_terms_days ?? null,
+  }
+  // A member's answer must not even carry the key: the trail's existence is admin-only (ADR-028).
+  if (!(await isAdmin(db, callerId))) return detail
+
   const { data, error } = await db
     .from('audit_events')
     .select('id, action, actor_name, data, created_at')
@@ -130,13 +144,9 @@ export async function getPayable(db: Db, ref: string) {
     .order('id', { ascending: false })
     .limit(100)
   if (error) throw new ToolError(`Error al leer el historial: ${error.message}`)
-  const events = (data ?? []) as AuditEvent[]
   return {
-    ...digest(payable, todayInMexico()),
-    plazo_proveedor_dias: payable.supplier?.payment_terms_days ?? null,
-    // Every payable has a 'created' event, so an empty trail means RLS hid it (member).
-    nota: events.length === 0 ? 'Sin historial visible: la bitácora solo la ve un administrador.' : null,
-    historial: events.map((e) => ({
+    ...detail,
+    historial: ((data ?? []) as AuditEvent[]).map((e) => ({
       cuando: e.created_at,
       quien: e.actor_name ?? 'Sistema',
       que: describeAuditEvent(e, (iso) => iso),
@@ -275,6 +285,6 @@ export async function createPayable(db: Db, input: CreatePayableInput) {
     ...digest(data as PayableWithSupplier, todayInMexico()),
     nota: input.vencimiento
       ? 'Registrada como pendiente.'
-      : `Registrada como pendiente; vencimiento calculado con el plazo del proveedor (${supplier.payment_terms_days ?? 0} días).`,
+      : `Registrada como pendiente; vencimiento calculado con el plazo del proveedor (${paymentTermsLabel(supplier.payment_terms_days)}).`,
   }
 }

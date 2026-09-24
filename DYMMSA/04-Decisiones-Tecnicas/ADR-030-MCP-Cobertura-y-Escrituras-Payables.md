@@ -34,8 +34,11 @@ entrada del mapa cuya ruta desapareció, también.
 Reglas que se mantienen:
 
 - **Las tools no llevan permisos propios** (ADR-029): el `db` viene del token y la RLS decide.
-  `get_payable` pide el historial a `audit_events`; a un member la policy le devuelve cero
-  filas y la tool lo dice ("solo la ve un administrador") en vez de fingir que no hay eventos.
+  La única excepción es de **forma, no de acceso**: `get_payable` lee `profiles.role` con el
+  mismo token (como `requireRole`) y a un member le devuelve el detalle **sin la llave**
+  `historial` — ni siquiera consulta `audit_events`. ADR-028 exige que un member no sepa que
+  la bitácora existe, así que tampoco la mencionan `SERVER_INSTRUCTIONS`, `BUSINESS_RULES_MD`
+  ni las descripciones de las tools (review del PR #111).
 - **Búsqueda por nombre con guarda de coincidencias** (`requireSingleMatch` en `shared.ts`):
   una coincidencia se usa; ninguna o varias → error que lista las candidatas. Aplica a
   proveedores, órdenes (`resolveOrder`: UUID o nombre/cliente) y facturas (`resolvePayable`:

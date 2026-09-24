@@ -28,7 +28,7 @@ describe('getMonthClosing', () => {
     })
     const result = await getMonthClosing(asDb(client), {}, noOdoo)
     expect(result.mes).toBe(MONTH)
-    expect(result.egresos).toEqual({ pagado: 1000, pendiente_del_mes: 300, vencido_de_meses_anteriores: 0 })
+    expect(result.egresos).toEqual({ pagado: 1000, pendiente_del_mes: 300, vencido_de_meses_anteriores: 0, truncado: false, nota: null })
     expect(result.ingresos).toBeNull()
     expect(result.ingresos_no_disponibles).toMatch(/no está configurado/)
     expect(result.cierre).toMatchObject({ real: -1000, proyectado: -1300 })

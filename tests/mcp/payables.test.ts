@@ -4,7 +4,7 @@ import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue, hasFilter, type CallRecord } from '../helpers/supabase-mock'
 import { type Db } from '@/lib/mcp/shared'
 import { createPayable, getPayable, getPayablesOverview, listPayables, markPayablePaid, resolvePayable } from '@/lib/mcp/tools/payables'
-import { dueDateFrom } from '@/lib/payables'
+import { daysUntilDue, dueDateFrom } from '@/lib/payables'
 import { todayInMexico } from '@/lib/format'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
@@ -76,7 +76,9 @@ const AGO_10 = shiftDays(TODAY, -10)
 
 describe('listPayables', () => {
   test('digiere con días para vencer y aplica los filtros a la query', async () => {
-    const c = client([row('p1', PERFILES, 'Perfiles junio', 1500, AGO_10), row('p2', TORNILLOS, 'Tornillería', 200, IN_5)])
+    // Anchored inside the month: the mock applies the due_date range, relative dates would cross it (review PR #111).
+    const due1 = `${MONTH}-05`
+    const c = client([row('p1', PERFILES, 'Perfiles junio', 1500, due1), row('p2', TORNILLOS, 'Tornillería', 200, `${MONTH}-20`)])
     const result = await listPayables(asDb(c), { estado: 'pending', mes: MONTH, proveedor: 'perfiles', concepto: 'junio' })
 
     const call = c.callsTo('payables', 'select')[0]
@@ -86,7 +88,7 @@ describe('listPayables', () => {
     expect(filterValue(call, 'supplier_id')).toBe('s-perf')
     expect(filterValue(call, 'concept', 'ilike')).toBe('%junio%')
     // The mock ignores ilike/supplier_id, the shape is what matters here.
-    expect(result.facturas[0]).toMatchObject({ proveedor: 'Perfiles del Bajío', monto: 1500, dias_para_vencer: -10, estado: 'Pendiente' })
+    expect(result.facturas[0]).toMatchObject({ proveedor: 'Perfiles del Bajío', monto: 1500, dias_para_vencer: daysUntilDue(due1, TODAY), estado: 'Pendiente' })
     expect(result.suma_mostrada).toBe(1700)
   })
 
@@ -115,19 +117,26 @@ describe('resolvePayable / getPayable', () => {
     await expect(resolvePayable(asDb(client(rows)), 'zzz')).rejects.toThrow(/No hay factura por pagar que coincida/)
   })
 
-  test('detalle por UUID con historial descrito; historial vacío = lo ocultó la RLS', async () => {
+  test('admin: detalle con historial descrito; member: ni la llave del historial (ADR-028)', async () => {
     const events = [
       { id: 2, action: 'status_changed', actor_name: 'Tania', data: { to: { status: 'paid', paid_at: AGO_10 } }, created_at: '2026-09-10T10:00:00Z' },
       { id: 1, action: 'created', actor_name: 'Tania', data: {}, created_at: '2026-09-01T10:00:00Z' },
     ]
-    const admin = await getPayable(asDb(client(rows, { audit_events: { data: events } })), rows[0].id)
-    expect(admin.historial.map((h) => h.que)).toEqual([`Marcada como pagada el ${AGO_10}`, 'Registrada'])
-    expect(admin.nota).toBeNull()
+    const asAdmin = client(rows, { profiles: { data: { role: 'admin' } }, audit_events: { data: events } })
+    const admin = await getPayable(asDb(asAdmin), 'u-admin', rows[0].id)
+    expect('historial' in admin && admin.historial.map((h) => h.que)).toEqual([`Marcada como pagada el ${AGO_10}`, 'Registrada'])
     expect(admin.plazo_proveedor_dias).toBe(30)
+    expect(filterValue(asAdmin.callsTo('profiles', 'select')[0], 'id')).toBe('u-admin')
 
-    const member = await getPayable(asDb(client(rows, { audit_events: { data: [] } })), rows[0].id)
-    expect(member.nota).toMatch(/solo la ve un administrador/)
-    await expect(getPayable(asDb(client(rows)), '99999999-9999-4999-8999-999999999999')).rejects.toThrow(/Factura no encontrada/)
+    const asMember = client(rows, { profiles: { data: { role: 'member' } }, audit_events: { data: events } })
+    const member = await getPayable(asDb(asMember), 'u-member', rows[0].id)
+    expect(member).toMatchObject({ concepto: 'Perfiles junio', estado: 'Pagada' })
+    expect(Object.keys(member)).not.toContain('historial')
+    expect(Object.keys(member)).not.toContain('nota')
+    // The trail is not even queried for a member.
+    expect(asMember.callsTo('audit_events', 'select')).toHaveLength(0)
+
+    await expect(getPayable(asDb(client(rows)), 'u-x', '99999999-9999-4999-8999-999999999999')).rejects.toThrow(/Factura no encontrada/)
   })
 })
 
@@ -178,7 +187,7 @@ describe('createPayable (escritura)', () => {
       due_date: dueDateFrom(TODAY, 30), status: 'pending', paid_at: null, notes: null,
     })
     expect(result).toMatchObject({ estado: 'Pendiente', proveedor: 'Perfiles del Bajío' })
-    expect(result.nota).toMatch(/30 días/)
+    expect(result.nota).toMatch(/\(1 mes\)/)
   })
 
   test('vencimiento explícito manda; contado = mismo día', async () => {
@@ -187,8 +196,9 @@ describe('createPayable (escritura)', () => {
     expect(explicit.insertPayload<Record<string, unknown>>('payables').due_date).toBe(IN_5)
 
     const cash = client([])
-    await createPayable(asDb(cash), { proveedor: 'tornillos', concepto: 'x', monto: 1, fecha_factura: TODAY })
+    const result = await createPayable(asDb(cash), { proveedor: 'tornillos', concepto: 'x', monto: 1, fecha_factura: TODAY })
     expect(cash.insertPayload<Record<string, unknown>>('payables').due_date).toBe(TODAY)
+    expect(result.nota).toMatch(/\(Contado\)/)
   })
 
   test('mismas validaciones que la ruta, antes de tocar la BD', async () => {

@@ -32,10 +32,18 @@ export interface ListSuppliersInput {
   limit?: number
 }
 
+// With a brand filter the cut happens AFTER filtering in JS, so the read is wide on purpose.
+const BRAND_SCAN_LIMIT = 1000
+
 export async function listSuppliers(db: Db, input: ListSuppliersInput = {}) {
   const limit = Math.min(100, Math.max(1, Math.floor(input.limit ?? 50)))
   const search = sanitizeSearch(input.buscar ?? '')
-  let query = db.from('suppliers').select(SELECT).order('name', { ascending: true }).limit(limit)
+  const brand = (input.marca ?? '').trim().toUpperCase()
+  let query = db
+    .from('suppliers')
+    .select(SELECT)
+    .order('name', { ascending: true })
+    .limit(brand ? BRAND_SCAN_LIMIT : limit)
   if (search) {
     query = query.or(
       `name.ilike.%${search}%,phone.ilike.%${search}%,whatsapp.ilike.%${search}%,email.ilike.%${search}%`,
@@ -44,12 +52,10 @@ export async function listSuppliers(db: Db, input: ListSuppliersInput = {}) {
   const { data, error } = await query
   if (error) throw new ToolError(`Error al leer proveedores: ${error.message}`)
 
-  // Brand filter in JS: suppliers are few and the embed already carries their brands.
-  const brand = (input.marca ?? '').trim().toUpperCase()
-  const rows = ((data ?? []) as SupplierRow[])
+  const matching = ((data ?? []) as SupplierRow[])
     .map(digest)
     .filter((s) => !brand || s.marcas.some((m) => m.includes(brand)))
-  return { total: rows.length, proveedores: rows }
+  return { total: matching.length, mostrados: Math.min(matching.length, limit), proveedores: matching.slice(0, limit) }
 }
 
 export type SupplierRef = Pick<Supplier, 'id' | 'name' | 'payment_terms_days'>

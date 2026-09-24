@@ -13,6 +13,8 @@ import { isOdooConfigured } from '@/lib/odoo/env'
 import { cachedMonthCollections, cachedOpenCustomerMoves } from '@/lib/odoo/income-cache'
 import type { Payable } from '@/types/database'
 
+const EGRESOS_LIMIT = 1000
+
 type IncomeSources = {
   collections: Parameters<typeof buildIncomeOverview>[2]
   open: Parameters<typeof buildIncomeOverview>[3]
@@ -49,15 +51,23 @@ export async function getMonthClosing(db: Db, input: { mes?: string } = {}, deps
   if (!ISO_MONTH.test(month)) throw new ToolError('Mes inválido — usa YYYY-MM')
   const { from, toExclusive } = monthRange(month)
 
+  // Same cap as the overview; a silent cut would move cierre.real, so it is reported.
   const [pendingRes, paidRes, incomeRes] = await Promise.all([
-    db.from('payables').select('*').eq('status', 'pending').limit(1000),
-    db.from('payables').select('*').eq('status', 'paid').gte('paid_at', from).lt('paid_at', toExclusive).limit(1000),
+    db.from('payables').select('*', { count: 'exact' }).eq('status', 'pending').limit(EGRESOS_LIMIT),
+    db
+      .from('payables')
+      .select('*', { count: 'exact' })
+      .eq('status', 'paid')
+      .gte('paid_at', from)
+      .lt('paid_at', toExclusive)
+      .limit(EGRESOS_LIMIT),
     readIncome(month, today, deps),
   ])
   if (pendingRes.error || paidRes.error) {
     throw new ToolError(`Error al leer los egresos: ${(pendingRes.error ?? paidRes.error)?.message}`)
   }
   const egresos = summarizeMonth([...(pendingRes.data ?? []), ...(paidRes.data ?? [])] as Payable[], month, today)
+  const egresosTruncados = (pendingRes.count ?? 0) > EGRESOS_LIMIT || (paidRes.count ?? 0) > EGRESOS_LIMIT
   const summary = incomeRes.income?.income ?? null
   const cierre = monthClosing({
     collected: summary?.collectedTotal ?? 0,
@@ -73,6 +83,8 @@ export async function getMonthClosing(db: Db, input: { mes?: string } = {}, deps
       pagado: egresos.paidTotal,
       pendiente_del_mes: egresos.pendingTotal,
       vencido_de_meses_anteriores: egresos.carryOverTotal,
+      truncado: egresosTruncados,
+      nota: egresosTruncados ? `Lectura truncada a ${EGRESOS_LIMIT} facturas por estado: los egresos y el cierre pueden quedar cortos.` : null,
     },
     ingresos: summary
       ? {
