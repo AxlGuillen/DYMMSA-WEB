@@ -13,6 +13,7 @@ import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/
 import { odooInvoiceDetail, odooSaleDetail } from './tools/odoo/documents'
 import { odooPaymentDetail, odooRepAudit } from './tools/odoo/payments'
 import { odooInvoiceLinkCheck } from './tools/odoo/links'
+import { odooReceivablesRanking } from './tools/odoo/receivables'
 import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
 import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
 import { searchInventory, getInventoryStats, setInventoryLocation } from './tools/inventory'
@@ -98,7 +99,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
 - Contabilidad: odoo_overdue_invoices, odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit, odoo_invoice_link_check (facturas del periodo sin orden de venta ligada — la revisión periódica en una llamada).
-- Ventas: odoo_sales_summary, odoo_customer_profile, odoo_sale_detail.
+- Ventas y cobranza: odoo_sales_summary, odoo_customer_profile (incluye la cartera del cliente: deuda total, vencido y días promedio de pago), odoo_sale_detail, odoo_receivables_ranking ("¿a quién le cobro primero?" / "¿quién paga más lento?").
 - Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
 
 Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las cinco del bloque A listadas arriba (set_inventory_location, create_task, update_task, mark_payable_paid, create_payable); todo lo demás es lectura.
@@ -616,13 +617,27 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Perfil de cliente (Odoo)',
       description:
-        'El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), ventas por estado, facturación con pendiente de pago, sus facturas vencidas con días de atraso y sus notas de crédito abiertas a hoy (`notas_credito_sin_aplicar`: saldo a favor exacto + las últimas 10, no restado de lo pendiente). Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.',
+        'El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), su CARTERA como la calcula Odoo (deuda total, vencido y días promedio que tarda en pagar — DSO; saldo contable NETO de notas de crédito, no se cuadra contra la facturación bruta), ventas por estado, facturación con pendiente de pago, sus facturas vencidas con días de atraso y sus notas de crédito abiertas a hoy (`notas_credito_sin_aplicar`: saldo a favor exacto + las últimas 10, no restado de lo pendiente). Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.',
       inputSchema: {
         cliente: z.string().min(1).describe('Nombre (o parte) del cliente, p. ej. "GE" o "Andritz"'),
       },
       annotations: readOnly,
     },
     (input, extra) => run(extra, () => odooCustomerProfile(callOdoo, input)),
+  )
+
+  server.registerTool(
+    'odoo_receivables_ranking',
+    {
+      title: 'Ranking de cobranza (Odoo)',
+      description:
+        'Responde "¿a quién le cobro primero?" y "¿quién paga más lento?" desde la facturación oficial (Odoo): los clientes (customer_rank > 0) con saldo, con la deuda total, el vencido y los días promedio de pago (DSO) que Odoo calcula por cliente — saldos contables netos de notas de crédito. Devuelve el top por vencido (luego por deuda), el top de los más lentos ENTRE los que hoy tienen saldo (quien paga lento pero está al corriente no aparece) y los totales de esa cartera. Úsala para la revisión semanal de cobranza; para el detalle de uno, odoo_customer_profile.',
+      inputSchema: {
+        limit: z.number().int().min(1).max(50).optional().describe('Cuántos clientes por lista (default 10)'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, () => odooReceivablesRanking(callOdoo, input)),
   )
 
   server.registerTool(

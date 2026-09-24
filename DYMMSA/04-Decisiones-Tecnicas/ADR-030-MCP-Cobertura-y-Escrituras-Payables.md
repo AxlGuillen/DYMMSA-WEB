@@ -83,7 +83,7 @@ Mecanismos:
 
 ## Consecuencias
 
-- 43 tools (33 → 41 de lectura + 2 de escritura); escrituras del MCP: **5**
+- 42 tools (32 → 40 de lectura + 2 de escritura; la issue contó 33 de base, eran 32); escrituras del MCP: **5**
   (`set_inventory_location`, `create_task`, `update_task`, `mark_payable_paid`,
   `create_payable`). El núcleo transaccional sigue solo-lectura (decisión 2026-08-20).
 - `SERVER_INSTRUCTIONS` gana Proveedores, Finanzas, Corte/Planificador y Configuración en
