@@ -13,15 +13,15 @@ const state = vi.hoisted(() => ({
 
 vi.mock('@/hooks/useProfile', () => ({
   useProfile: () => ({
-    profile: { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5 },
+    profile: { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5, shift: 'part_time' },
     isAdmin: state.role === 'admin',
     isLoading: false,
   }),
   useProfiles: (enabled: boolean) => ({
     data: enabled
       ? [
-          { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5 },
-          { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1 },
+          { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5, shift: 'part_time' },
+          { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: 'full_time' },
         ]
       : undefined,
   }),
@@ -53,6 +53,14 @@ describe('HoursView', () => {
     expect(screen.queryByLabelText('Editar checada')).not.toBeInTheDocument()
     expect(screen.getByTestId('week-total')).toHaveTextContent('08:05')
     expect((state.lastParams as { user: string | null }).user).toBeNull()
+  })
+
+  test('las dos gráficas siguen a la persona en pantalla: la jornada del member es la suya (#101)', () => {
+    renderWithProviders(<HoursView />)
+    const week = screen.getByTestId('week-chart')
+    expect(week).toHaveTextContent('Medio tiempo · 4 h')
+    expect(week).toHaveTextContent('08:05 / 20 h')
+    expect(screen.getByTestId('trend-chart')).toHaveTextContent('Últimas 8 semanas')
   })
 
   test('admin: selector de empleado y controles de edición', () => {

@@ -26,6 +26,13 @@ export function formatAbsolute(dateStr: string): string {
 
 /** Anchored and formatted in UTC: `new Date('2026-09-15')` is UTC midnight and would render the
  *  previous day in Morelia — a date without a time has no zone. */
+/** "31 ago" — axis ticks of the weekly trend; UTC-anchored like formatDayLong. */
+export function formatDayMonth(iso: string): string {
+  return new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', day: 'numeric', month: 'short' })
+    .format(new Date(`${iso}T00:00:00Z`))
+    .replace('.', '')
+}
+
 export function formatDayLong(iso: string): string {
   return new Intl.DateTimeFormat('es-MX', {
     timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric',

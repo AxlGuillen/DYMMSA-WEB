@@ -6,12 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronLeft, ChevronRight } from '@/components/icons'
 import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { WeekGrid } from '@/components/hours/WeekGrid'
+import { WeekChart } from '@/components/hours/WeekChart'
+import { TrendChart } from '@/components/hours/TrendChart'
 import { TimeEntryForm } from '@/components/hours/TimeEntryForm'
 import { useProfile, useProfiles } from '@/hooks/useProfile'
 import { useTimeEntries } from '@/hooks/useTimeEntries'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { todayInMexico } from '@/lib/format'
-import { shiftWeek, weekBounds } from '@/lib/timesheet'
+import { buildWeeklyTrend, shiftWeek, weekBounds } from '@/lib/timesheet'
 import type { TimeEntry } from '@/types/database'
 
 /** Week stepper + (admin) employee selector + the grid. */
@@ -30,6 +32,16 @@ export function HoursView() {
   const targetUser = isAdmin ? (selectedUser ?? profile?.id ?? null) : null
   const { start, end } = weekBounds(weekStart)
   const { data, isLoading, isError } = useTimeEntries({ user: targetUser, from: start, to: end })
+
+  // The reference lines follow whoever is on screen: the admin's pick, or the member themself.
+  const targetShift = isAdmin
+    ? (profiles?.find((p) => p.id === (targetUser ?? profile?.id))?.shift ?? profile?.shift ?? null)
+    : (profile?.shift ?? null)
+
+  const TREND_WEEKS = 8
+  const trendQuery = useTimeEntries({ user: targetUser, from: shiftWeek(start, -(TREND_WEEKS - 1)), to: end })
+  // No useMemo: the React Compiler memoizes this itself and rejects the manual one.
+  const trend = trendQuery.data ? buildWeeklyTrend(trendQuery.data.entries, start, TREND_WEEKS) : undefined
 
   const namesById = useMemo(
     () => Object.fromEntries((profiles ?? []).map((p) => [p.id, p.display_name])),
@@ -70,6 +82,11 @@ export function HoursView() {
           )}
           <DateFormatPicker />
         </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <WeekChart week={data?.week ?? undefined} shift={targetShift} isLoading={isLoading} canAssignShift={isAdmin} />
+        <TrendChart trend={trend} shift={targetShift} currentStart={start} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
       </div>
 
       <WeekGrid
