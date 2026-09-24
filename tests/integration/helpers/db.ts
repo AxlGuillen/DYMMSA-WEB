@@ -111,7 +111,7 @@ export async function resetDb(): Promise<void> {
   await getPool().query(`
     TRUNCATE public.quotations, public.orders, public.order_purchase_decisions,
              public.suppliers, public.brands, public.supplier_brands,
-             public.time_entries, public.time_imports
+             public.time_entries, public.time_imports, public.payables, public.audit_events
       RESTART IDENTITY CASCADE;
     ${FIXTURES_SQL}
   `)
