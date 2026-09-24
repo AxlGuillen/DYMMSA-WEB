@@ -7,11 +7,7 @@ import { ToolError } from '../../shared'
 import { OPEN_CREDIT_NOTES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
 import { creditNotesByCustomer } from './accounting'
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-
-function assertDate(date: string | undefined): void {
-  if (date && !DATE_RE.test(date)) throw new ToolError(`Fecha inválida "${date}" — usa YYYY-MM-DD`)
-}
+import { assertDateRange } from './dates'
 
 export interface SalesSummaryInput {
   date_from?: string
@@ -29,8 +25,7 @@ const SALES_GROUP_FIELD: Record<NonNullable<SalesSummaryInput['group_by']>, stri
 }
 
 export async function odooSalesSummary(odoo: OdooCaller, input: SalesSummaryInput = {}) {
-  assertDate(input.date_from)
-  assertDate(input.date_to)
+  assertDateRange(input.date_from, input.date_to)
 
   const incluir = input.incluir ?? 'confirmadas'
   const domain: DomainTriple[] = [

@@ -7,19 +7,22 @@
 import type { OdooCaller } from '@/lib/odoo/client'
 import type { DomainTriple } from '@/lib/odoo/catalog'
 import { htmlToText, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
-import { ToolError } from '../../shared'
+import { assertDateRange, daysAgo } from './dates'
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-// Bigger pages = fewer calls against the 1.1 s queue; the cap keeps a runaway period bounded.
+// Bigger pages = fewer calls against the 1.1 s queue (200 verified live on 210 invoices); the cap bounds a runaway period.
 const PAGE = 200
 const MAX_PAGES = 10
 const DEFAULT_DAYS = 30
 
-export type LinkDiagnosis = 'ligada' | 'vinculo_roto' | 'huerfana'
+export type LinkDiagnosis = 'ligada' | 'vinculo_roto' | 'huerfana' | 'desconocido'
 
-/** ligada: at least one order linked. vinculo_roto: the origin text names one but nothing is linked. huerfana: neither. */
+/**
+ * ligada: at least one order linked. vinculo_roto: the origin text names one but nothing is
+ * linked. huerfana: neither. desconocido: Odoo did not return the count (computed field, version-dependent).
+ */
 export function linkDiagnosis(saleOrderCount: unknown, origin: unknown): LinkDiagnosis {
-  if (typeof saleOrderCount === 'number' && saleOrderCount > 0) return 'ligada'
+  if (typeof saleOrderCount !== 'number') return 'desconocido'
+  if (saleOrderCount > 0) return 'ligada'
   return typeof origin === 'string' && origin.trim() ? 'vinculo_roto' : 'huerfana'
 }
 
@@ -27,12 +30,7 @@ const DIAGNOSIS_TEXT: Record<LinkDiagnosis, string> = {
   ligada: 'ligada a una orden de venta',
   vinculo_roto: 'el origen menciona una orden pero ninguna está ligada — vínculo roto',
   huerfana: 'sin orden de venta ligada ni origen — huérfana',
-}
-
-function daysAgo(days: number, today: string): string {
-  const d = new Date(`${today}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() - days)
-  return d.toISOString().slice(0, 10)
+  desconocido: 'Odoo no devolvió el conteo de órdenes — no se puede diagnosticar',
 }
 
 export interface InvoiceLinkCheckInput {
@@ -52,9 +50,7 @@ const FIELDS = [
 ]
 
 export async function odooInvoiceLinkCheck(odoo: OdooCaller, input: InvoiceLinkCheckInput = {}) {
-  for (const date of [input.date_from, input.date_to]) {
-    if (date && !DATE_RE.test(date)) throw new ToolError(`Fecha inválida "${date}" — usa YYYY-MM-DD`)
-  }
+  assertDateRange(input.date_from, input.date_to)
   const today = todayIso()
   const from = input.date_from ?? daysAgo(DEFAULT_DAYS, today)
   const to = input.date_to ?? today
@@ -70,7 +66,7 @@ export async function odooInvoiceLinkCheck(odoo: OdooCaller, input: InvoiceLinkC
 
   const invoices: Record<string, unknown>[] = []
   let pages = 0
-  let truncated = false
+  let total: number | null = null
   for (;;) {
     const page = normalizeRecords(
       await odoo('account.move', 'search_read', {
@@ -85,10 +81,12 @@ export async function odooInvoiceLinkCheck(odoo: OdooCaller, input: InvoiceLinkC
     invoices.push(...page)
     if (page.length < PAGE) break
     if (pages >= MAX_PAGES) {
-      truncated = true
+      // A full last page is not proof of more: one count tells whether anything was left out.
+      total = Number(await odoo('account.move', 'search_count', { domain }))
       break
     }
   }
+  const truncated = total !== null && total > invoices.length
 
   const digested = invoices.map((inv) => {
     const diagnostico = linkDiagnosis(inv.sale_order_count, inv.invoice_origin)
@@ -105,20 +103,25 @@ export async function odooInvoiceLinkCheck(odoo: OdooCaller, input: InvoiceLinkC
       detalle: DIAGNOSIS_TEXT[diagnostico],
     }
   })
-  const huerfanas = digested.filter((d) => d.diagnostico === 'huerfana')
-  const rotas = digested.filter((d) => d.diagnostico === 'vinculo_roto')
+  const of = (d: LinkDiagnosis) => digested.filter((x) => x.diagnostico === d)
+  const huerfanas = of('huerfana')
+  const rotas = of('vinculo_roto')
+  const desconocidas = of('desconocido')
 
   return {
     periodo: { desde: from, hasta: to },
     cliente: cliente ?? null,
+    // An ilike can span several partners: name them so "the customer" is never assumed.
+    clientes_encontrados: [...new Set(digested.map((d) => d.cliente).filter((c): c is string => typeof c === 'string'))],
     revisadas: digested.length,
-    ligadas: digested.length - huerfanas.length - rotas.length,
+    ligadas: digested.length - huerfanas.length - rotas.length - desconocidas.length,
     huerfanas,
     vinculos_rotos: rotas,
-    ...(input.incluir_ligadas ? { ligadas_detalle: digested.filter((d) => d.diagnostico === 'ligada') } : {}),
-    llamadas: pages,
+    ...(desconocidas.length ? { sin_diagnostico: desconocidas } : {}),
+    ...(input.incluir_ligadas ? { ligadas_detalle: of('ligada') } : {}),
+    llamadas: pages + (total !== null ? 1 : 0),
     nota: truncated
-      ? `Revisión truncada a ${PAGE * MAX_PAGES} facturas: acota el periodo o filtra por cliente.`
+      ? `Revisión truncada: ${invoices.length} de ${total} facturas del periodo — acota el periodo o filtra por cliente.`
       : null,
   }
 }

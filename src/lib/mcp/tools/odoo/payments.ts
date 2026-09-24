@@ -5,7 +5,7 @@
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import { normalizeRecords, todayIso } from '@/lib/odoo/normalize'
-import { ToolError } from '../../shared'
+import { assertDateRange, daysAgo, idsOf } from './dates'
 import { findByFolio, SAT_STATE, timbrado } from './documents'
 
 const REP_STATE: Record<string, string> = {
@@ -34,10 +34,7 @@ const repLabel = (state: unknown) =>
   (typeof state === 'string' && REP_STATE[state]) || state || null
 
 /** Reconciled invoice ids of the payment (raw many2many → number[]). */
-function invoiceIdsOf(payment: Record<string, unknown>): number[] {
-  const raw = payment.reconciled_invoice_ids
-  return Array.isArray(raw) ? raw.filter((v): v is number => typeof v === 'number') : []
-}
+const invoiceIdsOf = (payment: Record<string, unknown>): number[] => idsOf(payment.reconciled_invoice_ids)
 
 /** A REP doc covers the payment only if it spans ALL its reconciled invoices. */
 function covers(docInvoiceIds: unknown, paymentInvoiceIds: number[]): boolean {
@@ -132,17 +129,14 @@ export interface RepAuditInput {
   date_to?: string
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const AUDIT_LIMIT = 50
 
 /** REP docs are fetched without a date filter (the REP arrives later); the PUE/PPD call is lazy — 100% PUE needs no REP. */
 export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) {
-  for (const date of [input.date_from, input.date_to]) {
-    if (date && !DATE_RE.test(date)) throw new ToolError(`Fecha inválida "${date}" — usa YYYY-MM-DD`)
-  }
+  assertDateRange(input.date_from, input.date_to)
   const today = todayIso()
   // Default sweep: the last ~30 days.
-  const from = input.date_from ?? new Date(Date.parse(`${today}T00:00:00Z`) - 30 * 86_400_000).toISOString().slice(0, 10)
+  const from = input.date_from ?? daysAgo(30, today)
   const to = input.date_to ?? today
 
   const payments = normalizeRecords(

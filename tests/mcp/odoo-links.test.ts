@@ -33,7 +33,9 @@ describe('linkDiagnosis', () => {
     expect(linkDiagnosis(0, 'S00713')).toBe('vinculo_roto')
     expect(linkDiagnosis(0, false)).toBe('huerfana')
     expect(linkDiagnosis(0, '  ')).toBe('huerfana')
-    expect(linkDiagnosis(null, null)).toBe('huerfana')
+    // The count is computed and version-dependent: no number = no verdict, never a false "huérfana".
+    expect(linkDiagnosis(null, null)).toBe('desconocido')
+    expect(linkDiagnosis(undefined, 'S00713')).toBe('desconocido')
   })
 })
 
@@ -65,6 +67,8 @@ describe('odoo_invoice_link_check', () => {
     ])
     expect(calls[0].payload).toMatchObject({ limit: 200, offset: 0 })
     expect(result).toMatchObject({ periodo: { desde: '2026-09-01', hasta: '2026-09-30' }, revisadas: 3, ligadas: 1, llamadas: 1, nota: null })
+    expect(result.clientes_encontrados).toEqual(['GE POWER SERVICES MEXICO'])
+    expect('sin_diagnostico' in result).toBe(false)
     expect(result.huerfanas).toEqual([expect.objectContaining({ folio: 'F00471', diagnostico: 'huerfana', origen: null, pedido_pie: null })])
     expect(result.vinculos_rotos).toEqual([
       expect.objectContaining({ folio: 'F00480', diagnostico: 'vinculo_roto', origen: 'S00650', pedido_pie: 'PEDIDO: 77', termino_pago: '90 días' }),
@@ -84,7 +88,7 @@ describe('odoo_invoice_link_check', () => {
     expect(result.ligadas_detalle).toHaveLength(200)
   })
 
-  test('cliente acota por partner_id ilike; default = últimos 30 días; fecha inválida → error', async () => {
+  test('cliente acota por partner_id ilike; default = últimos 30 días; fecha inválida o rango invertido → error', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.move.search_read': [[]] })
     const result = await odooInvoiceLinkCheck(odoo, { cliente: 'GE' })
     expect(calls[0].payload.domain).toContainEqual(['partner_id', 'ilike', 'GE'])
@@ -93,6 +97,38 @@ describe('odoo_invoice_link_check', () => {
     expect(result.cliente).toBe('GE')
 
     await expect(odooInvoiceLinkCheck(odoo, { date_from: '01/09/2026' })).rejects.toThrow(/Fecha inválida/)
+    // An inverted range would come back as "0 huérfanas" and read as all good (review PR #116).
+    await expect(odooInvoiceLinkCheck(odoo, { date_from: '2026-09-30', date_to: '2026-09-01' })).rejects.toThrow(/Rango invertido/)
+    expect(calls).toHaveLength(1)
+  })
+
+  test('tope de páginas: una llamada de conteo decide si de verdad faltó algo (sin falso "truncada" en múltiplos exactos)', async () => {
+    const fullPage = (offset: number) => Array.from({ length: 200 }, (_, i) => invoice(offset + i + 1, `F${offset + i + 1}`, 1, 'S1'))
+    const pages = Array.from({ length: 10 }, (_, p) => fullPage(p * 200))
+
+    const exact = fakeOdoo({ 'account.move.search_read': pages, 'account.move.search_count': [2000] })
+    const a = await odooInvoiceLinkCheck(exact.odoo, { date_from: '2026-01-01', date_to: '2026-12-31' })
+    expect(a).toMatchObject({ revisadas: 2000, llamadas: 11, nota: null })
+
+    const more = fakeOdoo({ 'account.move.search_read': pages, 'account.move.search_count': [2350] })
+    const b = await odooInvoiceLinkCheck(more.odoo, { date_from: '2026-01-01', date_to: '2026-12-31' })
+    expect(b.nota).toMatch(/2000 de 2350 facturas/)
+  })
+
+  test('sin sale_order_count en la respuesta → sin_diagnostico aparte, nunca huérfana', async () => {
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [[{ ...invoice(1, 'F1', 0, false), sale_order_count: undefined }]] })
+    const result = await odooInvoiceLinkCheck(odoo, { date_from: '2026-09-01', date_to: '2026-09-30' })
+    expect(result.huerfanas).toEqual([])
+    expect(result.sin_diagnostico?.map((d) => d.diagnostico)).toEqual(['desconocido'])
+    expect(result.ligadas).toBe(0)
+  })
+})
+
+describe('odoo_query digiere narration', () => {
+  test('el HTML del pie llega como texto también por la primitiva', async () => {
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [[invoice(1041, 'F00522', 1, 'S00713', '<p data-oe-version="2.0">PEDIDO: 4102931264</p>')]] })
+    const result = await odooQuery(odoo, { model: 'account.move', fields: ['name', 'narration'], limit: 1 })
+    expect(result.items[0].narration).toBe('PEDIDO: 4102931264')
   })
 })
 

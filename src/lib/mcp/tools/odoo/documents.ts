@@ -3,6 +3,7 @@
 import type { OdooCaller } from '@/lib/odoo/client'
 import { htmlToText, normalizeRecords } from '@/lib/odoo/normalize'
 import { ToolError } from '../../shared'
+import { idsOf } from './dates'
 import { linkDiagnosis } from './links'
 
 const LINES_LIMIT = 80
@@ -72,7 +73,7 @@ export async function findByFolio(
 }
 
 /** x2many fields arrive as id arrays; the model only needs how many. */
-const idCount = (value: unknown) => (Array.isArray(value) ? value.length : 0)
+const idCount = (value: unknown) => idsOf(value).length
 
 const INVOICE_FIELDS = [
   'name', 'partner_id', 'move_type', 'invoice_date', 'invoice_date_due',
@@ -156,7 +157,7 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
   )
 
   // invoice_ids is computed (not stored): read per record, then one call resolves the folios.
-  const invoiceIds = Array.isArray(header.invoice_ids) ? (header.invoice_ids as number[]) : []
+  const invoiceIds = idsOf(header.invoice_ids)
   const facturas = invoiceIds.length
     ? normalizeRecords(
         await odoo('account.move', 'search_read', {
@@ -166,8 +167,8 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
           order: 'name asc',
         }),
       ).map((f) => ({
-        // A draft invoice has no folio yet (Odoo returns false): say so instead of null.
-        folio: f.name ?? '(borrador, sin folio)',
+        // A draft invoice has no folio yet (Odoo returns false or '/'): say so instead of null.
+        folio: !f.name || f.name === '/' ? '(borrador, sin folio)' : f.name,
         tipo: f.move_type === 'out_refund' ? 'nota de crédito' : 'factura',
         estado: f.state,
         estado_pago: f.payment_state,

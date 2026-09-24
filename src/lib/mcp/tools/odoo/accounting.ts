@@ -2,9 +2,10 @@
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import { allowedFields, assertDomainAllowed, catalogEntry, type DomainTriple } from '@/lib/odoo/catalog'
-import { daysSince, normalizeGroups, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
+import { daysSince, htmlToText, normalizeGroups, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
 import { OPEN_CREDIT_NOTES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
 import { ToolError } from '../../shared'
+import { assertDateRange } from './dates'
 
 const MAX_LIMIT = 50
 
@@ -40,7 +41,10 @@ export async function odooQuery(odoo: OdooCaller, input: OdooQueryInput) {
     offset: Math.max(0, input.offset ?? 0),
     ...(input.order ? { order: input.order } : {}),
   })
-  const items = normalizeRecords(records)
+  // narration is HTML in Odoo; the server digests, the model interprets (review PR #116).
+  const items = normalizeRecords(records).map((item) =>
+    'narration' in item ? { ...item, narration: htmlToText(item.narration) } : item,
+  )
   return {
     model: input.model,
     count: items.length,
@@ -166,7 +170,6 @@ export interface InvoicesSummaryInput {
   group_by?: 'estado_pago' | 'cliente' | 'mes'
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const GROUP_FIELD: Record<NonNullable<InvoicesSummaryInput['group_by']>, string> = {
   estado_pago: 'payment_state',
   cliente: 'partner_id',
@@ -174,9 +177,7 @@ const GROUP_FIELD: Record<NonNullable<InvoicesSummaryInput['group_by']>, string>
 }
 
 export async function odooInvoicesSummary(odoo: OdooCaller, input: InvoicesSummaryInput = {}) {
-  for (const date of [input.date_from, input.date_to]) {
-    if (date && !DATE_RE.test(date)) throw new ToolError(`Fecha inválida "${date}" — usa YYYY-MM-DD`)
-  }
+  assertDateRange(input.date_from, input.date_to)
   const period: DomainTriple[] = [
     ...(input.date_from ? [['invoice_date', '>=', input.date_from] as DomainTriple] : []),
     ...(input.date_to ? [['invoice_date', '<=', input.date_to] as DomainTriple] : []),
