@@ -29,7 +29,8 @@ import { ResizableHead } from '@/components/ResizableHead'
 import { RowActions } from '@/components/RowActions'
 import { useCurrency } from '@/hooks/useCurrency'
 import { toast } from 'sonner'
-import { todayInMexico } from '@/lib/format'
+import { formatAbsolute, todayInMexico } from '@/lib/format'
+import { useProfile } from '@/hooks/useProfile'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { daysUntilDue, PAYABLE_STATUS_LABELS } from '@/lib/payables'
 import { ApiError } from '@/lib/fetch-json'
@@ -58,6 +59,14 @@ export const PAYABLES_COLUMNS: readonly TableColumn[] = [
   { id: 'paid_at', label: 'Pagada el', width: 120 },
   { id: 'actions', label: 'Acciones', hideable: false, width: 130 },
 ]
+
+// The audit column exists only for admins: a member must not even see it in the picker (ADR-028).
+const PAID_BY_COLUMN: TableColumn = { id: 'paid_by', label: 'Pagada por', width: 140 }
+export function payablesColumns(isAdmin: boolean): readonly TableColumn[] {
+  if (!isAdmin) return PAYABLES_COLUMNS
+  const i = PAYABLES_COLUMNS.findIndex((c) => c.id === 'actions')
+  return [...PAYABLES_COLUMNS.slice(0, i), PAID_BY_COLUMN, ...PAYABLES_COLUMNS.slice(i)]
+}
 
 const STATUS_BADGE: Record<PayableStatus, string> = {
   pending: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
@@ -124,8 +133,10 @@ export function PayablesTable({
   const updatePayable = useUpdatePayable()
   const fmt = useCurrency()
   const fmtDay = useDateFormat()
-  const cols = useVisibleColumns('payables', PAYABLES_COLUMNS)
-  const widths = useColumnWidths('payables', PAYABLES_COLUMNS)
+  const { isAdmin } = useProfile()
+  const columns = payablesColumns(isAdmin)
+  const cols = useVisibleColumns('payables', columns)
+  const widths = useColumnWidths('payables', columns)
   const today = todayInMexico()
 
   const handleDelete = async () => {
@@ -169,6 +180,7 @@ export function PayablesTable({
         )}
         {cols.isVisible('status') && <ResizableHead id="status" label="Estado" widths={widths} />}
         {cols.isVisible('paid_at') && <ResizableHead id="paid_at" label="Pagada el" widths={widths} />}
+        {isAdmin && cols.isVisible('paid_by') && <ResizableHead id="paid_by" label="Pagada por" widths={widths} />}
         <ResizableHead id="actions" label="Acciones" widths={widths} className="text-center" sticky />
       </TableRow>
     </TableHeader>
@@ -189,6 +201,7 @@ export function PayablesTable({
                 {cols.isVisible('due_date') && <TableCell><Skeleton className="h-4 w-28" /></TableCell>}
                 {cols.isVisible('status') && <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>}
                 {cols.isVisible('paid_at') && <TableCell><Skeleton className="h-4 w-20" /></TableCell>}
+                {isAdmin && cols.isVisible('paid_by') && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
                 <TableCell className={STICKY_ACTIONS_CELL}><Skeleton className="size-8 rounded-md" /></TableCell>
               </TableRow>
             ))}
@@ -251,6 +264,13 @@ export function PayablesTable({
                 {cols.isVisible('paid_at') && (
                   <TableCell className="text-sm whitespace-nowrap">
                     {payable.paid_at ? fmtDay(payable.paid_at) : dash}
+                  </TableCell>
+                )}
+                {isAdmin && cols.isVisible('paid_by') && (
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {payable.paid_by
+                      ? <span title={`Registrado ${formatAbsolute(payable.paid_by.at)}`}>{payable.paid_by.name ?? 'Sistema'}</span>
+                      : dash}
                   </TableCell>
                 )}
                 <TableCell className={STICKY_ACTIONS_CELL}>

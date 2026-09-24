@@ -30,11 +30,15 @@ import {
 } from '@/components/ui/select'
 import { Loader2 } from '@/components/icons'
 import { useSuppliers } from '@/hooks/useSuppliers'
-import { useCreatePayable, useUpdatePayable } from '@/hooks/usePayables'
-import { dueDateFrom, paymentTermsLabel } from '@/lib/payables'
-import { parseNumber, todayInMexico } from '@/lib/format'
+import { useCreatePayable, useUpdatePayable, usePayableEvents } from '@/hooks/usePayables'
+import { useProfile } from '@/hooks/useProfile'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { describeAuditEvent, dueDateFrom, paymentTermsLabel, PAYABLE_STATUS_LABELS } from '@/lib/payables'
+import { formatRelative, parseNumber, todayInMexico } from '@/lib/format'
 import { ApiError } from '@/lib/fetch-json'
-import type { PayableWithSupplier } from '@/types/database'
+import type { PayableStatus, PayableUpdate, PayableWithSupplier } from '@/types/database'
+
+const STATUSES: PayableStatus[] = ['pending', 'paid', 'cancelled']
 
 const payableSchema = z.object({
   supplier_id: z.string().min(1, 'Elige el proveedor'),
@@ -46,6 +50,11 @@ const payableSchema = z.object({
   invoice_date: z.string().min(1, 'La fecha de factura es requerida'),
   due_date: z.string().min(1, 'El vencimiento es requerido'),
   notes: z.string(),
+  status: z.enum(['pending', 'paid', 'cancelled']),
+  paid_at: z.string(),
+}).refine((v) => v.status !== 'paid' || v.paid_at.length > 0, {
+  message: 'Indica la fecha de pago',
+  path: ['paid_at'],
 })
 
 type PayableFormValues = z.infer<typeof payableSchema>
@@ -82,6 +91,7 @@ function PayableFormBody({
   const suppliers = suppliersData?.data ?? []
   const createPayable = useCreatePayable()
   const updatePayable = useUpdatePayable()
+  const { isAdmin } = useProfile()
 
   // Due date is pre-filled from the supplier's term ONLY until the user edits it.
   const [dueTouched, setDueTouched] = useState(isEditing)
@@ -95,8 +105,11 @@ function PayableFormBody({
       invoice_date: payable?.invoice_date ?? todayInMexico(),
       due_date: payable?.due_date ?? '',
       notes: payable?.notes ?? '',
+      status: payable?.status ?? 'pending',
+      paid_at: payable?.paid_at ?? '',
     },
   })
+  const status = form.watch('status')
 
   const termsOf = (supplierId: string) =>
     suppliers.find((s) => s.id === supplierId)?.payment_terms_days ?? null
@@ -117,7 +130,14 @@ function PayableFormBody({
     }
     try {
       if (isEditing && payable) {
-        await updatePayable.mutateAsync({ id: payable.id, updates: payload })
+        // Status/paid_at travel only when they changed: the PATCH stamps today on a bare
+        // status→paid, so sending an untouched status would re-stamp the real date.
+        const paidAt = values.status === 'paid' ? values.paid_at : null
+        const statusPatch: PayableUpdate =
+          values.status !== payable.status ? { status: values.status, paid_at: paidAt }
+          : values.status === 'paid' && paidAt !== payable.paid_at ? { paid_at: paidAt }
+          : {}
+        await updatePayable.mutateAsync({ id: payable.id, updates: { ...payload, ...statusPatch } })
         toast.success('Factura actualizada')
       } else {
         await createPayable.mutateAsync(payload)
@@ -246,6 +266,54 @@ function PayableFormBody({
             </FormItem>
           )}
         />
+        {isEditing && (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estado</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={(value) => {
+                      field.onChange(value)
+                      // Real payment date, editable: default today, cleared when leaving "paid".
+                      if (value === 'paid') { if (!form.getValues('paid_at')) form.setValue('paid_at', todayInMexico()) }
+                      else form.setValue('paid_at', '')
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full" aria-label="Estado">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{PAYABLE_STATUS_LABELS[s]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="paid_at"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pagada el</FormLabel>
+                  <FormControl>
+                    <Input type="date" disabled={status !== 'paid'} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+        {isEditing && isAdmin && payable && <PayableHistory payableId={payable.id} />}
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
@@ -257,5 +325,32 @@ function PayableFormBody({
         </div>
       </form>
     </Form>
+  )
+}
+
+/** Audit trail of one payable. Rendered only for admins; the route answers 403 to anyone else (ADR-028). */
+function PayableHistory({ payableId }: { payableId: string }) {
+  const { data, isLoading, isError } = usePayableEvents(payableId, true)
+  const fmtDay = useDateFormat()
+  return (
+    <div className="rounded-md border p-3" data-testid="payable-history">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Historial</p>
+      {isLoading && <p className="text-sm text-muted-foreground">Cargando…</p>}
+      {isError && <p className="text-sm text-muted-foreground">No se pudo cargar el historial.</p>}
+      {data && data.length === 0 && <p className="text-sm text-muted-foreground">Sin movimientos registrados.</p>}
+      {data && data.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {data.map((e) => (
+            <li key={e.id} className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate">
+                {describeAuditEvent(e, fmtDay)}
+                <span className="text-muted-foreground"> · {e.actor_name ?? 'Sistema'}</span>
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">{formatRelative(e.created_at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

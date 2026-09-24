@@ -1,7 +1,7 @@
 /** Payables math (#84). The clock is always injected; nothing reads new Date(). */
 
 import { describe, test, expect } from 'vitest'
-import { daysUntilDue, dueDateFrom, monthOf, nextMonth, paymentTermsLabel, summarizeMonth, weekOfMonth } from '@/lib/payables'
+import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, paymentTermsLabel, summarizeMonth, weekOfMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -140,5 +140,20 @@ describe('paymentTermsLabel', () => {
     expect(paymentTermsLabel(45)).toBe('45 días')
     // The API and the MCP can store 0; reading it back as "0 días" would be wrong.
     expect(paymentTermsLabel(0)).toBe('Contado')
+  })
+})
+
+describe('describeAuditEvent', () => {
+  const day = (iso: string) => `[${iso}]`
+  test('cada acción de la bitácora tiene su frase en español', () => {
+    expect(describeAuditEvent({ action: 'created', data: {} }, day)).toBe('Registrada')
+    expect(describeAuditEvent({ action: 'deleted', data: {} }, day)).toBe('Eliminada')
+    expect(describeAuditEvent({ action: 'status_changed', data: { to: { status: 'paid', paid_at: '2026-09-10' } } }, day))
+      .toBe('Marcada como pagada el [2026-09-10]')
+    expect(describeAuditEvent({ action: 'status_changed', data: { to: { status: 'pending', paid_at: null } } }, day))
+      .toBe('Regresada a pendiente')
+    expect(describeAuditEvent({ action: 'status_changed', data: { to: { status: 'cancelled' } } }, day)).toBe('Cancelada')
+    expect(describeAuditEvent({ action: 'paid_at_changed', data: { from: { paid_at: '2026-09-10' }, to: { paid_at: '2026-09-12' } } }, day))
+      .toBe('Fecha de pago corregida: [2026-09-10] → [2026-09-12]')
   })
 })

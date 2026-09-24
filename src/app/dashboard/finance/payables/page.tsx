@@ -12,31 +12,51 @@ import {
 } from '@/components/ui/select'
 import { Plus, Search, X } from '@/components/icons'
 import { ColumnPicker } from '@/components/ColumnPicker'
+import { useSuppliers } from '@/hooks/useSuppliers'
+import { useProfile } from '@/hooks/useProfile'
+import { parseNumber } from '@/lib/format'
 import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { PayableForm } from '@/components/finance/PayableForm'
-import { PayablesTable, PAYABLES_COLUMNS } from '@/components/finance/PayablesTable'
+import { PayablesTable, payablesColumns } from '@/components/finance/PayablesTable'
 import { usePayables, type PayableSortField } from '@/hooks/usePayables'
 import { PAYABLE_STATUS_LABELS } from '@/lib/payables'
 import type { PayableStatus, PayableWithSupplier } from '@/types/database'
 
 /** Radix rejects value="" in SelectItem; sentinel for "all". */
 const ALL_STATUSES = '__all__'
+const ALL_SUPPLIERS = '__all__'
+
+/** Only a parseable amount reaches the API; anything else is "no filter". */
+const amountFilter = (raw: string) => {
+  const n = parseNumber(raw)
+  return n !== null && n >= 0 ? String(n) : ''
+}
 
 export default function PayablesPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>(ALL_STATUSES)
   const [month, setMonth] = useState('')
+  const [supplier, setSupplier] = useState<string>(ALL_SUPPLIERS)
+  const [minAmount, setMinAmount] = useState('')
+  const [maxAmount, setMaxAmount] = useState('')
   const [page, setPage] = useState(1)
   const [sortField, setSortField] = useState<PayableSortField>('due_date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingPayable, setEditingPayable] = useState<PayableWithSupplier | null>(null)
 
+  const { isAdmin } = useProfile()
+  const { data: suppliersData } = useSuppliers({ pageSize: 100 })
+  const suppliers = suppliersData?.data ?? []
+
   const { data, isLoading } = usePayables({
     page,
     search,
     status: status === ALL_STATUSES ? '' : status,
     month,
+    supplier: supplier === ALL_SUPPLIERS ? '' : supplier,
+    minAmount: amountFilter(minAmount),
+    maxAmount: amountFilter(maxAmount),
     sortField,
     sortDir,
   })
@@ -107,6 +127,17 @@ export default function PayablesPage() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={supplier} onValueChange={(v) => { setSupplier(v); setPage(1) }}>
+          <SelectTrigger className="w-auto min-w-[170px]" aria-label="Filtrar por proveedor">
+            <SelectValue placeholder="Todos los proveedores" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_SUPPLIERS}>Todos los proveedores</SelectItem>
+            {suppliers.map((s) => (
+              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {/* Due-month filter; empty = all. */}
         <Input
           type="month"
@@ -115,8 +146,27 @@ export default function PayablesPage() {
           className="w-auto"
           aria-label="Filtrar por mes de vencimiento"
         />
+        <div className="flex items-center gap-1">
+          <Input
+            inputMode="decimal"
+            placeholder="Monto mín"
+            value={minAmount}
+            onChange={(e) => { setMinAmount(e.target.value); setPage(1) }}
+            className="w-28"
+            aria-label="Monto mínimo"
+          />
+          <span className="text-muted-foreground">–</span>
+          <Input
+            inputMode="decimal"
+            placeholder="Monto máx"
+            value={maxAmount}
+            onChange={(e) => { setMaxAmount(e.target.value); setPage(1) }}
+            className="w-28"
+            aria-label="Monto máximo"
+          />
+        </div>
         <DateFormatPicker />
-        <ColumnPicker tableId="payables" columns={PAYABLES_COLUMNS} />
+        <ColumnPicker tableId="payables" columns={payablesColumns(isAdmin)} />
       </div>
 
       <PayablesTable

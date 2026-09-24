@@ -1,6 +1,6 @@
 /** Payables math (#84). As in format.ts the clock is ALWAYS injected — nothing here reads `new Date()`. */
 
-import type { Payable, PayableStatus } from '@/types/database'
+import type { AuditEvent, Payable, PayableStatus } from '@/types/database'
 import { monthOf, nextMonth, type ISODate } from './month'
 
 export { monthOf, nextMonth }
@@ -129,6 +129,28 @@ export function summarizeMonth(
 }
 
 /** Days from today to the due date (negative = overdue); drives the cell tone. */
+/** Spanish sentence for one audit row of a payable (ADR-028). `fmtDay` formats a bare ISO date. */
+export function describeAuditEvent(
+  event: Pick<AuditEvent, 'action' | 'data'>,
+  fmtDay: (iso: string) => string,
+): string {
+  const to = (event.data.to ?? {}) as { status?: PayableStatus; paid_at?: string | null }
+  const from = (event.data.from ?? {}) as { paid_at?: string | null }
+  switch (event.action) {
+    case 'created':
+      return 'Registrada'
+    case 'deleted':
+      return 'Eliminada'
+    case 'paid_at_changed':
+      return `Fecha de pago corregida: ${from.paid_at ? fmtDay(from.paid_at) : '—'} → ${to.paid_at ? fmtDay(to.paid_at) : '—'}`
+    case 'status_changed':
+      if (to.status === 'paid') return `Marcada como pagada${to.paid_at ? ` el ${fmtDay(to.paid_at)}` : ''}`
+      if (to.status === 'pending') return 'Regresada a pendiente'
+      if (to.status === 'cancelled') return 'Cancelada'
+      return `Estado: ${to.status ?? '?'}`
+  }
+}
+
 export function daysUntilDue(dueDate: ISODate, today: ISODate): number {
   const due = new Date(`${dueDate}T00:00:00Z`).getTime()
   const now = new Date(`${today}T00:00:00Z`).getTime()
