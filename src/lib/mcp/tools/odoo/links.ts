@@ -86,7 +86,8 @@ export async function odooInvoiceLinkCheck(odoo: OdooCaller, input: InvoiceLinkC
       break
     }
   }
-  const truncated = total !== null && total > invoices.length
+  // A non-numeric count must not turn into "nothing was left out" (review PR #116).
+  const truncated = total !== null && (!Number.isFinite(total) || total > invoices.length)
 
   const digested = invoices.map((inv) => {
     const diagnostico = linkDiagnosis(inv.sale_order_count, inv.invoice_origin)
@@ -112,7 +113,9 @@ export async function odooInvoiceLinkCheck(odoo: OdooCaller, input: InvoiceLinkC
     periodo: { desde: from, hasta: to },
     cliente: cliente ?? null,
     // An ilike can span several partners: name them so "the customer" is never assumed.
-    clientes_encontrados: [...new Set(digested.map((d) => d.cliente).filter((c): c is string => typeof c === 'string'))],
+    ...(cliente
+      ? { clientes_encontrados: [...new Set(digested.map((d) => d.cliente).filter((c): c is string => typeof c === 'string'))] }
+      : {}),
     revisadas: digested.length,
     ligadas: digested.length - huerfanas.length - rotas.length - desconocidas.length,
     huerfanas,
@@ -121,7 +124,7 @@ export async function odooInvoiceLinkCheck(odoo: OdooCaller, input: InvoiceLinkC
     ...(input.incluir_ligadas ? { ligadas_detalle: of('ligada') } : {}),
     llamadas: pages + (total !== null ? 1 : 0),
     nota: truncated
-      ? `Revisión truncada: ${invoices.length} de ${total} facturas del periodo — acota el periodo o filtra por cliente.`
+      ? `Revisión truncada: ${invoices.length} facturas leídas${Number.isFinite(total) ? ` de ${total}` : ''} del periodo — acota el periodo o filtra por cliente.`
       : null,
   }
 }

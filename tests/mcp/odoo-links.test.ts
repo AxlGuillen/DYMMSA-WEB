@@ -67,7 +67,8 @@ describe('odoo_invoice_link_check', () => {
     ])
     expect(calls[0].payload).toMatchObject({ limit: 200, offset: 0 })
     expect(result).toMatchObject({ periodo: { desde: '2026-09-01', hasta: '2026-09-30' }, revisadas: 3, ligadas: 1, llamadas: 1, nota: null })
-    expect(result.clientes_encontrados).toEqual(['GE POWER SERVICES MEXICO'])
+    // Without a customer filter the list would be every customer of the period: only emitted with `cliente`.
+    expect('clientes_encontrados' in result).toBe(false)
     expect('sin_diagnostico' in result).toBe(false)
     expect(result.huerfanas).toEqual([expect.objectContaining({ folio: 'F00471', diagnostico: 'huerfana', origen: null, pedido_pie: null })])
     expect(result.vinculos_rotos).toEqual([
@@ -95,6 +96,7 @@ describe('odoo_invoice_link_check', () => {
     const [from, to] = [result.periodo.desde, result.periodo.hasta]
     expect(Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000)).toBe(30)
     expect(result.cliente).toBe('GE')
+    expect(result.clientes_encontrados).toEqual([])
 
     await expect(odooInvoiceLinkCheck(odoo, { date_from: '01/09/2026' })).rejects.toThrow(/Fecha inválida/)
     // An inverted range would come back as "0 huérfanas" and read as all good (review PR #116).
@@ -112,7 +114,12 @@ describe('odoo_invoice_link_check', () => {
 
     const more = fakeOdoo({ 'account.move.search_read': pages, 'account.move.search_count': [2350] })
     const b = await odooInvoiceLinkCheck(more.odoo, { date_from: '2026-01-01', date_to: '2026-12-31' })
-    expect(b.nota).toMatch(/2000 de 2350 facturas/)
+    expect(b.nota).toMatch(/2000 facturas leídas de 2350/)
+
+    // A weird count must still say "truncated", never read as a complete period (re-review PR #116).
+    const odd = fakeOdoo({ 'account.move.search_read': pages, 'account.move.search_count': [{ unexpected: true }] })
+    const c = await odooInvoiceLinkCheck(odd.odoo, { date_from: '2026-01-01', date_to: '2026-12-31' })
+    expect(c.nota).toMatch(/Revisión truncada: 2000 facturas leídas del periodo/)
   })
 
   test('sin sale_order_count en la respuesta → sin_diagnostico aparte, nunca huérfana', async () => {
@@ -140,10 +147,10 @@ describe('catálogo fase 7', () => {
 
     await expect(
       odooQuery(odoo, { model: 'account.move', domain: [['sale_order_count', '=', 0]], limit: 1 }),
-    ).rejects.toThrow(/computado solo de lectura/)
+    ).rejects.toThrow(/computado sin almacenar/)
     await expect(
       odooQuery(odoo, { model: 'sale.order', domain: [['invoice_ids', '!=', false]], limit: 1 }),
-    ).rejects.toThrow(/computado solo de lectura/)
+    ).rejects.toThrow(/computado sin almacenar/)
   })
 
   test('los campos nuevos de líneas y el término de pago entran en la proyección por defecto', async () => {

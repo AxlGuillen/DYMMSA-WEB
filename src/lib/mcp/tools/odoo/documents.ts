@@ -1,12 +1,12 @@
 /** Odoo phase 5 — document detail + CFDI stamping (ADR-025): folio → id, lines by numeric FK (traversal stays banned in the primitives). */
 
 import type { OdooCaller } from '@/lib/odoo/client'
-import { htmlToText, normalizeRecords } from '@/lib/odoo/normalize'
+import { htmlToText, idsOf, normalizeRecords } from '@/lib/odoo/normalize'
 import { ToolError } from '../../shared'
-import { idsOf } from './dates'
 import { linkDiagnosis } from './links'
 
 const LINES_LIMIT = 80
+const INVOICES_LIMIT = 50
 
 const CFDI_STATE: Record<string, string> = {
   sent: 'timbrada',
@@ -163,7 +163,7 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
         await odoo('account.move', 'search_read', {
           domain: [['id', 'in', invoiceIds]],
           fields: ['name', 'move_type', 'state', 'payment_state', 'amount_total'],
-          limit: 50,
+          limit: INVOICES_LIMIT,
           order: 'name asc',
         }),
       ).map((f) => ({
@@ -200,8 +200,12 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
       precio_unitario: l.price_unit,
       subtotal: l.price_subtotal,
     })),
-    nota: lines.length === LINES_LIMIT
-      ? `Se listan las primeras ${LINES_LIMIT} líneas — la orden tiene más.`
-      : undefined,
+    nota:
+      [
+        lines.length === LINES_LIMIT ? `Se listan las primeras ${LINES_LIMIT} líneas — la orden tiene más.` : null,
+        invoiceIds.length > INVOICES_LIMIT ? `Se listan ${INVOICES_LIMIT} de ${invoiceIds.length} facturas ligadas.` : null,
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined,
   }
 }

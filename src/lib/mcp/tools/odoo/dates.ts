@@ -19,8 +19,3 @@ export function daysAgo(days: number, today: string): string {
   d.setUTCDate(d.getUTCDate() - days)
   return d.toISOString().slice(0, 10)
 }
-
-/** Raw x2many (id array) → number[]; anything else is ignored so it never reaches a domain. */
-export function idsOf(value: unknown): number[] {
-  return Array.isArray(value) ? value.filter((v): v is number => typeof v === 'number') : []
-}

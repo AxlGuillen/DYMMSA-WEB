@@ -131,7 +131,7 @@ export function assertDomainAllowed(model: string, domain: DomainTriple[]): void
     const base = field.split(':')[0]
     if (entry.readOnlyFields?.includes(base)) {
       throw new OdooError(
-        `No se puede filtrar ni ordenar ${model} por "${base}": es un campo computado solo de lectura — Odoo devolvería 0 resultados en silencio.`,
+        `No se puede filtrar ni ordenar ${model} por "${base}": es un campo computado sin almacenar — Odoo lo rechaza o devuelve 0 resultados en silencio. Pídelo en fields para leerlo por registro.`,
       )
     }
     if (base !== 'id' && !entry.fields.includes(base)) {
