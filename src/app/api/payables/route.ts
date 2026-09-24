@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { nextMonth } from '@/lib/payables'
+import { nextMonth, PAYABLE_STATUSES } from '@/lib/payables'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, requireRole, badRequest, notFound, serverError } from '@/lib/api-helpers'
+import { requireAuth, requireRole, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
 import type { PayableInsert, PayableStatus, PayableWithSupplier } from '@/types/database'
 
 const SORT_FIELDS = ['due_date', 'invoice_date', 'amount', 'created_at'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
-const STATUSES: PayableStatus[] = ['pending', 'paid', 'cancelled']
 
 /** Neutralizes PostgREST metacharacters before interpolating into .or()/.ilike(). */
 const sanitizeSearch = (raw: string) => raw.replace(/[,()%]/g, ' ').trim()
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_MONTH = /^\d{4}-\d{2}$/
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Optional non-negative amount from the query; `undefined` when absent, `null` when invalid. */
 function amountParam(raw: string | null): number | null | undefined {
@@ -33,7 +31,7 @@ async function paidByFor(
 ): Promise<Map<string, PayableWithSupplier['paid_by']>> {
   const out = new Map<string, PayableWithSupplier['paid_by']>()
   if (ids.length === 0) return out
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('audit_events')
     .select('entity_id, actor_name, created_at')
     .eq('entity_type', 'payable')
@@ -41,6 +39,10 @@ async function paidByFor(
     .eq('data->to->>status', 'paid')
     .in('entity_id', ids)
     .order('created_at', { ascending: false })
+    // id breaks the tie: events written in one transaction share created_at.
+    .order('id', { ascending: false })
+  // The list still answers without the column; an empty trail must not look like "nobody".
+  if (error) console.error('Error fetching payables audit trail:', error)
   for (const row of (data ?? []) as { entity_id: string; actor_name: string | null; created_at: string }[]) {
     if (!out.has(row.entity_id)) out.set(row.entity_id, { name: row.actor_name, at: row.created_at })
   }
@@ -78,8 +80,8 @@ export async function GET(request: NextRequest) {
       .select('*, supplier:suppliers(id, name, payment_terms_days)', { count: 'exact' })
 
     if (search) query = query.ilike('concept', `%${search}%`)
-    if (STATUSES.includes(status as PayableStatus)) query = query.eq('status', status)
-    if (UUID.test(supplier)) query = query.eq('supplier_id', supplier)
+    if (PAYABLE_STATUSES.includes(status as PayableStatus)) query = query.eq('status', status)
+    if (isUuid(supplier)) query = query.eq('supplier_id', supplier)
     if (minAmount !== undefined) query = query.gte('amount', minAmount)
     if (maxAmount !== undefined) query = query.lte('amount', maxAmount)
     if (ISO_MONTH.test(month)) {
@@ -98,8 +100,10 @@ export async function GET(request: NextRequest) {
 
     let rows = (data ?? []) as PayableWithSupplier[]
     if (isAdmin) {
-      const paidBy = await paidByFor(supabase, rows.map((r) => r.id))
-      rows = rows.map((r) => ({ ...r, paid_by: paidBy.get(r.id) ?? null }))
+      // Only rows that are paid NOW: a payable sent back to pending keeps its old event.
+      const paidIds = rows.filter((r) => r.status === 'paid').map((r) => r.id)
+      const paidBy = await paidByFor(supabase, paidIds)
+      rows = rows.map((r) => ({ ...r, paid_by: r.status === 'paid' ? paidBy.get(r.id) ?? null : null }))
     }
 
     return NextResponse.json({

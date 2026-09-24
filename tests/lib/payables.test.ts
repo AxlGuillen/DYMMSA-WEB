@@ -1,7 +1,7 @@
 /** Payables math (#84). The clock is always injected; nothing reads new Date(). */
 
 import { describe, test, expect } from 'vitest'
-import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, paymentTermsLabel, summarizeMonth, weekOfMonth } from '@/lib/payables'
+import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, paymentTermsLabel, summarizeMonth, weekOfMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -155,5 +155,17 @@ describe('describeAuditEvent', () => {
     expect(describeAuditEvent({ action: 'status_changed', data: { to: { status: 'cancelled' } } }, day)).toBe('Cancelada')
     expect(describeAuditEvent({ action: 'paid_at_changed', data: { from: { paid_at: '2026-09-10' }, to: { paid_at: '2026-09-12' } } }, day))
       .toBe('Fecha de pago corregida: [2026-09-10] → [2026-09-12]')
+  })
+})
+
+describe('parseAmountFilter', () => {
+  test('acepta montos con separador de miles o signo; rechaza lo que no es un monto', () => {
+    expect(parseAmountFilter('1,500')).toBe('1500')
+    expect(parseAmountFilter('$ 2,500.50')).toBe('2500.5')
+    expect(parseAmountFilter('0')).toBe('0')
+    // parseFloat('1,500') would have given 1 — the whole reason this exists (review PR #106).
+    expect(parseAmountFilter('abc')).toBe('')
+    expect(parseAmountFilter('-5')).toBe('')
+    expect(parseAmountFilter('')).toBe('')
   })
 })

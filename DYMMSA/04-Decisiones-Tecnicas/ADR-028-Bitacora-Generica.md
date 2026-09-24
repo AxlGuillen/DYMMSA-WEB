@@ -32,6 +32,7 @@ La segunda descarta la solución obvia (columnas `paid_by`/`paid_marked_at` en `
 - **Se registra aunque el cambio no pase por la API** (MCP, SQL, un script): el rastro no depende de que cada ruta se acuerde de escribirlo.
 - **El member no ejecuta una escritura que le delate nada**: su `UPDATE payables` es el mismo de siempre; el evento lo inserta el owner de la función.
 - **Identidad sin confianza en el cliente**: `actor_id = auth.uid()` sale del JWT, y `actor_name` es un **snapshot** de `profiles.display_name` leído como owner (el DEFINER salta la RLS de perfiles). Con `service_role` no hay `auth.uid()` → actor `NULL`, que la UI pinta como "Sistema".
+- **`actor_id` sin FK a `profiles`** (migración `20260924034509`, review PR #106): con el FK, un JWT sin fila en `profiles` hacía fallar el `INSERT` de la bitácora **dentro del trigger** y tumbaba la escritura del usuario (23503 → 500). Una bitácora nunca debe fallar la operación que registra; `actor_name` ya es el rastro durable y `actor_id` queda informativo.
 
 Solo se auditan **estado y fecha de pago** (`status_changed`, `paid_at_changed`) más `created`/`deleted`; editar concepto, monto o notas no genera evento. Es a propósito: lo que importa fiscalmente es cuándo y quién dijo "ya se pagó".
 
@@ -47,7 +48,7 @@ No reemplaza el rastro `edited_by/edited_at/original` de `time_entries` (ADR-026
 
 ## Consecuencias
 
-- **Migración `20260924031216 add_audit_events`** — tabla, índice `(entity_type, entity_id, created_at DESC)`, RLS, función, trigger, GRANTs. `schema.sql` y el baseline actualizados en el mismo commit; `resetDb()` trunca `payables` y `audit_events`.
+- **Migraciones `20260924031216 add_audit_events`** (tabla, índice `(entity_type, entity_id, created_at DESC)`, RLS, función, trigger, GRANTs) y **`20260924034509 audit_events_actor_without_fk`**. `schema.sql` y el baseline actualizados en el mismo commit; `resetDb()` trunca `payables` y `audit_events`.
 - **La única prueba real es `tests/integration/payables-audit.integration.test.ts`** (Docker): el trigger, el nombre del member en el evento, las 0 filas del member, el `INSERT` denegado y el 403. El mock no finge nada de eso. El workflow `integration.yml` la corre en CI cuando el PR toca `supabase/**` (#104).
 - Sumar otra entidad: una función `audit_<entidad>()` con su trigger, escribiendo en la misma tabla con su `entity_type`; la ruta de lectura y la UI se copian del patrón de payables.
-- Costo: un `INSERT` extra por cambio de estado y una consulta extra a `audit_events` por página de la lista **solo para admins**.
+- Costo: un `INSERT` extra por cambio de estado y una consulta extra a `audit_events` por página de la lista **solo para admins** — y solo para las filas pagadas HOY: una factura regresada a pendiente conserva su evento viejo, y anexarlo diría "Pagada por" sobre una pendiente (review PR #106). Las dos lecturas desempatan por `id`, como el overview.

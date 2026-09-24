@@ -744,7 +744,7 @@ CREATE TABLE public.audit_events (
   entity_type text NOT NULL,                  -- 'payable' hoy; otras entidades después
   entity_id uuid NOT NULL,
   action text NOT NULL,                       -- created | status_changed | paid_at_changed | deleted
-  actor_id uuid REFERENCES public.profiles(id),   -- sin cascade: el rastro sobrevive a la baja
+  actor_id uuid,                              -- sin FK: un INSERT de bitácora jamás tumba la escritura del usuario
   actor_name text,                            -- snapshot del display_name de ese día
   data jsonb NOT NULL DEFAULT '{}'::jsonb,    -- { from, to } o el snapshot de la fila
   created_at timestamptz NOT NULL DEFAULT now()

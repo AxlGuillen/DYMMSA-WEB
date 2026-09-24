@@ -100,24 +100,27 @@ describe('GET /api/payables', () => {
     expect((await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables?minAmount=500&maxAmount=100' }))).status).toBe(400)
   })
 
-  test('admin: cada fila trae paid_by con el último evento "marcada pagada"', async () => {
+  test('admin: cada fila PAGADA trae paid_by con el último evento; una pendiente con evento viejo va en null', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
         'profiles.select': { data: ME_ADMIN, error: null },
-        'payables.select': { data: [PAYABLE_ROW, { ...PAYABLE_ROW, id: 'p2' }], error: null, count: 2 },
+        'payables.select': { data: [{ ...PAYABLE_ROW, status: 'paid', paid_at: '2026-09-10' }, { ...PAYABLE_ROW, id: 'p2', status: 'paid', paid_at: '2026-09-11' }, { ...PAYABLE_ROW, id: 'p3' }], error: null, count: 3 },
         'audit_events.select': { data: [PAID_EVENT, { ...PAID_EVENT, actor_name: 'Viejo', created_at: '2026-09-01T00:00:00Z' }], error: null },
       },
     })
     const res = await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables' }))
     const body = await readJson<{ data: Array<{ id: string; paid_by: unknown }> }>(res)
-    // Newest event wins; a payable without one gets an explicit null.
+    // Newest event wins; a paid payable without one gets an explicit null; a pending one is
+    // never looked up (its old "paid" event would mislead) — review PR #106.
     expect(body.data[0].paid_by).toEqual({ name: 'Diego', at: '2026-09-10T18:00:00Z' })
     expect(body.data[1].paid_by).toBeNull()
+    expect(body.data[2].paid_by).toBeNull()
     const rec = activeClient.callsTo('audit_events', 'select')[0]
     expect(filterValue(rec, 'entity_type')).toBe('payable')
     expect(filterValue(rec, 'data->to->>status')).toBe('paid')
     expect(rec.filters.find((f) => f.method === 'in')?.args).toEqual(['entity_id', ['p1', 'p2']])
+    expect(rec.filters.filter((f) => f.method === 'order').map((f) => f.args[0])).toEqual(['created_at', 'id'])
   })
 
   test('member: la respuesta NO trae la llave paid_by y nunca consulta la bitácora (ADR-028)', async () => {

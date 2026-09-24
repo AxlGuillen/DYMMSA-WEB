@@ -6,6 +6,8 @@ import { monthOf, nextMonth, type ISODate } from './month'
 export { monthOf, nextMonth }
 export type { ISODate }
 
+export const PAYABLE_STATUSES: readonly PayableStatus[] = ['pending', 'paid', 'cancelled']
+
 export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
   pending: 'Pendiente',
   paid: 'Pagada',
@@ -129,6 +131,12 @@ export function summarizeMonth(
 }
 
 /** Days from today to the due date (negative = overdue); drives the cell tone. */
+export function daysUntilDue(dueDate: ISODate, today: ISODate): number {
+  const due = new Date(`${dueDate}T00:00:00Z`).getTime()
+  const now = new Date(`${today}T00:00:00Z`).getTime()
+  return Math.round((due - now) / 86_400_000)
+}
+
 /** Spanish sentence for one audit row of a payable (ADR-028). `fmtDay` formats a bare ISO date. */
 export function describeAuditEvent(
   event: Pick<AuditEvent, 'action' | 'data'>,
@@ -151,8 +159,12 @@ export function describeAuditEvent(
   }
 }
 
-export function daysUntilDue(dueDate: ISODate, today: ISODate): number {
-  const due = new Date(`${dueDate}T00:00:00Z`).getTime()
-  const now = new Date(`${today}T00:00:00Z`).getTime()
-  return Math.round((due - now) / 86_400_000)
+/**
+ * Amount typed in a filter box → number for the API, or '' when it is not a plain amount.
+ * Strips es-MX thousands separators and `$`; `parseFloat('1,500')` would silently give 1.
+ */
+export function parseAmountFilter(raw: string): string {
+  const cleaned = raw.replace(/[\s$,]/g, '')
+  if (!/^\d+(\.\d+)?$/.test(cleaned)) return ''
+  return String(Number(cleaned))
 }

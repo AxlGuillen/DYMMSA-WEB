@@ -14,23 +14,17 @@ import { Plus, Search, X } from '@/components/icons'
 import { ColumnPicker } from '@/components/ColumnPicker'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { useProfile } from '@/hooks/useProfile'
-import { parseNumber } from '@/lib/format'
 import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { PayableForm } from '@/components/finance/PayableForm'
 import { PayablesTable, payablesColumns } from '@/components/finance/PayablesTable'
 import { usePayables, type PayableSortField } from '@/hooks/usePayables'
-import { PAYABLE_STATUS_LABELS } from '@/lib/payables'
+import { PAYABLE_STATUS_LABELS, parseAmountFilter } from '@/lib/payables'
 import type { PayableStatus, PayableWithSupplier } from '@/types/database'
 
 /** Radix rejects value="" in SelectItem; sentinel for "all". */
 const ALL_STATUSES = '__all__'
 const ALL_SUPPLIERS = '__all__'
 
-/** Only a parseable amount reaches the API; anything else is "no filter". */
-const amountFilter = (raw: string) => {
-  const n = parseNumber(raw)
-  return n !== null && n >= 0 ? String(n) : ''
-}
 
 export default function PayablesPage() {
   const [search, setSearch] = useState('')
@@ -55,8 +49,8 @@ export default function PayablesPage() {
     status: status === ALL_STATUSES ? '' : status,
     month,
     supplier: supplier === ALL_SUPPLIERS ? '' : supplier,
-    minAmount: amountFilter(minAmount),
-    maxAmount: amountFilter(maxAmount),
+    minAmount: parseAmountFilter(minAmount),
+    maxAmount: parseAmountFilter(maxAmount),
     sortField,
     sortDir,
   })

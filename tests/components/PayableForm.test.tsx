@@ -145,6 +145,21 @@ describe('PayableForm — estado y fecha de pago al editar (#100)', () => {
     expect('status' in updates).toBe(false)
   })
 
+  test('un resbalón pagada → pendiente → pagada conserva la fecha real, no la pisa con hoy', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<PayableForm open onOpenChange={vi.fn()} payable={{ ...PAID_ROW, status: 'paid', paid_at: '2026-09-03' }} />)
+    await user.click(screen.getByLabelText('Estado'))
+    await user.click(await screen.findByRole('option', { name: 'Pendiente' }))
+    expect((screen.getByLabelText('Pagada el') as HTMLInputElement).value).toBe('')
+    await user.click(screen.getByLabelText('Estado'))
+    await user.click(await screen.findByRole('option', { name: 'Pagada' }))
+    expect((screen.getByLabelText('Pagada el') as HTMLInputElement).value).toBe('2026-09-03')
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    const updates = updateAsync.mock.calls[0][0].updates
+    expect('status' in updates).toBe(false)
+    expect('paid_at' in updates).toBe(false)
+  })
+
   test('el historial solo existe para el admin (ADR-028)', () => {
     state.events = [{ id: 1, action: 'status_changed', actor_name: 'Diego', data: { to: { status: 'paid', paid_at: '2026-09-10' } }, created_at: new Date().toISOString() }]
     const { unmount } = renderWithProviders(<PayableForm open onOpenChange={vi.fn()} payable={PAID_ROW} />)

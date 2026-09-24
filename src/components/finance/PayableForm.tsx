@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -33,12 +33,10 @@ import { useSuppliers } from '@/hooks/useSuppliers'
 import { useCreatePayable, useUpdatePayable, usePayableEvents } from '@/hooks/usePayables'
 import { useProfile } from '@/hooks/useProfile'
 import { useDateFormat } from '@/hooks/useDateFormat'
-import { describeAuditEvent, dueDateFrom, paymentTermsLabel, PAYABLE_STATUS_LABELS } from '@/lib/payables'
+import { describeAuditEvent, dueDateFrom, paymentTermsLabel, PAYABLE_STATUS_LABELS, PAYABLE_STATUSES } from '@/lib/payables'
 import { formatRelative, parseNumber, todayInMexico } from '@/lib/format'
 import { ApiError } from '@/lib/fetch-json'
-import type { PayableStatus, PayableUpdate, PayableWithSupplier } from '@/types/database'
-
-const STATUSES: PayableStatus[] = ['pending', 'paid', 'cancelled']
+import type { PayableUpdate, PayableWithSupplier } from '@/types/database'
 
 const payableSchema = z.object({
   supplier_id: z.string().min(1, 'Elige el proveedor'),
@@ -50,7 +48,7 @@ const payableSchema = z.object({
   invoice_date: z.string().min(1, 'La fecha de factura es requerida'),
   due_date: z.string().min(1, 'El vencimiento es requerido'),
   notes: z.string(),
-  status: z.enum(['pending', 'paid', 'cancelled']),
+  status: z.enum(PAYABLE_STATUSES),
   paid_at: z.string(),
 }).refine((v) => v.status !== 'paid' || v.paid_at.length > 0, {
   message: 'Indica la fecha de pago',
@@ -110,6 +108,8 @@ function PayableFormBody({
     },
   })
   const status = form.watch('status')
+  // Last non-empty payment date: a paid→pending→paid slip must not replace the real date with today.
+  const lastPaidAt = useRef(payable?.paid_at ?? '')
 
   const termsOf = (supplierId: string) =>
     suppliers.find((s) => s.id === supplierId)?.payment_terms_days ?? null
@@ -278,9 +278,9 @@ function PayableFormBody({
                     value={field.value}
                     onValueChange={(value) => {
                       field.onChange(value)
-                      // Real payment date, editable: default today, cleared when leaving "paid".
-                      if (value === 'paid') { if (!form.getValues('paid_at')) form.setValue('paid_at', todayInMexico()) }
-                      else form.setValue('paid_at', '')
+                      // Real payment date, editable: restore the last one (or today), clear when leaving "paid".
+                      if (value === 'paid') { if (!form.getValues('paid_at')) form.setValue('paid_at', lastPaidAt.current || todayInMexico()) }
+                      else { lastPaidAt.current = form.getValues('paid_at') || lastPaidAt.current; form.setValue('paid_at', '') }
                     }}
                   >
                     <FormControl>
@@ -289,7 +289,7 @@ function PayableFormBody({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {STATUSES.map((s) => (
+                      {PAYABLE_STATUSES.map((s) => (
                         <SelectItem key={s} value={s}>{PAYABLE_STATUS_LABELS[s]}</SelectItem>
                       ))}
                     </SelectContent>

@@ -21,6 +21,7 @@ export async function GET(
       .eq('entity_type', 'payable')
       .eq('entity_id', id)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(100)
 
     if (error) {
