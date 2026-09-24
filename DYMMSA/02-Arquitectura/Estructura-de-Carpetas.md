@@ -82,7 +82,7 @@ src/
 │   ├── ColumnPicker.tsx          # Selector "Columnas" por tabla (checkbox + restablecer, issue #18)
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
-│   ├── hours/                    # HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93)
+│   ├── hours/                    # HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93); WeekChart/WeekBars, TrendChart/TrendBars (gráficas con referencias de jornada, issue #101)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
 │   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable, PurchasePlanner
@@ -91,7 +91,7 @@ src/
 │   ├── quoter/                   # FileUploader, ProductModal, QuotationEditor, QuotePreview
 │   ├── suppliers/                # SuppliersTable, SupplierForm, BrandsManager (issue #21)
 │   ├── tasks/                    # TaskForm, TaskDetail, TaskPriorityBadge
-│   └── ui/                       # shadcn/ui components (alert-dialog, badge, button, etc.)
+│   └── ui/                       # shadcn/ui components (alert-dialog, badge, button, chart, etc.)
 │
 ├── hooks/
 │   ├── useAuth.ts                # Auth state y helpers
