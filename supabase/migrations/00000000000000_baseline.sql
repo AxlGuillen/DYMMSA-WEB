@@ -732,3 +732,84 @@ GRANT SELECT, INSERT ON public.time_imports TO authenticated;
 GRANT ALL ON public.profiles, public.time_entries, public.time_imports TO service_role;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.import_time_entries(jsonb, date, date, text) TO authenticated, service_role;
+
+-- ============================================================================
+-- Bitácora genérica (issue #100, ADR-028): quién cambió qué y cuándo.
+-- Tabla aparte y NO columnas en la entidad: solo el admin la lee (RLS), y un
+-- member no puede ni saber que existe leyendo payables por PostgREST.
+-- Escribe únicamente el trigger (DEFINER); la app no tiene INSERT.
+-- ============================================================================
+CREATE TABLE public.audit_events (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  entity_type text NOT NULL,                  -- 'payable' hoy; otras entidades después
+  entity_id uuid NOT NULL,
+  action text NOT NULL,                       -- created | status_changed | paid_at_changed | deleted
+  actor_id uuid,                              -- sin FK: un INSERT de bitácora jamás tumba la escritura del usuario
+  actor_name text,                            -- snapshot del display_name de ese día
+  data jsonb NOT NULL DEFAULT '{}'::jsonb,    -- { from, to } o el snapshot de la fila
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_audit_events_entity ON public.audit_events (entity_type, entity_id, created_at DESC);
+
+ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins read audit events" ON public.audit_events
+  FOR SELECT TO authenticated USING (public.is_admin());
+-- Sin policy de escritura para authenticated a propósito.
+
+-- DEFINER: inserta saltando la RLS de audit_events y lee profiles como owner
+-- para el snapshot del nombre. auth.uid() es NULL con service_role.
+CREATE OR REPLACE FUNCTION public.audit_payable()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_actor uuid := (SELECT auth.uid());
+  v_name text;
+  v_action text;
+  v_data jsonb;
+BEGIN
+  SELECT display_name INTO v_name FROM public.profiles WHERE id = v_actor;
+
+  IF TG_OP = 'INSERT' THEN
+    v_action := 'created';
+    v_data := jsonb_build_object(
+      'concept', NEW.concept, 'amount', NEW.amount,
+      'supplier_id', NEW.supplier_id, 'status', NEW.status
+    );
+  ELSIF TG_OP = 'DELETE' THEN
+    v_action := 'deleted';
+    v_data := jsonb_build_object(
+      'concept', OLD.concept, 'amount', OLD.amount,
+      'supplier_id', OLD.supplier_id, 'status', OLD.status, 'paid_at', OLD.paid_at
+    );
+  ELSE
+    IF OLD.status IS NOT DISTINCT FROM NEW.status
+       AND OLD.paid_at IS NOT DISTINCT FROM NEW.paid_at THEN
+      RETURN NEW;  -- concept/amount/notes edits are not audited (yet)
+    END IF;
+    v_action := CASE WHEN OLD.status IS DISTINCT FROM NEW.status
+                     THEN 'status_changed' ELSE 'paid_at_changed' END;
+    v_data := jsonb_build_object(
+      'from', jsonb_build_object('status', OLD.status, 'paid_at', OLD.paid_at),
+      'to',   jsonb_build_object('status', NEW.status, 'paid_at', NEW.paid_at)
+    );
+  END IF;
+
+  INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+  VALUES ('payable', COALESCE(NEW.id, OLD.id), v_action, v_actor, v_name, v_data);
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.audit_payable() FROM PUBLIC;
+
+CREATE TRIGGER payables_audit
+  AFTER INSERT OR UPDATE OR DELETE ON public.payables
+  FOR EACH ROW EXECUTE FUNCTION public.audit_payable();
+
+-- Sin anon; sin INSERT para authenticated: solo el trigger escribe.
+GRANT SELECT ON public.audit_events TO authenticated;
+GRANT ALL ON public.audit_events TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.audit_events_id_seq TO service_role;

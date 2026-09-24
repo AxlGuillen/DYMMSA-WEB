@@ -146,7 +146,8 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/payables` | ✅ | Lista paginada con proveedor embebido. Query: `page`, `pageSize (≤100)`, `search` (concepto, ilike saneado), `status (pending/paid/cancelled)`, `month (YYYY-MM, por VENCIMIENTO)`, `sortField (due_date/invoice_date/amount/created_at)`, `sortDir` |
+| `GET` | `/api/payables` | ✅ | Lista paginada con proveedor embebido. Query: `page`, `pageSize (≤100)`, `search` (concepto, ilike saneado), `status (pending/paid/cancelled)`, `month (YYYY-MM, por VENCIMIENTO)`, `supplier` (uuid; otro valor se ignora), `minAmount`/`maxAmount` (≥ 0; inválido o `min > max` → 400), `sortField (due_date/invoice_date/amount/created_at)`, `sortDir`. **Solo si el llamador es admin** cada fila trae `paid_by: { name, at } \| null` (último evento "marcada pagada" de `audit_events`); para un member la llave **no existe** (ADR-028) |
+| `GET` | `/api/payables/[id]/events` | ✅ admin | Bitácora de la factura, más reciente primero (máx 100): `{ id, action, actor_name, data, created_at }`. Member → 403. RLS `is_admin()` + `requireAdmin()` (ADR-028) |
 | `POST` | `/api/payables` | ✅ | Registrar factura. Body: `{ supplier_id, concept, amount > 0, invoice_date, due_date, notes? }`. Proveedor obligatorio y existente (404 preciso). Siempre nace `pending` — el status del cliente se ignora |
 | `PATCH` | `/api/payables/[id]` | ✅ | Updates sparse. Regla de pago: `status→'paid'` sin `paid_at` → default hoy; `status→'pending'/'cancelled'` limpia `paid_at`; `paid_at` solo también se acepta (corregir fecha de una pagada) |
 | `DELETE` | `/api/payables/[id]` | ✅ | Eliminar factura |

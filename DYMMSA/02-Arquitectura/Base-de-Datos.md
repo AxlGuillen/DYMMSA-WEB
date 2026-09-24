@@ -277,6 +277,28 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
 Índice: `idx_payables_status_due_date (status, due_date)`.
+Trigger `payables_audit` (AFTER INSERT/UPDATE/DELETE) → `audit_payable()` escribe en `audit_events` (issue #100, ADR-028).
+
+---
+
+## Tabla: `audit_events`
+
+**Propósito:** Bitácora genérica de cambios — quién, cuándo, de qué a qué. Solo el admin la lee; la escribe un trigger por entidad.
+**Módulo:** Finanzas (issue #100, ADR-028) — preparada para otras entidades.
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | bigint | No | identity | PK | |
+| `entity_type` | text | No | — | | `'payable'` hoy |
+| `entity_id` | uuid | No | — | | Sin FK a propósito: el evento sobrevive al borrado de la entidad |
+| `action` | text | No | — | | `created` · `status_changed` · `paid_at_changed` · `deleted` |
+| `actor_id` | uuid | Sí | — | **sin FK** (review PR #106) | `auth.uid()` del que hizo el cambio; NULL con service role. Sin FK: la bitácora nunca falla la escritura que registra |
+| `actor_name` | text | Sí | — | | **Snapshot** del `display_name` de ese día |
+| `data` | jsonb | No | `'{}'` | | `{ from, to }` en cambios; snapshot de la fila en created/deleted |
+| `created_at` | timestamptz | No | `now()` | | |
+
+Índice: `idx_audit_events_entity (entity_type, entity_id, created_at DESC)`.
+RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRANT solo SELECT, sin `anon`). Función `audit_payable()` SECURITY DEFINER con `search_path = ''`, `REVOKE EXECUTE FROM PUBLIC`.
 
 ---
 
@@ -420,6 +442,8 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `20260909031135` | `add_profiles_and_time_entries` | Módulo de horas (issue #93, ADR-026): `profiles` + trigger `handle_new_user` + `is_admin()`, `time_entries`, `time_imports`, RPC `import_time_entries`. Primera RLS por persona; GRANTs sin `anon` |
 | `20260909162418` | `import_time_entries_deterministic_dedupe` | `ORDER BY ... clock_out DESC NULLS LAST` en el dedupe de la RPC (review PR #96) |
 | `20260916190052` | `tighten_profiles_and_imports_rls` | `profiles` SELECT = fila propia o admin; `time_imports` SELECT = admin; conteo casteado en la RPC (review PR #99) |
+| `20260924031216` | `add_audit_events` | Bitácora genérica `audit_events` (solo admin lee, sin INSERT para authenticated) + `audit_payable()` DEFINER y trigger `payables_audit`. Issue #100, ADR-028 |
+| `20260924034509` | `audit_events_actor_without_fk` | Se quita el FK `actor_id → profiles`: dentro del trigger tumbaba la escritura del usuario (review PR #106) |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |

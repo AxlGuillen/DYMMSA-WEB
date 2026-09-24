@@ -3,6 +3,21 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-23
+
+### Nuevo
+- **Filtros por proveedor y por monto en Facturas por pagar.** Junto al
+  filtro de estado hay un selector de proveedor y dos campos de monto mínimo
+  y máximo. La barra de texto sigue buscando por concepto.
+- **Estado y fecha de pago desde el popup de editar.** Al editar una factura
+  puedes cambiar su estado y, si está pagada, capturar o corregir la fecha
+  real en que se pagó — sin depender del botón ✓, que sella "hoy". Esa fecha
+  es la que alimenta el cierre del mes en Finanzas.
+
+### Mejorado
+- Los administradores ven quién marcó cada factura como pagada (columna
+  "Pagada por") y el historial de cambios de estado dentro del popup.
+
 ## 2026-09-21
 
 ### Nuevo
