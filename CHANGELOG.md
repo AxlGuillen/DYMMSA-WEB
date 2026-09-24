@@ -20,6 +20,14 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   alguien esta semana, cómo viene en las últimas semanas y qué reportes del
   checador se han cargado. Cada quien ve lo mismo que en la app: un miembro
   solo sus propias horas, un administrador las de todos.
+- **Revisión de facturas sin orden de venta (Odoo), desde el asistente.**
+  Pídele "revisa qué facturas de este mes no están ligadas a su orden de
+  venta" y te da, en una sola pasada, las huérfanas y las de vínculo roto
+  (el origen dice una orden pero ninguna está ligada de verdad), con el
+  cliente, el total, las notas al pie ("PEDIDO: …") y el término de pago.
+  El detalle de una factura ahora dice cuántas órdenes tiene ligadas, su
+  término de pago real y la unidad de cada línea (piezas vs cajas); el de
+  una venta lista sus facturas y qué falta por facturar por línea.
 - **El asistente ya cubre todos los módulos.** Puede responder sobre
   proveedores (contacto, plazo, marcas que surten), facturas por pagar ("¿qué
   debo esta semana?", el detalle de una factura), el cierre

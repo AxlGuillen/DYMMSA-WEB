@@ -47,6 +47,26 @@ export function normalizeGroups(groups: unknown): OdooRecord[] {
   return out
 }
 
+/** Raw x2many (id array) → number[]; anything else is dropped so it never reaches a domain. */
+export function idsOf(value: unknown): number[] {
+  return Array.isArray(value) ? value.filter((v): v is number => typeof v === 'number') : []
+}
+
+const ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' }
+
+/** Odoo html fields (`narration`) → plain text; block tags become line breaks. Empty → null. */
+export function htmlToText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const text = value
+    .replace(/<\s*(br|\/p|\/div|\/li|\/tr)\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (m) => ENTITIES[m] ?? m)
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim()
+  return text || null
+}
+
 /** Days elapsed since `dateIso` up to today in Morelia; 0 when it is in the future. */
 export function daysSince(dateIso: string, today = new Date()): number {
   const date = Date.parse(`${dateIso}T00:00:00Z`)

@@ -37,15 +37,21 @@ const F00167 = {
   l10n_mx_edi_cfdi_uuid: '6063dc3f-b881-4ea9-a24b-d9bb40623340',
   l10n_mx_edi_cfdi_state: 'sent',
   l10n_mx_edi_cfdi_sat_state: 'valid',
+  // #110 (captured 2026-09-24): computed count, HTML footer, payment term m2o.
+  sale_order_count: 1,
+  narration: '<p data-oe-version="2.0">PEDIDO: 4102931264</p>',
+  invoice_payment_term_id: [13, '90 días'],
 }
 
 const LINE = {
   id: 1294,
   name: '13875 Rodillo para pintar 9 x 3/8" superficies lisas, TRUPER',
   quantity: 15.0,
+  product_uom_id: [1, 'Units'],
   price_unit: 56.0,
   price_subtotal: 840.0,
   price_total: 974.4,
+  sale_line_ids: [1118],
 }
 
 describe('catálogo fase 5', () => {
@@ -83,10 +89,36 @@ describe('odoo_invoice_detail', () => {
       expect(result.productos[0]).toEqual({
         producto: LINE.name,
         cantidad: 15,
+        unidad: 'Units',
         precio_unitario: 56,
         subtotal: 840,
         total: 974.4,
+        ligada_a_venta: true,
       })
+      // #110: the real link, the payment term and the footer notes as text.
+      expect(result.factura).toMatchObject({ termino_pago: '90 días', notas_pie: 'PEDIDO: 4102931264' })
+      expect(result.vinculo_venta).toEqual({ ordenes_ligadas: 1, diagnostico: 'ligada' })
+    }
+  })
+
+  test('huérfana: 0 órdenes ligadas sin origen; con origen es vínculo roto (#110)', async () => {
+    const orphan = { ...F00167, name: 'F00471', sale_order_count: 0, invoice_origin: false, narration: false, invoice_payment_term_id: false }
+    const { odoo } = fakeOdoo({
+      'account.move.search_read': [[orphan], [{ ...orphan, invoice_origin: 'S00247' }]],
+      'account.move.line.search_read': [[{ ...LINE, sale_line_ids: [] }], []],
+    })
+    const a = await odooInvoiceDetail(odoo, { folio: 'F00471' })
+    expect(a.encontrado).toBe(true)
+    if (a.encontrado) {
+      expect(a.vinculo_venta).toEqual({ ordenes_ligadas: 0, diagnostico: 'huerfana' })
+      expect(a.factura).toMatchObject({ termino_pago: null, notas_pie: null })
+      expect(a.productos[0].ligada_a_venta).toBe(false)
+    }
+    const b = await odooInvoiceDetail(odoo, { folio: 'F00471' })
+    expect(b.encontrado).toBe(true)
+    if (b.encontrado) {
+      expect(b.vinculo_venta.diagnostico).toBe('vinculo_roto')
+      expect(b.productos).toEqual([])
     }
   })
 
@@ -122,11 +154,13 @@ describe('odoo_sale_detail', () => {
         id: 247, name: 'S00247', partner_id: [17, 'GE POWER SERVICES MEXICO'],
         date_order: '2026-05-06 10:00:00', amount_untaxed: 154269.24, amount_total: 178952.32,
         state: 'sale', invoice_status: 'invoiced', user_id: [2, 'Diego Baltazar Esquivel'],
+        invoice_ids: [220],
       }]],
       'sale.order.line.search_read': [[{
-        id: 1118, name: LINE.name, product_uom_qty: 15, qty_delivered: 15, qty_invoiced: 15,
-        price_unit: 56, price_subtotal: 840,
+        id: 1118, name: LINE.name, product_uom_qty: 15, product_uom_id: [1, 'Units'], qty_delivered: 15, qty_invoiced: 15,
+        qty_to_invoice: 0, price_unit: 56, price_subtotal: 840, invoice_lines: [1294],
       }]],
+      'account.move.search_read': [[{ id: 220, name: 'F00167', move_type: 'out_invoice', state: 'posted', payment_state: 'not_paid', amount_total: 178952.32 }]],
     })
 
     const result = await odooSaleDetail(odoo, { folio: 'S00247' })
@@ -134,10 +168,44 @@ describe('odoo_sale_detail', () => {
     // display_type=false (not 'product': that value only exists in
     // account.move.line) drops sections and notes from the order.
     expect(calls[1].payload.domain).toEqual([['order_id', '=', 247], ['display_type', '=', false]])
+    // #110: the invoices come from the computed invoice_ids, resolved by id in one more call.
+    expect(calls[2].payload.domain).toEqual([['id', 'in', [220]]])
     expect(result.encontrado).toBe(true)
     if (result.encontrado) {
       expect(result.venta).toMatchObject({ folio: 'S00247', vendedor: 'Diego Baltazar Esquivel', estado: 'sale' })
-      expect(result.productos[0]).toMatchObject({ pedido: 15, entregado: 15, facturado: 15 })
+      expect(result.facturas).toEqual([{ folio: 'F00167', tipo: 'factura', estado: 'posted', estado_pago: 'not_paid', total: 178952.32 }])
+      expect(result.productos[0]).toMatchObject({ pedido: 15, unidad: 'Units', entregado: 15, facturado: 15, por_facturar: 0, lineas_de_factura: 1 })
+    }
+  })
+
+  test('venta sin facturas: sin la llamada extra, facturas vacías y por_facturar > 0 (#110)', async () => {
+    const { odoo, calls } = fakeOdoo({
+      'sale.order.search_read': [[{ id: 779, name: 'S00779', partner_id: [17, 'X'], date_order: '2026-09-20 10:00:00', amount_untaxed: 1, amount_total: 1, state: 'sale', invoice_status: 'to invoice', user_id: false, invoice_ids: [] }]],
+      'sale.order.line.search_read': [[{ id: 1, name: 'x', product_uom_qty: 4, product_uom_id: [2, 'Cajas'], qty_delivered: 4, qty_invoiced: 0, qty_to_invoice: 4, price_unit: 1, price_subtotal: 4, invoice_lines: [] }]],
+    })
+    const result = await odooSaleDetail(odoo, { folio: 'S00779' })
+    expect(calls).toHaveLength(2)
+    expect(result.encontrado).toBe(true)
+    if (result.encontrado) {
+      expect(result.facturas).toEqual([])
+      expect(result.productos[0]).toMatchObject({ unidad: 'Cajas', por_facturar: 4, lineas_de_factura: 0 })
+    }
+  })
+
+  test('factura en borrador ligada: sin folio (false o "/") se etiqueta; ids no numéricos no llegan al dominio', async () => {
+    const { odoo, calls } = fakeOdoo({
+      'sale.order.search_read': [[{ id: 739, name: 'S00739', partner_id: [24, 'Andritz'], date_order: '2026-09-24 17:29:55', amount_untaxed: 1, amount_total: 1, state: 'sale', invoice_status: 'invoiced', user_id: false, invoice_ids: [1043, 'x', 1044] }]],
+      'sale.order.line.search_read': [[]],
+      'account.move.search_read': [[
+        { id: 1043, name: false, move_type: 'out_invoice', state: 'draft', payment_state: 'not_paid', amount_total: 1 },
+        { id: 1044, name: '/', move_type: 'out_refund', state: 'draft', payment_state: 'not_paid', amount_total: 1 },
+      ]],
+    })
+    const result = await odooSaleDetail(odoo, { folio: 'S00739' })
+    expect(calls[2].payload.domain).toEqual([['id', 'in', [1043, 1044]]])
+    expect(result.encontrado).toBe(true)
+    if (result.encontrado) {
+      expect(result.facturas.map((f) => [f.folio, f.tipo])).toEqual([['(borrador, sin folio)', 'factura'], ['(borrador, sin folio)', 'nota de crédito']])
     }
   })
 })
