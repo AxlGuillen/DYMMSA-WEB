@@ -20,6 +20,21 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   alguien esta semana, cómo viene en las últimas semanas y qué reportes del
   checador se han cargado. Cada quien ve lo mismo que en la app: un miembro
   solo sus propias horas, un administrador las de todos.
+- **El asistente ya cubre todos los módulos.** Puede responder sobre
+  proveedores (contacto, plazo, marcas que surten), facturas por pagar ("¿qué
+  debo esta semana?", el detalle de una factura con su historial), el cierre
+  del mes (egresos de aquí + ingresos de Odoo), la lista de corte de una orden
+  (cuánto tubo o placa pedir y cuántas barras u hojas salen con cada
+  presentación), el planificador de compra (qué va a mayoreo y qué a menudeo)
+  y la configuración de la app.
+- **Facturas por pagar desde el asistente.** Ahora puedes decirle "ya pagué
+  la de Perfiles, márcala" o "registra una factura de Tornillos MX por $2,500
+  con fecha de hoy": marca pagadas (con la fecha real, o de regreso a
+  pendiente) y registra facturas nuevas, calculando el vencimiento con el
+  plazo del proveedor como en la app. Antes de escribir te confirma qué va a
+  hacer, y si el nombre coincide con varias facturas o proveedores te pregunta
+  cuál. La bitácora registra quién lo hizo igual que desde la app. Editar
+  montos o borrar facturas sigue siendo solo desde la app.
 
 ## 2026-09-23
 

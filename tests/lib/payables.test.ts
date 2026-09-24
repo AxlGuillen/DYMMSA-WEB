@@ -1,7 +1,7 @@
 /** Payables math (#84). The clock is always injected; nothing reads new Date(). */
 
 import { describe, test, expect } from 'vitest'
-import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, paymentTermsLabel, summarizeMonth, weekOfMonth } from '@/lib/payables'
+import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, paymentTermsLabel, resolvePaymentUpdate, summarizeMonth, weekOfMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -167,5 +167,20 @@ describe('parseAmountFilter', () => {
     expect(parseAmountFilter('abc')).toBe('')
     expect(parseAmountFilter('-5')).toBe('')
     expect(parseAmountFilter('')).toBe('')
+  })
+})
+
+describe('resolvePaymentUpdate (regla compartida ruta/MCP, #109)', () => {
+  test('paid sin fecha sella hoy; con fecha la respeta', () => {
+    expect(resolvePaymentUpdate('paid', undefined, '2026-09-24')).toEqual({ ok: true, updates: { status: 'paid', paid_at: '2026-09-24' } })
+    expect(resolvePaymentUpdate('paid', null, '2026-09-24')).toEqual({ ok: true, updates: { status: 'paid', paid_at: '2026-09-24' } })
+    expect(resolvePaymentUpdate('paid', '2026-09-10', '2026-09-24')).toEqual({ ok: true, updates: { status: 'paid', paid_at: '2026-09-10' } })
+  })
+
+  test('cualquier otro estado limpia la fecha; estado o fecha inválidos → error', () => {
+    expect(resolvePaymentUpdate('pending', '2026-09-10', '2026-09-24')).toEqual({ ok: true, updates: { status: 'pending', paid_at: null } })
+    expect(resolvePaymentUpdate('cancelled', undefined, '2026-09-24')).toEqual({ ok: true, updates: { status: 'cancelled', paid_at: null } })
+    expect(resolvePaymentUpdate('pagada', undefined, '2026-09-24')).toEqual({ ok: false, error: 'Estado inválido' })
+    expect(resolvePaymentUpdate('paid', '10/09/2026', '2026-09-24')).toEqual({ ok: false, error: 'Fecha de pago inválida' })
   })
 })
