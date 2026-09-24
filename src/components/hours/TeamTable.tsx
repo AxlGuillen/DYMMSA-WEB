@@ -13,9 +13,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Pencil } from '@/components/icons'
 import { useProfiles, useUpdateProfile } from '@/hooks/useProfile'
-import type { Profile, ProfileRole } from '@/types/database'
+import { SHIFT_LABELS, SHIFTS } from '@/lib/timesheet'
+import type { Profile, ProfileRole, ProfileShift } from '@/types/database'
 
 const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador', member: 'Miembro' }
+/** Radix rejects value="" in SelectItem; sentinel for "no shift". */
+const NO_SHIFT = '__none__'
 
 /** Who is who: role and the clock id that maps the NGTeco report to a user. */
 export function TeamTable() {
@@ -40,6 +43,7 @@ export function TeamTable() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Id checador</TableHead>
+                <TableHead>Jornada</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -52,6 +56,9 @@ export function TeamTable() {
                   </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {p.clock_employee_id ?? <span className="italic">no checa</span>}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {p.shift ? SHIFT_LABELS[p.shift] : <span className="italic">sin jornada</span>}
                   </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(p)} aria-label={`Editar ${p.display_name}`}>
@@ -84,6 +91,7 @@ function ProfileFields({ profile, onClose }: { profile: Profile; onClose: () => 
   const [name, setName] = useState(profile.display_name)
   const [role, setRole] = useState<ProfileRole>(profile.role)
   const [clockId, setClockId] = useState(profile.clock_employee_id == null ? '' : String(profile.clock_employee_id))
+  const [shift, setShift] = useState<ProfileShift | null>(profile.shift ?? null)
   const update = useUpdateProfile()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,7 +104,7 @@ function ProfileFields({ profile, onClose }: { profile: Profile; onClose: () => 
     try {
       await update.mutateAsync({
         id: profile.id,
-        updates: { display_name: name.trim(), role, clock_employee_id: parsed },
+        updates: { display_name: name.trim(), role, clock_employee_id: parsed, shift },
       })
       toast.success('Perfil actualizado')
       onClose()
@@ -132,6 +140,19 @@ function ProfileFields({ profile, onClose }: { profile: Profile; onClose: () => 
           <div className="space-y-2">
             <Label htmlFor="pf-clock">Id checador</Label>
             <Input id="pf-clock" type="number" min={1} step={1} value={clockId} onChange={(e) => setClockId(e.target.value)} placeholder="Vacío = no checa" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pf-shift">Jornada</Label>
+            <Select value={shift ?? NO_SHIFT} onValueChange={(v) => setShift(v === NO_SHIFT ? null : (v as ProfileShift))}>
+              <SelectTrigger id="pf-shift"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_SHIFT}>Sin jornada</SelectItem>
+                {SHIFTS.map((s) => (
+                  <SelectItem key={s} value={s}>{SHIFT_LABELS[s]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Referencia de las gráficas de horas: 8 h o 4 h al día, 40 h o 20 h a la semana.</p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={update.isPending}>Cancelar</Button>

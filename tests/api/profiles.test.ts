@@ -92,6 +92,25 @@ describe('PATCH /api/profiles/[id]', () => {
     expect((await patch(OTHER.id, { clock_employee_id: '3' })).status).toBe(400)
   })
 
+  test('jornada: full_time/part_time o null; otro valor → 400', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_ADMIN) } })
+    expect((await patch(OTHER.id, { shift: 'night' })).status).toBe(400)
+
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': profilesTable(ME_ADMIN), 'profiles.update': { data: { id: OTHER.id, shift: 'part_time' }, error: null } },
+    })
+    expect((await patch(OTHER.id, { shift: 'part_time' })).status).toBe(200)
+    expect(activeClient.updatePayload('profiles')).toEqual({ shift: 'part_time' })
+
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': profilesTable(ME_ADMIN), 'profiles.update': { data: { id: OTHER.id, shift: null }, error: null } },
+    })
+    expect((await patch(OTHER.id, { shift: null })).status).toBe(200)
+    expect(activeClient.updatePayload('profiles')).toEqual({ shift: null })
+  })
+
   test('cuerpo sin cambios → 400', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_ADMIN) } })
     expect((await patch(OTHER.id, {})).status).toBe(400)

@@ -14,6 +14,7 @@ import {
   parseNgtecoReport,
   shiftWeek,
   weekBounds,
+  weekChartData, shiftProgress, buildWeeklyTrend, SHIFT_HOURS,
 } from '@/lib/timesheet'
 import { NGTECO_NUMERIC, NGTECO_PERIOD, NGTECO_WEEK } from '../helpers/fixtures/ngteco'
 
@@ -117,6 +118,38 @@ describe('duraciones', () => {
   test('sin salida no hay minutos; una salida anterior a la entrada cuenta 0', () => {
     expect(minutesBetween('10:06', null)).toBeNull()
     expect(minutesBetween('18:00', '09:00')).toBe(0)
+  })
+})
+
+describe('referencias de jornada (#101)', () => {
+  const entry = (date: string, clockIn: string, clockOut: string | null) => ({ work_date: date, clock_in: clockIn, clock_out: clockOut })
+
+  test('weekChartData: horas con un decimal por día y las checadas abiertas aparte', () => {
+    const week = buildWeekView([entry('2026-08-31', '09:00', '17:30'), entry('2026-09-01', '09:00', null)], '2026-08-31')
+    const data = weekChartData(week)
+    expect(data).toHaveLength(7)
+    expect(data[0]).toEqual({ label: 'Lun', date: '2026-08-31', hours: 8.5, open: 0 })
+    expect(data[1]).toEqual({ label: 'Mar', date: '2026-09-01', hours: 0, open: 1 })
+  })
+
+  test('shiftProgress: objetivo semanal 40 h / 20 h, porcentaje y faltante; null sin jornada', () => {
+    expect(shiftProgress(30 * 60, 'full_time')).toEqual({ target: 2400, pct: 75, missing: 600 })
+    expect(shiftProgress(21 * 60, 'part_time')).toEqual({ target: 1200, pct: 105, missing: 0 })
+    expect(shiftProgress(10, null)).toBeNull()
+    expect(SHIFT_HOURS.full_time).toEqual({ daily: 8, weekly: 40 })
+    expect(SHIFT_HOURS.part_time).toEqual({ daily: 4, weekly: 20 })
+  })
+
+  test('buildWeeklyTrend: N semanas terminando en la dada, de la más vieja a la más nueva; vacías en 0', () => {
+    const trend = buildWeeklyTrend(
+      [entry('2026-08-31', '09:00', '17:00'), entry('2026-08-17', '09:00', '13:00'), entry('2026-08-18', '08:00', null)],
+      '2026-08-31',
+      3,
+    )
+    expect(trend.map((w) => w.start)).toEqual(['2026-08-17', '2026-08-24', '2026-08-31'])
+    expect(trend.map((w) => w.hours)).toEqual([4, 0, 8])
+    expect(trend[0].open).toBe(1)
+    expect(trend[2].end).toBe('2026-09-06')
   })
 })
 

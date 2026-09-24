@@ -6,7 +6,7 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { GitHubError } from '@/lib/github'
 import { OdooError, callOdoo } from '@/lib/odoo/client'
 import { ToolError, type Db } from './shared'
-import { contextFrom } from './context'
+import { contextFrom, type McpContext } from './context'
 import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } from './tools/odoo/accounting'
 import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
 import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/odoo/operations'
@@ -19,17 +19,19 @@ import { searchProducts } from './tools/products'
 import { searchUrreaCatalog } from './tools/urrea'
 import { listTasks, getTask, createTask, updateTask } from './tools/tasks'
 import { getBusinessSummary } from './tools/summary'
+import { getWeekHours, getHoursTrend, listTimeImports } from './tools/hours'
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
 
 /** The SDK hands the AuthInfo validated by withMcpAuth in each call's extra. */
 type ToolExtra = { authInfo?: AuthInfo }
 
-/** Runs the tool with the token's db (RLS applies); expected errors surface their message, the rest go generic. */
-async function run(extra: ToolExtra, fn: (db: Db) => Promise<unknown>): Promise<ToolResult> {
+/** Runs the tool with the token's db (RLS applies); expected errors surface their message, the rest go generic.
+ *  The context carries the caller's identity for tools that mean "me" (hours, #101). */
+async function run(extra: ToolExtra, fn: (db: Db, ctx: McpContext) => Promise<unknown>): Promise<ToolResult> {
   try {
-    const { db } = contextFrom(extra.authInfo)
-    const data = await fn(db)
+    const ctx = contextFrom(extra.authInfo)
+    const data = await fn(ctx.db, ctx)
     return { content: [{ type: 'text', text: JSON.stringify(data) }] }
   } catch (e) {
     if (e instanceof ToolError || e instanceof GitHubError || e instanceof OdooError) {
@@ -75,6 +77,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Inventario de la TIENDA: search_inventory, get_inventory_stats; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
+- Horas del equipo (checador): get_week_hours, get_hours_trend, list_time_imports. Solo lectura. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
 
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
@@ -249,6 +252,50 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     ({ query }, extra) => run(extra, (db) => searchUrreaCatalog(db, query)),
+  )
+
+  server.registerTool(
+    'get_week_hours',
+    {
+      title: 'Horas de la semana',
+      description:
+        'Horas trabajadas de una semana según el checador, día por día, con el total y el cumplimiento de la jornada (tiempo completo 40 h / medio tiempo 20 h). Sin `persona` son las horas de quien pregunta; un administrador puede indicar a alguien por nombre parcial. `fecha` = cualquier día de la semana deseada (default: esta semana). Una "checada sin salida" no suma horas.',
+      inputSchema: {
+        persona: z.string().optional().describe('Nombre (o parte) de la persona; solo un administrador ve a otros'),
+        fecha: z.string().optional().describe('Cualquier día de la semana, YYYY-MM-DD (default hoy)'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db, ctx) => getWeekHours(db, ctx.userId, input)),
+  )
+
+  server.registerTool(
+    'get_hours_trend',
+    {
+      title: 'Tendencia de horas',
+      description:
+        'Total de horas por semana de las últimas N semanas (default 8, máx 26) hasta la actual, con el promedio semanal y el cumplimiento de la jornada. Úsala para "¿cómo viene Fulano este mes?" o "¿quién no está completando su jornada?" (una llamada por persona).',
+      inputSchema: {
+        persona: z.string().optional().describe('Nombre (o parte) de la persona; solo un administrador ve a otros'),
+        semanas: z.number().int().min(1).max(26).optional().describe('Semanas a incluir (default 8)'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db, ctx) => getHoursTrend(db, ctx.userId, input)),
+  )
+
+  server.registerTool(
+    'list_time_imports',
+    {
+      title: 'Cargas del checador',
+      description:
+        'Bitácora de los reportes semanales del checador cargados a la app: periodo, archivo, checadas insertadas/actualizadas y las saltadas por edición manual. Solo un administrador ve filas.',
+      inputSchema: {
+        limit: z.number().int().min(1).max(50).optional().describe('Cuántas cargas listar (default 10)'),
+      },
+      annotations: readOnly,
+    },
+    (input, extra) => run(extra, (db) => listTimeImports(db, input)),
   )
 
   server.registerTool(

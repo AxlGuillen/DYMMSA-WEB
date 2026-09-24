@@ -3,6 +3,24 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-24
+
+### Nuevo
+- **Gráficas en Horas.** Arriba de la rejilla semanal hay dos gráficas: las
+  **horas de cada día de la semana** y la **tendencia de las últimas 8
+  semanas**. Las dos dibujan las líneas de referencia de **medio tiempo** y
+  **tiempo completo** (4 h y 8 h al día; 20 h y 40 h a la semana) y resaltan
+  la que corresponde a la jornada de la persona, con un aviso de si cumple o
+  cuántas horas le faltan. Un día con una checada sin salida se pinta aparte:
+  no suma horas y no debe leerse como un día corto.
+- **Jornada por persona en Equipo.** Cada perfil puede tener jornada de
+  tiempo completo o de medio tiempo (o ninguna); es la referencia que usan
+  las gráficas.
+- **El asistente ya responde sobre horas.** Puede decir cuántas horas lleva
+  alguien esta semana, cómo viene en las últimas semanas y qué reportes del
+  checador se han cargado. Cada quien ve lo mismo que en la app: un miembro
+  solo sus propias horas, un administrador las de todos.
+
 ## 2026-09-23
 
 ### Nuevo

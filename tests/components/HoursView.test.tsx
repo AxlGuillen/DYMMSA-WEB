@@ -13,15 +13,15 @@ const state = vi.hoisted(() => ({
 
 vi.mock('@/hooks/useProfile', () => ({
   useProfile: () => ({
-    profile: { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5 },
+    profile: { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5, shift: 'part_time' },
     isAdmin: state.role === 'admin',
     isLoading: false,
   }),
   useProfiles: (enabled: boolean) => ({
     data: enabled
       ? [
-          { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5 },
-          { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1 },
+          { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5, shift: 'part_time' },
+          { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null },
         ]
       : undefined,
   }),
@@ -55,12 +55,34 @@ describe('HoursView', () => {
     expect((state.lastParams as { user: string | null }).user).toBeNull()
   })
 
+  test('las dos gráficas siguen a la persona en pantalla: la jornada del member es la suya (#101)', () => {
+    renderWithProviders(<HoursView />)
+    const week = screen.getByTestId('week-chart')
+    expect(week).toHaveTextContent('Medio tiempo · 4 h')
+    expect(week).toHaveTextContent('08:05 / 20 h')
+    expect(screen.getByTestId('trend-chart')).toHaveTextContent('Últimas 8 semanas')
+  })
+
   test('admin: selector de empleado y controles de edición', () => {
     state.role = 'admin'
     renderWithProviders(<HoursView />)
     expect(screen.getByLabelText('Empleado')).toBeInTheDocument()
     expect(screen.getAllByLabelText('Editar checada')).toHaveLength(1)
     expect((state.lastParams as { user: string | null }).user).toBe('me')
+  })
+
+  test('admin con jornada que mira a alguien sin jornada: la gráfica no le presta la suya (review PR #108)', async () => {
+    state.role = 'admin'
+    const user = (await import('@testing-library/user-event')).default.setup()
+    renderWithProviders(<HoursView />)
+    expect(screen.getByTestId('week-chart')).toHaveTextContent('Medio tiempo · 4 h')
+    await user.click(screen.getByLabelText('Empleado'))
+    await user.click(await screen.findByRole('option', { name: 'Diego' }))
+    const week = screen.getByTestId('week-chart')
+    expect(week).toHaveTextContent('Sin jornada asignada')
+    expect(week).not.toHaveTextContent('/ 20 h')
+    expect(week).not.toHaveTextContent('Faltan')
+    expect(week).not.toHaveTextContent('Cumple')
   })
 
   test('el stepper cambia de semana y ofrece volver a la actual', async () => {
