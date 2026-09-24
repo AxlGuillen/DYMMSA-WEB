@@ -532,6 +532,7 @@ CREATE TABLE public.profiles (
   display_name text NOT NULL,
   role text NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
   clock_employee_id integer UNIQUE CHECK (clock_employee_id > 0),
+  shift text CHECK (shift IN ('full_time', 'part_time')),  -- jornada (#101): NULL = sin asignar
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

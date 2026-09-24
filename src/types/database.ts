@@ -193,6 +193,8 @@ export type PayableInsert = Omit<Payable, 'id' | 'created_at' | 'updated_at'>
 export type PayableUpdate = Partial<PayableInsert>
 
 export type ProfileRole = 'admin' | 'member'
+/** Daily/weekly reference for the hours charts (#101); null = not assigned. */
+export type ProfileShift = 'full_time' | 'part_time'
 
 /** 1:1 with auth.users; the first per-person permission in the app (ADR-026, #93). */
 export interface Profile {
@@ -201,11 +203,12 @@ export interface Profile {
   role: ProfileRole
   /** NGTeco employee id; null = does not clock in. */
   clock_employee_id: number | null
+  shift: ProfileShift | null
   created_at: string
   updated_at: string
 }
 
-export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id'>>
+export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift'>>
 
 export type TimeEntrySource = 'import' | 'manual'
 

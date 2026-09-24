@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import type { Profile, ProfileRole, ProfileUpdate } from '@/types/database'
+import type { Profile, ProfileRole, ProfileShift, ProfileUpdate } from '@/types/database'
 
 const ROLES: ProfileRole[] = ['admin', 'member']
+const SHIFTS: ProfileShift[] = ['full_time', 'part_time']
 
-// PATCH /api/profiles/[id] — display name, role, clock id (admin)
+// PATCH /api/profiles/[id] — display name, role, clock id, shift (admin)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -35,6 +36,10 @@ export async function PATCH(
       }
       updates.clock_employee_id = cid
     }
+    if (body.shift !== undefined) {
+      if (body.shift !== null && !SHIFTS.includes(body.shift as ProfileShift)) return badRequest('Jornada inválida')
+      updates.shift = body.shift
+    }
     if (Object.keys(updates).length === 0) return badRequest('No hay cambios para guardar')
 
     const { data: current } = await supabase
@@ -52,7 +57,7 @@ export async function PATCH(
       .from('profiles')
       .update(updates)
       .eq('id', id)
-      .select('id, display_name, role, clock_employee_id, created_at, updated_at')
+      .select('id, display_name, role, clock_employee_id, shift, created_at, updated_at')
       .single()
 
     if (error || !data) {
