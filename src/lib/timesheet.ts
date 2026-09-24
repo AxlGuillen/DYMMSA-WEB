@@ -3,6 +3,8 @@
  * Pure. Callers normalize supabase-js `time` strings before calling.
  */
 
+import type { ProfileShift } from '@/types/database'
+
 export type ISODate = string
 export type HHMM = string
 
@@ -250,4 +252,72 @@ export function buildWeekView<T extends EntryLike>(entries: readonly T[], weekSt
     minutes: days.reduce((sum, d) => sum + d.minutes, 0),
     open: days.reduce((sum, d) => sum + d.open, 0),
   }
+}
+
+// ─── Shift references (#101) ───
+
+/** Daily and weekly targets per shift: 5-day week, decision 2026-09-24. */
+export const SHIFT_HOURS: Record<ProfileShift, { daily: number; weekly: number }> = {
+  full_time: { daily: 8, weekly: 40 },
+  part_time: { daily: 4, weekly: 20 },
+}
+
+export const SHIFT_LABELS: Record<ProfileShift, string> = {
+  full_time: 'Tiempo completo · 8 h',
+  part_time: 'Medio tiempo · 4 h',
+}
+
+export const SHIFTS: readonly ProfileShift[] = ['full_time', 'part_time']
+
+const toHours = (minutes: number) => Math.round((minutes / 60) * 10) / 10
+
+export interface WeekChartPoint {
+  label: (typeof WEEKDAY_LABELS)[number]
+  date: ISODate
+  hours: number
+  /** Pairs without a clock-out: they add nothing, so the bar must not read as a short day. */
+  open: number
+}
+
+/** The week as the chart draws it; every number is prepared here, never in the component. */
+export function weekChartData(week: WeekView<unknown>): WeekChartPoint[] {
+  return week.days.map((d) => ({ label: d.label, date: d.date, hours: toHours(d.minutes), open: d.open }))
+}
+
+export interface ShiftProgress {
+  /** Weekly target in minutes. */
+  target: number
+  /** 0–100+, rounded. */
+  pct: number
+  /** Minutes short of the target; 0 when met. */
+  missing: number
+}
+
+/** Weekly total against the shift target; null without an assigned shift. */
+export function shiftProgress(minutes: number, shift: ProfileShift | null | undefined): ShiftProgress | null {
+  if (!shift) return null
+  const target = SHIFT_HOURS[shift].weekly * 60
+  return { target, pct: Math.round((minutes / target) * 100), missing: Math.max(0, target - minutes) }
+}
+
+export interface WeekTrendPoint {
+  start: ISODate
+  end: ISODate
+  hours: number
+  minutes: number
+  open: number
+}
+
+/** The `weeks` weeks ending at `lastWeekStart`, oldest first; an empty week is 0, never missing. */
+export function buildWeeklyTrend<T extends EntryLike>(
+  entries: readonly T[],
+  lastWeekStart: ISODate,
+  weeks = 8,
+): WeekTrendPoint[] {
+  const out: WeekTrendPoint[] = []
+  for (let i = weeks - 1; i >= 0; i--) {
+    const week = buildWeekView(entries, shiftWeek(lastWeekStart, -i))
+    out.push({ start: week.start, end: week.end, hours: toHours(week.minutes), minutes: week.minutes, open: week.open })
+  }
+  return out
 }
