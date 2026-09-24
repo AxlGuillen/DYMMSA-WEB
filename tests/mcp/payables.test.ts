@@ -154,7 +154,8 @@ describe('markPayablePaid (escritura)', () => {
     expect(update.payload).toEqual({ status: 'paid', paid_at: TODAY })
     expect(filterValue(update, 'id')).toBe('p2')
     expect(result).toMatchObject({ estado: 'Pagada', pagada_el: TODAY })
-    expect(result.nota).toMatch(/bitácora registra quién/)
+    // The answer never mentions the audit trail (ADR-028), only the visible outcome.
+    expect(result.nota).toBe(`Marcada como pagada el ${TODAY}.`)
   })
 
   test('con fecha_pago la respeta; pagada=false regresa a pendiente y limpia la fecha', async () => {
@@ -165,7 +166,7 @@ describe('markPayablePaid (escritura)', () => {
     const back = client(rows)
     const result = await markPayablePaid(asDb(back), { factura: 'junio', pagada: false })
     expect(back.updatePayload('payables')).toEqual({ status: 'pending', paid_at: null })
-    expect(result.nota).toMatch(/Regresada a pendiente/)
+    expect(result.nota).toBe('Regresada a pendiente.')
   })
 
   test('guardas: ya pagada sin fecha no re-sella hoy; cancelada y ya-pendiente avisan; fecha inválida', async () => {

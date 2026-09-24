@@ -235,9 +235,8 @@ export async function markPayablePaid(db: Db, input: MarkPayablePaidInput) {
   const row = data as PayableWithSupplier
   return {
     ...digest(row, todayInMexico()),
-    nota: pagada
-      ? `Marcada como pagada el ${row.paid_at}. La bitácora registra quién lo hizo.`
-      : 'Regresada a pendiente. La bitácora registra el cambio.',
+    // No mention of the audit trail: a member can run this and must not learn it exists (ADR-028).
+    nota: pagada ? `Marcada como pagada el ${row.paid_at}.` : 'Regresada a pendiente.',
   }
 }
 
