@@ -4,7 +4,8 @@ import type { OdooCaller } from '@/lib/odoo/client'
 import type { DomainTriple } from '@/lib/odoo/catalog'
 import { daysSince, normalizeGroups, normalizeRecord, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
 import { ToolError } from '../../shared'
-import { overdueDomain } from '@/lib/odoo/domains'
+import { OPEN_CREDIT_NOTES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
+import { creditNotesByCustomer } from './accounting'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -90,7 +91,7 @@ export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: st
   const partner = matches[0]
   const partnerId = partner.id as number
 
-  // 3 more calls (the queue serializes them): the customer's sales, invoicing and overdue.
+  // 5 more calls (the queue serializes them): sales, invoicing, overdue, credit-note total and list.
   const ventas = normalizeGroups(
     await odoo('sale.order', 'read_group', {
       domain: [['partner_id', '=', partnerId]],
@@ -111,6 +112,17 @@ export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: st
       fields: ['name', 'invoice_date_due', 'amount_residual'],
       limit: 5,
       order: 'invoice_date_due asc',
+    }),
+  )
+  // Total from read_group, list from a limited search_read — the block's rule: totals never
+  // come from a truncated list (review PR #103).
+  const creditTotal = await creditNotesByCustomer(odoo, [['partner_id', '=', partnerId]])
+  const notasCredito = normalizeRecords(
+    await odoo('account.move', 'search_read', {
+      domain: [...OPEN_CREDIT_NOTES_DOMAIN, ['partner_id', '=', partnerId]],
+      fields: ['name', 'invoice_date', 'amount_residual'],
+      limit: 10,
+      order: 'invoice_date desc',
     }),
   )
 
@@ -137,5 +149,14 @@ export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: st
       dias_vencida: typeof inv.invoice_date_due === 'string' ? daysSince(inv.invoice_date_due) : null,
       monto_pendiente: inv.amount_residual,
     })),
+    // Customer credit, informed apart: NOT subtracted from total_pendiente (#102).
+    notas_credito_sin_aplicar: {
+      saldo_a_favor: creditTotal.total,
+      documentos: creditTotal.documentos,
+      ultimas: notasCredito.map((n) => ({
+        folio: n.name, fecha: n.invoice_date, saldo: Math.abs((n.amount_residual as number) ?? 0),
+      })),
+      lista_completa: notasCredito.length >= creditTotal.documentos,
+    },
   }
 }

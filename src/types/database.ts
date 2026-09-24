@@ -173,6 +173,20 @@ export interface Payable {
 /** Payable with its supplier embedded (GET /api/payables). */
 export interface PayableWithSupplier extends Payable {
   supplier: Pick<Supplier, 'id' | 'name' | 'payment_terms_days'>
+  /** Who last marked it paid — present ONLY in an admin's response, never for a member (ADR-028). */
+  paid_by?: { name: string | null; at: string } | null
+}
+
+export type AuditAction = 'created' | 'status_changed' | 'paid_at_changed' | 'deleted'
+
+/** One row of the audit trail (`audit_events`), written by a DB trigger; admins only. */
+export interface AuditEvent {
+  id: number
+  action: AuditAction
+  /** Snapshot at the time of the change; null when there was no session (service role). */
+  actor_name: string | null
+  data: Record<string, unknown>
+  created_at: string
 }
 
 export type PayableInsert = Omit<Payable, 'id' | 'created_at' | 'updated_at'>

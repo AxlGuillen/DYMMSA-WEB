@@ -7,7 +7,7 @@ import { unstable_cache } from 'next/cache'
 import { callOdoo } from './client'
 import {
   fetchMonthCollections,
-  fetchOpenReceivables,
+  fetchOpenCustomerMoves,
   type OdooCollection,
   type OdooOpenInvoice,
   type OdooRows,
@@ -27,7 +27,7 @@ const stamp = <T>(rows: OdooRows<T>): CachedRows<T> => ({ ...rows, fetchedAt: ne
 export async function loadIncomeFresh(month: string) {
   return {
     collections: stamp(await fetchMonthCollections(callOdoo, month)),
-    open: stamp(await fetchOpenReceivables(callOdoo)),
+    open: stamp(await fetchOpenCustomerMoves(callOdoo)),
   }
 }
 
@@ -38,8 +38,9 @@ export const cachedMonthCollections = unstable_cache(
   { revalidate: INCOME_REVALIDATE_SECONDS, tags: [INCOME_CACHE_TAG] },
 )
 
-export const cachedOpenReceivables = unstable_cache(
-  async (): Promise<CachedRows<OdooOpenInvoice>> => stamp(await fetchOpenReceivables(callOdoo)),
-  ['finance-income', 'open-receivables'],
+// New key on purpose: entries under 'open-receivables' lack moveType for up to 15 min after deploy (#102).
+export const cachedOpenCustomerMoves = unstable_cache(
+  async (): Promise<CachedRows<OdooOpenInvoice>> => stamp(await fetchOpenCustomerMoves(callOdoo)),
+  ['finance-income', 'open-moves'],
   { revalidate: INCOME_REVALIDATE_SECONDS, tags: [INCOME_CACHE_TAG] },
 )

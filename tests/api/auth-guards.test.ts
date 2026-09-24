@@ -33,6 +33,7 @@ import * as approve from '@/app/api/approve/[token]/route'
 import * as payablesRoute from '@/app/api/payables/route'
 import * as payableById from '@/app/api/payables/[id]/route'
 import * as payablesOverview from '@/app/api/payables/overview/route'
+import * as payableEvents from '@/app/api/payables/[id]/events/route'
 import * as profileRoute from '@/app/api/profile/route'
 import * as profilesRoute from '@/app/api/profiles/route'
 import * as profileById from '@/app/api/profiles/[id]/route'
@@ -58,6 +59,7 @@ injectSupabaseAdmin(() => adminClient)
 const adminRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
   { name: 'GET    /profiles',                         call: () => profilesRoute.GET() },
   { name: 'GET    /time-entries/imports',             call: () => timeImports.GET() },
+  { name: 'GET    /payables/[id]/events',            call: () => payableEvents.GET(makeRequest(undefined), makeParams({ id: 'p1' })) },
   { name: 'PATCH  /profiles/[id]',                    call: () => profileById.PATCH(makeRequest({ role: 'member' }, { method: 'PATCH' }), makeParams({ id: 'u1' })) },
   { name: 'POST   /time-entries',                     call: () => timeEntries.POST(makeRequest({})) },
   { name: 'PATCH  /time-entries/[id]',                call: () => timeEntryById.PATCH(makeRequest({ note: 'x' }, { method: 'PATCH' }), makeParams({ id: 't1' })) },

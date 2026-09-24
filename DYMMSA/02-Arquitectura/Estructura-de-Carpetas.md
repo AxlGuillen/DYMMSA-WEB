@@ -7,6 +7,7 @@ src/
 │   │   ├── approve/[token]/      # GET: cotización por token | POST: enviar decisiones
 │   │   ├── inventory/import/     # POST: importar inventario desde Excel
 │   │   ├── finance/income/       # GET: ingresos del mes leídos de Odoo · refresh/ POST: purga el caché (issue #94)
+│   │   ├── payables/[id]/events/ # GET admin: bitácora de una factura desde audit_events (issue #100, ADR-028)
 │   │   ├── orders/
 │   │   │   ├── [id]/
 │   │   │   │   ├── cancel/       # POST: cancelar orden + restaurar inventario
@@ -128,7 +129,7 @@ src/
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
 │   ├── github.ts                 # Cliente GitHub Issues (módulo Tareas): fetchGitHub + mapeos puros
 │   ├── month.ts                  # ISODate, ISO_MONTH, monthOf, nextMonth, monthRange — sin imports de la app (#94)
-│   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); re-exporta month.ts
+│   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); describeAuditEvent (#100); re-exporta month.ts
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94)
 │   └── utils.ts                  # cn() — class merging

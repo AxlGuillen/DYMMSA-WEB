@@ -3,6 +3,33 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-23
+
+### Nuevo
+- **Filtros por proveedor y por monto en Facturas por pagar.** Junto al
+  filtro de estado hay un selector de proveedor y dos campos de monto mínimo
+  y máximo. La barra de texto sigue buscando por concepto.
+- **Estado y fecha de pago desde el popup de editar.** Al editar una factura
+  puedes cambiar su estado y, si está pagada, capturar o corregir la fecha
+  real en que se pagó — sin depender del botón ✓, que sella "hoy". Esa fecha
+  es la que alimenta el cierre del mes en Finanzas.
+
+### Mejorado
+- Los administradores ven quién marcó cada factura como pagada (columna
+  "Pagada por") y el historial de cambios de estado dentro del popup.
+
+## 2026-09-21
+
+### Nuevo
+- **Notas de crédito sin aplicar, en Finanzas.** Debajo de los cobros del mes
+  aparece una lista con las notas de crédito de Odoo que siguen abiertas: a
+  qué cliente pertenecen, su folio y su saldo. Es **saldo a favor del cliente**,
+  no deuda: por eso **no se resta** de "Por cobrar" ni de "Vencido por cobrar"
+  — esas cifras siguen diciendo exactamente lo mismo que la lista de Odoo. La
+  lista sirve para saber que el saldo existe antes de cobrar o de aplicarlo.
+- El asistente (MCP) también las reporta aparte al preguntar por cartera
+  vencida, resumen de facturación o el perfil de un cliente.
+
 ## 2026-09-09
 
 ### Nuevo

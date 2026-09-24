@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
+import { PAYABLE_STATUSES } from '@/lib/payables'
 import type { PayableStatus, PayableUpdate } from '@/types/database'
-
-const STATUSES: PayableStatus[] = ['pending', 'paid', 'cancelled']
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 // PATCH /api/payables/[id] — sparse updates
@@ -53,7 +52,7 @@ export async function PATCH(
       updates.notes = typeof body.notes === 'string' ? body.notes.trim() || null : null
     }
     if (body.status !== undefined) {
-      if (!STATUSES.includes(body.status as PayableStatus)) return badRequest('Estado inválido')
+      if (!PAYABLE_STATUSES.includes(body.status as PayableStatus)) return badRequest('Estado inválido')
       updates.status = body.status
       // Payment rule: marking it paid stores the REAL date (today by default);
       // going back to pending/cancelled clears it.

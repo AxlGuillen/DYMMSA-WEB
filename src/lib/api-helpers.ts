@@ -47,6 +47,10 @@ export async function requireAdmin(
   return { user: auth.user, profile: auth.profile }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** Query/path ids are validated before they reach a filter; a non-uuid is "no filter", never an error. */
+export const isUuid = (value: string) => UUID_RE.test(value)
+
 export const unauthorized = (msg = 'No autorizado') =>
   NextResponse.json({ message: msg }, { status: 401 })
 

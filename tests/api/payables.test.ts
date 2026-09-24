@@ -13,6 +13,7 @@ import { makeRequest, makeParams, readJson } from '../helpers/request'
 import * as payables from '@/app/api/payables/route'
 import * as payableById from '@/app/api/payables/[id]/route'
 import * as overview from '@/app/api/payables/overview/route'
+import * as payableEvents from '@/app/api/payables/[id]/events/route'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
@@ -33,6 +34,10 @@ const PAYABLE_ROW = {
   updated_at: '2026-09-01T00:00:00Z',
   supplier: { id: 's1', name: 'Proveedor X', payment_terms_days: 30 },
 }
+
+const ME_ADMIN = { id: AUTH.id, role: 'admin', display_name: 'Axl' }
+const ME_MEMBER = { id: AUTH.id, role: 'member', display_name: 'Tania' }
+const PAID_EVENT = { entity_id: 'p1', actor_name: 'Diego', created_at: '2026-09-10T18:00:00Z' }
 
 const VALID_BODY = {
   supplier_id: 's1',
@@ -69,6 +74,67 @@ describe('GET /api/payables', () => {
     const call = activeClient.callsTo('payables', 'select')[0]
     expect(filterValue(call, 'due_date', 'gte')).toBe('2026-12-01')
     expect(filterValue(call, 'due_date', 'lt')).toBe('2027-01-01')
+  })
+
+  test('filtra por proveedor (uuid) y por rango de monto', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'payables.select': { data: [], error: null, count: 0 } } })
+    const supplier = '11111111-2222-4333-8444-555555555555'
+    const res = await payables.GET(makeRequest(undefined, {
+      url: `http://x/api/payables?supplier=${supplier}&minAmount=100&maxAmount=2500.5`,
+    }))
+    expect(res.status).toBe(200)
+    const rec = activeClient.callsTo('payables', 'select')[0]
+    expect(filterValue(rec, 'supplier_id')).toBe(supplier)
+    const by = (m: string) => rec.filters.find((f) => f.method === m)?.args
+    expect(by('gte')).toEqual(['amount', 100])
+    expect(by('lte')).toEqual(['amount', 2500.5])
+  })
+
+  test('proveedor que no es uuid se ignora; monto inválido o mín > máx → 400', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'payables.select': { data: [], error: null, count: 0 } } })
+    await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables?supplier=abc' }))
+    expect(filterValue(activeClient.callsTo('payables', 'select')[0], 'supplier_id')).toBeUndefined()
+
+    expect((await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables?minAmount=abc' }))).status).toBe(400)
+    expect((await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables?minAmount=-1' }))).status).toBe(400)
+    expect((await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables?minAmount=500&maxAmount=100' }))).status).toBe(400)
+  })
+
+  test('admin: cada fila PAGADA trae paid_by con el último evento; una pendiente con evento viejo va en null', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': { data: ME_ADMIN, error: null },
+        'payables.select': { data: [{ ...PAYABLE_ROW, status: 'paid', paid_at: '2026-09-10' }, { ...PAYABLE_ROW, id: 'p2', status: 'paid', paid_at: '2026-09-11' }, { ...PAYABLE_ROW, id: 'p3' }], error: null, count: 3 },
+        'audit_events.select': { data: [PAID_EVENT, { ...PAID_EVENT, actor_name: 'Viejo', created_at: '2026-09-01T00:00:00Z' }], error: null },
+      },
+    })
+    const res = await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables' }))
+    const body = await readJson<{ data: Array<{ id: string; paid_by: unknown }> }>(res)
+    // Newest event wins; a paid payable without one gets an explicit null; a pending one is
+    // never looked up (its old "paid" event would mislead) — review PR #106.
+    expect(body.data[0].paid_by).toEqual({ name: 'Diego', at: '2026-09-10T18:00:00Z' })
+    expect(body.data[1].paid_by).toBeNull()
+    expect(body.data[2].paid_by).toBeNull()
+    const rec = activeClient.callsTo('audit_events', 'select')[0]
+    expect(filterValue(rec, 'entity_type')).toBe('payable')
+    expect(filterValue(rec, 'data->to->>status')).toBe('paid')
+    expect(rec.filters.find((f) => f.method === 'in')?.args).toEqual(['entity_id', ['p1', 'p2']])
+    expect(rec.filters.filter((f) => f.method === 'order').map((f) => f.args[0])).toEqual(['created_at', 'id'])
+  })
+
+  test('member: la respuesta NO trae la llave paid_by y nunca consulta la bitácora (ADR-028)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': { data: ME_MEMBER, error: null },
+        'payables.select': { data: [PAYABLE_ROW], error: null, count: 1 },
+      },
+    })
+    const res = await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables' }))
+    const body = await readJson<{ data: Array<Record<string, unknown>> }>(res)
+    expect('paid_by' in body.data[0]).toBe(false)
+    expect(activeClient.callsTo('audit_events', 'select')).toHaveLength(0)
   })
 
   test('sort fuera de whitelist cae a due_date', async () => {
@@ -167,6 +233,29 @@ describe('PATCH /api/payables/[id]', () => {
     expect((await payableById.PATCH(makeRequest({ concept: 'x' }), makeParams({ id: 'nope' }))).status).toBe(404)
     expect((await payableById.PATCH(makeRequest({ status: 'weird' }), makeParams({ id: 'p1' }))).status).toBe(400)
     expect((await payableById.PATCH(makeRequest({}), makeParams({ id: 'p1' }))).status).toBe(400)
+  })
+})
+
+describe('GET /api/payables/[id]/events', () => {
+  test('admin: eventos del payable, más recientes primero', async () => {
+    const event = { id: 7, action: 'status_changed', actor_name: 'Diego', data: { to: { status: 'paid' } }, created_at: '2026-09-10T18:00:00Z' }
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': { data: ME_ADMIN, error: null }, 'audit_events.select': { data: [event], error: null } },
+    })
+    const res = await payableEvents.GET(makeRequest(undefined), makeParams({ id: 'p1' }))
+    expect(res.status).toBe(200)
+    expect(await readJson(res)).toEqual([event])
+    const rec = activeClient.callsTo('audit_events', 'select')[0]
+    expect(filterValue(rec, 'entity_id')).toBe('p1')
+    expect(rec.filters.find((f) => f.method === 'order')?.args).toEqual(['created_at', { ascending: false }])
+  })
+
+  test('member → 403 sin tocar la bitácora', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': { data: ME_MEMBER, error: null } } })
+    const res = await payableEvents.GET(makeRequest(undefined), makeParams({ id: 'p1' }))
+    expect(res.status).toBe(403)
+    expect(activeClient.callsTo('audit_events', 'select')).toHaveLength(0)
   })
 })
 
