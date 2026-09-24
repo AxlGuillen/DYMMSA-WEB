@@ -21,7 +21,7 @@ vi.mock('@/hooks/useProfile', () => ({
     data: enabled
       ? [
           { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5, shift: 'part_time' },
-          { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: 'full_time' },
+          { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null },
         ]
       : undefined,
   }),
@@ -69,6 +69,20 @@ describe('HoursView', () => {
     expect(screen.getByLabelText('Empleado')).toBeInTheDocument()
     expect(screen.getAllByLabelText('Editar checada')).toHaveLength(1)
     expect((state.lastParams as { user: string | null }).user).toBe('me')
+  })
+
+  test('admin con jornada que mira a alguien sin jornada: la gráfica no le presta la suya (review PR #108)', async () => {
+    state.role = 'admin'
+    const user = (await import('@testing-library/user-event')).default.setup()
+    renderWithProviders(<HoursView />)
+    expect(screen.getByTestId('week-chart')).toHaveTextContent('Medio tiempo · 4 h')
+    await user.click(screen.getByLabelText('Empleado'))
+    await user.click(await screen.findByRole('option', { name: 'Diego' }))
+    const week = screen.getByTestId('week-chart')
+    expect(week).toHaveTextContent('Sin jornada asignada')
+    expect(week).not.toHaveTextContent('/ 20 h')
+    expect(week).not.toHaveTextContent('Faltan')
+    expect(week).not.toHaveTextContent('Cumple')
   })
 
   test('el stepper cambia de semana y ofrece volver a la actual', async () => {

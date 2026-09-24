@@ -4,6 +4,7 @@
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart'
 import { formatDuration, SHIFT_HOURS, type WeekChartPoint } from '@/lib/timesheet'
+import { shiftLineProps } from './shift-line'
 import type { ProfileShift } from '@/types/database'
 
 const config = {
@@ -30,17 +31,8 @@ function DayTooltip({ active, payload }: TooltipProps) {
   )
 }
 
-/** Reference line for one shift: solid when it is the person's own, dashed otherwise. */
 function ShiftLine({ shift, own, label }: { shift: ProfileShift; own: boolean; label: string }) {
-  return (
-    <ReferenceLine
-      y={SHIFT_HOURS[shift].daily}
-      stroke={own ? 'var(--primary)' : 'var(--muted-foreground)'}
-      strokeDasharray={own ? undefined : '4 4'}
-      strokeWidth={own ? 2 : 1}
-      label={{ value: label, position: 'insideTopRight', fontSize: 11, fill: own ? 'var(--primary)' : 'var(--muted-foreground)' }}
-    />
-  )
+  return <ReferenceLine {...shiftLineProps(SHIFT_HOURS[shift].daily, own, label)} />
 }
 
 export default function WeekBars({ data, shift }: { data: WeekChartPoint[]; shift: ProfileShift | null }) {

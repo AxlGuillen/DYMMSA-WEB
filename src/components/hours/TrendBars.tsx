@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from 
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart'
 import { formatDayMonth } from '@/lib/format'
 import { formatDuration, SHIFT_HOURS, type WeekTrendPoint } from '@/lib/timesheet'
+import { shiftLineProps } from './shift-line'
 import type { ProfileShift } from '@/types/database'
 
 const config = {
@@ -30,15 +31,7 @@ function WeekTooltip({ active, payload }: TooltipProps) {
 }
 
 function ShiftLine({ shift, own, label }: { shift: ProfileShift; own: boolean; label: string }) {
-  return (
-    <ReferenceLine
-      y={SHIFT_HOURS[shift].weekly}
-      stroke={own ? 'var(--primary)' : 'var(--muted-foreground)'}
-      strokeDasharray={own ? undefined : '4 4'}
-      strokeWidth={own ? 2 : 1}
-      label={{ value: label, position: 'insideTopRight', fontSize: 11, fill: own ? 'var(--primary)' : 'var(--muted-foreground)' }}
-    />
-  )
+  return <ReferenceLine {...shiftLineProps(SHIFT_HOURS[shift].weekly, own, label)} />
 }
 
 export default function TrendBars({ data, shift, currentStart }: { data: WeekTrendPoint[]; shift: ProfileShift | null; currentStart: string }) {

@@ -34,14 +34,17 @@ async function resolveTarget(db: Db, callerId: string, persona?: string): Promis
     .from('profiles')
     .select('id, display_name, shift')
     .ilike('display_name', `%${query}%`)
-    .limit(5)
+    // One past the cap so "more than 5" can be said instead of a wrong count.
+    .limit(6)
   if (error) throw new ToolError('No se pudieron leer los perfiles')
   const matches = (data ?? []) as Target[]
   if (matches.length === 0) {
     throw new ToolError(`Ninguna persona visible para ti coincide con "${query}". Un miembro solo puede consultar sus propias horas.`)
   }
   if (matches.length > 1) {
-    throw new ToolError(`Hay ${matches.length} coincidencias (${matches.map((m) => m.display_name).join(', ')}) — precisa el nombre.`)
+    const shown = matches.slice(0, 5).map((m) => m.display_name).join(', ')
+    const count = matches.length > 5 ? 'más de 5' : String(matches.length)
+    throw new ToolError(`Hay ${count} coincidencias (${shown}${matches.length > 5 ? ', …' : ''}) — precisa el nombre.`)
   }
   return matches[0]
 }
@@ -59,13 +62,10 @@ async function entriesBetween(db: Db, userId: string, from: string, to: string):
   return ((data ?? []) as TimeEntry[]).map(normalizeEntryTimes)
 }
 
-function shiftBlock(target: Target, minutes: number) {
-  const progress = shiftProgress(minutes, target.shift)
+function shiftBlock(target: Target) {
   return {
     jornada: target.shift ? SHIFT_LABELS[target.shift] : null,
     objetivo_semanal_h: target.shift ? SHIFT_HOURS[target.shift].weekly : null,
-    cumplimiento_pct: progress?.pct ?? null,
-    faltante: progress ? formatDuration(progress.missing) : null,
   }
 }
 
@@ -80,6 +80,7 @@ export async function getWeekHours(db: Db, callerId: string, input: WeekHoursInp
   const target = await resolveTarget(db, callerId, input.persona)
   const { start, end } = weekBounds(input.fecha ?? todayInMexico())
   const week = buildWeekView(await entriesBetween(db, target.id, start, end), start)
+  const progress = shiftProgress(week.minutes, target.shift)
 
   return {
     persona: target.display_name,
@@ -87,7 +88,9 @@ export async function getWeekHours(db: Db, callerId: string, input: WeekHoursInp
     total: formatDuration(week.minutes),
     total_minutos: week.minutes,
     sin_salida: week.open,
-    ...shiftBlock(target, week.minutes),
+    ...shiftBlock(target),
+    cumplimiento_pct: progress?.pct ?? null,
+    faltante: progress ? formatDuration(progress.missing) : null,
     dias: week.days.map((d) => ({
       dia: d.label,
       fecha: d.date,
@@ -111,12 +114,16 @@ export async function getHoursTrend(db: Db, callerId: string, input: HoursTrendI
   const from = shiftWeek(start, -(weeks - 1))
   const trend = buildWeeklyTrend(await entriesBetween(db, target.id, from, end), start, weeks)
   const total = trend.reduce((sum, w) => sum + w.minutes, 0)
+  const progress = shiftProgress(total / weeks, target.shift)
 
   return {
     persona: target.display_name,
     semanas: weeks,
     promedio_semanal: formatDuration(total / weeks),
-    ...shiftBlock(target, total / weeks),
+    ...shiftBlock(target),
+    // Over the AVERAGE week, not this week: named so the model does not phrase it as "this week".
+    cumplimiento_promedio_pct: progress?.pct ?? null,
+    faltante_promedio: progress ? formatDuration(progress.missing) : null,
     por_semana: trend.map((w) => ({
       inicio: w.start,
       fin: w.end,

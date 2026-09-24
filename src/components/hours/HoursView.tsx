@@ -33,10 +33,9 @@ export function HoursView() {
   const { start, end } = weekBounds(weekStart)
   const { data, isLoading, isError } = useTimeEntries({ user: targetUser, from: start, to: end })
 
-  // The reference lines follow whoever is on screen: the admin's pick, or the member themself.
-  const targetShift = isAdmin
-    ? (profiles?.find((p) => p.id === (targetUser ?? profile?.id))?.shift ?? profile?.shift ?? null)
-    : (profile?.shift ?? null)
+  // The reference lines follow whoever is on screen; a person without a shift must not inherit mine.
+  const shown = isAdmin ? profiles?.find((p) => p.id === targetUser) : profile
+  const targetShift = (shown ?? profile)?.shift ?? null
 
   const TREND_WEEKS = 8
   const trendQuery = useTimeEntries({ user: targetUser, from: shiftWeek(start, -(TREND_WEEKS - 1)), to: end })

@@ -71,6 +71,10 @@ describe('get_week_hours', () => {
       responses: { 'profiles.select': profiles([ME, DIEGO, { id: 'u-d2', display_name: 'Diana', shift: null }]) },
     })
     await expect(getWeekHours(asDb(client), 'u-tania', { persona: 'di' })).rejects.toThrow(/2 coincidencias/)
+
+    const many = Array.from({ length: 6 }, (_, i) => ({ id: `u-${i}`, display_name: `Diego ${i}`, shift: null }))
+    const crowded = createMockSupabase({ responses: { 'profiles.select': profiles(many) } })
+    await expect(getWeekHours(asDb(crowded), 'u-tania', { persona: 'diego' })).rejects.toThrow(/más de 5 coincidencias .*…/)
     await expect(getWeekHours(asDb(client), 'u-tania', { fecha: '02/09/2026' })).rejects.toThrow(ToolError)
   })
 
@@ -92,6 +96,8 @@ describe('get_hours_trend', () => {
     expect(result.semanas).toBe(4)
     expect(result.por_semana).toHaveLength(4)
     expect(result.promedio_semanal).toBe('00:00')
+    expect(result).toMatchObject({ cumplimiento_promedio_pct: 0, faltante_promedio: '20:00' })
+    expect('cumplimiento_pct' in result).toBe(false)
     const read = client.callsTo('time_entries', 'select')[0]
     const from = read.filters.find((f) => f.method === 'gte')?.args[1] as string
     const to = read.filters.find((f) => f.method === 'lte')?.args[1] as string
