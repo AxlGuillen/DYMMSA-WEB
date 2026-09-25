@@ -6,6 +6,17 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-09-24
 
 ### Nuevo
+- **Documentación al día.** La página Documentación ahora cubre todos los
+  módulos: Planificar compra, Corte y medidas de material, Proveedores,
+  Finanzas, Horas y Equipo, y una sección de tablas, vistas guiadas y atajos.
+  Se corrigieron tres cosas que decía y ya no eran ciertas: el Pedido URREA
+  sale de Planificar compra (e incluye todas las marcas del catálogo), y al
+  confirmar una recepción solo el excedente entra al inventario.
+- **Sección "Asistente (IA)" en Documentación.** Lista todo lo que puedes
+  preguntarle o pedirle al asistente, por módulo y con una pregunta de ejemplo
+  cada una; las cinco acciones que puede hacer con sus límites; y qué lee de
+  Odoo y qué nunca hace. Se genera sola a partir de las capacidades reales, así
+  que siempre está al día.
 - **Cobranza desde el asistente.** Pregúntale "¿a quién le cobro primero?" o
   "¿quién paga más lento?": te da el ranking de clientes por saldo vencido y
   por días promedio que tardan en pagar, con la deuda total de cada uno, tal
