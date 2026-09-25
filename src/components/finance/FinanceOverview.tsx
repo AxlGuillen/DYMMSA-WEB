@@ -80,7 +80,7 @@ export function FinanceOverview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-tour="fin-month">
         <Button variant="outline" size="icon" className="size-8" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Mes anterior">
           <ChevronLeft className="size-4" />
         </Button>
@@ -95,6 +95,7 @@ export function FinanceOverview() {
         )}
       </div>
 
+      <section className="space-y-6" data-tour="fin-expenses">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Egresos</h2>
       {payablesUnavailable ? (
         <Card>
@@ -160,6 +161,9 @@ export function FinanceOverview() {
         </p>
       )}
 
+      </section>
+
+      <section className="space-y-6" data-tour="fin-income">
       <div className="flex flex-wrap items-center justify-between gap-2" data-testid="income-header">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingresos (Odoo)</h2>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -213,6 +217,7 @@ export function FinanceOverview() {
             color="red"
             isLoading={incomeLoading}
           />
+          <div data-tour="fin-closing">
           <MetricCard
             title="Cierre del mes"
             value={closing ? fmt(closing.real) : '—'}
@@ -223,6 +228,7 @@ export function FinanceOverview() {
             color="purple"
             isLoading={incomeLoading || isLoading}
           />
+          </div>
         </div>
       )}
       {incomeStale && (
@@ -236,7 +242,9 @@ export function FinanceOverview() {
         </p>
       )}
 
-      <Card>
+      </section>
+
+      <Card data-tour="fin-due-weeks">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <Receipt className="size-4" />
@@ -318,7 +326,7 @@ export function FinanceOverview() {
 
       {/* Customer credit is informed, never subtracted: nobody knows yet if it will be used (#102). */}
       {income && (
-        <Card data-testid="credit-notes">
+        <Card data-testid="credit-notes" data-tour="fin-credit-notes">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <RotateCcw className="size-4" />
