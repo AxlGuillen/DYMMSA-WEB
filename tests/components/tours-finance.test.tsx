@@ -72,6 +72,16 @@ describe('Vista guiada — Finanzas overview', () => {
     }
   })
 
+  test('el cierre se ancla en la propia Card (sigue siendo el ítem del grid) y los pasos van en orden de pantalla', () => {
+    renderWithProviders(<FinancePage />)
+    expect(document.querySelector('[data-tour="fin-closing"]')).toHaveAttribute('data-slot', 'card')
+    const order = FINANCE_OVERVIEW_TOUR.map((s) => document.querySelector(s.selector)!)
+    for (let i = 1; i < order.length; i++) {
+      // DOCUMENT_POSITION_FOLLOWING: each step's block comes after the previous one's.
+      expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING, `paso ${i}`).toBeTruthy()
+    }
+  })
+
   test('el botón arranca driver.js con los 6 bloques', async () => {
     const user = userEvent.setup()
     renderWithProviders(<FinancePage />)

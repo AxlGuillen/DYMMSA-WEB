@@ -22,6 +22,8 @@ interface MetricCardProps {
   icon?: ReactNode
   color?: MetricColor
   isLoading?: boolean
+  /** Guided-tour anchor on the Card itself: a wrapper would become the grid item and stop stretching (PR #121). */
+  'data-tour'?: string
 }
 
 export function MetricCard({
@@ -31,9 +33,10 @@ export function MetricCard({
   icon,
   color,
   isLoading,
+  'data-tour': dataTour,
 }: MetricCardProps) {
   return (
-    <Card>
+    <Card data-tour={dataTour}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}

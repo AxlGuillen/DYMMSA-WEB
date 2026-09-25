@@ -168,15 +168,15 @@ export default function PayablesPage() {
       </div>
 
       <div data-tour="pay-table">
-      <PayablesTable
-        payables={data?.data ?? []}
-        isLoading={isLoading}
-        onEdit={handleEdit}
-        onAdd={() => setIsFormOpen(true)}
-        sortField={sortField}
-        sortDir={sortDir}
-        onSort={handleSort}
-      />
+        <PayablesTable
+          payables={data?.data ?? []}
+          isLoading={isLoading}
+          onEdit={handleEdit}
+          onAdd={() => setIsFormOpen(true)}
+          sortField={sortField}
+          sortDir={sortDir}
+          onSort={handleSort}
+        />
       </div>
 
       {data && data.totalPages > 1 && (

@@ -28,16 +28,16 @@ export const FINANCE_OVERVIEW_TOUR: OverviewStep[] = [
       '<b>Real</b> = cobrado − pagado: el dinero que de verdad se movió. <b>Proyectado</b> le resta además lo pendiente del mes y lo vencido de meses previos: cómo cerraría si se pagara todo lo que se debe. Es la cifra para planear el pago de impuestos; un número negativo es una respuesta válida.',
   },
   {
-    selector: '[data-tour="fin-credit-notes"]',
-    title: 'Notas de crédito sin aplicar',
-    description:
-      'Saldo <b>a favor del cliente</b> que sigue abierto en Odoo. No es deuda, y por eso <b>no se resta</b> del por cobrar ni del vencido: no se sabe si el cliente lo usará o si se aplicará a una factura. Está aquí para que lo tengas presente antes de cobrar.',
-  },
-  {
     selector: '[data-tour="fin-due-weeks"]',
     title: 'Qué vence cada semana',
     description:
       'Las facturas pendientes del mes agrupadas por semana de vencimiento, para decidir qué pagar y cuándo. <b>Ver todas</b> abre Facturas por pagar con la lista completa.',
+  },
+  {
+    selector: '[data-tour="fin-credit-notes"]',
+    title: 'Notas de crédito sin aplicar',
+    description:
+      'Saldo <b>a favor del cliente</b> que sigue abierto en Odoo. No es deuda, y por eso <b>no se resta</b> del por cobrar ni del vencido: no se sabe si el cliente lo usará o si se aplicará a una factura. Está aquí para que lo tengas presente antes de cobrar.',
     side: 'top',
   },
 ]

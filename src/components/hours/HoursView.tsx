@@ -89,15 +89,15 @@ export function HoursView() {
       </div>
 
       <div data-tour="hrs-grid">
-      <WeekGrid
-        week={data?.week ?? undefined}
-        isLoading={isLoading}
-        isError={isError}
-        canEdit={isAdmin}
-        onEdit={openEdit}
-        onAdd={openAdd}
-        namesById={namesById}
-      />
+        <WeekGrid
+          week={data?.week ?? undefined}
+          isLoading={isLoading}
+          isError={isError}
+          canEdit={isAdmin}
+          onEdit={openEdit}
+          onAdd={openAdd}
+          namesById={namesById}
+        />
       </div>
 
       {isAdmin && targetUser && (
