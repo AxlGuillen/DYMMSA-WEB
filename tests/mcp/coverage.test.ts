@@ -5,7 +5,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, relative, sep } from 'node:path'
 
 const API_ROOT = join(process.cwd(), 'src/app/api')
 
@@ -15,7 +15,8 @@ function getRoutes(dir: string, out: string[] = []): string[] {
     const full = join(dir, entry)
     if (statSync(full).isDirectory()) getRoutes(full, out)
     else if (entry === 'route.ts' && /export\s+(async\s+)?function\s+GET\b|export\s+const\s+GET\b|\bas\s+GET\b/.test(readFileSync(full, 'utf8'))) {
-      out.push(relative(API_ROOT, dir))
+      // Forward slashes on every OS: the map is POSIX-style and Windows would give backslashes.
+      out.push(relative(API_ROOT, dir).split(sep).join('/'))
     }
   }
   return out.sort()
