@@ -52,7 +52,7 @@ export function HoursView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2" data-tour="hrs-week-nav">
         <Button variant="outline" size="icon" className="size-8" onClick={() => setWeekStart((w) => shiftWeek(w, -1))} aria-label="Semana anterior">
           <ChevronLeft className="size-4" />
         </Button>
@@ -69,7 +69,7 @@ export function HoursView() {
         <div className="ml-auto flex items-center gap-2">
           {isAdmin && profiles && (
             <Select value={targetUser ?? ''} onValueChange={setSelectedUser}>
-              <SelectTrigger className="w-auto min-w-[180px]" aria-label="Empleado">
+              <SelectTrigger className="w-auto min-w-[180px]" aria-label="Empleado" data-tour="hrs-employee">
                 <SelectValue placeholder="Empleado" />
               </SelectTrigger>
               <SelectContent>
@@ -88,15 +88,17 @@ export function HoursView() {
         <TrendChart trend={trend} shift={targetShift} currentStart={start} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
       </div>
 
-      <WeekGrid
-        week={data?.week ?? undefined}
-        isLoading={isLoading}
-        isError={isError}
-        canEdit={isAdmin}
-        onEdit={openEdit}
-        onAdd={openAdd}
-        namesById={namesById}
-      />
+      <div data-tour="hrs-grid">
+        <WeekGrid
+          week={data?.week ?? undefined}
+          isLoading={isLoading}
+          isError={isError}
+          canEdit={isAdmin}
+          onEdit={openEdit}
+          onAdd={openAdd}
+          namesById={namesById}
+        />
+      </div>
 
       {isAdmin && targetUser && (
         <TimeEntryForm open={formOpen} onOpenChange={setFormOpen} entry={editing} userId={targetUser} date={addDate} />

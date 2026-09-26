@@ -17,6 +17,10 @@ import { ETM_DB_TOUR } from '@/lib/tours/etm-db'
 import { URREA_CATALOG_TOUR } from '@/lib/tours/urrea-catalog'
 import { SUPPLIERS_TOUR } from '@/lib/tours/suppliers'
 import { TASKS_TOUR } from '@/lib/tours/tasks'
+import { FINANCE_OVERVIEW_TOUR } from '@/lib/tours/finance-overview'
+import { PAYABLES_TOUR } from '@/lib/tours/payables'
+import { HOURS_TOUR } from '@/lib/tours/hours'
+import { TEAM_TOUR } from '@/lib/tours/team'
 
 const TOURS = {
   dashboard: DASHBOARD_TOUR,
@@ -33,6 +37,10 @@ const TOURS = {
   'urrea-catalog': URREA_CATALOG_TOUR,
   suppliers: SUPPLIERS_TOUR,
   tasks: TASKS_TOUR,
+  'finance-overview': FINANCE_OVERVIEW_TOUR,
+  payables: PAYABLES_TOUR,
+  hours: HOURS_TOUR,
+  team: TEAM_TOUR,
 } satisfies Record<string, OverviewStep[]>
 
 export type TourId = keyof typeof TOURS

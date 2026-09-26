@@ -3,6 +3,21 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-25
+
+### Nuevo
+- **Vistas guiadas en Finanzas y Horas.** El botón "Vista guiada" ya está en
+  el overview de Finanzas (qué es cada tarjeta, cómo se calcula el cierre y por
+  qué las notas de crédito no se restan), en Facturas por pagar (filtros, el ✓
+  contra la fecha real de pago), en Mi semana (las gráficas y las líneas de
+  jornada) y en Equipo (rol, id del checador y jornada).
+
+### Mejorado
+- El tour de Inicio ya presenta las secciones **Finanzas** y **Horas** del
+  menú, y tres explicaciones se pusieron al día: la sección DYMMSA (corte y
+  medidas de material), los proveedores (días de crédito) y el planificador de
+  compra (Copiar para Excel).
+
 ## 2026-09-24
 
 ### Nuevo

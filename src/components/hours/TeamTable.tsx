@@ -35,7 +35,7 @@ export function TeamTable() {
 
   return (
     <>
-      <Card>
+      <Card data-tour="team-table">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

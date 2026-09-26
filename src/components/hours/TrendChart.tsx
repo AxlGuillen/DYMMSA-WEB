@@ -23,7 +23,7 @@ export function TrendChart({ trend, shift, currentStart, isLoading, isError }: T
   const average = trend && weeks > 0 ? trend.reduce((sum, w) => sum + w.minutes, 0) / weeks : null
 
   return (
-    <Card data-testid="trend-chart">
+    <Card data-testid="trend-chart" data-tour="hrs-trend">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div>
           <CardTitle className="text-base">Últimas {weeks || 8} semanas</CardTitle>

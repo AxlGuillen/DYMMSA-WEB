@@ -25,7 +25,7 @@ export function WeekChart({ week, shift, isLoading, canAssignShift }: WeekChartP
   const target = shift ? SHIFT_HOURS[shift].weekly : null
 
   return (
-    <Card data-testid="week-chart">
+    <Card data-testid="week-chart" data-tour="hrs-week-chart">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div>
           <CardTitle className="text-base">Horas de la semana</CardTitle>
