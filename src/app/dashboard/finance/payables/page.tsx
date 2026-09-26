@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Search, X } from '@/components/icons'
 import { ColumnPicker } from '@/components/ColumnPicker'
+import { TourButton } from '@/components/tours/TourButton'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { useProfile } from '@/hooks/useProfile'
 import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
@@ -84,13 +85,16 @@ export default function PayablesPage() {
             {data ? `${data.count} factura${data.count !== 1 ? 's' : ''} registrada${data.count !== 1 ? 's' : ''}` : 'Registro de gastos por pagar'}
           </p>
         </div>
-        <Button onClick={() => setIsFormOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          Registrar factura
-        </Button>
+        <div className="flex items-center gap-2">
+          <TourButton tour="payables" />
+          <Button onClick={() => setIsFormOpen(true)} data-tour="pay-new">
+            <Plus className="mr-2 size-4" />
+            Registrar factura
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center" data-tour="pay-filters">
         <div className="relative flex-1 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -163,15 +167,17 @@ export default function PayablesPage() {
         <ColumnPicker tableId="payables" columns={payablesColumns(isAdmin)} />
       </div>
 
-      <PayablesTable
-        payables={data?.data ?? []}
-        isLoading={isLoading}
-        onEdit={handleEdit}
-        onAdd={() => setIsFormOpen(true)}
-        sortField={sortField}
-        sortDir={sortDir}
-        onSort={handleSort}
-      />
+      <div data-tour="pay-table">
+        <PayablesTable
+          payables={data?.data ?? []}
+          isLoading={isLoading}
+          onEdit={handleEdit}
+          onAdd={() => setIsFormOpen(true)}
+          sortField={sortField}
+          sortDir={sortDir}
+          onSort={handleSort}
+        />
+      </div>
 
       {data && data.totalPages > 1 && (
         <div className="flex items-center justify-between">

@@ -162,8 +162,8 @@ function NavSection({
   links: LinkItem[]
   collapsed?: boolean
   onNavigate?: () => void
-  /** Anchor for the dashboard guided tour (ADR-024). */
-  tour?: string
+  /** Anchor for the dashboard guided tour (ADR-024). Required: a section without a step would be skipped in silence (#120). */
+  tour: string
 }) {
   return (
     <div className="space-y-1" data-tour={tour}>
@@ -251,8 +251,8 @@ function SidebarContent({
           <NavSection links={mainLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-main" />
           <NavSection title="ETM — Catálogo" links={etmUrreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-etm" />
           <NavSection title="DYMMSA" links={dymmsaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-dymmsa" />
-          <NavSection title="Finanzas" links={financeLinks} collapsed={collapsed} onNavigate={onNavigate} />
-          <NavSection title="Horas" links={isAdmin ? [...hoursLinks, ...hoursAdminLinks] : hoursLinks} collapsed={collapsed} onNavigate={onNavigate} />
+          <NavSection title="Finanzas" links={financeLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-finanzas" />
+          <NavSection title="Horas" links={isAdmin ? [...hoursLinks, ...hoursAdminLinks] : hoursLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-horas" />
           <NavSection title="URREA" links={urreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-urrea" />
           <NavSection title="Recursos" links={recursosLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-recursos" />
         </div>
