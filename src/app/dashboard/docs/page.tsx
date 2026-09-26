@@ -20,7 +20,21 @@ import {
   Library,
   DollarSign,
   RefreshCw,
+  ShoppingCart,
+  Scissors,
+  Truck,
+  CalendarClock,
+  Sparkles,
 } from '@/components/icons'
+import {
+  AssistantSection,
+  CuttingSection,
+  FinanceSection,
+  HoursSection,
+  PurchasePlannerSection,
+  ShortcutsSection,
+  SuppliersSection,
+} from './sections'
 import {
   Card,
   CardContent,
@@ -44,7 +58,14 @@ const sections = [
   { id: 'inventario', label: 'Excel de Inventario', icon: Warehouse },
   { id: 'catalogo-urrea', label: 'Catalogo URREA', icon: Library },
   { id: 'ordenes', label: 'Detalle de Orden', icon: Package },
+  { id: 'compra', label: 'Planificar compra', icon: ShoppingCart },
+  { id: 'corte', label: 'Corte y medidas de material', icon: Scissors },
+  { id: 'proveedores', label: 'Proveedores', icon: Truck },
+  { id: 'finanzas', label: 'Finanzas', icon: DollarSign },
+  { id: 'horas', label: 'Horas y Equipo', icon: CalendarClock },
   { id: 'tareas', label: 'Tareas', icon: ClipboardList },
+  { id: 'atajos', label: 'Tablas, vistas guiadas y atajos', icon: Sparkles },
+  { id: 'asistente', label: 'Asistente (IA)', icon: Brain },
   { id: 'flujo', label: 'Flujo del Sistema', icon: ArrowRight },
 ]
 
@@ -84,132 +105,81 @@ const flowSteps: FlowStep[] = [
     title: 'Crear la cotizacion',
     description: 'Ingresa los productos a cotizar desde el Cotizador.',
     variants: [
-      {
-        label: 'Subiendo Excel del cliente',
-        description: 'Sube el Excel con ETMs. El sistema extrae y pre-rellena automaticamente todos los campos reconocidos.',
-        color: 'blue',
-      },
-      {
-        label: 'Manualmente',
-        description: 'Agrega productos uno a uno con el modal de producto, sin necesitar un archivo.',
-        color: 'blue',
-      },
+      { label: 'Subiendo Excel del cliente', description: 'Sube el Excel con ETMs. El sistema extrae y pre-rellena automaticamente todos los campos reconocidos.', color: 'blue' },
+      { label: 'Manualmente', description: 'Agrega productos uno a uno con el modal de producto, sin necesitar un archivo.', color: 'blue' },
     ],
   },
   {
     number: 2,
     title: 'Revisar, editar y guardar',
-    description: 'Ajusta la tabla (precios, cantidades, descripciones), agrega o elimina filas. Al guardar, la cotizacion queda en BD y el catalogo de productos se actualiza automaticamente con los datos ingresados.',
+    description: 'Ajusta la tabla (precios, cantidades, descripciones, secciones con color), agrega o elimina filas. Al guardar, la cotizacion queda en BD y el catalogo de productos se actualiza automaticamente con los datos ingresados.',
   },
   {
     number: 3,
     title: 'Enviar a aprobacion',
-    description: 'El sistema genera un link unico (token) que puedes compartir con el cliente por WhatsApp o correo. La cotizacion pasa a estado En aprobacion.',
+    description: 'El sistema genera un link unico (token) que puedes compartir con el cliente por WhatsApp o correo. La cotizacion pasa a estado En aprobacion. Cada cambio de estado invalida el link anterior.',
   },
   {
     number: 4,
     title: 'Respuesta del cliente',
-    description: 'El cliente accede al link sin necesidad de cuenta y decide sobre cada producto de forma individual.',
+    description: 'El cliente accede al link sin necesidad de cuenta y decide sobre cada producto de forma individual (puede guardar avance y terminar despues). Alternativa: el Excel aprobado con filas en verde (ver su seccion).',
     variants: [
-      {
-        label: 'Aprueba todos',
-        description: 'Cotizacion pasa a Aprobada. Todos los productos estan disponibles para generar la orden.',
-        color: 'green',
-      },
-      {
-        label: 'Aprueba algunos (parcial)',
-        description: 'Cotizacion pasa a Aprobada. Solo los productos marcados como aprobados entran a la orden; los rechazados se ignoran.',
-        color: 'amber',
-      },
-      {
-        label: 'Rechaza todos',
-        description: 'Cotizacion marcada como Rechazada. No se genera orden. El flujo termina aqui.',
-        color: 'red',
-        endsFlow: true,
-      },
+      { label: 'Aprueba todos', description: 'Cotizacion pasa a Aprobada. Todos los productos estan disponibles para generar la orden.', color: 'green' },
+      { label: 'Aprueba algunos (parcial)', description: 'Cotizacion pasa a Aprobada. Solo los productos marcados como aprobados entran a la orden; los rechazados se ignoran.', color: 'amber' },
+      { label: 'Rechaza todos', description: 'Cotizacion marcada como Rechazada. No se genera orden. El flujo termina aqui.', color: 'red', endsFlow: true },
     ],
   },
   {
     number: 5,
     title: 'Crear orden desde la cotizacion aprobada',
-    description: 'El sistema verifica el inventario de la tienda por cada producto aprobado y calcula automaticamente cuanto hay que pedir a URREA.',
+    description: 'El sistema verifica el inventario de la tienda por cada producto aprobado, aparta lo que hay (el stock se descuenta en este momento) y calcula cuanto falta pedir.',
     variants: [
-      {
-        label: 'Stock completo',
-        description: 'El producto esta disponible en tienda. quantity_to_order = 0; no se pide a URREA.',
-        color: 'green',
-      },
-      {
-        label: 'Stock parcial',
-        description: 'Se aparta lo disponible en tienda y se calcula el faltante para pedirlo a URREA.',
-        color: 'amber',
-      },
-      {
-        label: 'Sin stock',
-        description: 'Todo el producto debe pedirse a URREA. quantity_to_order = quantity_approved.',
-        color: 'red',
-      },
+      { label: 'Stock completo', description: 'El producto esta disponible en tienda. Cantidad a pedir = 0.', color: 'green' },
+      { label: 'Stock parcial', description: 'Se aparta lo disponible en tienda y se calcula el faltante para pedirlo.', color: 'amber' },
+      { label: 'Sin stock', description: 'Todo el producto debe pedirse. Cantidad a pedir = cantidad aprobada.', color: 'red' },
     ],
   },
   {
     number: 6,
-    title: 'Pedido a URREA',
-    description: 'Aplica unicamente si hay productos con quantity_to_order > 0.',
+    title: 'Planificar compra',
+    description: 'Desde la orden, el planificador decide por grupo (codigo + marca) que va a URREA por paquetes completos y que se compra al menudeo, con su recomendacion segun el dinero que quedaria parado. Si la orden tiene piezas DYMMSA de tubo o placa, la lista de corte calcula el material a pedir aparte.',
     variants: [
-      {
-        label: 'Hay faltantes URREA',
-        description: 'Descarga el Excel en formato URREA (model_code + quantity) y envialo por WhatsApp. Solo se incluyen productos de marca URREA; otras marcas (Stanley, Truper...) quedan excluidas con una notificacion.',
-        color: 'blue',
-      },
-      {
-        label: 'Todo cubierto con stock',
-        description: 'No hay productos que pedir a URREA. Este paso se omite y la orden avanza directamente a gestion de pago.',
-        color: 'green',
-      },
+      { label: 'Mayoreo', description: 'Paquetes completos a URREA (piezas = paquetes x STD).', color: 'blue' },
+      { label: 'Menudeo', description: 'El resto (o todo) se compra al menudeo y va a la lista de compra local.', color: 'amber' },
+      { label: 'Revisar', description: 'Redondear dejaria casi un paquete completo sin usar (el resto es muy chico): el sistema no decide por ti. Hasta que decidas no se genera el Excel.', color: 'red' },
     ],
   },
   {
     number: 7,
-    title: 'Recepcion de productos de URREA',
-    description: 'Cuando llegan los productos, registra la cantidad recibida y el estado por cada item en el detalle de la orden.',
+    title: 'Pedido a URREA y compra local',
+    description: 'Los dos Excel se descargan desde Planificar compra. Al Pedido URREA va todo lo que esta en el catalogo URREA (cualquiera de sus marcas) segun lo decidido; a la compra local va el resto. El material de corte tiene su propio Excel desde la pantalla de corte.',
     variants: [
-      {
-        label: 'URREA surte todo',
-        description: 'Marca cada item como supplied con la cantidad completa y confirma la recepcion.',
-        color: 'green',
-      },
-      {
-        label: 'URREA surte parcial',
-        description: 'Registra la cantidad recibida por item. Los no surtidos se marcan como not_supplied para gestionarlos con el cliente.',
-        color: 'amber',
-      },
-      {
-        label: 'URREA no surte',
-        description: 'Items marcados como not_supplied. Gestionar con el cliente si se consiguen de otra fuente o se cancela esa parte.',
-        color: 'red',
-      },
+      { label: 'Hay faltantes', description: 'Descarga el Pedido URREA (o usa Copiar para Excel para pegarlo en el formato viejo) y la lista de compra local, y envialos.', color: 'blue' },
+      { label: 'Todo cubierto con stock', description: 'No hay nada que pedir. Este paso se omite y la orden avanza a la entrega.', color: 'green' },
     ],
   },
   {
     number: 8,
-    title: 'Confirmar recepcion',
-    description: 'Al confirmar, el inventario de la tienda se actualiza automaticamente sumando las cantidades recibidas de URREA.',
+    title: 'Recepcion de productos',
+    description: 'Cuando llegan los productos, registra la cantidad recibida y el estado por cada item en el detalle de la orden. Puedes registrar mas piezas de las pedidas.',
+    variants: [
+      { label: 'Surte todo', description: 'Marca cada item como surtido con la cantidad completa y confirma la recepcion.', color: 'green' },
+      { label: 'Surte parcial', description: 'Registra la cantidad recibida por item. Los no surtidos se marcan como No surtido para gestionarlos con el cliente.', color: 'amber' },
+      { label: 'No surte', description: 'Items marcados como No surtido. Gestionar con el cliente si se consiguen de otra fuente o se cancela esa parte.', color: 'red' },
+    ],
   },
   {
     number: 9,
+    title: 'Confirmar recepcion',
+    description: 'Aparece un resumen antes de confirmar. El stock ya se desconto al crear la orden, asi que al confirmar solo el EXCEDENTE (lo recibido por encima de lo pedido) entra al inventario de tienda; recibir menos de lo pedido no mueve inventario. El total de la orden y el Formato de Entrega excluyen los No surtidos y nunca incluyen el excedente.',
+  },
+  {
+    number: 10,
     title: 'Cierre de la orden',
     description: 'Avanza el estado de la orden hasta completarla o cancelarla.',
     variants: [
-      {
-        label: 'Completada',
-        description: 'Pedido → Recibido → Entregado → Completado. Cada transicion actualiza el estado en el sistema.',
-        color: 'green',
-      },
-      {
-        label: 'Cancelada',
-        description: 'Si la orden se cancela en cualquier punto, el inventario apartado se restaura automaticamente.',
-        color: 'red',
-      },
+      { label: 'Completada', description: 'Pedido → Recibido → Entregado → Completado. Cada transicion actualiza el estado en el sistema.', color: 'green' },
+      { label: 'Cancelada', description: 'Si la orden se cancela en cualquier punto, el inventario apartado se restaura automaticamente (sin volver a sumar el excedente, que ya entro al recibir).', color: 'red' },
     ],
   },
 ]
@@ -225,7 +195,7 @@ export default function DocsPage() {
           Documentacion
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Guia de formatos de Excel y flujo completo del sistema.
+          Formatos de Excel, cada modulo del sistema, el asistente de IA y el flujo completo de una venta.
         </p>
       </div>
 
@@ -670,8 +640,8 @@ export default function DocsPage() {
               <li>
                 <code className="rounded bg-muted px-1">brand</code> &mdash;
                 Marca del producto (ej. <strong>URREA</strong>, Stanley, Truper).
-                Solo los productos con marca <strong>URREA</strong> se incluyen
-                en el pedido al proveedor.
+                Al planificar la compra, van al Pedido URREA los productos que estan en
+                el <strong>catalogo URREA</strong> (cualquiera de sus marcas); el resto va a compra local.
               </li>
             </ul>
           </div>
@@ -976,12 +946,16 @@ export default function DocsPage() {
                 Disponible en cualquier estado excepto <em>Cancelado</em>.
               </li>
               <li>
-                <strong className="text-foreground">Descargar Pedido URREA</strong>{' '}
-                <span className="inline-flex items-center gap-1">(<Download className="size-3" /></span>) {'\u2014'} aparece unicamente cuando
-                hay productos con cantidad a pedir &gt; 0. Genera un Excel con{' '}
-                <code className="rounded bg-muted px-1">model_code</code> +{' '}
-                <code className="rounded bg-muted px-1">quantity</code> solo para items de marca{' '}
-                <strong>URREA</strong>. Los de otras marcas se excluyen con una notificacion.
+                <strong className="text-foreground">Planificar compra</strong> {'\u2014'} abre el planificador de mayoreo vs menudeo.
+                De ahi se descargan el <strong>Pedido URREA</strong> y la <strong>lista de compra local</strong> (ver su seccion).
+              </li>
+              <li>
+                <strong className="text-foreground">Planificar corte</strong> {'\u2014'} si la orden lleva piezas DYMMSA de tubo o placa.
+              </li>
+              <li>
+                <strong className="text-foreground">Formato de Entrega</strong>{' '}
+                <span className="inline-flex items-center gap-1">(<Download className="size-3" /></span>) e <strong className="text-foreground">Imprimir</strong> {'\u2014'} el Excel para el cliente con lo recibido
+                (sin excedentes ni No surtidos) y la version imprimible de la orden.
               </li>
               <li>
                 <strong className="text-foreground">Cancelar Orden</strong> {'\u2014'} disponible mientras la orden no este
@@ -1110,9 +1084,10 @@ export default function DocsPage() {
               la cantidad recibida o el estado URREA de cualquier item. Al confirmar ocurre lo siguiente:
             </p>
             <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
-              <li>La <strong>cantidad recibida</strong> de cada item se suma al inventario de tienda.</li>
+              <li>Aparece un <strong>resumen</strong> de lo que va a cambiar antes de confirmar.</li>
+              <li>El stock <strong>ya se desconto al crear la orden</strong>. Al confirmar, solo el <strong>excedente</strong> (recibido menos pedido) entra al inventario de tienda, ajustado contra lo ya registrado: volver a confirmar no duplica y corregir a la baja resta. Recibir menos de lo pedido no mueve inventario.</li>
               <li>El <strong>estado URREA</strong> de cada item se actualiza (Surtido / No surtido / Pendiente).</li>
-              <li>El <strong>total de la orden</strong> se recalcula excluyendo los items marcados como No surtido.</li>
+              <li>El <strong>total de la orden</strong> y el Formato de Entrega se recalculan excluyendo los No surtidos; el excedente nunca se factura ni se entrega.</li>
             </ul>
           </div>
 
@@ -1174,7 +1149,8 @@ export default function DocsPage() {
                   {[
                     { action: 'Ver detalle de la orden', vals: [true, true, true, true, true] },
                     { action: 'Cambiar estado', vals: [true, true, true, false, false] },
-                    { action: 'Descargar Excel URREA', vals: [true, true, true, true, true] },
+                    { action: 'Formato de Entrega / Imprimir', vals: [true, true, true, true, true] },
+                    { action: 'Planificar compra / corte', vals: [true, true, true, true, true] },
                     { action: 'Cancelar orden', vals: [true, true, true, false, false] },
                     { action: 'Agregar producto', vals: [true, true, true, false, false] },
                     { action: 'Editar precio', vals: [true, true, true, false, false] },
@@ -1205,14 +1181,20 @@ export default function DocsPage() {
               </Table>
             </div>
             <p className="text-xs text-muted-foreground">
-              La descarga del Excel URREA siempre esta disponible, pero el boton solo aparece si hay
-              items con cantidad a pedir &gt; 0.
+              El Pedido URREA y la lista de compra local se descargan desde Planificar compra (ahi esta
+              tambien &ldquo;Copiar para Excel&rdquo;); desde el detalle solo se descarga el Formato de Entrega.
             </p>
           </div>
 
         </CardContent>
       </Card>
       </div>
+
+      <PurchasePlannerSection />
+      <CuttingSection />
+      <SuppliersSection />
+      <FinanceSection />
+      <HoursSection />
 
       <div id="tareas" className="login-card-border">
       <Card className="docs-card-inner border-0">
@@ -1236,6 +1218,7 @@ export default function DocsPage() {
             <li><strong>Filtrar:</strong> por estado (<em>Abiertas</em> / <em>Cerradas</em> / <em>Todas</em>) y por prioridad. <strong>Cerradas</strong> es el historico.</li>
             <li><strong>Detalle:</strong> cada tarea tiene su propia pagina con la descripcion, comentarios (ver y responder), y acciones para cambiar prioridad, editar, <strong>cerrar</strong> (completada) y <strong>reabrir</strong>.</li>
             <li><strong>Descartar:</strong> si una tarea fue un <strong>falso reporte</strong>, se descarta (queda como &ldquo;Descartada&rdquo;, aparte de las completadas). Sale de la vista de abiertas y se puede reabrir si hizo falta.</li>
+            <li><strong>Desde el asistente:</strong> tambien puede crear tareas, comentarlas, cambiar su prioridad y cerrarlas o reabrirlas (nunca reescribe el titulo ni la descripcion).</li>
             <li><strong>Enlace con Novedades:</strong> cuando una novedad menciona una tarea como <code className="rounded bg-muted px-1">#12</code>, se vuelve un enlace directo a esa tarea.</li>
           </ul>
           <div className="rounded-md border bg-muted/40 px-4 py-3 text-muted-foreground">
@@ -1248,6 +1231,9 @@ export default function DocsPage() {
         </CardContent>
       </Card>
       </div>
+
+      <ShortcutsSection />
+      <AssistantSection />
 
       <div id="flujo" className="login-card-border">
       <Card className="docs-card-inner border-0">
