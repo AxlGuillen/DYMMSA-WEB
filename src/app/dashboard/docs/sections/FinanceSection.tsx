@@ -14,7 +14,6 @@ export function FinanceSection() {
         <li>Estados: <strong>Pendiente</strong> (asi nace siempre), <strong>Pagada</strong> y <strong>Cancelada</strong>.</li>
         <li>Al marcar pagada (boton ✓ o desde el popup de editar) se guarda la <strong>fecha real de pago</strong>: por default hoy, o la que captures. Esa fecha es la que manda para el mes, no el vencimiento. Regresar a pendiente la limpia.</li>
         <li>Filtros por estado, mes de vencimiento, proveedor, rango de monto y texto del concepto. Las fechas se muestran en el formato que elijas (selector junto a los filtros).</li>
-        <li>Los administradores ven ademas <strong>quien</strong> marco cada factura como pagada y el historial de cambios en el popup.</li>
       </List>
       <Sub>Overview del mes</Sub>
       <List>

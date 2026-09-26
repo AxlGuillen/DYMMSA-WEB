@@ -12,7 +12,7 @@ export function PurchasePlannerSection() {
       <Sub>Como decide</Sub>
       <List>
         <li>Lo que cabe en paquetes completos va a URREA tal cual. La decision es sobre el <strong>resto</strong> (lo que sobra del ultimo paquete).</li>
-        <li><strong>Recomendacion automatica:</strong> si redondear al paquete deja parado mas dinero que el umbral (default $100), sugiere comprar el resto al menudeo; si el resto es casi un paquete completo (80% o mas), te pide <strong>revisar</strong> y decidir tu; si no, sugiere redondear.</li>
+        <li><strong>Recomendacion automatica:</strong> si redondear al paquete deja parado mas dinero que el umbral (default $100), sugiere comprar el resto al menudeo; si redondear dejaria parado <strong>casi un paquete completo</strong> (80% o mas de la caja sin usar, es decir un resto muy chico), te pide <strong>revisar</strong> y decidir tu; si no, sugiere redondear.</li>
         <li>Puedes elegir <strong>mayoreo</strong>, <strong>menudeo</strong> o <strong>mixto</strong> por grupo. Con grupos en &ldquo;Revisar&rdquo; sin decidir no se guarda ni se genera el Excel.</li>
         <li>El precio que usa para el dinero parado es el de venta (promedio de las lineas con precio); los productos sin precio quedan en un bloque aparte y solo aplica la regla del porcentaje.</li>
         <li>Lo que <strong>no esta en el catalogo URREA</strong> (ninguna de sus marcas) va directo a <strong>compra local</strong>.</li>

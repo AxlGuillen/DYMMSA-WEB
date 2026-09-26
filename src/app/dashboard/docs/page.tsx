@@ -146,7 +146,7 @@ const flowSteps: FlowStep[] = [
     variants: [
       { label: 'Mayoreo', description: 'Paquetes completos a URREA (piezas = paquetes x STD).', color: 'blue' },
       { label: 'Menudeo', description: 'El resto (o todo) se compra al menudeo y va a la lista de compra local.', color: 'amber' },
-      { label: 'Revisar', description: 'El resto es casi un paquete: el sistema no decide por ti. Hasta que decidas no se genera el Excel.', color: 'red' },
+      { label: 'Revisar', description: 'Redondear dejaria casi un paquete completo sin usar (el resto es muy chico): el sistema no decide por ti. Hasta que decidas no se genera el Excel.', color: 'red' },
     ],
   },
   {
@@ -171,7 +171,7 @@ const flowSteps: FlowStep[] = [
   {
     number: 9,
     title: 'Confirmar recepcion',
-    description: 'Aparece un resumen antes de confirmar. El stock ya se descontó al crear la orden, asi que al confirmar solo el EXCEDENTE (lo recibido por encima de lo pedido) entra al inventario de tienda; recibir menos de lo pedido no mueve inventario. El total de la orden y el Formato de Entrega excluyen los No surtidos y nunca incluyen el excedente.',
+    description: 'Aparece un resumen antes de confirmar. El stock ya se desconto al crear la orden, asi que al confirmar solo el EXCEDENTE (lo recibido por encima de lo pedido) entra al inventario de tienda; recibir menos de lo pedido no mueve inventario. El total de la orden y el Formato de Entrega excluyen los No surtidos y nunca incluyen el excedente.',
   },
   {
     number: 10,

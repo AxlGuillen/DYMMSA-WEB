@@ -5,10 +5,13 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { TOOL_MANIFEST, groupByModule, manifestFor } from '@/lib/mcp/manifest'
 
-const registered = [...readFileSync(join(process.cwd(), 'src/lib/mcp/server.ts'), 'utf8').matchAll(/registerTool\(\s*'([a-z_]+)'/g)].map((m) => m[1])
+const serverSrc = readFileSync(join(process.cwd(), 'src/lib/mcp/server.ts'), 'utf8')
+const registered = [...serverSrc.matchAll(/registerTool\(\s*'([a-z_]+)'/g)].map((m) => m[1])
 
 describe('manifiesto del MCP', () => {
   test('cada tool registrada esta en el manifiesto, y el manifiesto no inventa tools', () => {
+    // A registerTool with double quotes or a computed name would slip past the regex unseen (review PR #119).
+    expect(registered.length).toBe([...serverSrc.matchAll(/registerTool\(/g)].length)
     const listed = TOOL_MANIFEST.map((t) => t.name)
     expect(registered.filter((n) => !listed.includes(n)), 'registradas sin manifiesto').toEqual([])
     expect(listed.filter((n) => !registered.includes(n)), 'en el manifiesto sin registrar').toEqual([])

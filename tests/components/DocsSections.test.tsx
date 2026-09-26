@@ -12,7 +12,7 @@ describe('AssistantSection', () => {
     for (const tool of TOOL_MANIFEST) {
       expect(screen.getAllByText(tool.title).length, tool.name).toBeGreaterThan(0)
     }
-    // Writes appear twice (in their module and in the actions list) — each with its limit.
+    // Only the module blocks carry the badge; the actions list repeats the limits, not the badge.
     expect(screen.getAllByText('escribe')).toHaveLength(5)
     expect(screen.getByText(/Nunca toca cantidades/)).toBeTruthy()
     expect(screen.getByText(/Nunca escribe/)).toBeTruthy()
