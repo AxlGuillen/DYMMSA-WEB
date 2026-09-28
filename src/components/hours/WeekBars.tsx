@@ -23,7 +23,7 @@ function DayTooltip({ active, payload }: TooltipProps) {
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-md">
       <p className="text-sm font-medium">{point.label}</p>
-      <p className="text-xs text-muted-foreground">{formatDuration(point.hours * 60)} h</p>
+      <p className="text-xs text-muted-foreground">{formatDuration(point.minutes)} h</p>
       {point.open > 0 && (
         <p className="text-xs text-amber-600">{point.open} sin salida — no suma</p>
       )}

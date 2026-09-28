@@ -275,13 +275,15 @@ export interface WeekChartPoint {
   label: (typeof WEEKDAY_LABELS)[number]
   date: ISODate
   hours: number
+  /** Exact, for the tooltip: `hours` is rounded to 0.1 for the bar. */
+  minutes: number
   /** Pairs without a clock-out: they add nothing, so the bar must not read as a short day. */
   open: number
 }
 
 /** The week as the chart draws it; every number is prepared here, never in the component. */
 export function weekChartData(week: WeekView<unknown>): WeekChartPoint[] {
-  return week.days.map((d) => ({ label: d.label, date: d.date, hours: toHours(d.minutes), open: d.open }))
+  return week.days.map((d) => ({ label: d.label, date: d.date, hours: toHours(d.minutes), minutes: d.minutes, open: d.open }))
 }
 
 export interface ShiftProgress {

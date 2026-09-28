@@ -128,8 +128,13 @@ describe('referencias de jornada (#101)', () => {
     const week = buildWeekView([entry('2026-08-31', '09:00', '17:30'), entry('2026-09-01', '09:00', null)], '2026-08-31')
     const data = weekChartData(week)
     expect(data).toHaveLength(7)
-    expect(data[0]).toEqual({ label: 'Lun', date: '2026-08-31', hours: 8.5, open: 0 })
-    expect(data[1]).toEqual({ label: 'Mar', date: '2026-09-01', hours: 0, open: 1 })
+    expect(data[0]).toEqual({ label: 'Lun', date: '2026-08-31', hours: 8.5, minutes: 510, open: 0 })
+    expect(data[1]).toEqual({ label: 'Mar', date: '2026-09-01', hours: 0, minutes: 0, open: 1 })
+  })
+
+  test('weekChartData: los minutos exactos viajan aparte del redondeo de la barra', () => {
+    const [day] = weekChartData(buildWeekView([entry('2026-08-31', '09:00', '17:29')], '2026-08-31'))
+    expect(day).toMatchObject({ hours: 8.5, minutes: 509 })
   })
 
   test('shiftProgress: objetivo semanal 40 h / 20 h, porcentaje y faltante; null sin jornada', () => {

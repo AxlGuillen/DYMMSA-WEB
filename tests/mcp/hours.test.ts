@@ -96,7 +96,7 @@ describe('get_hours_trend', () => {
     expect(result.semanas).toBe(4)
     expect(result.por_semana).toHaveLength(4)
     expect(result.promedio_semanal).toBe('00:00')
-    expect(result).toMatchObject({ cumplimiento_promedio_pct: 0, faltante_promedio: '20:00' })
+    expect(result).toMatchObject({ cumplimiento_promedio_pct: 0, faltante_promedio: '20:00', semanas_con_registro: 0 })
     expect('cumplimiento_pct' in result).toBe(false)
     const read = client.callsTo('time_entries', 'select')[0]
     const from = read.filters.find((f) => f.method === 'gte')?.args[1] as string

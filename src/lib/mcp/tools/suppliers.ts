@@ -52,10 +52,15 @@ export async function listSuppliers(db: Db, input: ListSuppliersInput = {}) {
   const { data, error } = await query
   if (error) throw new ToolError(`Error al leer proveedores: ${error.message}`)
 
-  const matching = ((data ?? []) as SupplierRow[])
-    .map(digest)
-    .filter((s) => !brand || s.marcas.some((m) => m.includes(brand)))
-  return { total: matching.length, mostrados: Math.min(matching.length, limit), proveedores: matching.slice(0, limit) }
+  const rows = (data ?? []) as SupplierRow[]
+  const matching = rows.map(digest).filter((s) => !brand || s.marcas.some((m) => m.includes(brand)))
+  const scanCut = Boolean(brand) && rows.length >= BRAND_SCAN_LIMIT
+  return {
+    total: matching.length,
+    mostrados: Math.min(matching.length, limit),
+    nota: scanCut ? `Se revisaron solo los primeros ${BRAND_SCAN_LIMIT} proveedores: puede haber más con esa marca.` : null,
+    proveedores: matching.slice(0, limit),
+  }
 }
 
 export type SupplierRef = Pick<Supplier, 'id' | 'name' | 'payment_terms_days'>

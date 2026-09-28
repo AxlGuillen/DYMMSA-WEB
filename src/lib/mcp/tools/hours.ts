@@ -3,7 +3,7 @@
  * from the caller's token, so RLS decides — a member sees only their own rows and profile.
  */
 
-import { ToolError, sanitizeSearch, type Db } from '../shared'
+import { ToolError, requireSingleMatch, sanitizeSearch, type Db } from '../shared'
 import { todayInMexico } from '@/lib/format'
 import {
   buildWeekView,
@@ -41,12 +41,7 @@ async function resolveTarget(db: Db, callerId: string, persona?: string): Promis
   if (matches.length === 0) {
     throw new ToolError(`Ninguna persona visible para ti coincide con "${query}". Un miembro solo puede consultar sus propias horas.`)
   }
-  if (matches.length > 1) {
-    const shown = matches.slice(0, 5).map((m) => m.display_name).join(', ')
-    const count = matches.length > 5 ? 'más de 5' : String(matches.length)
-    throw new ToolError(`Hay ${count} coincidencias (${shown}${matches.length > 5 ? ', …' : ''}) — precisa el nombre.`)
-  }
-  return matches[0]
+  return requireSingleMatch(matches, (m) => m.display_name, 'persona', query)
 }
 
 async function entriesBetween(db: Db, userId: string, from: string, to: string): Promise<TimeEntry[]> {
@@ -124,6 +119,8 @@ export async function getHoursTrend(db: Db, callerId: string, input: HoursTrendI
     // Over the AVERAGE week, not this week: named so the model does not phrase it as "this week".
     cumplimiento_promedio_pct: progress?.pct ?? null,
     faltante_promedio: progress ? formatDuration(progress.missing) : null,
+    // Empty weeks count as 0 in the average: someone new would read as falling short (review PR #125).
+    semanas_con_registro: trend.filter((w) => w.minutes > 0 || w.open > 0).length,
     por_semana: trend.map((w) => ({
       inicio: w.start,
       fin: w.end,

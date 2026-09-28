@@ -27,7 +27,7 @@ describe('listSuppliers', () => {
 
     const surtek = await listSuppliers(asDb(client), { marca: 'surtek' })
     expect(surtek.proveedores.map((s) => s.nombre)).toEqual(['Perfiles del Bajío'])
-    expect(surtek).toMatchObject({ total: 1, mostrados: 1 })
+    expect(surtek).toMatchObject({ total: 1, mostrados: 1, nota: null })
     // With a brand the SQL limit is wide: the cut happens after filtering (review PR #111).
     expect(client.callsTo('suppliers', 'select')[1].filters.find((f) => f.method === 'limit')?.args[0]).toBe(1000)
     expect(client.callsTo('suppliers', 'select')[0].filters.find((f) => f.method === 'limit')?.args[0]).toBe(50)

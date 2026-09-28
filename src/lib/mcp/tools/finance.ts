@@ -53,13 +53,21 @@ export async function getMonthClosing(db: Db, input: { mes?: string } = {}, deps
 
   // Same cap as the overview; a silent cut would move cierre.real, so it is reported.
   const [pendingRes, paidRes, incomeRes] = await Promise.all([
-    db.from('payables').select('*', { count: 'exact' }).eq('status', 'pending').limit(EGRESOS_LIMIT),
+    db
+      .from('payables')
+      .select('*', { count: 'exact' })
+      .eq('status', 'pending')
+      .order('due_date', { ascending: true })
+      .order('id', { ascending: true })
+      .limit(EGRESOS_LIMIT),
     db
       .from('payables')
       .select('*', { count: 'exact' })
       .eq('status', 'paid')
       .gte('paid_at', from)
       .lt('paid_at', toExclusive)
+      .order('paid_at', { ascending: true })
+      .order('id', { ascending: true })
       .limit(EGRESOS_LIMIT),
     readIncome(month, today, deps),
   ])
