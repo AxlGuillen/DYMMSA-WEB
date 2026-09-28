@@ -8,6 +8,29 @@ export type { ISODate }
 
 export const PAYABLE_STATUSES: readonly PayableStatus[] = ['pending', 'paid', 'cancelled']
 
+export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+export type PaymentUpdate =
+  | { ok: true; updates: { status: PayableStatus; paid_at: string | null } }
+  | { ok: false; error: string }
+
+/**
+ * The payment rule shared by the PATCH route and the MCP write (#109): paid stores the REAL
+ * date (today by default), any other status clears it.
+ */
+export function resolvePaymentUpdate(
+  status: unknown,
+  paidAt: unknown,
+  today: ISODate,
+): PaymentUpdate {
+  if (!PAYABLE_STATUSES.includes(status as PayableStatus)) return { ok: false, error: 'Estado inválido' }
+  if (status !== 'paid') return { ok: true, updates: { status: status as PayableStatus, paid_at: null } }
+  if (paidAt !== undefined && paidAt !== null && (typeof paidAt !== 'string' || !ISO_DATE.test(paidAt))) {
+    return { ok: false, error: 'Fecha de pago inválida' }
+  }
+  return { ok: true, updates: { status: 'paid', paid_at: (paidAt as string | null | undefined) ?? today } }
+}
+
 export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
   pending: 'Pendiente',
   paid: 'Pagada',

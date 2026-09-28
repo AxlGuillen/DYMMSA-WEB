@@ -48,7 +48,15 @@ describe('Vista guiada — dashboard y sidebar', () => {
     }
   })
 
-  test('el botón Vista guiada arranca driver.js con los 7 bloques resueltos', async () => {
+  test('toda sección del sidebar (nav-*) tiene su paso en el tour — ninguna se salta en silencio (#120)', () => {
+    renderDashboard()
+    const anchors = [...document.querySelectorAll('[data-tour^="nav-"]')].map((el) => el.getAttribute('data-tour'))
+    const covered = new Set(DASHBOARD_TOUR.map((s) => s.selector.match(/"([^"]+)"/)![1]))
+    expect(anchors.length).toBeGreaterThan(0)
+    for (const anchor of anchors) expect(covered.has(anchor!), `sección sin paso: ${anchor}`).toBe(true)
+  })
+
+  test('el botón Vista guiada arranca driver.js con los 9 bloques resueltos', async () => {
     const user = userEvent.setup()
     renderDashboard()
 

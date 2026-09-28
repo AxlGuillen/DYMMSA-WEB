@@ -375,6 +375,7 @@ RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRAN
 | `display_name` | text | No | — | | `COALESCE(full_name, display_name, email)` al crearse |
 | `role` | text | No | `'member'` | CHECK `admin·member` | |
 | `clock_employee_id` | integer | Sí | — | UNIQUE, CHECK > 0 | Número entre paréntesis del reporte NGTeco; NULL = no checa |
+| `shift` | text | Sí | — | CHECK `full_time·part_time` | Jornada (#101, ADR-029): referencia de las gráficas de Horas (8 h/4 h al día, 40 h/20 h a la semana); NULL = sin asignar |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
 RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()`. Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
@@ -444,6 +445,7 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `20260916190052` | `tighten_profiles_and_imports_rls` | `profiles` SELECT = fila propia o admin; `time_imports` SELECT = admin; conteo casteado en la RPC (review PR #99) |
 | `20260924031216` | `add_audit_events` | Bitácora genérica `audit_events` (solo admin lee, sin INSERT para authenticated) + `audit_payable()` DEFINER y trigger `payables_audit`. Issue #100, ADR-028 |
 | `20260924034509` | `audit_events_actor_without_fk` | Se quita el FK `actor_id → profiles`: dentro del trigger tumbaba la escritura del usuario (review PR #106) |
+| `20260924055249` | `add_profile_shift` | Columna `shift` en `profiles` (jornada por persona) + paso de datos en la nube: todos `full_time`, Tania `part_time`. Issue #101, ADR-029 |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |

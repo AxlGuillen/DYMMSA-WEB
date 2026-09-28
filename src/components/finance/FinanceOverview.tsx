@@ -80,7 +80,7 @@ export function FinanceOverview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-tour="fin-month">
         <Button variant="outline" size="icon" className="size-8" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Mes anterior">
           <ChevronLeft className="size-4" />
         </Button>
@@ -95,148 +95,155 @@ export function FinanceOverview() {
         )}
       </div>
 
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Egresos</h2>
-      {payablesUnavailable ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-4 text-amber-600" />
-              Egresos no disponibles
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            No se pudieron cargar las facturas por pagar. Recarga la página para intentar de nuevo.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            title="Pendiente del mes"
-            value={fmt(summary?.pendingTotal ?? 0)}
-            description={summary ? pieces(summary.pendingCount) : undefined}
-            icon={<DollarSign className="size-5" />}
-            color="blue"
-            isLoading={isLoading}
-          />
-          <MetricCard
-            title="Vencido"
-            value={fmt(summary?.overdueTotal ?? 0)}
-            description={summary ? `${pieces(summary.overdueCount)} — incluye meses previos` : undefined}
-            icon={<AlertTriangle className="size-5" />}
-            color="red"
-            isLoading={isLoading}
-          />
-          <MetricCard
-            title="Por vencer (7 días)"
-            value={fmt(summary?.dueSoonTotal ?? 0)}
-            description={summary ? pieces(summary.dueSoonCount) : undefined}
-            icon={<Clock className="size-5" />}
-            color="orange"
-            isLoading={isLoading}
-          />
-          <MetricCard
-            title="Pagado en el mes"
-            value={fmt(summary?.paidTotal ?? 0)}
-            description={summary ? pieces(summary.paidCount) : undefined}
-            icon={<Check className="size-5" />}
-            color="green"
-            isLoading={isLoading}
-          />
-        </div>
-      )}
-      {payablesStale && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
-          Estos egresos son los de la última carga buena: el intento más reciente falló.
-        </p>
-      )}
-      {data?.pendingTruncated && (
-        <p className="text-xs text-muted-foreground">
-          Egresos pendientes: la lectura llegó a su límite; el arrastre vencido y el cierre proyectado pueden quedar cortos.
-        </p>
-      )}
-      {data?.paidTruncated && (
-        <p className="text-xs text-muted-foreground">
-          Egresos pagados: la lectura del mes llegó a su límite; el cierre real puede quedar corto.
-        </p>
-      )}
+      <section className="space-y-6" data-tour="fin-expenses">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Egresos</h2>
+        {payablesUnavailable ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <AlertTriangle className="size-4 text-amber-600" />
+                Egresos no disponibles
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              No se pudieron cargar las facturas por pagar. Recarga la página para intentar de nuevo.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Pendiente del mes"
+              value={fmt(summary?.pendingTotal ?? 0)}
+              description={summary ? pieces(summary.pendingCount) : undefined}
+              icon={<DollarSign className="size-5" />}
+              color="blue"
+              isLoading={isLoading}
+            />
+            <MetricCard
+              title="Vencido"
+              value={fmt(summary?.overdueTotal ?? 0)}
+              description={summary ? `${pieces(summary.overdueCount)} — incluye meses previos` : undefined}
+              icon={<AlertTriangle className="size-5" />}
+              color="red"
+              isLoading={isLoading}
+            />
+            <MetricCard
+              title="Por vencer (7 días)"
+              value={fmt(summary?.dueSoonTotal ?? 0)}
+              description={summary ? pieces(summary.dueSoonCount) : undefined}
+              icon={<Clock className="size-5" />}
+              color="orange"
+              isLoading={isLoading}
+            />
+            <MetricCard
+              title="Pagado en el mes"
+              value={fmt(summary?.paidTotal ?? 0)}
+              description={summary ? pieces(summary.paidCount) : undefined}
+              icon={<Check className="size-5" />}
+              color="green"
+              isLoading={isLoading}
+            />
+          </div>
+        )}
+        {payablesStale && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Estos egresos son los de la última carga buena: el intento más reciente falló.
+          </p>
+        )}
+        {data?.pendingTruncated && (
+          <p className="text-xs text-muted-foreground">
+            Egresos pendientes: la lectura llegó a su límite; el arrastre vencido y el cierre proyectado pueden quedar cortos.
+          </p>
+        )}
+        {data?.paidTruncated && (
+          <p className="text-xs text-muted-foreground">
+            Egresos pagados: la lectura del mes llegó a su límite; el cierre real puede quedar corto.
+          </p>
+        )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2" data-testid="income-header">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingresos (Odoo)</h2>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {currencies.length > 0 && (
-            <Badge variant="outline">Incluye {currencies.join(', ')} sin convertir</Badge>
-          )}
-          {incomeData?.fetchedAt && <span>Actualizado {formatRelative(incomeData.fetchedAt)}</span>}
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshIncome.isPending} aria-label="Actualizar ingresos">
-            <RefreshCw className={`mr-1 size-3.5 ${refreshIncome.isPending ? 'animate-spin' : ''}`} />
-            Actualizar
-          </Button>
-        </div>
-      </div>
+      </section>
 
-      {incomeUnavailable ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-4 text-amber-600" />
-              Ingresos no disponibles
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {incomeData?.unavailable?.message
-              ?? (incomeQuery.isError ? 'No se pudieron cargar los ingresos. Intenta de nuevo con Actualizar.' : 'No se pudo leer Odoo.')}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            title="Cobrado del mes"
-            value={fmt(income?.collectedTotal ?? 0)}
-            description={income ? `${income.collectedCount} cobro${income.collectedCount !== 1 ? 's' : ''}` : undefined}
-            icon={<Check className="size-5" />}
-            color="green"
-            isLoading={incomeLoading}
-          />
-          <MetricCard
-            title="Por cobrar"
-            value={fmt(income?.receivableTotal ?? 0)}
-            description={income ? `${pieces(income.receivableCount)} al día de hoy — vence hoy o después${currencyNote(income.receivableCurrencies)}` : undefined}
-            icon={<Clock className="size-5" />}
-            color="blue"
-            isLoading={incomeLoading}
-          />
-          <MetricCard
-            title="Vencido por cobrar"
-            value={fmt(income?.overdueTotal ?? 0)}
-            description={income ? `${pieces(income.overdueCount)} al día de hoy — cualquier mes${currencyNote(income.overdueCurrencies)}` : undefined}
-            icon={<AlertTriangle className="size-5" />}
-            color="red"
-            isLoading={incomeLoading}
-          />
-          <MetricCard
-            title="Cierre del mes"
-            value={closing ? fmt(closing.real) : '—'}
-            description={closing
-              ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes del mes y vencidas previas${currencyNote(income?.collectionCurrencies)}`
-              : 'Necesita los cobros de Odoo y los egresos del mes'}
-            icon={<DollarSign className="size-5" />}
-            color="purple"
-            isLoading={incomeLoading || isLoading}
-          />
+      <section className="space-y-6" data-tour="fin-income">
+        <div className="flex flex-wrap items-center justify-between gap-2" data-testid="income-header">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingresos (Odoo)</h2>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {currencies.length > 0 && (
+              <Badge variant="outline">Incluye {currencies.join(', ')} sin convertir</Badge>
+            )}
+            {incomeData?.fetchedAt && <span>Actualizado {formatRelative(incomeData.fetchedAt)}</span>}
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshIncome.isPending} aria-label="Actualizar ingresos">
+              <RefreshCw className={`mr-1 size-3.5 ${refreshIncome.isPending ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+          </div>
         </div>
-      )}
-      {incomeStale && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
-          Estos ingresos son los de la última carga buena: el intento más reciente falló.
-        </p>
-      )}
-      {income?.receivablesTruncated && (
-        <p className="text-xs text-muted-foreground">
-          Facturas abiertas: la lectura llegó a su límite; por cobrar, vencido y notas de crédito pueden quedar cortos.
-        </p>
-      )}
 
-      <Card>
+        {incomeUnavailable ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <AlertTriangle className="size-4 text-amber-600" />
+                Ingresos no disponibles
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {incomeData?.unavailable?.message
+                ?? (incomeQuery.isError ? 'No se pudieron cargar los ingresos. Intenta de nuevo con Actualizar.' : 'No se pudo leer Odoo.')}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Cobrado del mes"
+              value={fmt(income?.collectedTotal ?? 0)}
+              description={income ? `${income.collectedCount} cobro${income.collectedCount !== 1 ? 's' : ''}` : undefined}
+              icon={<Check className="size-5" />}
+              color="green"
+              isLoading={incomeLoading}
+            />
+            <MetricCard
+              title="Por cobrar"
+              value={fmt(income?.receivableTotal ?? 0)}
+              description={income ? `${pieces(income.receivableCount)} al día de hoy — vence hoy o después${currencyNote(income.receivableCurrencies)}` : undefined}
+              icon={<Clock className="size-5" />}
+              color="blue"
+              isLoading={incomeLoading}
+            />
+            <MetricCard
+              title="Vencido por cobrar"
+              value={fmt(income?.overdueTotal ?? 0)}
+              description={income ? `${pieces(income.overdueCount)} al día de hoy — cualquier mes${currencyNote(income.overdueCurrencies)}` : undefined}
+              icon={<AlertTriangle className="size-5" />}
+              color="red"
+              isLoading={incomeLoading}
+            />
+            <MetricCard
+              data-tour="fin-closing"
+              title="Cierre del mes"
+              value={closing ? fmt(closing.real) : '—'}
+              description={closing
+                ? `Proyectado ${fmt(closing.projected)} · cobrado − pagado − pendientes del mes y vencidas previas${currencyNote(income?.collectionCurrencies)}`
+                : 'Necesita los cobros de Odoo y los egresos del mes'}
+              icon={<DollarSign className="size-5" />}
+              color="purple"
+              isLoading={incomeLoading || isLoading}
+            />
+          </div>
+        )}
+        {incomeStale && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Estos ingresos son los de la última carga buena: el intento más reciente falló.
+          </p>
+        )}
+        {income?.receivablesTruncated && (
+          <p className="text-xs text-muted-foreground">
+            Facturas abiertas: la lectura llegó a su límite; por cobrar, vencido y notas de crédito pueden quedar cortos.
+          </p>
+        )}
+
+      </section>
+
+      <Card data-tour="fin-due-weeks">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <Receipt className="size-4" />
@@ -318,7 +325,7 @@ export function FinanceOverview() {
 
       {/* Customer credit is informed, never subtracted: nobody knows yet if it will be used (#102). */}
       {income && (
-        <Card data-testid="credit-notes">
+        <Card data-testid="credit-notes" data-tour="fin-credit-notes">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <RotateCcw className="size-4" />

@@ -3,6 +3,78 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-25
+
+### Nuevo
+- **Vistas guiadas en Finanzas y Horas.** El botón "Vista guiada" ya está en
+  el overview de Finanzas (qué es cada tarjeta, cómo se calcula el cierre y por
+  qué las notas de crédito no se restan), en Facturas por pagar (filtros, el ✓
+  contra la fecha real de pago), en Mi semana (las gráficas y las líneas de
+  jornada) y en Equipo (rol, id del checador y jornada).
+
+### Mejorado
+- El tour de Inicio ya presenta las secciones **Finanzas** y **Horas** del
+  menú, y tres explicaciones se pusieron al día: la sección DYMMSA (corte y
+  medidas de material), los proveedores (días de crédito) y el planificador de
+  compra (Copiar para Excel).
+
+## 2026-09-24
+
+### Nuevo
+- **Documentación al día.** La página Documentación ahora cubre todos los
+  módulos: Planificar compra, Corte y medidas de material, Proveedores,
+  Finanzas, Horas y Equipo, y una sección de tablas, vistas guiadas y atajos.
+  Se corrigieron tres cosas que decía y ya no eran ciertas: el Pedido URREA
+  sale de Planificar compra (e incluye todas las marcas del catálogo), y al
+  confirmar una recepción solo el excedente entra al inventario.
+- **Sección "Asistente (IA)" en Documentación.** Lista todo lo que puedes
+  preguntarle o pedirle al asistente, por módulo y con una pregunta de ejemplo
+  cada una; las cinco acciones que puede hacer con sus límites; y qué lee de
+  Odoo y qué nunca hace. Se genera sola a partir de las capacidades reales, así
+  que siempre está al día.
+- **Cobranza desde el asistente.** Pregúntale "¿a quién le cobro primero?" o
+  "¿quién paga más lento?": te da el ranking de clientes por saldo vencido y
+  por días promedio que tardan en pagar, con la deuda total de cada uno, tal
+  como lo calcula Odoo. El expediente de un cliente ahora incluye su cartera
+  (deuda total, vencido y días promedio de pago).
+- **Gráficas en Horas.** Arriba de la rejilla semanal hay dos gráficas: las
+  **horas de cada día de la semana** y la **tendencia de las últimas 8
+  semanas**. Las dos dibujan las líneas de referencia de **medio tiempo** y
+  **tiempo completo** (4 h y 8 h al día; 20 h y 40 h a la semana) y resaltan
+  la que corresponde a la jornada de la persona, con un aviso de si cumple o
+  cuántas horas le faltan. Un día con una checada sin salida se pinta aparte:
+  no suma horas y no debe leerse como un día corto.
+- **Jornada por persona en Equipo.** Cada perfil puede tener jornada de
+  tiempo completo o de medio tiempo (o ninguna); es la referencia que usan
+  las gráficas.
+- **El asistente ya responde sobre horas.** Puede decir cuántas horas lleva
+  alguien esta semana, cómo viene en las últimas semanas y qué reportes del
+  checador se han cargado. Cada quien ve lo mismo que en la app: un miembro
+  solo sus propias horas, un administrador las de todos.
+- **Revisión de facturas sin orden de venta (Odoo), desde el asistente.**
+  Pídele "revisa qué facturas de este mes no están ligadas a su orden de
+  venta" y te da, en una sola pasada, las huérfanas y las de vínculo roto
+  (el origen dice una orden pero ninguna está ligada de verdad), con el
+  cliente, el total, las notas al pie ("PEDIDO: …") y el término de pago.
+  El detalle de una factura ahora dice cuántas órdenes tiene ligadas, su
+  término de pago real y la unidad de cada línea (piezas vs cajas); el de
+  una venta lista sus facturas y qué falta por facturar por línea.
+- **El asistente ya cubre todos los módulos.** Puede responder sobre
+  proveedores (contacto, plazo, marcas que surten), facturas por pagar ("¿qué
+  debo esta semana?", el detalle de una factura), el cierre
+  del mes (egresos de aquí + ingresos de Odoo), la lista de corte de una orden
+  (cuánto tubo o placa pedir y cuántas barras u hojas salen con cada
+  presentación), el planificador de compra (qué va a mayoreo y qué a menudeo)
+  y la configuración de la app.
+- **Facturas por pagar desde el asistente.** Ahora puedes decirle "ya pagué
+  la de Perfiles, márcala" o "registra una factura de Tornillos MX por $2,500
+  con fecha de hoy": marca pagadas (con la fecha real, o de regreso a
+  pendiente) y registra facturas nuevas, calculando el vencimiento con el
+  plazo del proveedor como en la app. Antes de escribir te confirma qué va a
+  hacer, y si el nombre coincide con varias facturas o proveedores te pregunta
+  cuál. La bitácora registra quién lo hizo igual que desde la app. Editar
+  montos o borrar facturas sigue siendo solo desde la app.
+
 ## 2026-09-23
 
 ### Nuevo

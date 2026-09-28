@@ -45,7 +45,7 @@ export const PURCHASE_PLANNER_TOUR: OverviewStep[] = [
     selector: '[data-tour="plan-actions"]',
     title: 'Los dos Excel',
     description:
-      '<b>Pedido URREA</b> sale de las decisiones GUARDADAS (piezas en múltiplos de STD): si tienes cambios en pantalla, el botón guarda y descarga en un solo paso; con grupos "por revisar" no genera y te avisa. <b>Compra local</b> arma el listado para el menudeo.',
+      '<b>Pedido URREA</b> sale de las decisiones GUARDADAS (piezas en múltiplos de STD): si tienes cambios en pantalla, el botón guarda y descarga en un solo paso; con grupos "por revisar" no genera y te avisa. <b>Copiar para Excel</b> copia código y cantidad para pegarlos en el Excel viejo de URREA. <b>Compra local</b> arma el listado para el menudeo.',
     // The footer is pinned to the bottom, so the popover opens upward.
     side: 'top',
   },

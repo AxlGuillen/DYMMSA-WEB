@@ -71,6 +71,43 @@ Hallazgos F6 (2026-08-20, exploración en vivo con PAY00068):
 - **El puente pago↔REP no es FK directa** (el pago tiene `move_id=false` en esta instancia): es por facturas conciliadas — `l10n_mx_edi.document` con `invoice_ids in [facturas del pago]` + `state like 'payment%'`. Heurística de cobertura: el doc cubre al pago si abarca TODAS sus facturas (con pagos parciales de una misma factura podría dar falso "en regla" — límite consciente, no afecta el patrón de cobro actual). Con varios docs (re-timbrado) manda el más reciente.
 - **`reconciled_invoice_ids` es computado pero filtrarlo NO truena: devuelve 0 resultados EN SILENCIO** (peor que el ValueError de `qty_available`). Nació el concepto **`readOnlyFields`** en el catálogo: campos legibles bajo demanda pero vedados en dominios/order, y fuera de la proyección por defecto.
 
+## Tools Fase 7 (issue #110) — vínculo real factura↔orden de venta
+
+- `odoo_invoice_link_check` — la revisión periódica en UNA llamada lógica: facturas de cliente contabilizadas del periodo (default 30 días, opcional cliente), leídas **por páginas de 200** por encima del tope de 50 de las primitivas (tope duro 2000 → nota), clasificadas por el vínculo REAL: `ligada` (`sale_order_count > 0`), `vinculo_roto` (0 ligadas pero `invoice_origin` menciona una orden) y `huerfana` (ni ligada ni origen). Devuelve solo las problemáticas (con `incluir_ligadas` también las buenas), cada una con notas al pie ya en texto (`pedido_pie`) y término de pago. Lista para una rutina programada (issue aparte).
+- `odoo_invoice_detail` gana `vinculo_venta` (órdenes ligadas + diagnóstico), `termino_pago`, `notas_pie` y por línea `unidad` + `ligada_a_venta` (por `sale_line_ids`). `odoo_sale_detail` gana `facturas` (folio/estado/pago — resueltas con una llamada extra solo si `invoice_ids` trae algo) y por línea `unidad`, `por_facturar` (`qty_to_invoice`) y `lineas_de_factura`.
+
+Hallazgos F7 (2026-09-24, `fields_get` + muestras en vivo, Odoo 19):
+
+- **`account.move.sale_order_count`: computado NO almacenado** — un dominio sobre él truena con `ValueError: Cannot convert ... not stored` (ruidoso, a diferencia de `reconciled_invoice_ids`). `readOnlyFields`. **`sale.order.invoice_ids`** igual: `readOnlyFields`.
+- **Sí almacenados** (mejor de lo que la issue temía): `account.move.line.sale_line_ids` e `sale.order.line.invoice_lines` (many2many, filtrables), **`qty_to_invoice`** (float), `narration` (html), `invoice_payment_term_id`, `product_uom_id` en ambas líneas.
+- `narration` llega como HTML con envoltorio de Odoo (`<p data-oe-version="2.0">PEDIDO: 4102931264</p>`) → `htmlToText()` en `normalize.ts` (bloques → saltos de línea, entidades decodificadas).
+- `invoice_origin` es texto libre: NO prueba el vínculo. En el smoke jul–sep (210 facturas): 194 ligadas, huérfanas de Andritz con el PO solo en el pie, y **vínculos rotos reales** (FieldCore: origen `S00482`/`S00509`/`S00576` con 0 órdenes ligadas) — invisibles para la inferencia por texto.
+- Una factura en borrador no tiene folio (`name = false`) → `odoo_sale_detail` la etiqueta "(borrador, sin folio)".
+- Opción (b) de la issue (`store=True` en Odoo) descartada: exige módulo Python custom y Odoo **Online** no lo admite (eso es Odoo.sh).
+
+### Exploración para rutinas futuras (2026-09-24, misma sesión; fuera del PR de #110 por decisión)
+
+Verificado con `fields_get` + muestras; cada rutina tiene su issue (#112–#115) para no re-explorar:
+
+| Capacidad | Modelo · campos | Almacenado | Dato de la instancia |
+|---|---|---|---|
+| Entregas pendientes/atrasadas | `stock.picking`: `name`, `partner_id`, `origin`, `state`, `scheduled_date`, `date_deadline`, `date_done`, `sale_id`, `picking_type_id` (id 2 = "Oficina: Delivery Orders") | sí (`picking_type_code` NO → readOnly) | 19 entregas `assigned` sin hacer, 503 `done`, 11 canceladas |
+| Ventas sin entregar | `sale.order.delivery_status` (`full`/`pending`), `commitment_date`, `picking_ids` | sí | `commitment_date` sin uso en la muestra |
+| Cotizaciones por expirar | `sale.order.validity_date` | sí | con datos (S00799 → 2026-10-24) |
+| Cobros sin conciliar | `account.payment.is_reconciled`, `is_matched`, `journal_id`, `payment_method_line_id` | sí | — |
+| Deuda/vencido por cliente | `res.partner.total_due`, `total_overdue`, `credit`, `days_sales_outstanding`, `use_partner_credit_limit` | **NO** → readOnly | FieldCore $997K deuda / $56.7K vencido; GE $1.45M / $334.6K |
+| Vendedor / equipo | `account.move.invoice_user_id`, `team_id`; `sale.order.team_id`, `payment_term_id` | sí | un solo equipo "Sales" |
+| PO del cliente en su campo | `sale.order.client_order_ref` | sí | **0 de 532 ventas confirmadas lo usan** — el PO vive en `narration` de la factura |
+| Límite de crédito | `res.partner.credit_limit` | sí | 0 en todos, `use_partner_credit_limit` apagado |
+| Márgenes | `sale.order.margin`, `sale.order.line.purchase_price` | **no existen** | módulo *Sale Margin* no instalado |
+| Actividades (seguimientos) | `mail.activity`: `res_model`, `res_name`, `summary`, `date_deadline`, `user_id` | sí | sin rutina pedida |
+
+## Tools Fase 8 (issue #113) — cartera y DSO por cliente
+
+- `res.partner` gana `readOnlyFields: total_due, total_overdue, days_sales_outstanding` — las cifras de cobranza que Odoo calcula por cliente (computadas sin store, verificadas 2026-09-24). `credit` quedó fuera: duplica `total_due`. `odoo_customer_profile` las lee en la misma llamada del contacto y las digiere en `cartera` (deuda total, vencido, días promedio de pago redondeados) **con una nota de semántica**: es el saldo contable de Odoo, NETO de notas de crédito y en moneda de la compañía — no se cuadra contra `facturacion.total_pendiente` (bruto por factura) ni se le restan notas otra vez (#102, review PR #117); el contacto no arrastra las llaves crudas.
+- `odoo_receivables_ranking(limit?)` — lee los clientes (`customer_rank > 0` — los partners con saldo sin rango de cliente quedan fuera y la respuesta lo declara en `universo`; páginas de 100 porque cada fila computa tres campos contra el libro mayor; tope 1000 y un `search_count` decide si faltó alguien) y ordena **en memoria**: `por_vencido` (vencido desc, luego deuda) y `mas_lentos` (DSO desc; sin DSO quedan fuera de esa lista). Odoo no puede ordenar por campos computados, por eso el orden del `search_read` es por relevancia (`customer_rank`) y el ranking se arma aquí. Totales de cartera al frente.
+- Descartado de la issue original: "cobros sin conciliar con banco" — los 82 cobros pagados de la instancia tienen `is_matched = true`; la rutina devolvería siempre cero.
+
 ## Operación
 
 - Env (server): `ODOO_URL`, `ODOO_API_KEY`, `ODOO_DB` (opcional). En Vercel para producción.

@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
-import { PAYABLE_STATUSES } from '@/lib/payables'
-import type { PayableStatus, PayableUpdate } from '@/types/database'
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+import { ISO_DATE, resolvePaymentUpdate } from '@/lib/payables'
+import type { PayableUpdate } from '@/types/database'
 
 // PATCH /api/payables/[id] — sparse updates
 export async function PATCH(
@@ -52,19 +51,9 @@ export async function PATCH(
       updates.notes = typeof body.notes === 'string' ? body.notes.trim() || null : null
     }
     if (body.status !== undefined) {
-      if (!PAYABLE_STATUSES.includes(body.status as PayableStatus)) return badRequest('Estado inválido')
-      updates.status = body.status
-      // Payment rule: marking it paid stores the REAL date (today by default);
-      // going back to pending/cancelled clears it.
-      if (body.status === 'paid') {
-        const paidAt = body.paid_at
-        if (paidAt !== undefined && paidAt !== null && (typeof paidAt !== 'string' || !ISO_DATE.test(paidAt))) {
-          return badRequest('Fecha de pago inválida')
-        }
-        updates.paid_at = paidAt ?? todayInMexico()
-      } else {
-        updates.paid_at = null
-      }
+      const payment = resolvePaymentUpdate(body.status, body.paid_at, todayInMexico())
+      if (!payment.ok) return badRequest(payment.error)
+      Object.assign(updates, payment.updates)
     } else if (body.paid_at !== undefined) {
       // Fix the payment date of an already-paid invoice without touching the status.
       if (body.paid_at !== null && (typeof body.paid_at !== 'string' || !ISO_DATE.test(body.paid_at))) {

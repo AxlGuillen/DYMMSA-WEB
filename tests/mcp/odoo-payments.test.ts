@@ -84,10 +84,10 @@ describe('catálogo fase 6', () => {
     const { odoo } = fakeOdoo({})
     await expect(
       odooQuery(odoo, { model: 'account.payment', domain: [['reconciled_invoice_ids', 'in', [436]]] }),
-    ).rejects.toThrow(/solo de lectura/)
+    ).rejects.toThrow(/computado sin almacenar/)
     await expect(
       odooQuery(odoo, { model: 'account.payment', order: 'reconciled_invoice_ids asc' }),
-    ).rejects.toThrow(/solo de lectura/)
+    ).rejects.toThrow(/computado sin almacenar/)
   })
 
   test('la proyección por defecto NO incluye los readOnly (van solo bajo demanda)', async () => {

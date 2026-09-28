@@ -1,10 +1,12 @@
 /** Odoo phase 5 — document detail + CFDI stamping (ADR-025): folio → id, lines by numeric FK (traversal stays banned in the primitives). */
 
 import type { OdooCaller } from '@/lib/odoo/client'
-import { normalizeRecords } from '@/lib/odoo/normalize'
+import { htmlToText, idsOf, normalizeRecords } from '@/lib/odoo/normalize'
 import { ToolError } from '../../shared'
+import { linkDiagnosis } from './links'
 
 const LINES_LIMIT = 80
+const INVOICES_LIMIT = 50
 
 const CFDI_STATE: Record<string, string> = {
   sent: 'timbrada',
@@ -70,10 +72,15 @@ export async function findByFolio(
   }
 }
 
+/** x2many fields arrive as id arrays; the model only needs how many. */
+const idCount = (value: unknown) => idsOf(value).length
+
 const INVOICE_FIELDS = [
   'name', 'partner_id', 'move_type', 'invoice_date', 'invoice_date_due',
   'amount_untaxed', 'amount_total', 'amount_residual', 'payment_state', 'state',
   'invoice_origin', 'l10n_mx_edi_cfdi_uuid', 'l10n_mx_edi_cfdi_state', 'l10n_mx_edi_cfdi_sat_state',
+  // #110: real sale link, footer notes and payment term.
+  'sale_order_count', 'narration', 'invoice_payment_term_id',
 ]
 
 export async function odooInvoiceDetail(odoo: OdooCaller, input: { folio: string }) {
@@ -86,7 +93,7 @@ export async function odooInvoiceDetail(odoo: OdooCaller, input: { folio: string
   const lines = normalizeRecords(
     await odoo('account.move.line', 'search_read', {
       domain: [['move_id', '=', header.id], ['display_type', '=', 'product']],
-      fields: ['name', 'quantity', 'price_unit', 'price_subtotal', 'price_total'],
+      fields: ['name', 'quantity', 'product_uom_id', 'price_unit', 'price_subtotal', 'price_total', 'sale_line_ids'],
       limit: LINES_LIMIT,
     }),
   )
@@ -98,20 +105,28 @@ export async function odooInvoiceDetail(odoo: OdooCaller, input: { folio: string
       cliente: header.partner_id,
       emitida: header.invoice_date,
       vence: header.invoice_date_due,
+      termino_pago: header.invoice_payment_term_id,
       subtotal: header.amount_untaxed,
       total: header.amount_total,
       saldo_pendiente: header.amount_residual,
       estado: header.state,
       estado_pago: header.payment_state,
       origen: header.invoice_origin,
+      notas_pie: htmlToText(header.narration),
+    },
+    vinculo_venta: {
+      ordenes_ligadas: header.sale_order_count,
+      diagnostico: linkDiagnosis(header.sale_order_count, header.invoice_origin),
     },
     timbrado: timbrado(header),
     productos: lines.map((l) => ({
       producto: l.name,
       cantidad: l.quantity,
+      unidad: l.product_uom_id,
       precio_unitario: l.price_unit,
       subtotal: l.price_subtotal,
       total: l.price_total,
+      ligada_a_venta: idCount(l.sale_line_ids) > 0,
     })),
     nota: lines.length === LINES_LIMIT
       ? `Se listan las primeras ${LINES_LIMIT} líneas — la factura tiene más.`
@@ -121,7 +136,7 @@ export async function odooInvoiceDetail(odoo: OdooCaller, input: { folio: string
 
 const SALE_FIELDS = [
   'name', 'partner_id', 'date_order', 'amount_untaxed', 'amount_total',
-  'state', 'invoice_status', 'user_id',
+  'state', 'invoice_status', 'user_id', 'invoice_ids',
 ]
 
 export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string }) {
@@ -136,10 +151,30 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
       // Drop sections/notes. NOTE: display_type is false for normal lines here —
       // 'product' only exists in account.move.line.
       domain: [['order_id', '=', header.id], ['display_type', '=', false]],
-      fields: ['name', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal'],
+      fields: ['name', 'product_uom_qty', 'product_uom_id', 'qty_delivered', 'qty_invoiced', 'qty_to_invoice', 'price_unit', 'price_subtotal', 'invoice_lines'],
       limit: LINES_LIMIT,
     }),
   )
+
+  // invoice_ids is computed (not stored): read per record, then one call resolves the folios.
+  const invoiceIds = idsOf(header.invoice_ids)
+  const facturas = invoiceIds.length
+    ? normalizeRecords(
+        await odoo('account.move', 'search_read', {
+          domain: [['id', 'in', invoiceIds]],
+          fields: ['name', 'move_type', 'state', 'payment_state', 'amount_total'],
+          limit: INVOICES_LIMIT,
+          order: 'name asc',
+        }),
+      ).map((f) => ({
+        // A draft invoice has no folio yet (Odoo returns false or '/'): say so instead of null.
+        folio: !f.name || f.name === '/' ? '(borrador, sin folio)' : f.name,
+        tipo: f.move_type === 'out_refund' ? 'nota de crédito' : 'factura',
+        estado: f.state,
+        estado_pago: f.payment_state,
+        total: f.amount_total,
+      }))
+    : []
 
   return {
     encontrado: true as const,
@@ -153,16 +188,24 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
       estado_facturacion: header.invoice_status,
       vendedor: header.user_id,
     },
+    facturas,
     productos: lines.map((l) => ({
       producto: l.name,
       pedido: l.product_uom_qty,
+      unidad: l.product_uom_id,
       entregado: l.qty_delivered,
       facturado: l.qty_invoiced,
+      por_facturar: l.qty_to_invoice,
+      lineas_de_factura: idCount(l.invoice_lines),
       precio_unitario: l.price_unit,
       subtotal: l.price_subtotal,
     })),
-    nota: lines.length === LINES_LIMIT
-      ? `Se listan las primeras ${LINES_LIMIT} líneas — la orden tiene más.`
-      : undefined,
+    nota:
+      [
+        lines.length === LINES_LIMIT ? `Se listan las primeras ${LINES_LIMIT} líneas — la orden tiene más.` : null,
+        invoiceIds.length > INVOICES_LIMIT ? `Se listan ${INVOICES_LIMIT} de ${invoiceIds.length} facturas ligadas.` : null,
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined,
   }
 }

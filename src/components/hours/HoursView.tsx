@@ -6,12 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronLeft, ChevronRight } from '@/components/icons'
 import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { WeekGrid } from '@/components/hours/WeekGrid'
+import { WeekChart } from '@/components/hours/WeekChart'
+import { TrendChart } from '@/components/hours/TrendChart'
 import { TimeEntryForm } from '@/components/hours/TimeEntryForm'
 import { useProfile, useProfiles } from '@/hooks/useProfile'
 import { useTimeEntries } from '@/hooks/useTimeEntries'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { todayInMexico } from '@/lib/format'
-import { shiftWeek, weekBounds } from '@/lib/timesheet'
+import { buildWeeklyTrend, shiftWeek, weekBounds } from '@/lib/timesheet'
 import type { TimeEntry } from '@/types/database'
 
 /** Week stepper + (admin) employee selector + the grid. */
@@ -31,6 +33,15 @@ export function HoursView() {
   const { start, end } = weekBounds(weekStart)
   const { data, isLoading, isError } = useTimeEntries({ user: targetUser, from: start, to: end })
 
+  // The reference lines follow whoever is on screen; a person without a shift must not inherit mine.
+  const shown = isAdmin ? profiles?.find((p) => p.id === targetUser) : profile
+  const targetShift = (shown ?? profile)?.shift ?? null
+
+  const TREND_WEEKS = 8
+  const trendQuery = useTimeEntries({ user: targetUser, from: shiftWeek(start, -(TREND_WEEKS - 1)), to: end })
+  // No useMemo: the React Compiler memoizes this itself and rejects the manual one.
+  const trend = trendQuery.data ? buildWeeklyTrend(trendQuery.data.entries, start, TREND_WEEKS) : undefined
+
   const namesById = useMemo(
     () => Object.fromEntries((profiles ?? []).map((p) => [p.id, p.display_name])),
     [profiles],
@@ -41,7 +52,7 @@ export function HoursView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2" data-tour="hrs-week-nav">
         <Button variant="outline" size="icon" className="size-8" onClick={() => setWeekStart((w) => shiftWeek(w, -1))} aria-label="Semana anterior">
           <ChevronLeft className="size-4" />
         </Button>
@@ -58,7 +69,7 @@ export function HoursView() {
         <div className="ml-auto flex items-center gap-2">
           {isAdmin && profiles && (
             <Select value={targetUser ?? ''} onValueChange={setSelectedUser}>
-              <SelectTrigger className="w-auto min-w-[180px]" aria-label="Empleado">
+              <SelectTrigger className="w-auto min-w-[180px]" aria-label="Empleado" data-tour="hrs-employee">
                 <SelectValue placeholder="Empleado" />
               </SelectTrigger>
               <SelectContent>
@@ -72,15 +83,22 @@ export function HoursView() {
         </div>
       </div>
 
-      <WeekGrid
-        week={data?.week ?? undefined}
-        isLoading={isLoading}
-        isError={isError}
-        canEdit={isAdmin}
-        onEdit={openEdit}
-        onAdd={openAdd}
-        namesById={namesById}
-      />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <WeekChart week={data?.week ?? undefined} shift={targetShift} isLoading={isLoading} canAssignShift={isAdmin} />
+        <TrendChart trend={trend} shift={targetShift} currentStart={start} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
+      </div>
+
+      <div data-tour="hrs-grid">
+        <WeekGrid
+          week={data?.week ?? undefined}
+          isLoading={isLoading}
+          isError={isError}
+          canEdit={isAdmin}
+          onEdit={openEdit}
+          onAdd={openAdd}
+          namesById={namesById}
+        />
+      </div>
 
       {isAdmin && targetUser && (
         <TimeEntryForm open={formOpen} onOpenChange={setFormOpen} entry={editing} userId={targetUser} date={addDate} />

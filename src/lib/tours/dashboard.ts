@@ -20,7 +20,21 @@ export const DASHBOARD_TOUR: OverviewStep[] = [
     selector: '[data-tour="nav-dymmsa"]',
     title: 'DYMMSA',
     description:
-      'Lo propio de la tienda: el <b>Inventario</b> físico con sus ubicaciones (gavetas) y los <b>Proveedores</b> de menudeo con las marcas que maneja cada uno.',
+      'Lo propio de la tienda: el <b>Inventario</b> físico con sus gavetas, los <b>Proveedores</b> de menudeo con sus marcas y días de crédito, <b>Planificar corte</b> para el material que se manda hacer (tubos y placas) y las <b>Medidas de material</b> que el proveedor maneja.',
+    side: 'right',
+  },
+  {
+    selector: '[data-tour="nav-finanzas"]',
+    title: 'Finanzas',
+    description:
+      'El <b>Overview</b> pone juntos los egresos del mes, los ingresos leídos de Odoo y el <b>cierre</b> real y proyectado — la cifra para planear impuestos. <b>Facturas por pagar</b> es el registro de los gastos propios: la facturación a clientes sigue viviendo en Odoo.',
+    side: 'right',
+  },
+  {
+    selector: '[data-tour="nav-horas"]',
+    title: 'Horas',
+    description:
+      '<b>Mi semana</b> muestra tus checadas del reloj con dos gráficas contra tu jornada (medio tiempo o tiempo completo). Los administradores además ven a todo el equipo, <b>importan el reporte</b> semanal del checador y administran roles y jornadas en <b>Equipo</b>.',
     side: 'right',
   },
   {

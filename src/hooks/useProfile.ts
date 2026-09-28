@@ -7,7 +7,7 @@ import type { Profile, ProfileUpdate } from '@/types/database'
 export const PROFILE_KEY = ['profile']
 export const PROFILES_KEY = ['profiles']
 
-export type OwnProfile = Pick<Profile, 'id' | 'display_name' | 'role' | 'clock_employee_id'>
+export type OwnProfile = Pick<Profile, 'id' | 'display_name' | 'role' | 'clock_employee_id' | 'shift'>
 
 /** The caller's profile. `isAdmin` only decides what the UI shows; the server enforces (ADR-026). */
 export function useProfile() {

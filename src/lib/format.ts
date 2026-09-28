@@ -32,6 +32,13 @@ export function formatDayLong(iso: string): string {
   }).format(new Date(`${iso}T00:00:00Z`))
 }
 
+/** "31 ago" — axis ticks of the weekly trend; UTC-anchored for the same reason as formatDayLong. */
+export function formatDayMonth(iso: string): string {
+  return new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', day: 'numeric', month: 'short' })
+    .format(new Date(`${iso}T00:00:00Z`))
+    .replace('.', '')
+}
+
 /** User-selectable `date` column formats (#92). */
 export const DATE_FORMATS = ['long', 'short', 'dd-mm-yyyy', 'dd/mm/yyyy', 'yyyy-mm-dd'] as const
 export type DateFormat = (typeof DATE_FORMATS)[number]

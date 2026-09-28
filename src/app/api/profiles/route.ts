@@ -11,7 +11,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, display_name, role, clock_employee_id, created_at, updated_at')
+      .select('id, display_name, role, clock_employee_id, shift, created_at, updated_at')
       .order('display_name', { ascending: true })
 
     if (error) {

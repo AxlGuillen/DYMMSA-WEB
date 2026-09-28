@@ -107,6 +107,7 @@ function PayableFormBody({
       paid_at: payable?.paid_at ?? '',
     },
   })
+  // eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form's watch, as in ProductForm
   const status = form.watch('status')
   // Last non-empty payment date: a paid→pending→paid slip must not replace the real date with today.
   const lastPaidAt = useRef(payable?.paid_at ?? '')
