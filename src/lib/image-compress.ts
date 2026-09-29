@@ -1,6 +1,8 @@
 /** Browser-side compression (canvas → WebP). On failure or no gain it returns the original —
  *  it must never break the upload. */
 
+import { AVATAR_SIZE_PX, centerSquare } from './avatar'
+
 // GIF excluded: canvas would drop the animation.
 const COMPRESSIBLE = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
@@ -38,4 +40,22 @@ export async function compressImage(
   } catch {
     return file
   }
+}
+
+/** Centered square re-encoded on a canvas, which also drops the EXIF (GPS) of phone photos (#122).
+ *  Browsers without a WebP encoder (Safari) hand back PNG; the server accepts both. */
+export async function cropAvatar(file: File, size = AVATAR_SIZE_PX): Promise<Blob> {
+  const bitmap = await createImageBitmap(file)
+  const crop = centerSquare(bitmap.width, bitmap.height)
+  const side = Math.min(size, crop.size)
+  const canvas = document.createElement('canvas')
+  canvas.width = side
+  canvas.height = side
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('No se pudo procesar la imagen')
+  ctx.drawImage(bitmap, crop.x, crop.y, crop.size, crop.size, 0, 0, side, side)
+  bitmap.close?.()
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.85))
+  if (!blob) throw new Error('No se pudo procesar la imagen')
+  return blob
 }
