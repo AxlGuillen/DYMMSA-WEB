@@ -450,7 +450,7 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `20260924031216` | `add_audit_events` | Bitácora genérica `audit_events` (solo admin lee, sin INSERT para authenticated) + `audit_payable()` DEFINER y trigger `payables_audit`. Issue #100, ADR-028 |
 | `20260924034509` | `audit_events_actor_without_fk` | Se quita el FK `actor_id → profiles`: dentro del trigger tumbaba la escritura del usuario (review PR #106) |
 | `20260924055249` | `add_profile_shift` | Columna `shift` en `profiles` (jornada por persona) + paso de datos en la nube: todos `full_time`, Tania `part_time`. Issue #101, ADR-029 |
-| `VERSION_PENDIENTE` | `add_profile_self_service` | Mi perfil (issue #122): columnas `nss` y `avatar_path` en `profiles`, policy "cada quien actualiza su fila", trigger `profiles_guard_admin_fields` (rol/jornada/checador solo admin), bucket `avatars` + 3 policies por carpeta |
+| `20260929225740` | `add_profile_self_service` | Mi perfil (issue #122): columnas `nss` y `avatar_path` en `profiles`, policy "cada quien actualiza su fila", trigger `profiles_guard_admin_fields` (rol/jornada/checador solo admin), bucket `avatars` + 3 policies por carpeta |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |
