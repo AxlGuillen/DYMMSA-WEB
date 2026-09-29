@@ -145,9 +145,6 @@ function DetailsForm({ profile }: { profile: OwnProfile }) {
           <div className="space-y-2">
             <Label htmlFor="me-name">Nombre</Label>
             <Input id="me-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} required />
-            <p className="text-xs text-muted-foreground">
-              Las facturas ya registradas conservan el nombre que tenías ese día.
-            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="me-nss">Número de Seguridad Social (NSS)</Label>

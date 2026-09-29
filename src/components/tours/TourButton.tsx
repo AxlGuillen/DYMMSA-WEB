@@ -21,6 +21,7 @@ import { FINANCE_OVERVIEW_TOUR } from '@/lib/tours/finance-overview'
 import { PAYABLES_TOUR } from '@/lib/tours/payables'
 import { HOURS_TOUR } from '@/lib/tours/hours'
 import { TEAM_TOUR } from '@/lib/tours/team'
+import { PROFILE_TOUR } from '@/lib/tours/profile'
 
 const TOURS = {
   dashboard: DASHBOARD_TOUR,
@@ -41,6 +42,7 @@ const TOURS = {
   payables: PAYABLES_TOUR,
   hours: HOURS_TOUR,
   team: TEAM_TOUR,
+  profile: PROFILE_TOUR,
 } satisfies Record<string, OverviewStep[]>
 
 export type TourId = keyof typeof TOURS

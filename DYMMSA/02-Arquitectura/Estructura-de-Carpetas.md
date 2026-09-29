@@ -8,6 +8,7 @@ src/
 │   │   ├── inventory/import/     # POST: importar inventario desde Excel
 │   │   ├── finance/income/       # GET: ingresos del mes leídos de Odoo · refresh/ POST: purga el caché (issue #94)
 │   │   ├── payables/[id]/events/ # GET admin: bitácora de una factura desde audit_events (issue #100, ADR-028)
+│   │   ├── profile/avatar/       # POST/DELETE: foto propia validada por sus bytes (issue #122, ADR-032)
 │   │   ├── orders/
 │   │   │   ├── [id]/
 │   │   │   │   ├── cancel/       # POST: cancelar orden + restaurar inventario
@@ -58,6 +59,7 @@ src/
 │   │   │   ├── page.tsx          # Mi semana: stepper + WeekGrid (issue #93)
 │   │   │   ├── import/page.tsx   # Importar reporte NGTeco (admin)
 │   │   │   └── team/page.tsx     # Roles e ids de checador (admin)
+│   │   ├── profile/page.tsx      # Mi perfil: foto, nombre y NSS (issue #122)
 │   │   ├── orders/
 │   │   │   ├── page.tsx          # Lista de órdenes
 │   │   │   ├── new/page.tsx      # Crear orden manual (legacy)
@@ -82,6 +84,7 @@ src/
 │   ├── ColumnPicker.tsx          # Selector "Columnas" por tabla (checkbox + restablecer, issue #18)
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
+│   ├── profile/                  # ProfileView, UserAvatar (issue #122)
 │   ├── hours/                    # HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93); WeekChart/WeekBars, TrendChart/TrendBars (gráficas con referencias de jornada, issue #101)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar

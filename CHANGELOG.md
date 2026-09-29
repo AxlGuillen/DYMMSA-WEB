@@ -3,6 +3,23 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-09-29
+
+### Nuevo
+- **Mi perfil.** Da clic a tu nombre en el pie del menú lateral: ahí pones tu
+  foto (se recorta sola en cuadro), cambias tu nombre y capturas tu Número de
+  Seguridad Social. El NSS se revisa al escribirlo, se muestra oculto hasta que
+  tocas el ojo y solo lo ven tú y los administradores. Tiene su vista guiada.
+- **Fotos en toda la app.** Tu foto (o tus iniciales, si no has subido una)
+  aparece en el menú lateral, en Equipo y en el selector de persona de Mi
+  semana.
+- **El asistente conoce los perfiles.** Puedes preguntarle "¿cuál es mi NSS?" o
+  "¿qué jornada tiene Tania?" (un miembro solo consulta lo suyo).
+
+### Mejorado
+- En **Equipo** los administradores ven y capturan el NSS de cada persona
+  (oculto salvo los últimos 4 dígitos).
+
 ## 2026-09-25
 
 ### Nuevo
