@@ -204,6 +204,9 @@ export interface Profile {
   /** NGTeco employee id; null = does not clock in. */
   clock_employee_id: number | null
   shift: ProfileShift | null
+  nss: string | null
+  /** Object path in the avatars bucket; null = initials. */
+  avatar_path: string | null
   created_at: string
   updated_at: string
 }

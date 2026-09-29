@@ -378,6 +378,7 @@ CREATE POLICY "Authenticated users can manage supplier brands" ON public.supplie
 -- ─── Storage ────────────────────────────────────────────────────────────────
 -- bucket task-images · public=true · límite 5 MB · PNG/JPEG/GIF/WEBP
 -- (creado por la migración create_task_images_bucket, ADR-014)
+-- bucket avatars · public=true · límite 2 MB · JPEG/PNG/WEBP (#122) · policies: solo la carpeta `<uid>/` propia
 
 -- ─── Inventario con marca resuelta (issue #53) ──────────────────────────────
 -- `store_inventory` no guarda la marca: se cruza POR VALOR con `etm_products`
@@ -506,11 +507,35 @@ CREATE TABLE public.profiles (
   role text NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
   clock_employee_id integer UNIQUE CHECK (clock_employee_id > 0),
   shift text CHECK (shift IN ('full_time', 'part_time')),  -- jornada (#101): NULL = sin asignar
+  nss text CHECK (nss ~ '^[0-9]{11}$'),
+  avatar_path text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT profiles_avatar_own_folder CHECK (avatar_path IS NULL OR avatar_path LIKE id::text || '/%')
 );
 CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+-- RLS cannot restrict columns (#122): without this a member could promote themself via their own row.
+CREATE OR REPLACE FUNCTION public.guard_profile_admin_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF (SELECT auth.uid()) IS NOT NULL AND NOT public.is_admin() AND (
+    NEW.role IS DISTINCT FROM OLD.role
+    OR NEW.clock_employee_id IS DISTINCT FROM OLD.clock_employee_id
+    OR NEW.shift IS DISTINCT FROM OLD.shift
+  ) THEN
+    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada o el id del checador'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER profiles_guard_admin_fields BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_profile_admin_fields();
 
 -- Perfil automático por usuario nuevo. Corre como supabase_auth_admin, que no tiene
 -- permisos en public: SECURITY DEFINER es obligatorio. Si falla, el alta aborta a propósito.
@@ -574,6 +599,8 @@ CREATE POLICY "Users read own profile, admins read all" ON public.profiles
   FOR SELECT TO authenticated USING (id = (SELECT auth.uid()) OR public.is_admin());
 CREATE POLICY "Admins can update profiles" ON public.profiles
   FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Users update own profile" ON public.profiles
+  FOR UPDATE TO authenticated USING (id = (SELECT auth.uid())) WITH CHECK (id = (SELECT auth.uid()));
 
 -- time_entries: una fila por pareja de checada. Totales calculados, nunca guardados.
 CREATE TABLE public.time_entries (
