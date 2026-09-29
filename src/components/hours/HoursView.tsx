@@ -10,6 +10,7 @@ import { WeekChart } from '@/components/hours/WeekChart'
 import { TrendChart } from '@/components/hours/TrendChart'
 import { TimeEntryForm } from '@/components/hours/TimeEntryForm'
 import { useProfile, useProfiles } from '@/hooks/useProfile'
+import { UserAvatar } from '@/components/profile/UserAvatar'
 import { useTimeEntries } from '@/hooks/useTimeEntries'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { todayInMexico } from '@/lib/format'
@@ -74,7 +75,12 @@ export function HoursView() {
               </SelectTrigger>
               <SelectContent>
                 {profiles.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} size="sm" />
+                      {p.display_name}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

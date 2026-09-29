@@ -2,7 +2,9 @@
 
 import { avatarPublicUrl } from './avatar'
 import { normalizeNss, nssError } from './nss'
-import type { Profile } from '@/types/database'
+import type { Profile, ProfileRole } from '@/types/database'
+
+export const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador', member: 'Miembro' }
 
 export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, created_at, updated_at'
 
