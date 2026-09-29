@@ -2,10 +2,15 @@
  * Mi perfil (#122) against local Supabase: self-edit through RLS, the trigger that keeps the
  * admin fields admin-only, and the per-folder storage policies of the avatars bucket.
  */
-import { describe, test, expect, beforeAll, beforeEach, afterEach, afterAll } from 'vitest'
+import { describe, test, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { injectSupabaseServer } from '../helpers/setup'
+import { makeRequest } from '../helpers/request'
 import { authedClient, authedClientAs, serviceClient } from './helpers/clients'
 import { resetDb, sql, closePool, LOCAL } from './helpers/db'
+import * as profileRoute from '@/app/api/profile/route'
+
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 const ADMIN_ID = '00000000-0000-0000-0000-0000000000a1'
 const MEMBER_ID = '00000000-0000-0000-0000-0000000000a2'
@@ -13,13 +18,15 @@ const VALID_NSS = '12345678903'
 
 let admin: SupabaseClient
 let member: SupabaseClient
+let activeClient: SupabaseClient
+injectSupabaseServer(() => activeClient as never)
 const uploaded: string[] = []
 
 beforeAll(async () => {
   admin = await authedClient()
   member = await authedClientAs(LOCAL.member)
 })
-beforeEach(async () => { await resetDb() })
+beforeEach(async () => { await resetDb(); activeClient = member })
 afterEach(async () => {
   if (uploaded.length) await serviceClient().storage.from('avatars').remove(uploaded.splice(0))
 })
@@ -79,6 +86,14 @@ describe('profiles: auto-edición', () => {
     expect(nss.error?.code).toBe('23514')
     const avatar = await member.from('profiles').update({ avatar_path: `${ADMIN_ID}/a.webp` }).eq('id', MEMBER_ID).select()
     expect(avatar.error?.code).toBe('23514')
+  })
+})
+
+describe('PATCH /api/profile contra la BD real', () => {
+  test('un member guarda su nombre y su NSS normalizado', async () => {
+    const res = await profileRoute.PATCH(makeRequest({ display_name: 'Tania Cruz', nss: '1234 5678 903' }, { method: 'PATCH' }))
+    expect(res.status).toBe(200)
+    expect(await profileRow(MEMBER_ID)).toMatchObject({ display_name: 'Tania Cruz', nss: VALID_NSS, role: 'member' })
   })
 })
 

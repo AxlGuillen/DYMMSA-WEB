@@ -211,7 +211,11 @@ export interface Profile {
   updated_at: string
 }
 
-export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift'>>
+export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss'>>
+/** What a person may change on their own profile (#122); the rest stays with the admin. */
+export type OwnProfileUpdate = Partial<Pick<Profile, 'display_name' | 'nss'>>
+export type ProfileWithAvatar = Profile & { avatar_url: string | null }
+export type OwnProfile = Omit<ProfileWithAvatar, 'created_at' | 'updated_at'> & { email: string | null }
 
 export type TimeEntrySource = 'import' | 'manual'
 
