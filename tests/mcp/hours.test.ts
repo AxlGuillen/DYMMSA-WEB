@@ -62,7 +62,7 @@ describe('get_week_hours', () => {
 
   test('member que pregunta por otro: la RLS no le devuelve el perfil → error claro, sin leer checadas', async () => {
     const client = createMockSupabase({ responses: { 'profiles.select': profiles([ME]) } })
-    await expect(getWeekHours(asDb(client), 'u-tania', { persona: 'Diego' })).rejects.toThrow(/solo puede consultar sus propias horas/)
+    await expect(getWeekHours(asDb(client), 'u-tania', { persona: 'Diego' })).rejects.toThrow(/Un miembro solo puede consultar lo suyo/)
     expect(client.callsTo('time_entries', 'select')).toHaveLength(0)
   })
 

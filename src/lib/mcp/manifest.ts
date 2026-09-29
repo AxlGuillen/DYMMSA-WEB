@@ -46,6 +46,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'get_week_hours', block: 'app', module: 'Horas', kind: 'read', title: 'Horas de la semana', example: '¿Cuantas horas llevo esta semana?' },
   { name: 'get_hours_trend', block: 'app', module: 'Horas', kind: 'read', title: 'Tendencia de horas', example: '¿Como viene Tania en las ultimas semanas?' },
   { name: 'list_time_imports', block: 'app', module: 'Horas', kind: 'read', title: 'Cargas del checador', example: '¿Cuando se cargo el ultimo reporte del checador?' },
+  { name: 'get_profiles', block: 'app', module: 'Perfil', kind: 'read', title: 'Perfiles del equipo', example: '¿Cual es mi NSS?' },
   { name: 'list_tasks', block: 'app', module: 'Tareas', kind: 'read', title: 'Listar tareas', example: '¿Que tareas siguen abiertas?' },
   { name: 'get_task', block: 'app', module: 'Tareas', kind: 'read', title: 'Detalle de tarea', example: '¿Que dice la tarea 45?' },
   { name: 'create_task', block: 'app', module: 'Tareas', kind: 'write', title: 'Crear tarea', example: 'Registra una tarea: revisar los precios de Truper.', limits: 'Queda reportada por el asistente.' },
