@@ -25,11 +25,15 @@ el primer día.
 3. **El MCP lee el NSS** (`get_profiles`, decisión del usuario: consulta rápida). Sin lógica de
    permisos en la tool — la RLS decide como en horas (ADR-029), con el buscador `resolvePerson()`
    compartido. `SERVER_INSTRUCTIONS` pide darlo solo cuando lo pidan y no repetirlo en resúmenes.
+   Una instrucción de prompt no basta como freno (mismo criterio que ADR-028), así que la capa de
+   datos lo acota (review PR #126): el **listado** sin `persona` solo trae el NSS de quien
+   pregunta; el de otra persona viaja únicamente al pedirla por nombre.
 4. **Fotos: bucket público `avatars`, subida con el token del usuario.** A diferencia de
    `task-images` (service role), las policies de `storage.objects` limitan SELECT/INSERT/DELETE a
    la carpeta `<auth.uid()>/`, y el CHECK `profiles_avatar_own_folder` impide apuntar
    `avatar_path` a un archivo ajeno. Lectura pública por URL con rutas `<uid>/<uuid>.<ext>`; cada
-   subida cambia la ruta, así que no hay caché vieja que invalidar.
+   subida cambia la ruta, así que no hay caché vieja que invalidar. Las fotos **no son privadas**:
+   la policy de SELECT existe porque `remove()` la necesita, no para ocultarlas.
 5. **La imagen se juzga por sus bytes, no por su nombre ni su Content-Type.** `readImageInfo()`
    reconoce la firma de JPEG/PNG/WebP y lee sus medidas; SVG (puede llevar scripts), GIF o un
    archivo renombrado no pasan. Tope de 2 MB y 512 × 512 en el servidor. El navegador recorta al
@@ -38,6 +42,13 @@ el primer día.
    mover el recorte a mano, se agrega aparte.
 
 ## Consecuencias
+
+- La policy de fila propia debe decir lo mismo que la ruta: `display_name` gana el CHECK
+  `profiles_display_name_length` (1–80, el límite de `parseDisplayName`) y `handle_new_user`
+  recorta y topa el nombre de la metadata para que un alta no choque con él (review PR #126).
+  El dígito verificador del NSS se queda en la API: el CHECK de formato ya acota lo suficiente.
+- Un WebP animado se rechaza por sus bytes: el recorte del navegador lo aplanaría, pero un POST
+  directo no pasa por ahí.
 
 - Un member que intenta cambiarse el rol recibe un error explícito en vez de "0 filas"; el test
   de integración de horas se ajustó a 42501.

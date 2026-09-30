@@ -34,17 +34,21 @@ describe('get_profiles', () => {
     expect(result.perfiles[0].foto).toMatch(/\/avatars\/u-tania\/a\.webp$/)
   })
 
-  test('admin sin persona: todo el equipo; sin foto ni NSS salen null', async () => {
+  test('admin sin persona: todo el equipo, pero el NSS solo el suyo (review PR #126)', async () => {
     const client = createMockSupabase({ responses: { 'profiles.select': profiles([DIEGO, TANIA]) } })
     const result = await getProfiles(asDb(client), 'u-diego')
     expect(result.total).toBe(2)
     expect(result.perfiles.find((p) => p.nombre === 'Diego')).toMatchObject({ rol: 'Administrador', jornada: null, nss: null, foto: null })
+    expect(result.perfiles.find((p) => p.nombre === 'Tania')).not.toHaveProperty('nss')
+    expect(JSON.stringify(result)).not.toContain('12345678903')
+    expect(result.nota).toMatch(/por nombre/)
   })
 
-  test('admin con persona: resuelve por nombre parcial', async () => {
+  test('admin con persona: resuelve por nombre parcial y trae su NSS', async () => {
     const client = createMockSupabase({ responses: { 'profiles.select': profiles([DIEGO, TANIA]) } })
     const result = await getProfiles(asDb(client), 'u-diego', { persona: 'tan' })
-    expect(result.perfiles.map((p) => p.nombre)).toEqual(['Tania'])
+    expect(result.perfiles).toMatchObject([{ nombre: 'Tania', nss: '12345678903' }])
+    expect(result.nota).toBeNull()
   })
 
   test('member que pregunta por otro: la RLS no se lo devuelve → error claro', async () => {

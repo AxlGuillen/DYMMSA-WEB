@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Pencil } from '@/components/icons'
 import { useProfiles, useUpdateProfile } from '@/hooks/useProfile'
 import { UserAvatar } from '@/components/profile/UserAvatar'
+import { NssField } from '@/components/profile/NssField'
 import { useDiscreteModeStore } from '@/stores/discreteModeStore'
 import { maskNss, normalizeNss, nssError } from '@/lib/nss'
 import { ROLE_LABELS } from '@/lib/profile'
@@ -106,6 +107,9 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
   const [clockId, setClockId] = useState(profile.clock_employee_id == null ? '' : String(profile.clock_employee_id))
   const [shift, setShift] = useState<ProfileShift | null>(profile.shift ?? null)
   const [nss, setNss] = useState(profile.nss ?? '')
+  const normalizedNss = normalizeNss(nss) || null
+  const nssChanged = normalizedNss !== profile.nss
+  const nssProblem = nssChanged && normalizedNss ? nssError(normalizedNss) : null
   const update = useUpdateProfile()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,8 +119,6 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
       toast.error('El id del checador debe ser un entero mayor a 0')
       return
     }
-    const normalizedNss = normalizeNss(nss)
-    const nssProblem = normalizedNss ? nssError(normalizedNss) : null
     if (nssProblem) {
       toast.error(nssProblem)
       return
@@ -124,7 +126,7 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
     try {
       await update.mutateAsync({
         id: profile.id,
-        updates: { display_name: name.trim(), role, clock_employee_id: parsed, shift, nss: normalizedNss || null },
+        updates: { display_name: name.trim(), role, clock_employee_id: parsed, shift, ...(nssChanged ? { nss: normalizedNss } : {}) },
       })
       toast.success('Perfil actualizado')
       onClose()
@@ -174,10 +176,7 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
             </Select>
             <p className="text-xs text-muted-foreground">Referencia de las gráficas de horas: 8 h o 4 h al día, 40 h o 20 h a la semana.</p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="pf-nss">NSS</Label>
-            <Input id="pf-nss" inputMode="numeric" autoComplete="off" maxLength={14} value={nss} onChange={(e) => setNss(e.target.value)} placeholder="11 dígitos" />
-          </div>
+          <NssField id="pf-nss" label="NSS" saved={profile.nss} value={nss} onChange={setNss} error={nssProblem} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={update.isPending}>Cancelar</Button>
             <Button type="submit" disabled={update.isPending}>{update.isPending ? 'Guardando…' : 'Guardar'}</Button>

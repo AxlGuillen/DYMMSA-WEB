@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Eye, EyeOff, Trash2, Upload } from '@/components/icons'
+import { Trash2, Upload } from '@/components/icons'
 import { UserAvatar } from '@/components/profile/UserAvatar'
+import { NssField } from '@/components/profile/NssField'
 import { useProfile, useRemoveAvatar, useUpdateOwnProfile, useUploadAvatar } from '@/hooks/useProfile'
-import { useDiscreteModeStore } from '@/stores/discreteModeStore'
 import { cropAvatar } from '@/lib/image-compress'
-import { maskNss, normalizeNss, nssError } from '@/lib/nss'
+import { normalizeNss, nssError } from '@/lib/nss'
 import { ROLE_LABELS } from '@/lib/profile'
 import { SHIFT_LABELS } from '@/lib/timesheet'
 import type { OwnProfile, OwnProfileUpdate } from '@/types/database'
@@ -109,16 +109,14 @@ function PhotoCard({ profile }: { profile: OwnProfile }) {
 function DetailsForm({ profile }: { profile: OwnProfile }) {
   const [name, setName] = useState(profile.display_name)
   const [nss, setNss] = useState(profile.nss ?? '')
-  const [revealed, setRevealed] = useState(false)
-  const isDiscrete = useDiscreteModeStore((s) => s.isDiscreteMode)
   const update = useUpdateOwnProfile()
 
-  const shown = revealed && !isDiscrete
-  const normalized = normalizeNss(nss)
-  const nssProblem = normalized ? nssError(normalized) : null
+  const normalized = normalizeNss(nss) || null
+  const nssChanged = normalized !== profile.nss
+  const nssProblem = nssChanged && normalized ? nssError(normalized) : null
   const changes: OwnProfileUpdate = {}
   if (name.trim() !== profile.display_name) changes.display_name = name.trim()
-  if ((normalized || null) !== profile.nss) changes.nss = normalized || null
+  if (nssChanged) changes.nss = normalized
   const dirty = Object.keys(changes).length > 0
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,7 +126,6 @@ function DetailsForm({ profile }: { profile: OwnProfile }) {
     try {
       await update.mutateAsync(changes)
       toast.success('Perfil actualizado')
-      setRevealed(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo guardar')
     }
@@ -146,36 +143,14 @@ function DetailsForm({ profile }: { profile: OwnProfile }) {
             <Label htmlFor="me-name">Nombre</Label>
             <Input id="me-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} required />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="me-nss">Número de Seguridad Social (NSS)</Label>
-            <div className="flex gap-2">
-              <Input
-                id="me-nss"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={14}
-                placeholder="11 dígitos"
-                value={shown || !profile.nss ? nss : maskNss(profile.nss)}
-                readOnly={!shown && Boolean(profile.nss)}
-                onChange={(e) => setNss(e.target.value)}
-                aria-invalid={Boolean(nssProblem)}
-              />
-              {profile.nss && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setRevealed((r) => !r)}
-                  disabled={isDiscrete}
-                  aria-label={shown ? 'Ocultar NSS' : 'Mostrar NSS'}
-                  title={isDiscrete ? 'Modo discreto activo' : undefined}
-                >
-                  {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </Button>
-              )}
-            </div>
-            {nssProblem && <p className="text-xs text-destructive">{nssProblem}</p>}
-          </div>
+          <NssField
+            id="me-nss"
+            label="Número de Seguridad Social (NSS)"
+            saved={profile.nss}
+            value={nss}
+            onChange={setNss}
+            error={nssProblem}
+          />
           <div className="flex justify-end">
             <Button type="submit" disabled={!dirty || update.isPending}>
               {update.isPending ? 'Guardando…' : 'Guardar'}

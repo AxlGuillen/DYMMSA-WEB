@@ -40,6 +40,12 @@ describe('readImageInfo', () => {
     expect(readImageInfo(file)).toMatchObject({ mime, width, height })
   })
 
+  test('un WebP animado no pasa (el recorte del navegador no lo aplanó)', () => {
+    const animated = webpExtended(100, 100)
+    animated[20] = 0x02
+    expect(readImageInfo(animated)).toBeNull()
+  })
+
   test('un SVG (aunque se llame .png) no es imagen aceptada', () => {
     expect(readImageInfo(bytes('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'))).toBeNull()
   })

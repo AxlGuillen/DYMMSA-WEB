@@ -551,7 +551,8 @@ CREATE TABLE public.profiles (
   avatar_path text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT profiles_avatar_own_folder CHECK (avatar_path IS NULL OR avatar_path LIKE id::text || '/%')
+  CONSTRAINT profiles_avatar_own_folder CHECK (avatar_path IS NULL OR avatar_path LIKE id::text || '/%'),
+  CONSTRAINT profiles_display_name_length CHECK (char_length(btrim(display_name)) BETWEEN 1 AND 80)
 );
 CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
@@ -589,12 +590,13 @@ BEGIN
   INSERT INTO public.profiles (id, display_name)
   VALUES (
     NEW.id,
-    COALESCE(
-      NULLIF(NEW.raw_user_meta_data->>'full_name', ''),
-      NULLIF(NEW.raw_user_meta_data->>'display_name', ''),
-      NULLIF(split_part(COALESCE(NEW.email, ''), '@', 1), ''),
+    -- Trimmed and capped: a blank or long metadata name must not trip profiles_display_name_length.
+    left(COALESCE(
+      NULLIF(btrim(NEW.raw_user_meta_data->>'full_name'), ''),
+      NULLIF(btrim(NEW.raw_user_meta_data->>'display_name'), ''),
+      NULLIF(btrim(split_part(COALESCE(NEW.email, ''), '@', 1)), ''),
       NEW.id::text
-    )
+    ), 80)
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;

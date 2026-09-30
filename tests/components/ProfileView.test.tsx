@@ -94,6 +94,17 @@ describe('ProfileView', () => {
     expect(updateOwn).toHaveBeenCalledWith({ nss: '12345678903' })
   })
 
+  test('un NSS guardado que no pasa el verificador no impide cambiar el nombre (review PR #126)', async () => {
+    profile = { ...base, nss: '12345678904' }
+    const user = userEvent.setup()
+    renderWithProviders(<ProfileView />)
+    const name = screen.getByLabelText('Nombre')
+    await user.clear(name)
+    await user.type(name, 'Tania C.')
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(updateOwn).toHaveBeenCalledWith({ display_name: 'Tania C.' })
+  })
+
   test('los datos del admin se muestran de solo lectura', () => {
     renderWithProviders(<ProfileView />)
     expect(screen.getByText('tania@dymmsa.mx')).toBeInTheDocument()

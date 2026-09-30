@@ -81,6 +81,13 @@ describe('profiles: auto-edición', () => {
     expect(res.data).toEqual([{ nss: VALID_NSS, shift: 'part_time' }])
   })
 
+  test('el CHECK del nombre dice lo mismo que la ruta: 1 a 80 caracteres (review PR #126)', async () => {
+    const long = await member.from('profiles').update({ display_name: 'x'.repeat(81) }).eq('id', MEMBER_ID).select()
+    expect(long.error?.code).toBe('23514')
+    const blank = await member.from('profiles').update({ display_name: '   ' }).eq('id', MEMBER_ID).select()
+    expect(blank.error?.code).toBe('23514')
+  })
+
   test('el CHECK rechaza un NSS que no son 11 dígitos y una foto fuera de la carpeta propia', async () => {
     const nss = await member.from('profiles').update({ nss: '1234' }).eq('id', MEMBER_ID).select()
     expect(nss.error?.code).toBe('23514')

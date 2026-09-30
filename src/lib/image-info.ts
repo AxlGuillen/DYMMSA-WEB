@@ -34,7 +34,8 @@ function readWebp(b: Uint8Array): [number, number] | null {
     const height = 1 + (((b[24] & 0x0f) << 10) | (b[23] << 2) | ((b[22] & 0xc0) >> 6))
     return [width, height]
   }
-  if (ascii(b, 12, 'VP8X') && b.length >= 30) return [1 + u24le(b, 24), 1 + u24le(b, 27)]
+  // Animated WebP (ANIM flag) is refused: a direct POST would skip the browser's single-frame re-encode.
+  if (ascii(b, 12, 'VP8X') && b.length >= 30 && !(b[20] & 0x02)) return [1 + u24le(b, 24), 1 + u24le(b, 27)]
   return null
 }
 

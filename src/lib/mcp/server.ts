@@ -94,7 +94,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
 - Horas del equipo (checador): get_week_hours, get_hours_trend, list_time_imports. Solo lectura. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
-- Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona igual que en horas: un miembro solo ve su perfil, un administrador el de todos. El NSS es dato personal: dalo solo cuando lo pidan explícitamente y no lo repitas en resúmenes.
+- Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona igual que en horas: un miembro solo ve su perfil, un administrador el de todos. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan explícitamente y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
 
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
@@ -454,7 +454,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Perfiles del equipo',
       description:
-        'Perfil de las personas con cuenta en la app: nombre, rol, jornada, id del checador, NSS (Número de Seguridad Social) y foto. Sin `persona` devuelve todos los perfiles que quien pregunta puede ver (un miembro solo el suyo, un administrador a todo el equipo); con `persona` busca a una por nombre parcial. Úsala para "¿cuál es mi NSS?" o "¿qué jornada tiene Tania?".',
+        'Perfil de las personas con cuenta en la app: nombre, rol, jornada, id del checador, NSS (Número de Seguridad Social) y foto. Sin `persona` devuelve todos los perfiles que quien pregunta puede ver (un miembro solo el suyo, un administrador a todo el equipo) con el NSS solo de quien pregunta; con `persona` busca a una por nombre parcial e incluye su NSS. Úsala para "¿cuál es mi NSS?" o "¿cuál es el NSS de Tania?".',
       inputSchema: {
         persona: z.string().optional().describe('Nombre (o parte) de la persona; solo un administrador ve a otros'),
       },

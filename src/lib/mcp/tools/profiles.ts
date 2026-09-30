@@ -40,24 +40,31 @@ type ProfileRow = Pick<Profile, 'id' | 'display_name' | 'role' | 'clock_employee
 
 const COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path'
 
-function digest(row: ProfileRow) {
+function digest(row: ProfileRow, withNss: boolean) {
   return {
     nombre: row.display_name,
     rol: ROLE_LABELS[row.role],
     jornada: row.shift ? SHIFT_LABELS[row.shift] : null,
     id_checador: row.clock_employee_id,
-    nss: row.nss,
+    ...(withNss ? { nss: row.nss } : {}),
     foto: avatarPublicUrl(row.avatar_path),
   }
 }
 
+const NSS_NOTE = 'El NSS de los demás solo viaja al pedir a una persona por nombre.'
+
 export async function getProfiles(db: Db, callerId: string, input: { persona?: string } = {}) {
   if (sanitizeSearch(input.persona ?? '')) {
     const person = await resolvePerson<ProfileRow>(db, callerId, input.persona, COLUMNS)
-    return { total: 1, perfiles: [digest(person)] }
+    return { total: 1, perfiles: [digest(person, true)], nota: null }
   }
   const { data, error } = await db.from('profiles').select(COLUMNS).order('display_name', { ascending: true })
   if (error) throw new ToolError('No se pudieron leer los perfiles')
   const rows = (data ?? []) as ProfileRow[]
-  return { total: rows.length, perfiles: rows.map(digest) }
+  // A team listing never dumps everyone's NSS (review PR #126); the caller's own stays.
+  return {
+    total: rows.length,
+    perfiles: rows.map((row) => digest(row, row.id === callerId)),
+    nota: rows.length > 1 ? NSS_NOTE : null,
+  }
 }

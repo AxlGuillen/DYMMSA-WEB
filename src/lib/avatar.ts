@@ -5,9 +5,11 @@ export const AVATAR_SIZE_PX = 256
 export const AVATAR_MAX_PX = 512
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 
+/** Built by hand so lib code and the MCP need no storage client; same shape as getPublicUrl(). */
 export function avatarPublicUrl(path: string | null): string | null {
   if (!path) return null
-  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${AVATAR_BUCKET}/${path}`
+  const origin = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '')
+  return `${origin}/storage/v1/object/public/${AVATAR_BUCKET}/${path}`
 }
 
 export function initials(name: string): string {

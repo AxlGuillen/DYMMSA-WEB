@@ -1,5 +1,7 @@
-import { describe, test, expect } from 'vitest'
-import { avatarTone, centerSquare, initials } from '@/lib/avatar'
+import { describe, test, expect, vi, afterEach } from 'vitest'
+import { avatarPublicUrl, avatarTone, centerSquare, initials } from '@/lib/avatar'
+
+afterEach(() => vi.unstubAllEnvs())
 
 describe('avatar', () => {
   test.each([
@@ -22,5 +24,11 @@ describe('avatar', () => {
     expect(centerSquare(400, 300)).toEqual({ x: 50, y: 0, size: 300 })
     expect(centerSquare(300, 401)).toEqual({ x: 0, y: 50, size: 300 })
     expect(centerSquare(256, 256)).toEqual({ x: 0, y: 0, size: 256 })
+  })
+
+  test('la URL pública tolera una diagonal final en el origen', () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://x.supabase.co/')
+    expect(avatarPublicUrl('u1/a.webp')).toBe('https://x.supabase.co/storage/v1/object/public/avatars/u1/a.webp')
+    expect(avatarPublicUrl(null)).toBeNull()
   })
 })
