@@ -53,6 +53,7 @@ import {
   PanelLeftOpen,
   DollarSign,
   Receipt,
+  Banknote,
   Ruler,
   CalendarClock,
   Upload,
@@ -92,6 +93,11 @@ const dymmsaLinks: LinkItem[] = [
 const financeLinks: LinkItem[] = [
   { href: '/dashboard/finance',          label: 'Overview',           icon: DollarSign, exact: true },
   { href: '/dashboard/finance/payables', label: 'Facturas por pagar', icon: Receipt },
+]
+
+// Hidden for members; every payroll route and table is admin-only (ADR-033).
+const financeAdminLinks: LinkItem[] = [
+  { href: '/dashboard/payroll', label: 'Nómina', icon: Banknote },
 ]
 
 const hoursLinks: LinkItem[] = [
@@ -255,7 +261,7 @@ function SidebarContent({
           <NavSection links={mainLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-main" />
           <NavSection title="ETM — Catálogo" links={etmUrreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-etm" />
           <NavSection title="DYMMSA" links={dymmsaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-dymmsa" />
-          <NavSection title="Finanzas" links={financeLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-finanzas" />
+          <NavSection title="Finanzas" links={isAdmin ? [...financeLinks, ...financeAdminLinks] : financeLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-finanzas" />
           <NavSection title="Horas" links={isAdmin ? [...hoursLinks, ...hoursAdminLinks] : hoursLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-horas" />
           <NavSection title="URREA" links={urreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-urrea" />
           <NavSection title="Recursos" links={recursosLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-recursos" />
