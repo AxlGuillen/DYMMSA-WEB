@@ -372,13 +372,17 @@ RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRAN
 | Columna | Tipo | Nullable | Default | Constraint | Descripción |
 |---------|------|----------|---------|-----------|-------------|
 | `id` | uuid | No | — | PK, FK → `auth.users` CASCADE | Lo crea el trigger `handle_new_user` (SECURITY DEFINER; si falla, bloquea el alta) |
-| `display_name` | text | No | — | | `COALESCE(full_name, display_name, email)` al crearse |
+| `display_name` | text | No | — | CHECK `profiles_display_name_length` (1–80 sin espacios de orilla) | `COALESCE(full_name, display_name, email)` recortado y topado a 80 al crearse |
 | `role` | text | No | `'member'` | CHECK `admin·member` | |
 | `clock_employee_id` | integer | Sí | — | UNIQUE, CHECK > 0 | Número entre paréntesis del reporte NGTeco; NULL = no checa |
 | `shift` | text | Sí | — | CHECK `full_time·part_time` | Jornada (#101, ADR-029): referencia de las gráficas de Horas (8 h/4 h al día, 40 h/20 h a la semana); NULL = sin asignar |
+| `nss` | text | Sí | — | CHECK `^[0-9]{11}$` | Número de Seguridad Social (Mi perfil, #122). Lo editan la persona y el admin; el dígito verificador se valida en la API |
+| `avatar_path` | text | Sí | — | CHECK `profiles_avatar_own_folder` (empieza con `<id>/`) | Ruta de la foto en el bucket `avatars`; NULL = avatar de iniciales |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
-RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()`. Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
+RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **o fila propia** (#122). Como la RLS no restringe columnas, el trigger `profiles_guard_admin_fields` → `guard_profile_admin_fields()` rechaza con 42501 los cambios a `role`, `clock_employee_id` y `shift` si quien edita no es admin (sin `auth.uid()` —service role, SQL directo— pasa). Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
+
+**Storage `avatars`** (#122): bucket público, 2 MB, JPEG/PNG/WebP. Policies en `storage.objects`: SELECT/INSERT/DELETE solo cuando la primera carpeta de la ruta es el `auth.uid()` de quien llama. La de SELECT existe porque borrar (`remove`) la necesita, **no** porque las fotos sean privadas: el bucket es público y la app pinta la foto de los demás por URL. Lo que se protege es la ruta (`avatar_path` solo la leen su dueño y el admin) y que nadie suba ni borre en carpeta ajena.
 
 ---
 
@@ -446,6 +450,8 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `20260924031216` | `add_audit_events` | Bitácora genérica `audit_events` (solo admin lee, sin INSERT para authenticated) + `audit_payable()` DEFINER y trigger `payables_audit`. Issue #100, ADR-028 |
 | `20260924034509` | `audit_events_actor_without_fk` | Se quita el FK `actor_id → profiles`: dentro del trigger tumbaba la escritura del usuario (review PR #106) |
 | `20260924055249` | `add_profile_shift` | Columna `shift` en `profiles` (jornada por persona) + paso de datos en la nube: todos `full_time`, Tania `part_time`. Issue #101, ADR-029 |
+| `20260929225740` | `add_profile_self_service` | Mi perfil (issue #122): columnas `nss` y `avatar_path` en `profiles`, policy "cada quien actualiza su fila", trigger `profiles_guard_admin_fields` (rol/jornada/checador solo admin), bucket `avatars` + 3 policies por carpeta |
+| `20260930234735` | `profiles_display_name_length` | CHECK de 1–80 caracteres en `display_name` (mismo límite que la ruta) + `handle_new_user` recorta y topa a 80. Review PR #126 |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |

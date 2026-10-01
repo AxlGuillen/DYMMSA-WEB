@@ -3,7 +3,8 @@
  * from the caller's token, so RLS decides — a member sees only their own rows and profile.
  */
 
-import { ToolError, requireSingleMatch, sanitizeSearch, type Db } from '../shared'
+import { ToolError, type Db } from '../shared'
+import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
 import {
   buildWeekView,
@@ -22,27 +23,8 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 type Target = Pick<Profile, 'id' | 'display_name' | 'shift'>
 
-/** The caller themself, or (admins only, by RLS) the one person whose name matches `persona`. */
-async function resolveTarget(db: Db, callerId: string, persona?: string): Promise<Target> {
-  const query = sanitizeSearch(persona ?? '')
-  if (!query) {
-    const { data, error } = await db.from('profiles').select('id, display_name, shift').eq('id', callerId).single()
-    if (error || !data) throw new ToolError('No encontré tu perfil. Vuelve a conectar el conector.')
-    return data as Target
-  }
-  const { data, error } = await db
-    .from('profiles')
-    .select('id, display_name, shift')
-    .ilike('display_name', `%${query}%`)
-    // One past the cap so "more than 5" can be said instead of a wrong count.
-    .limit(6)
-  if (error) throw new ToolError('No se pudieron leer los perfiles')
-  const matches = (data ?? []) as Target[]
-  if (matches.length === 0) {
-    throw new ToolError(`Ninguna persona visible para ti coincide con "${query}". Un miembro solo puede consultar sus propias horas.`)
-  }
-  return requireSingleMatch(matches, (m) => m.display_name, 'persona', query)
-}
+const resolveTarget = (db: Db, callerId: string, persona?: string) =>
+  resolvePerson<Target>(db, callerId, persona, 'id, display_name, shift')
 
 async function entriesBetween(db: Db, userId: string, from: string, to: string): Promise<TimeEntry[]> {
   const { data, error } = await db

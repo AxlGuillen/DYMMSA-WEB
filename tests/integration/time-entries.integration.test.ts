@@ -78,14 +78,14 @@ describe('RLS por usuario (directo al cliente)', () => {
     expect(Number(count)).toBe(4)
   })
 
-  test('profiles: cada quien lee su fila y el admin todas; solo admin actualiza', async () => {
+  test('profiles: cada quien lee su fila y el admin todas; el rol solo lo cambia el admin', async () => {
     const own = await member.from('profiles').select('id')
     expect(own.data).toEqual([{ id: MEMBER_ID }])
     const all = await admin.from('profiles').select('id')
     expect(all.data).toHaveLength(2)
 
     const denied = await member.from('profiles').update({ role: 'admin' }).eq('id', MEMBER_ID).select()
-    expect(denied.data).toHaveLength(0)
+    expect(denied.error?.code).toBe('42501')
     const [row] = await sql<{ role: string }>('SELECT role FROM public.profiles WHERE id = $1', [MEMBER_ID])
     expect(row.role).toBe('member')
 

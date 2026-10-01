@@ -172,9 +172,12 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/profile` | ✅ | Perfil propio `{ id, display_name, role, clock_employee_id, shift }` — lo que el cliente usa para decidir qué mostrar |
-| `GET` | `/api/profiles` | Admin | Todos los perfiles |
-| `PATCH` | `/api/profiles/[id]` | Admin | `shift (full_time/part_time/null, #101)`, `display_name`, `role (admin/member)`, `clock_employee_id (entero ≥ 1 o null)`. No degrada al **último** admin (400); id de checador repetido (23505) → 400 |
+| `GET` | `/api/profile` | ✅ | Perfil propio `{ id, display_name, role, clock_employee_id, shift, nss, avatar_path, avatar_url, email }` — lo que el cliente usa para decidir qué mostrar; `email` sale de la sesión |
+| `PATCH` | `/api/profile` | ✅ | Mi perfil (#122): solo `display_name` (1–80 caracteres) y `nss` (`''`/`null` lo borra; se normaliza quitando espacios y guiones y se valida el dígito verificador). Cualquier otra llave → 400 sin tocar la tabla; la BD lo respalda con el trigger `profiles_guard_admin_fields` |
+| `POST` | `/api/profile/avatar` | ✅ | `multipart/form-data` campo `file`. Tipo y medidas **por los bytes** (`readImageInfo`: JPEG/PNG/WebP; SVG, extensión cambiada o WebP animado → 400; con EXIF/XMP → 400, `hasMetadata`), máximo 2 MB y 512 × 512. Sube con el token del usuario a `avatars/<uid>/<uuid>.<ext>`, guarda `avatar_path` y borra la anterior; si falla el guardado, borra la recién subida. 201 `{ avatar_url }` |
+| `DELETE` | `/api/profile/avatar` | ✅ | Quita la foto (vuelve a las iniciales) y borra el archivo |
+| `GET` | `/api/profiles` | Admin | Todos los perfiles, con `nss` y `avatar_url` |
+| `PATCH` | `/api/profiles/[id]` | Admin | `shift (full_time/part_time/null, #101)`, `display_name`, `role (admin/member)`, `clock_employee_id (entero ≥ 1 o null)`, `nss (#122, misma validación que el propio)`. No degrada al **último** admin (400); id de checador repetido (23505) → 400 |
 | `GET` | `/api/time-entries` | ✅ | Query: `user (uuid, solo admin — un member lo IGNORA y recibe lo propio)`, `from`, `to` (ISO; default semana actual lunes→domingo). Devuelve `{ user, from, to, entries, week }` con `week = buildWeekView()` (7 días, totales derivados). **`week` es `null` salvo que `from..to` sea exactamente una semana lunes→domingo** (la UI siempre manda eso; un rango parcial no tiene total semanal). `time` normalizado a `HH:MM` |
 | `POST` | `/api/time-entries` | Admin | Captura manual: `{ user_id, work_date, clock_in, clock_out?, note? }` → nace `source='manual'`, `source_clock_in = clock_in`. Duplicada → 400 |
 | `PATCH` | `/api/time-entries/[id]` | Admin | `clock_in`, `clock_out` (vacío = abierta), `note`. **Solo un cambio de hora** sella `edited_by/edited_at` y escribe `original` (la primera vez): una nota sola no congela la fila para el import. **Jamás** toca `source_clock_in` |

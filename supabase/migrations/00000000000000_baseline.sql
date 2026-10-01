@@ -399,12 +399,26 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 -- ─── Storage ────────────────────────────────────────────────────────────────
 -- bucket task-images · public=true · límite 5 MB · PNG/JPEG/GIF/WEBP
 -- (creado por la migración create_task_images_bucket, ADR-014)
+-- bucket avatars · public=true · límite 2 MB · JPEG/PNG/WEBP (#122) · policies: solo la carpeta `<uid>/` propia
 
 -- ─── Storage bucket task-images (ADR-014) — el schema.sql solo lo comenta ──
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('task-images', 'task-images', true, 5242880,
         ARRAY['image/png','image/jpeg','image/gif','image/webp'])
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('avatars', 'avatars', true, 2097152, ARRAY['image/jpeg','image/png','image/webp'])
+ON CONFLICT (id) DO NOTHING;
+CREATE POLICY "Users read own avatars" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = (SELECT auth.uid())::text);
+CREATE POLICY "Users upload own avatars" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = (SELECT auth.uid())::text);
+CREATE POLICY "Users delete own avatars" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = (SELECT auth.uid())::text);
 
 -- ─── Inventario con marca resuelta (issue #53) ──────────────────────────────
 -- `store_inventory` no guarda la marca: se cruza POR VALOR con `etm_products`
@@ -533,11 +547,36 @@ CREATE TABLE public.profiles (
   role text NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
   clock_employee_id integer UNIQUE CHECK (clock_employee_id > 0),
   shift text CHECK (shift IN ('full_time', 'part_time')),  -- jornada (#101): NULL = sin asignar
+  nss text CHECK (nss ~ '^[0-9]{11}$'),
+  avatar_path text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT profiles_avatar_own_folder CHECK (avatar_path IS NULL OR avatar_path LIKE id::text || '/%'),
+  CONSTRAINT profiles_display_name_length CHECK (char_length(btrim(display_name)) BETWEEN 1 AND 80)
 );
 CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+-- RLS cannot restrict columns (#122): without this a member could promote themself via their own row.
+CREATE OR REPLACE FUNCTION public.guard_profile_admin_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF (SELECT auth.uid()) IS NOT NULL AND NOT public.is_admin() AND (
+    NEW.role IS DISTINCT FROM OLD.role
+    OR NEW.clock_employee_id IS DISTINCT FROM OLD.clock_employee_id
+    OR NEW.shift IS DISTINCT FROM OLD.shift
+  ) THEN
+    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada o el id del checador'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER profiles_guard_admin_fields BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_profile_admin_fields();
 
 -- Perfil automático por usuario nuevo. Corre como supabase_auth_admin, que no tiene
 -- permisos en public: SECURITY DEFINER es obligatorio. Si falla, el alta aborta a propósito.
@@ -551,12 +590,13 @@ BEGIN
   INSERT INTO public.profiles (id, display_name)
   VALUES (
     NEW.id,
-    COALESCE(
-      NULLIF(NEW.raw_user_meta_data->>'full_name', ''),
-      NULLIF(NEW.raw_user_meta_data->>'display_name', ''),
-      NULLIF(split_part(COALESCE(NEW.email, ''), '@', 1), ''),
+    -- Trimmed and capped: a blank or long metadata name must not trip profiles_display_name_length.
+    left(COALESCE(
+      NULLIF(btrim(NEW.raw_user_meta_data->>'full_name'), ''),
+      NULLIF(btrim(NEW.raw_user_meta_data->>'display_name'), ''),
+      NULLIF(btrim(split_part(COALESCE(NEW.email, ''), '@', 1)), ''),
       NEW.id::text
-    )
+    ), 80)
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
@@ -601,6 +641,8 @@ CREATE POLICY "Users read own profile, admins read all" ON public.profiles
   FOR SELECT TO authenticated USING (id = (SELECT auth.uid()) OR public.is_admin());
 CREATE POLICY "Admins can update profiles" ON public.profiles
   FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Users update own profile" ON public.profiles
+  FOR UPDATE TO authenticated USING (id = (SELECT auth.uid())) WITH CHECK (id = (SELECT auth.uid()));
 
 -- time_entries: una fila por pareja de checada. Totales calculados, nunca guardados.
 CREATE TABLE public.time_entries (

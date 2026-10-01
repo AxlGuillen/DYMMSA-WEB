@@ -55,7 +55,7 @@ export const DASHBOARD_TOUR: OverviewStep[] = [
     selector: '[data-tour="nav-prefs"]',
     title: 'Tu sesión',
     description:
-      'Sonidos de la interfaz, <b>modo discreto</b> (oculta los montos cuando hay gente mirando la pantalla), tema claro/oscuro y cierre de sesión.',
+      'Tu foto y tu nombre abren <b>Mi perfil</b> (nombre, foto y NSS). Al lado: sonidos de la interfaz, <b>modo discreto</b> (oculta los montos y el NSS cuando hay gente mirando la pantalla), tema claro/oscuro y cierre de sesión.',
     side: 'right',
   },
   {

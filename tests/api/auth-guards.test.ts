@@ -35,6 +35,7 @@ import * as payableById from '@/app/api/payables/[id]/route'
 import * as payablesOverview from '@/app/api/payables/overview/route'
 import * as payableEvents from '@/app/api/payables/[id]/events/route'
 import * as profileRoute from '@/app/api/profile/route'
+import * as profileAvatar from '@/app/api/profile/avatar/route'
 import * as profilesRoute from '@/app/api/profiles/route'
 import * as profileById from '@/app/api/profiles/[id]/route'
 import * as timeEntries from '@/app/api/time-entries/route'
@@ -98,6 +99,9 @@ const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = 
   { name: 'DELETE /payables/[id]',                    call: () => payableById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'p1' })) },
   { name: 'GET    /payables/overview',                call: () => payablesOverview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview' })) },
   { name: 'GET    /profile',                          call: () => profileRoute.GET() },
+  { name: 'PATCH  /profile',                          call: () => profileRoute.PATCH(makeRequest({ display_name: 'X' }, { method: 'PATCH' })) },
+  { name: 'POST   /profile/avatar',                   call: () => profileAvatar.POST(makeRequest(undefined, { method: 'POST' })) },
+  { name: 'DELETE /profile/avatar',                   call: () => profileAvatar.DELETE() },
   { name: 'GET    /time-entries',                     call: () => timeEntries.GET(makeRequest(undefined, { url: 'http://x/api/time-entries' })) },
   { name: 'GET    /finance/income',                   call: () => financeIncome.GET(makeRequest(undefined, { url: 'http://x/api/finance/income' })) },
   { name: 'POST   /finance/income/refresh',           call: () => financeIncomeRefresh.POST(makeRequest(undefined, { method: 'POST', url: 'http://x/api/finance/income/refresh' })) },

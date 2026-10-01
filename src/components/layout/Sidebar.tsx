@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { DiscreteModeToggle } from '@/components/discrete-mode-toggle'
 import { SoundToggle } from '@/components/sound-toggle'
+import { UserAvatar } from '@/components/profile/UserAvatar'
 import {
   Tooltip,
   TooltipContent,
@@ -60,6 +61,7 @@ import {
   Truck,
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
+import { ROLE_LABELS } from '@/lib/profile'
 
 type LinkItem = {
   href: string
@@ -192,7 +194,9 @@ function SidebarContent({
   onToggleCollapse?: () => void
 }) {
   const { user, signOut } = useAuth()
-  const { isAdmin } = useProfile()
+  const { isAdmin, profile } = useProfile()
+  const displayName = profile?.display_name ?? user?.email ?? ''
+  const avatar = <UserAvatar id={profile?.id ?? user?.id ?? ''} name={displayName} url={profile?.avatar_url} />
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   return (
@@ -261,6 +265,14 @@ function SidebarContent({
       <div className="shrink-0 border-t px-3 py-4 space-y-2" data-tour="nav-prefs">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/dashboard/profile" onClick={onNavigate} aria-label="Mi perfil" className="rounded-full">
+                  {avatar}
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">Mi perfil</TooltipContent>
+            </Tooltip>
             <SoundToggle />
             <DiscreteModeToggle />
             <ThemeToggle />
@@ -281,11 +293,20 @@ function SidebarContent({
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between rounded-lg px-3 py-1.5">
-              <span className="truncate text-xs text-muted-foreground max-w-[120px]">
-                {user?.email}
-              </span>
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between gap-1">
+              <Link
+                href="/dashboard/profile"
+                onClick={onNavigate}
+                className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent"
+                title="Mi perfil"
+              >
+                {avatar}
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{displayName}</span>
+                  {profile && <span className="block truncate text-xs text-muted-foreground">{ROLE_LABELS[profile.role]}</span>}
+                </span>
+              </Link>
+              <div className="flex shrink-0 items-center gap-1">
                 <SoundToggle />
                 <DiscreteModeToggle />
                 <ThemeToggle />

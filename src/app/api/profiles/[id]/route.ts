@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, notFound, serverError } from '@/lib/api-helpers'
+import { PROFILE_COLUMNS, parseDisplayName, parseNss, withAvatarUrl } from '@/lib/profile'
 import type { Profile, ProfileRole, ProfileShift, ProfileUpdate } from '@/types/database'
 
 const ROLES: ProfileRole[] = ['admin', 'member']
 const SHIFTS: ProfileShift[] = ['full_time', 'part_time']
 
-// PATCH /api/profiles/[id] — display name, role, clock id, shift (admin)
+// PATCH /api/profiles/[id] — display name, role, clock id, shift, NSS (admin)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -21,9 +22,9 @@ export async function PATCH(
     const updates: Record<string, unknown> = {}
 
     if (body.display_name !== undefined) {
-      const name = typeof body.display_name === 'string' ? body.display_name.trim() : ''
-      if (!name) return badRequest('El nombre no puede quedar vacío')
-      updates.display_name = name
+      const name = parseDisplayName(body.display_name)
+      if ('error' in name) return badRequest(name.error)
+      updates.display_name = name.value
     }
     if (body.role !== undefined) {
       if (!ROLES.includes(body.role as ProfileRole)) return badRequest('Rol inválido')
@@ -39,6 +40,11 @@ export async function PATCH(
     if (body.shift !== undefined) {
       if (body.shift !== null && !SHIFTS.includes(body.shift as ProfileShift)) return badRequest('Jornada inválida')
       updates.shift = body.shift
+    }
+    if (body.nss !== undefined) {
+      const nss = parseNss(body.nss)
+      if ('error' in nss) return badRequest(nss.error)
+      updates.nss = nss.value
     }
     if (Object.keys(updates).length === 0) return badRequest('No hay cambios para guardar')
 
@@ -57,7 +63,7 @@ export async function PATCH(
       .from('profiles')
       .update(updates)
       .eq('id', id)
-      .select('id, display_name, role, clock_employee_id, shift, created_at, updated_at')
+      .select(PROFILE_COLUMNS)
       .single()
 
     if (error || !data) {
@@ -66,7 +72,7 @@ export async function PATCH(
       console.error('Error updating profile:', error)
       return serverError('Error al actualizar el perfil')
     }
-    return NextResponse.json(data)
+    return NextResponse.json(withAvatarUrl(data as Profile))
   } catch (error) {
     console.error('Profile PATCH error:', error)
     return serverError('Error al actualizar el perfil')

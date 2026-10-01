@@ -2,7 +2,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { AssistantSection, FinanceSection } from '@/app/dashboard/docs/sections'
+import { AssistantSection, FinanceSection, ProfileSection } from '@/app/dashboard/docs/sections'
 import { TOOL_MANIFEST, manifestFor } from '@/lib/mcp/manifest'
 
 describe('AssistantSection', () => {
@@ -24,5 +24,13 @@ describe('FinanceSection', () => {
     render(<FinanceSection />)
     expect(screen.getByText(/facturacion oficial/)).toBeTruthy()
     expect(screen.getByText(/nunca se restan/)).toBeTruthy()
+  })
+})
+
+describe('ProfileSection', () => {
+  test('dice quién ve el NSS y no menciona el registro de quién pagó (ADR-028)', () => {
+    const { container } = render(<ProfileSection />)
+    expect(screen.getByText(/solo lo ven tu y los administradores/)).toBeTruthy()
+    expect(container.textContent).not.toMatch(/pagad|bitacora|historial/i)
   })
 })
