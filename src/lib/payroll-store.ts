@@ -1,0 +1,233 @@
+/**
+ * Payroll reads and writes shared by the API routes and the MCP tools (#123, ADR-033).
+ * The client comes from the caller, so RLS (`is_admin()`) is the gate — zero service_role.
+ */
+
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { normalizeEntryTimes, type ISODate } from '@/lib/timesheet'
+import {
+  buildPayrollView,
+  isDayMinutes,
+  isIsoDate,
+  isPeriodStart,
+  minutesByDate,
+  payrollPeriod,
+  periodDates,
+  type PayrollView,
+} from '@/lib/payroll'
+import type { PayrollDay, PayrollDaySource, PayrollDayStatus, PayrollEmployee, PayrollPeriod, TimeEntry } from '@/types/database'
+
+/** A rule the user broke (→ 400 / ToolError); anything else is a real failure. */
+export class PayrollError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'PayrollError'
+  }
+}
+
+const NOTE_MAX = 300
+
+export async function loadEmployees(db: SupabaseClient): Promise<PayrollEmployee[]> {
+  const { data, error } = await db.from('payroll_employees').select('*').order('name', { ascending: true })
+  if (error) throw new Error(`payroll_employees: ${error.message}`)
+  return (data ?? []) as PayrollEmployee[]
+}
+
+async function loadPeriodRow(db: SupabaseClient, start: ISODate): Promise<PayrollPeriod | null> {
+  const { data, error } = await db.from('payroll_periods').select('*').eq('start_date', start).maybeSingle()
+  if (error) throw new Error(`payroll_periods: ${error.message}`)
+  return (data as PayrollPeriod | null) ?? null
+}
+
+async function loadDays(db: SupabaseClient, from: ISODate, to: ISODate): Promise<PayrollDay[]> {
+  const { data, error } = await db.from('payroll_days').select('*').gte('work_date', from).lte('work_date', to)
+  if (error) throw new Error(`payroll_days: ${error.message}`)
+  return (data ?? []) as PayrollDay[]
+}
+
+export function assertPeriodStart(start: unknown): asserts start is ISODate {
+  if (!isIsoDate(start) || !isPeriodStart(start)) throw new PayrollError('El corte debe empezar en sábado (YYYY-MM-DD)')
+}
+
+export async function loadPayrollView(db: SupabaseClient, start: ISODate): Promise<PayrollView> {
+  assertPeriodStart(start)
+  const dates = periodDates(start)
+  const [employees, days, period] = await Promise.all([
+    loadEmployees(db),
+    loadDays(db, dates[0], dates[6]),
+    loadPeriodRow(db, start),
+  ])
+  return buildPayrollView(start, employees, days, period)
+}
+
+export interface DayInput {
+  employee_id: string
+  work_date: ISODate
+  worked_minutes: number
+  missed_minutes?: number
+  note?: string | null
+}
+
+export interface SaveDaysResult {
+  saved: number
+  /** Days left untouched, with the reason, so nothing is skipped in silence. */
+  skipped: { employee_id: string; work_date: ISODate; reason: string }[]
+}
+
+/**
+ * Upserts days. `overwrite: false` (sheet, hours prefill) never touches a confirmed day nor one
+ * typed by hand — only the admin editing in the app overwrites.
+ */
+export async function saveDays(
+  db: SupabaseClient,
+  inputs: readonly DayInput[],
+  opts: { source: PayrollDaySource; status: PayrollDayStatus; overwrite: boolean },
+): Promise<SaveDaysResult> {
+  if (inputs.length === 0) return { saved: 0, skipped: [] }
+  for (const d of inputs) {
+    if (!isIsoDate(d.work_date)) throw new PayrollError(`Fecha inválida: ${String(d.work_date)}`)
+    if (!isDayMinutes(d.worked_minutes)) throw new PayrollError(`Horas trabajadas inválidas el ${d.work_date} (0 a 24 h)`)
+    if (d.missed_minutes !== undefined && !isDayMinutes(d.missed_minutes)) {
+      throw new PayrollError(`Horas no trabajadas inválidas el ${d.work_date} (0 a 24 h)`)
+    }
+    if (d.note != null && d.note.length > NOTE_MAX) throw new PayrollError(`La nota no puede pasar de ${NOTE_MAX} caracteres`)
+  }
+  const keys = new Set<string>()
+  for (const d of inputs) {
+    const key = `${d.employee_id}|${d.work_date}`
+    if (keys.has(key)) throw new PayrollError(`El ${d.work_date} viene repetido para el mismo empleado`)
+    keys.add(key)
+  }
+
+  const sorted = inputs.map((d) => d.work_date).sort()
+  const starts = [...new Set(inputs.map((d) => payrollPeriod(d.work_date).start))]
+  const [existing, closedRes] = await Promise.all([
+    loadDays(db, sorted[0], sorted[sorted.length - 1]),
+    db.from('payroll_periods').select('start_date').eq('status', 'closed').in('start_date', starts),
+  ])
+  if (closedRes.error) throw new Error(`payroll_periods: ${closedRes.error.message}`)
+  const closed = new Set(((closedRes.data ?? []) as Pick<PayrollPeriod, 'start_date'>[]).map((p) => p.start_date))
+  const current = new Map(existing.map((d) => [`${d.employee_id}|${d.work_date}`, d]))
+
+  const skipped: SaveDaysResult['skipped'] = []
+  const rows = []
+  for (const d of inputs) {
+    const skip = (reason: string) => skipped.push({ employee_id: d.employee_id, work_date: d.work_date, reason })
+    if (closed.has(payrollPeriod(d.work_date).start)) {
+      if (opts.overwrite) throw new PayrollError(`El corte que incluye el ${d.work_date} está cerrado`)
+      skip('el corte está cerrado')
+      continue
+    }
+    const before = current.get(`${d.employee_id}|${d.work_date}`)
+    if (!opts.overwrite && before?.status === 'confirmed') {
+      skip('ya está confirmado')
+      continue
+    }
+    if (!opts.overwrite && before && before.source !== opts.source) {
+      skip(before.source === 'manual' ? 'se capturó a mano' : 'ya tiene horas de otro origen')
+      continue
+    }
+    rows.push({
+      employee_id: d.employee_id,
+      work_date: d.work_date,
+      worked_minutes: d.worked_minutes,
+      missed_minutes: d.missed_minutes ?? before?.missed_minutes ?? 0,
+      note: d.note === undefined ? (before?.note ?? null) : d.note?.trim() || null,
+      source: opts.source,
+      status: opts.status,
+    })
+  }
+  if (rows.length > 0) {
+    const { error } = await db.from('payroll_days').upsert(rows, { onConflict: 'employee_id,work_date' })
+    if (error) {
+      if (error.code === '23503') throw new PayrollError('El empleado no existe')
+      if (error.code === '23514') throw new PayrollError(error.message)
+      throw new Error(`payroll_days upsert: ${error.message}`)
+    }
+  }
+  return { saved: rows.length, skipped }
+}
+
+export interface PrefillResult extends SaveDaysResult {
+  /** Punches without a clock-out: they add nothing, so the admin must know. */
+  open: number
+  linked: number
+}
+
+/** Copies the office's clocked hours into the cut as drafts (never over confirmed or manual days). */
+export async function prefillFromHours(db: SupabaseClient, start: ISODate): Promise<PrefillResult> {
+  assertPeriodStart(start)
+  const dates = periodDates(start)
+  const linked = (await loadEmployees(db)).filter((e) => e.active && e.profile_id)
+  if (linked.length === 0) return { saved: 0, skipped: [], open: 0, linked: 0 }
+
+  const { data, error } = await db
+    .from('time_entries')
+    .select('user_id, work_date, source_clock_in, clock_in, clock_out')
+    .in('user_id', linked.map((e) => e.profile_id as string))
+    .gte('work_date', dates[0])
+    .lte('work_date', dates[6])
+  if (error) throw new Error(`time_entries: ${error.message}`)
+  const entries = ((data ?? []) as Pick<TimeEntry, 'user_id' | 'work_date' | 'source_clock_in' | 'clock_in' | 'clock_out'>[]).map(normalizeEntryTimes)
+
+  const inputs: DayInput[] = []
+  let open = 0
+  for (const employee of linked) {
+    const byDate = minutesByDate(entries.filter((e) => e.user_id === employee.profile_id))
+    for (const [work_date, day] of byDate) {
+      open += day.open
+      inputs.push({ employee_id: employee.id, work_date, worked_minutes: day.minutes })
+    }
+  }
+  const result = await saveDays(db, inputs, { source: 'hours', status: 'draft', overwrite: false })
+  return { ...result, open, linked: linked.length }
+}
+
+export async function confirmDrafts(db: SupabaseClient, start: ISODate): Promise<number> {
+  assertPeriodStart(start)
+  const dates = periodDates(start)
+  const { data, error } = await db
+    .from('payroll_days')
+    .update({ status: 'confirmed' })
+    .eq('status', 'draft')
+    .gte('work_date', dates[0])
+    .lte('work_date', dates[6])
+    .select('id')
+  if (error) {
+    if (error.code === '23514') throw new PayrollError(error.message)
+    throw new Error(`payroll_days confirm: ${error.message}`)
+  }
+  return (data ?? []).length
+}
+
+/** Closing freezes the cut (the trigger enforces it); a draft left behind would be lost hours. */
+export async function setPeriodClosed(
+  db: SupabaseClient,
+  start: ISODate,
+  closed: boolean,
+  actorName: string | null,
+): Promise<PayrollPeriod> {
+  assertPeriodStart(start)
+  const now = new Date().toISOString()
+  if (closed) {
+    const dates = periodDates(start)
+    const { count, error } = await db
+      .from('payroll_days')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'draft')
+      .gte('work_date', dates[0])
+      .lte('work_date', dates[6])
+    if (error) throw new Error(`payroll_days count: ${error.message}`)
+    if ((count ?? 0) > 0) throw new PayrollError(`Hay ${count} días en borrador: confírmalos o bórralos antes de cerrar`)
+  }
+  const stamp = closed
+    ? { status: 'closed', closed_at: now, closed_by_name: actorName }
+    : { status: 'open', reopened_at: now, reopened_by_name: actorName }
+  const { data, error } = await db
+    .from('payroll_periods')
+    .upsert({ start_date: start, ...stamp }, { onConflict: 'start_date' })
+    .select('*')
+    .single()
+  if (error || !data) throw new Error(`payroll_periods upsert: ${error?.message ?? 'sin datos'}`)
+  return data as PayrollPeriod
+}
