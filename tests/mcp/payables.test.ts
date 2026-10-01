@@ -92,6 +92,14 @@ describe('listPayables', () => {
     expect(result.suma_mostrada).toBe(1700)
   })
 
+  test('estado overdue: pendientes con vencimiento antes de hoy', async () => {
+    const c = client([])
+    await listPayables(asDb(c), { estado: 'overdue' })
+    const call = c.callsTo('payables', 'select')[0]
+    expect(filterValue(call, 'status')).toBe('pending')
+    expect(filterValue(call, 'due_date', 'lt')).toBe(TODAY)
+  })
+
   test('estado o mes inválidos → error antes de consultar', async () => {
     const c = client([])
     await expect(listPayables(asDb(c), { estado: 'pagada' })).rejects.toThrow(/Estado inválido/)

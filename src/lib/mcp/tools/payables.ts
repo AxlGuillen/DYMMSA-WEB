@@ -14,8 +14,8 @@ import {
   dueDateFrom,
   ISO_DATE,
   PAYABLE_STATUS_LABELS,
-  PAYABLE_STATUSES,
   paymentTermsLabel,
+  resolvePayableFilter,
   resolvePaymentUpdate,
   summarizeMonth,
 } from '@/lib/payables'
@@ -91,10 +91,10 @@ export async function listPayables(db: Db, input: ListPayablesInput = {}) {
 
   const estado = input.estado?.trim()
   if (estado) {
-    if (!PAYABLE_STATUSES.includes(estado as PayableStatus)) {
-      throw new ToolError('Estado inválido — usa pending | paid | cancelled')
-    }
-    query = query.eq('status', estado)
+    const filter = resolvePayableFilter(estado, today)
+    if (!filter) throw new ToolError('Estado inválido — usa pending | overdue | paid | cancelled')
+    query = query.eq('status', filter.status)
+    if (filter.dueBefore) query = query.lt('due_date', filter.dueBefore)
   }
   if (input.mes) {
     if (!ISO_MONTH.test(input.mes)) throw new ToolError('Mes inválido — usa YYYY-MM')

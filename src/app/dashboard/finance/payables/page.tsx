@@ -19,8 +19,8 @@ import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { PayableForm } from '@/components/finance/PayableForm'
 import { PayablesTable, payablesColumns } from '@/components/finance/PayablesTable'
 import { usePayables, type PayableSortField } from '@/hooks/usePayables'
-import { PAYABLE_STATUS_LABELS, parseAmountFilter } from '@/lib/payables'
-import type { PayableStatus, PayableWithSupplier } from '@/types/database'
+import { PAYABLE_FILTER_LABELS, parseAmountFilter, type PayableFilter } from '@/lib/payables'
+import type { PayableWithSupplier } from '@/types/database'
 
 /** Radix rejects value="" in SelectItem; sentinel for "all". */
 const ALL_STATUSES = '__all__'
@@ -120,8 +120,8 @@ export default function PayablesPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_STATUSES}>Todos los estados</SelectItem>
-            {(Object.keys(PAYABLE_STATUS_LABELS) as PayableStatus[]).map((s) => (
-              <SelectItem key={s} value={s}>{PAYABLE_STATUS_LABELS[s]}</SelectItem>
+            {(Object.keys(PAYABLE_FILTER_LABELS) as PayableFilter[]).map((s) => (
+              <SelectItem key={s} value={s}>{PAYABLE_FILTER_LABELS[s]}</SelectItem>
             ))}
           </SelectContent>
         </Select>

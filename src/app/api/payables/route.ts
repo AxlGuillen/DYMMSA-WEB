@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { nextMonth, PAYABLE_STATUSES } from '@/lib/payables'
+import { nextMonth, resolvePayableFilter } from '@/lib/payables'
 import { createClient } from '@/lib/supabase/server'
+import { todayInMexico } from '@/lib/format'
 import { requireAuth, requireRole, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
-import type { PayableInsert, PayableStatus, PayableWithSupplier } from '@/types/database'
+import type { PayableInsert, PayableWithSupplier } from '@/types/database'
 
 const SORT_FIELDS = ['due_date', 'invoice_date', 'amount', 'created_at'] as const
 type SortField = (typeof SORT_FIELDS)[number]
@@ -80,7 +81,9 @@ export async function GET(request: NextRequest) {
       .select('*, supplier:suppliers(id, name, payment_terms_days)', { count: 'exact' })
 
     if (search) query = query.ilike('concept', `%${search}%`)
-    if (PAYABLE_STATUSES.includes(status as PayableStatus)) query = query.eq('status', status)
+    const filter = resolvePayableFilter(status, todayInMexico())
+    if (filter) query = query.eq('status', filter.status)
+    if (filter?.dueBefore) query = query.lt('due_date', filter.dueBefore)
     if (isUuid(supplier)) query = query.eq('supplier_id', supplier)
     if (minAmount !== undefined) query = query.gte('amount', minAmount)
     if (maxAmount !== undefined) query = query.lte('amount', maxAmount)

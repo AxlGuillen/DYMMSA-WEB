@@ -319,9 +319,9 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Facturas por pagar',
       description:
-        'Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (pending | paid | cancelled), mes de VENCIMIENTO (YYYY-MM), proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.',
+        'Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (pending | overdue = pendientes ya vencidas | paid | cancelled), mes de VENCIMIENTO (YYYY-MM), proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.',
       inputSchema: {
-        estado: z.string().optional().describe('pending | paid | cancelled'),
+        estado: z.string().optional().describe('pending | overdue | paid | cancelled'),
         mes: z.string().optional().describe('Mes de vencimiento, YYYY-MM'),
         proveedor: z.string().optional().describe('Nombre (o parte) del proveedor'),
         concepto: z.string().optional().describe('Texto del concepto (parcial)'),
