@@ -187,6 +187,23 @@
 
 ---
 
+## Nómina
+
+> Módulo: Nómina (issue #123, ADR-033) · **Todas** las rutas son `requireAdmin()` (401 sin sesión, 403 para member) y las tres tablas repiten la regla con RLS `is_admin()`. Reglas de horas en `src/lib/payroll.ts`; lecturas y escrituras compartidas con el MCP en `src/lib/payroll-store.ts` (`PayrollError` → 400).
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/payroll/employees` | Admin | Empleados de nómina (lista propia: el taller no tiene cuenta) |
+| `POST` | `/api/payroll/employees` | Admin | `{ name, profile_id?, shift? }`. Nombre o perfil repetido (23505) → 400 con el mensaje de cuál |
+| `PATCH` | `/api/payroll/employees/[id]` | Admin | `name`, `profile_id`, `shift`, `active`. **Sin DELETE**: la baja es desactivar |
+| `GET` | `/api/payroll/periods/[start]` | Admin | El corte sábado→viernes (`start` debe ser sábado, si no 400): `{ start, end, dates, closed, period, rows[{ employee, days[7], totals, missedMinutes, drafts }], totals, drafts }`. Solo los días confirmados suman |
+| `PATCH` | `/api/payroll/periods/[start]` | Admin | `{ closed: boolean }`. Cerrar exige cero borradores (400 con el conteo) y sella `closed_at`/`closed_by_name`; reabrir sella `reopened_*` |
+| `POST` | `/api/payroll/periods/[start]/prefill` | Admin | "Traer de Horas": copia los minutos por día de los empleados ligados a un perfil como **borrador**. No pisa confirmados ni manuales. `{ saved, skipped[], open, linked }` (`open` = checadas sin salida, no suman) |
+| `POST` | `/api/payroll/periods/[start]/confirm` | Admin | Todos los borradores del corte → confirmados. `{ confirmed }` |
+| `PUT` | `/api/payroll/days` | Admin | `{ employee_id, work_date, worked_minutes, missed_minutes?, note? }` — la captura del admin: sobrescribe y queda `manual`/`confirmed`. Día vacío (0, 0, sin nota) borra la fila. Corte cerrado → 400 |
+
+---
+
 ## Tareas (GitHub Issues)
 
 > Módulo: [[03-Modulos/Tareas]] · Backend: GitHub Issues del repo (`GITHUB_REPO`), sin tabla en Supabase · ADR: [[04-Decisiones-Tecnicas/ADR-014-Modulo-Tareas-GitHub]]
