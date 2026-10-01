@@ -18,7 +18,7 @@ export function FinanceSection() {
       <Sub>Overview del mes</Sub>
       <List>
         <li><strong>Egresos:</strong> pendiente del mes por semana de vencimiento, vencido (incluye lo arrastrado de meses anteriores), por vencer en 7 dias y pagado en el mes. Las canceladas no cuentan en nada.</li>
-        <li><strong>Ingresos (Odoo):</strong> lo cobrado en el mes por fecha real de pago, lo facturado por cobrar y lo vencido por cobrar. Se refresca cada 15 minutos o con el boton de actualizar.</li>
+        <li><strong>Ingresos (Odoo):</strong> lo cobrado en el mes por fecha real de pago, el por cobrar total (igual que en Odoo: incluye lo vencido) y, aparte, cuanto de eso ya esta vencido. Se refresca cada 15 minutos o con el boton de actualizar.</li>
         <li><strong>Notas de credito sin aplicar</strong> se muestran aparte como saldo a favor del cliente y <strong>nunca se restan</strong> del por cobrar: no se sabe si el cliente la usara.</li>
         <li><strong>Cierre:</strong> real = cobrado &minus; pagado; proyectado = real &minus; pendiente del mes &minus; vencido arrastrado.</li>
       </List>

@@ -81,6 +81,17 @@ export function splitReceivables(
   return { ...out, receivableCurrencies: [...dueCurrencies], overdueCurrencies: [...overdueCurrencies] }
 }
 
+/** Everything customers owe, current + overdue: the figure Odoo shows as receivable (meeting 2026-10-01). */
+export function totalReceivable(
+  s: Pick<IncomeMonthSummary, 'receivableTotal' | 'receivableCount' | 'overdueTotal' | 'overdueCount' | 'receivableCurrencies' | 'overdueCurrencies'>,
+): { total: number; count: number; currencies: string[] } {
+  return {
+    total: Math.round((s.receivableTotal + s.overdueTotal) * 100) / 100,
+    count: s.receivableCount + s.overdueCount,
+    currencies: [...new Set([...s.receivableCurrencies, ...s.overdueCurrencies])],
+  }
+}
+
 /** Customer credit sitting in Odoo; reported apart from what customers owe. */
 export function summarizeCreditNotes(
   rows: readonly OdooOpenInvoice[],

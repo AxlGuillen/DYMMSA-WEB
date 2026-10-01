@@ -1,7 +1,7 @@
 /** Income math (#94, #102): month range, collections sum, due/overdue split, credit notes, closing. */
 
 import { describe, test, expect } from 'vitest'
-import { summarizeCollections, splitReceivables, summarizeCreditNotes, summarizeIncome, buildIncomeOverview, monthClosing, foreignCurrencies } from '@/lib/income'
+import { summarizeCollections, splitReceivables, summarizeCreditNotes, summarizeIncome, buildIncomeOverview, monthClosing, foreignCurrencies, totalReceivable } from '@/lib/income'
 import { monthRange } from '@/lib/month'
 import type { OdooCollection, OdooOpenInvoice } from '@/lib/odoo/income'
 
@@ -127,5 +127,15 @@ describe('monthClosing', () => {
 describe('foreignCurrencies', () => {
   test('lista las monedas distintas de MXN, sin repetir', () => {
     expect(foreignCurrencies([pay({}), pay({ currency: 'USD' }), pay({ currency: 'USD' }), pay({ currency: null })])).toEqual(['USD'])
+  })
+})
+
+describe('totalReceivable', () => {
+  test('suma al corriente + vencido como Odoo, sin errores de centavos, y une monedas', () => {
+    const out = totalReceivable({
+      receivableTotal: 2723858.78, receivableCount: 166, overdueTotal: 379554.52, overdueCount: 29,
+      receivableCurrencies: ['USD'], overdueCurrencies: ['USD', 'EUR'],
+    })
+    expect(out).toEqual({ total: 3103413.3, count: 195, currencies: ['USD', 'EUR'] })
   })
 })
