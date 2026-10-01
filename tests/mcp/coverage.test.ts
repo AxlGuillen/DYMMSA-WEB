@@ -36,6 +36,8 @@ const COVERAGE: Record<string, string> = {
   'orders/[id]/purchase-plan': 'get_purchase_plan',
   'orders/by-quotation/[quotationId]': 'get_order_by_quotation',
   payables: 'list_payables',
+  'payroll/employees': 'get_payroll_period (empleados del corte)',
+  'payroll/periods/[start]': 'get_payroll_period',
   'payables/[id]/events': 'get_payable (historial)',
   'payables/overview': 'get_payables_overview',
   products: 'search_products',

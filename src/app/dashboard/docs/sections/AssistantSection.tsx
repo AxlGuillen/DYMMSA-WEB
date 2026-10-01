@@ -1,5 +1,5 @@
 import { Brain } from '@/components/icons'
-import { groupByModule, manifestFor, TOOL_MANIFEST, type ToolManifestEntry } from '@/lib/mcp/manifest'
+import { DOCS_MANIFEST, groupByModule, type ToolManifestEntry } from '@/lib/mcp/manifest'
 import { DocSection, List, Note, Sub } from './shared'
 
 function ToolRow({ tool }: { tool: ToolManifestEntry }) {
@@ -33,12 +33,12 @@ function Block({ entries }: { entries: readonly ToolManifestEntry[] }) {
 
 /** Rendered from the manifest, never typed by hand: tests/mcp/manifest.test.ts keeps it in sync with server.ts. */
 export function AssistantSection() {
-  const app = manifestFor('app')
-  const odoo = manifestFor('odoo')
-  const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write')
+  const app = DOCS_MANIFEST.filter((t) => t.block === 'app')
+  const odoo = DOCS_MANIFEST.filter((t) => t.block === 'odoo')
+  const writes = DOCS_MANIFEST.filter((t) => t.kind === 'write')
 
   return (
-    <DocSection id="asistente" icon={Brain} title="Asistente (IA)" description={`Lo que puedes preguntarle o pedirle a Claude conectado a la plataforma: ${TOOL_MANIFEST.length} capacidades, ${app.length} de la app y ${odoo.length} de Odoo.`}>
+    <DocSection id="asistente" icon={Brain} title="Asistente (IA)" description={`Lo que puedes preguntarle o pedirle a Claude conectado a la plataforma: ${DOCS_MANIFEST.length} capacidades, ${app.length} de la app y ${odoo.length} de Odoo.`}>
       <Sub>Como se conecta</Sub>
       <List>
         <li>Desde Claude (web, movil o escritorio) se agrega el conector de DYMMSA y se inicia sesion <strong>con tu propia cuenta</strong> de la plataforma: el asistente ve exactamente lo que tu ves (un miembro no ve las horas de otros, por ejemplo).</li>

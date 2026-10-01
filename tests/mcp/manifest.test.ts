@@ -3,7 +3,7 @@
 import { describe, test, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { TOOL_MANIFEST, groupByModule, manifestFor } from '@/lib/mcp/manifest'
+import { DOCS_MANIFEST, TOOL_MANIFEST, groupByModule, manifestFor } from '@/lib/mcp/manifest'
 
 const serverSrc = readFileSync(join(process.cwd(), 'src/lib/mcp/server.ts'), 'utf8')
 const registered = [...serverSrc.matchAll(/registerTool\(\s*'([a-z_]+)'/g)].map((m) => m[1])
@@ -18,13 +18,20 @@ describe('manifiesto del MCP', () => {
     expect(new Set(listed).size).toBe(listed.length)
   })
 
-  test('las escrituras son exactamente las cinco aprobadas y cada una declara sus limites', () => {
+  test('las escrituras son exactamente las seis aprobadas y cada una declara sus limites', () => {
     const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write')
-    expect(writes.map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'set_inventory_location', 'update_task'])
+    expect(writes.map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'record_payroll_hours', 'set_inventory_location', 'update_task'])
     for (const w of writes) expect(w.limits, w.name).toBeTruthy()
     // Odoo is read-only by design (ADR-025): no write may ever live in that block.
     expect(manifestFor('odoo').every((t) => t.kind === 'read' && t.name.startsWith('odoo_'))).toBe(true)
     expect(manifestFor('app').every((t) => !t.name.startsWith('odoo_'))).toBe(true)
+  })
+
+  test('nomina es solo de administradores: sus tools existen pero no salen en la documentacion (#123)', () => {
+    const hidden = TOOL_MANIFEST.filter((t) => t.hidden).map((t) => t.name).sort()
+    expect(hidden).toEqual(['get_payroll_period', 'record_payroll_hours'])
+    expect(DOCS_MANIFEST.some((t) => t.module === 'Nomina' || t.name.includes('payroll'))).toBe(false)
+    expect(DOCS_MANIFEST).toHaveLength(TOOL_MANIFEST.length - 2)
   })
 
   test('cada entrada trae titulo y pregunta ejemplo; los modulos se agrupan en orden de aparicion', () => {
