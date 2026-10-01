@@ -79,7 +79,7 @@ describe('RLS: solo administradores', () => {
 
   test('anon no tiene acceso a las tablas', async () => {
     const { createClient } = await import('@supabase/supabase-js')
-    const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+    const anon = createClient(LOCAL.url, LOCAL.anon, { auth: { persistSession: false, autoRefreshToken: false } })
     expect((await anon.from('payroll_days').select('*')).error).not.toBeNull()
   })
 })
