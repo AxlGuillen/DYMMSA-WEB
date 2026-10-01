@@ -493,3 +493,43 @@ export interface ExcelExtractedRow {
   price: number | null
   brand: string
 }
+
+// ─── Payroll (#123, ADR-033) ───
+
+/** Workshop people have no account, so payroll keeps its own list; `profile_id` links the office. */
+export interface PayrollEmployee {
+  id: string
+  name: string
+  profile_id: string | null
+  shift: ProfileShift
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type PayrollDaySource = 'sheet' | 'hours' | 'manual'
+export type PayrollDayStatus = 'draft' | 'confirmed'
+
+/** One row per employee and day; the weekend multiplier comes from the date, never stored. */
+export interface PayrollDay {
+  id: string
+  employee_id: string
+  work_date: string
+  worked_minutes: number
+  missed_minutes: number
+  note: string | null
+  source: PayrollDaySource
+  status: PayrollDayStatus
+  created_at: string
+  updated_at: string
+}
+
+/** The cut, keyed by its Saturday. No row = open. */
+export interface PayrollPeriod {
+  start_date: string
+  status: 'open' | 'closed'
+  closed_at: string | null
+  closed_by_name: string | null
+  reopened_at: string | null
+  reopened_by_name: string | null
+}
