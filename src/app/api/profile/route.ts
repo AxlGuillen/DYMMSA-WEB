@@ -4,7 +4,7 @@ import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helper
 import { parseDisplayName, parseNss, withAvatarUrl } from '@/lib/profile'
 import type { OwnProfile, OwnProfileUpdate, Profile } from '@/types/database'
 
-const OWN_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path'
+const OWN_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner'
 const EDITABLE = new Set<keyof OwnProfileUpdate>(['display_name', 'nss'])
 
 type OwnRow = Omit<Profile, 'created_at' | 'updated_at'>

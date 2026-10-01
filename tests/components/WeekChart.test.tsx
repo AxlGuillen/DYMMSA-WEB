@@ -9,7 +9,9 @@ import { buildWeekView, buildWeeklyTrend } from '@/lib/timesheet'
 
 // recharts needs a measured container; jsdom gives none, so the bars are stubbed and the
 // header — where every number lives — is what gets asserted.
-vi.mock('@/components/hours/WeekBars', () => ({ default: () => <div data-testid="week-bars" /> }))
+vi.mock('@/components/hours/WeekBars', () => ({
+  default: ({ data }: { data: { status: string }[] }) => <div data-testid="week-bars" data-statuses={data.map((d) => d.status).join(',')} />,
+}))
 vi.mock('@/components/hours/TrendBars', () => ({ default: () => <div data-testid="trend-bars" /> }))
 
 const entry = (date: string, clockIn: string, clockOut: string | null) => ({ work_date: date, clock_in: clockIn, clock_out: clockOut })
@@ -64,5 +66,25 @@ describe('TrendChart', () => {
 
     renderWithProviders(<TrendChart trend={undefined} shift="full_time" currentStart="2026-08-31" isError />)
     expect(screen.getByTestId('trend-chart')).toHaveTextContent('No se pudo cargar la tendencia')
+  })
+})
+
+describe('WeekChart — días justificados (meeting 2026-10-01)', () => {
+  test('un feriado del equipo baja el objetivo a 32 h y avisa; el día propio se suma', () => {
+    const excused = [
+      { id: 'x1', work_date: '2026-09-03', user_id: null, kind: 'holiday' as const, note: null, created_by: null, created_at: '' },
+      { id: 'x2', work_date: '2026-09-04', user_id: 'u-otro', kind: 'holiday' as const, note: null, created_by: null, created_at: '' },
+    ]
+    renderWithProviders(<WeekChart week={week} shift="full_time" excused={excused} userId="u-yo" />)
+    expect(screen.getByTestId('week-chart-total')).toHaveTextContent('16:00 / 32 h')
+    expect(screen.getByTestId('week-chart')).toHaveTextContent('Faltan 16:00 · 50%')
+    expect(screen.getByTestId('week-chart-excused')).toHaveTextContent('1 día justificado')
+  })
+
+  test('cada barra lleva su estado: cumplió, sin salida, justificado', async () => {
+    const excused = [{ id: 'x1', work_date: '2026-09-03', user_id: null, kind: 'holiday' as const, note: null, created_by: null, created_at: '' }]
+    renderWithProviders(<WeekChart week={week} shift="full_time" excused={excused} userId="u-yo" />)
+    const bars = await screen.findByTestId('week-bars')
+    expect(bars.dataset.statuses?.split(',').slice(0, 4)).toEqual(['met', 'met', 'open', 'excused'])
   })
 })

@@ -378,6 +378,7 @@ RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRAN
 | `shift` | text | Sí | — | CHECK `full_time·part_time` | Jornada (#101, ADR-029): referencia de las gráficas de Horas (8 h/4 h al día, 40 h/20 h a la semana); NULL = sin asignar |
 | `nss` | text | Sí | — | CHECK `^[0-9]{11}$` | Número de Seguridad Social (Mi perfil, #122). Lo editan la persona y el admin; el dígito verificador se valida en la API |
 | `avatar_path` | text | Sí | — | CHECK `profiles_avatar_own_folder` (empieza con `<id>/`) | Ruta de la foto en el bucket `avatars`; NULL = avatar de iniciales |
+| `is_owner` | boolean | No | `false` | índice único parcial `profiles_single_owner` (a lo más uno) | Dueño del negocio: corona en Equipo (2026-10-01). Lo protege el trigger de campos de admin |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
 RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **o fila propia** (#122). Como la RLS no restringe columnas, el trigger `profiles_guard_admin_fields` → `guard_profile_admin_fields()` rechaza con 42501 los cambios a `role`, `clock_employee_id` y `shift` si quien edita no es admin (sin `auth.uid()` —service role, SQL directo— pasa). Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
@@ -426,6 +427,25 @@ RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **
 
 RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_entries jsonb, p_period_start, p_period_end, p_file_name)`** (SECURITY INVOKER, transaccional): upsert `ON CONFLICT ... DO UPDATE SET clock_out, source='import' WHERE edited_at IS NULL`, cuenta con `xmax = 0`, dedupe `DISTINCT ON` (y el conteo total sobre los mismos valores casteados), devuelve `{import_id, inserted, updated, skipped_edited}`.
 
+
+---
+
+## Tabla: `excused_days`
+
+**Propósito:** Días que no cuentan como horas faltantes: feriados y salidas autorizadas por el dueño.
+**Módulo:** Horas (ajustes del 2026-10-01)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `work_date` | date | No | — | índice | El día justificado |
+| `user_id` | uuid | Sí | — | FK → `profiles` CASCADE | NULL = todo el equipo |
+| `kind` | text | No | — | CHECK `holiday·early_release` | Feriado (no pide horas) o salida autorizada (el día cuenta como cumplido con lo trabajado) |
+| `note` | text | Sí | — | | |
+| `created_by` | uuid | Sí | `auth.uid()` | sin FK | Quién lo marcó |
+| `created_at` | timestamptz | No | `now()` | | |
+
+`UNIQUE NULLS NOT DISTINCT (work_date, user_id)`: un día no se justifica dos veces para la misma persona ni para el equipo. RLS: SELECT `user_id IS NULL OR user_id = auth.uid() OR is_admin()`; INSERT y DELETE `is_admin()` (sin UPDATE: se borra y se vuelve a marcar). GRANTs sin `anon`. Se aplica en `weekTargetMinutes`/`dayStatus` (`src/lib/timesheet.ts`): el de la persona gana al del equipo.
 ---
 
 ## Historial de migraciones
@@ -452,6 +472,7 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `20260924055249` | `add_profile_shift` | Columna `shift` en `profiles` (jornada por persona) + paso de datos en la nube: todos `full_time`, Tania `part_time`. Issue #101, ADR-029 |
 | `20260929225740` | `add_profile_self_service` | Mi perfil (issue #122): columnas `nss` y `avatar_path` en `profiles`, policy "cada quien actualiza su fila", trigger `profiles_guard_admin_fields` (rol/jornada/checador solo admin), bucket `avatars` + 3 policies por carpeta |
 | `20260930234735` | `profiles_display_name_length` | CHECK de 1–80 caracteres en `display_name` (mismo límite que la ruta) + `handle_new_user` recorta y topa a 80. Review PR #126 |
+| `VERSION_PENDIENTE` | `owner_and_excused_days` | `profiles.is_owner` (único parcial) protegido por el trigger de campos de admin + tabla `excused_days` con RLS (lee el equipo/la persona, escribe el admin) + Diego marcado como dueño. Ajustes del 2026-10-01 |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |

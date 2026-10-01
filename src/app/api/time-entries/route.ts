@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole, requireAdmin, badRequest, serverError, isUuid } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
 import { buildWeekView, normalizeEntryTimes, normalizeTime, weekBounds } from '@/lib/timesheet'
-import type { TimeEntry } from '@/types/database'
+import type { ExcusedDay, TimeEntry } from '@/types/database'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -46,6 +46,15 @@ export async function GET(request: NextRequest) {
       return serverError('Error al obtener las checadas')
     }
 
+    const excusedRes = await supabase
+      .from('excused_days')
+      .select('id, work_date, user_id, kind, note, created_by, created_at')
+      .gte('work_date', from)
+      .lte('work_date', to)
+      .or(`user_id.is.null,user_id.eq.${target}`)
+      .order('work_date', { ascending: true })
+    if (excusedRes.error) console.error('Error fetching excused days:', excusedRes.error)
+
     const entries = ((data ?? []) as TimeEntry[]).map(normalizeEntryTimes)
     return NextResponse.json({
       user: target,
@@ -53,6 +62,8 @@ export async function GET(request: NextRequest) {
       to,
       entries,
       week: isWholeWeek(from, to) ? buildWeekView(entries, from) : null,
+      // A failed read degrades to "no excused days", never to a broken week.
+      excused: (excusedRes.data ?? []) as ExcusedDay[],
     })
   } catch (error) {
     console.error('Time entries GET error:', error)

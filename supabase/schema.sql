@@ -509,6 +509,7 @@ CREATE TABLE public.profiles (
   shift text CHECK (shift IN ('full_time', 'part_time')),  -- jornada (#101): NULL = sin asignar
   nss text CHECK (nss ~ '^[0-9]{11}$'),
   avatar_path text,
+  is_owner boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT profiles_avatar_own_folder CHECK (avatar_path IS NULL OR avatar_path LIKE id::text || '/%'),
@@ -516,6 +517,7 @@ CREATE TABLE public.profiles (
 );
 CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+CREATE UNIQUE INDEX profiles_single_owner ON public.profiles (is_owner) WHERE is_owner;
 
 -- RLS cannot restrict columns (#122): without this a member could promote themself via their own row.
 CREATE OR REPLACE FUNCTION public.guard_profile_admin_fields()
@@ -528,6 +530,7 @@ BEGIN
     NEW.role IS DISTINCT FROM OLD.role
     OR NEW.clock_employee_id IS DISTINCT FROM OLD.clock_employee_id
     OR NEW.shift IS DISTINCT FROM OLD.shift
+    OR NEW.is_owner IS DISTINCT FROM OLD.is_owner
   ) THEN
     RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada o el id del checador'
       USING ERRCODE = '42501';
@@ -733,6 +736,28 @@ GRANT SELECT, UPDATE ON public.profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.time_entries TO authenticated;
 GRANT SELECT, INSERT ON public.time_imports TO authenticated;
 GRANT ALL ON public.profiles, public.time_entries, public.time_imports TO service_role;
+
+-- excused_days (meeting 2026-10-01): holidays and authorized early exits; user_id NULL = whole team.
+CREATE TABLE public.excused_days (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  work_date date NOT NULL,
+  user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  kind text NOT NULL CHECK (kind IN ('holiday', 'early_release')),
+  note text,
+  created_by uuid DEFAULT auth.uid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT excused_days_unique UNIQUE NULLS NOT DISTINCT (work_date, user_id)
+);
+CREATE INDEX excused_days_work_date ON public.excused_days (work_date);
+ALTER TABLE public.excused_days ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Team-wide or own excused days, admins all" ON public.excused_days
+  FOR SELECT TO authenticated USING (user_id IS NULL OR user_id = (SELECT auth.uid()) OR public.is_admin());
+CREATE POLICY "Admins add excused days" ON public.excused_days
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY "Admins delete excused days" ON public.excused_days
+  FOR DELETE TO authenticated USING (public.is_admin());
+GRANT SELECT, INSERT, DELETE ON public.excused_days TO authenticated;
+GRANT ALL ON public.excused_days TO service_role;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.import_time_entries(jsonb, date, date, text) TO authenticated, service_role;
 

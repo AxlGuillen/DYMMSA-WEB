@@ -3,6 +3,24 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-01
+
+### Nuevo
+- **Filtro "Vencida" en Facturas por pagar.** Muestra solo las pendientes cuya
+  fecha de vencimiento ya pasó.
+- **Días cumplidos en verde y en rojo.** En Mi semana cada día de lunes a
+  viernes se pinta en verde si se cumplió la jornada (4 u 8 horas) y en rojo si
+  no.
+- **Días feriados y salidas autorizadas.** En Equipo, un administrador marca
+  los días feriados o los días que dejó salir antes a alguien (o a todo el
+  equipo). Esos días no cuentan como horas faltantes y se descuentan del
+  objetivo de la semana.
+- **Corona del dueño** junto a su nombre en Equipo.
+
+### Mejorado
+- **Por cobrar ahora cuadra con Odoo**: el total incluye lo vencido, y la
+  tarjeta dice cuánto de eso ya venció.
+
 ## 2026-09-29
 
 ### Nuevo

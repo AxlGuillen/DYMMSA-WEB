@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDuration, shiftProgress, SHIFT_HOURS, SHIFT_LABELS, weekChartData, type WeekView } from '@/lib/timesheet'
-import type { ProfileShift } from '@/types/database'
+import { todayInMexico } from '@/lib/format'
+import { excusesFor, formatDuration, shiftProgress, SHIFT_LABELS, weekChartData, weekTargetMinutes, type WeekView } from '@/lib/timesheet'
+import type { ExcusedDay, ProfileShift } from '@/types/database'
 
 // recharts is code-split like the dashboard donut (OrderStatusBreakdown).
 const WeekBars = dynamic(() => import('./WeekBars'), { ssr: false, loading: () => <Skeleton className="h-56 w-full" /> })
@@ -17,12 +18,18 @@ interface WeekChartProps {
   isLoading?: boolean
   /** Admin: the "sin jornada" hint links to Equipo. */
   canAssignShift?: boolean
+  /** Holidays and authorized early exits of the week, with the person they apply to. */
+  excused?: ExcusedDay[]
+  userId?: string
 }
 
+const targetLabel = (minutes: number) => (minutes % 60 === 0 ? `${minutes / 60} h` : `${formatDuration(minutes)} h`)
+
 /** Bars per day against the shift references; the headline says if the week meets the target. */
-export function WeekChart({ week, shift, isLoading, canAssignShift }: WeekChartProps) {
-  const progress = week ? shiftProgress(week.minutes, shift) : null
-  const target = shift ? SHIFT_HOURS[shift].weekly : null
+export function WeekChart({ week, shift, isLoading, canAssignShift, excused = [], userId = '' }: WeekChartProps) {
+  const excuses = excusesFor(excused, userId)
+  const target = week ? weekTargetMinutes(week, shift, excuses) : null
+  const progress = week ? shiftProgress(week.minutes, shift, target) : null
 
   return (
     <Card data-testid="week-chart" data-tour="hrs-week-chart">
@@ -39,7 +46,7 @@ export function WeekChart({ week, shift, isLoading, canAssignShift }: WeekChartP
           <div className="text-right">
             <p className="text-2xl font-semibold tabular-nums" data-testid="week-chart-total">
               {formatDuration(week.minutes)}
-              {target !== null && <span className="text-sm font-normal text-muted-foreground"> / {target} h</span>}
+              {target !== null && <span className="text-sm font-normal text-muted-foreground"> / {targetLabel(target)}</span>}
             </p>
             {progress && (
               progress.missing === 0
@@ -52,7 +59,12 @@ export function WeekChart({ week, shift, isLoading, canAssignShift }: WeekChartP
       <CardContent>
         {isLoading || !week
           ? <Skeleton className="h-56 w-full" />
-          : <WeekBars data={weekChartData(week)} shift={shift ?? null} />}
+          : <WeekBars data={weekChartData(week, shift, excuses, todayInMexico())} shift={shift ?? null} />}
+        {excuses.size > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground" data-testid="week-chart-excused">
+            {excuses.size} día{excuses.size !== 1 ? 's' : ''} justificado{excuses.size !== 1 ? 's' : ''} esta semana: no cuentan como horas faltantes.
+          </p>
+        )}
         {week && week.open > 0 && (
           <p className="mt-2 text-xs text-amber-600">
             {week.open} checada{week.open !== 1 ? 's' : ''} sin salida: esos días no suman y se pintan aparte.

@@ -410,7 +410,7 @@ export function registerDymmsaTools(server: McpServer): void {
     {
       title: 'Horas de la semana',
       description:
-        'Horas trabajadas de una semana según el checador, día por día, con el total y el cumplimiento de la jornada (tiempo completo 40 h / medio tiempo 20 h). Sin `persona` son las horas de quien pregunta; un administrador puede indicar a alguien por nombre parcial. `fecha` = cualquier día de la semana deseada (default: esta semana). Una "checada sin salida" no suma horas.',
+        'Horas trabajadas de una semana según el checador, día por día (cada uno con su estado: cumplió, no cumplió, justificado), con el total y el cumplimiento de la jornada (tiempo completo 40 h / medio tiempo 20 h, descontando días feriados y salidas autorizadas por el administrador). Sin `persona` son las horas de quien pregunta; un administrador puede indicar a alguien por nombre parcial. `fecha` = cualquier día de la semana deseada (default: esta semana). Una "checada sin salida" no suma horas.',
       inputSchema: {
         persona: z.string().optional().describe('Nombre (o parte) de la persona; solo un administrador ve a otros'),
         fecha: z.string().optional().describe('Cualquier día de la semana, YYYY-MM-DD (default hoy)'),

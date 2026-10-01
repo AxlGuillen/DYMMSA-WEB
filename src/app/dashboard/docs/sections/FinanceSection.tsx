@@ -13,7 +13,7 @@ export function FinanceSection() {
         <li>Se capturan con proveedor, concepto, monto, fecha de factura y vencimiento. El vencimiento se <strong>pre-llena</strong> con la fecha mas el plazo del proveedor y se puede editar.</li>
         <li>Estados: <strong>Pendiente</strong> (asi nace siempre), <strong>Pagada</strong> y <strong>Cancelada</strong>.</li>
         <li>Al marcar pagada (boton ✓ o desde el popup de editar) se guarda la <strong>fecha real de pago</strong>: por default hoy, o la que captures. Esa fecha es la que manda para el mes, no el vencimiento. Regresar a pendiente la limpia.</li>
-        <li>Filtros por estado, mes de vencimiento, proveedor, rango de monto y texto del concepto. Las fechas se muestran en el formato que elijas (selector junto a los filtros).</li>
+        <li>Filtros por estado (incluye <strong>Vencida</strong>: pendientes cuya fecha de vencimiento ya paso), mes de vencimiento, proveedor, rango de monto y texto del concepto. Las fechas se muestran en el formato que elijas (selector junto a los filtros).</li>
       </List>
       <Sub>Overview del mes</Sub>
       <List>

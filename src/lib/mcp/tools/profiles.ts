@@ -36,14 +36,15 @@ export async function resolvePerson<T extends Pick<Profile, 'id' | 'display_name
   return requireSingleMatch(matches, (m) => m.display_name, 'persona', query)
 }
 
-type ProfileRow = Pick<Profile, 'id' | 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss' | 'avatar_path'>
+type ProfileRow = Pick<Profile, 'id' | 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss' | 'avatar_path' | 'is_owner'>
 
-const COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path'
+const COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner'
 
 function digest(row: ProfileRow, withNss: boolean) {
   return {
     nombre: row.display_name,
     rol: ROLE_LABELS[row.role],
+    dueno_del_negocio: row.is_owner,
     jornada: row.shift ? SHIFT_LABELS[row.shift] : null,
     id_checador: row.clock_employee_id,
     ...(withNss ? { nss: row.nss } : {}),

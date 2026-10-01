@@ -13,8 +13,8 @@ const { updateAsync } = vi.hoisted(() => ({ updateAsync: vi.fn().mockResolvedVal
 vi.mock('@/hooks/useProfile', () => ({
   useProfiles: () => ({
     data: [
-      { id: 'u-tania', display_name: 'Tania', role: 'member', clock_employee_id: 5, shift: 'part_time', nss: '12345678903', avatar_path: 'u-tania/a.webp', avatar_url: 'https://cdn/avatars/u-tania/a.webp', created_at: '', updated_at: '' },
-      { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: null, avatar_path: null, avatar_url: null, created_at: '', updated_at: '' },
+      { id: 'u-tania', display_name: 'Tania', role: 'member', clock_employee_id: 5, shift: 'part_time', nss: '12345678903', avatar_path: 'u-tania/a.webp', avatar_url: 'https://cdn/avatars/u-tania/a.webp', is_owner: false, created_at: '', updated_at: '' },
+      { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: null, avatar_path: null, avatar_url: null, is_owner: true, created_at: '', updated_at: '' },
     ],
     isLoading: false,
   }),
@@ -81,5 +81,14 @@ describe('TeamTable — avatar y NSS (#122)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(updateAsync.mock.calls[0][0].updates).not.toHaveProperty('nss')
+  })
+})
+
+describe('TeamTable — dueño (meeting 2026-10-01)', () => {
+  test('la corona solo acompaña al dueño', () => {
+    renderWithProviders(<TeamTable />)
+    const crowns = screen.getAllByLabelText('Dueño del negocio')
+    expect(crowns).toHaveLength(1)
+    expect(crowns[0].closest('tr')).toHaveTextContent('Diego')
   })
 })

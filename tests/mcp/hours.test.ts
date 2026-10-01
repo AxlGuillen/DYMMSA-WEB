@@ -60,6 +60,25 @@ describe('get_week_hours', () => {
     expect(filterValue(client.callsTo('time_entries', 'select')[0], 'user_id')).toBe('u-diego')
   })
 
+  test('un feriado del equipo baja el objetivo y cada día trae su estado (meeting 2026-10-01)', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'profiles.select': profiles([ME]),
+        'time_entries.select': { data: [entry('u-tania', '2026-08-31', '09:00', '13:00'), entry('u-tania', '2026-09-01', '09:00', '11:00')], error: null },
+        'excused_days.select': { data: [{ work_date: '2026-09-02', user_id: null, kind: 'holiday', note: null }], error: null },
+      },
+    })
+    const result = await getWeekHours(asDb(client), 'u-tania', { fecha: '2026-09-02' })
+    // Part time: 20 h − the holiday's 4 h = 16 h; worked 6 h.
+    expect(result).toMatchObject({ objetivo_de_esta_semana: '16:00', faltante: '10:00' })
+    expect(result.dias.slice(0, 3).map((d) => [d.estado, d.justificado])).toEqual([
+      ['cumplió', null],
+      ['no cumplió', null],
+      ['justificado', 'Día feriado'],
+    ])
+    expect(client.callsTo('excused_days', 'select')[0].filters.find((f) => f.method === 'or')?.args[0]).toBe('user_id.is.null,user_id.eq.u-tania')
+  })
+
   test('member que pregunta por otro: la RLS no le devuelve el perfil → error claro, sin leer checadas', async () => {
     const client = createMockSupabase({ responses: { 'profiles.select': profiles([ME]) } })
     await expect(getWeekHours(asDb(client), 'u-tania', { persona: 'Diego' })).rejects.toThrow(/Un miembro solo puede consultar lo suyo/)

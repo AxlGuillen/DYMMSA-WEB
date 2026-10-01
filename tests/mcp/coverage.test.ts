@@ -28,6 +28,7 @@ const COVERAGE: Record<string, string> = {
   'approve/[token]': 'fuera: página pública sin sesión',
   brands: 'list_suppliers (marcas por proveedor)',
   'finance/income': 'get_month_closing',
+  'excused-days': 'get_week_hours (días justificados de la semana)',
   health: 'fuera: diagnóstico del servidor',
   inventory: 'search_inventory',
   'inventory/stats': 'get_inventory_stats',

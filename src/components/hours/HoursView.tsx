@@ -90,7 +90,14 @@ export function HoursView() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <WeekChart week={data?.week ?? undefined} shift={targetShift} isLoading={isLoading} canAssignShift={isAdmin} />
+        <WeekChart
+          week={data?.week ?? undefined}
+          shift={targetShift}
+          isLoading={isLoading}
+          canAssignShift={isAdmin}
+          excused={data?.excused}
+          userId={data?.user}
+        />
         <TrendChart trend={trend} shift={targetShift} currentStart={start} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
       </div>
 

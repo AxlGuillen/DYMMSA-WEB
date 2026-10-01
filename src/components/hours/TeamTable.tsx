@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Pencil } from '@/components/icons'
+import { Crown, Pencil } from '@/components/icons'
 import { useProfiles, useUpdateProfile } from '@/hooks/useProfile'
 import { UserAvatar } from '@/components/profile/UserAvatar'
 import { NssField } from '@/components/profile/NssField'
@@ -60,6 +60,11 @@ export function TeamTable() {
                     <span className="flex items-center gap-2 font-medium">
                       <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} />
                       {p.display_name}
+                      {p.is_owner && (
+                        <Crown className="size-4 text-amber-500" aria-label="Dueño del negocio">
+                          <title>Dueño del negocio</title>
+                        </Crown>
+                      )}
                     </span>
                   </TableCell>
                   <TableCell>

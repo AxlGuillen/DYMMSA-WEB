@@ -79,6 +79,38 @@ describe('GET /api/time-entries', () => {
     expect(filterValue(activeClient.callsTo('time_entries', 'select')[0], 'user_id')).toBe(DIEGO)
   })
 
+  test('trae los días justificados del rango: los del equipo y los de esa persona', async () => {
+    const excused = [{ id: 'x1', work_date: '2026-09-02', user_id: null, kind: 'holiday', note: null, created_by: null, created_at: '' }]
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': withRole(ME_ADMIN),
+        'time_entries.select': { data: [], error: null },
+        'excused_days.select': { data: excused, error: null },
+      },
+    })
+    const res = await get(`?user=${DIEGO}&from=2026-08-31&to=2026-09-06`)
+    const body = await readJson<{ excused: unknown[] }>(res)
+    expect(body.excused).toEqual(excused)
+    const call = activeClient.callsTo('excused_days', 'select')[0]
+    expect(filterValue(call, 'work_date', 'gte')).toBe('2026-08-31')
+    expect(call.filters.find((f) => f.method === 'or')?.args[0]).toBe(`user_id.is.null,user_id.eq.${DIEGO}`)
+  })
+
+  test('si fallan los días justificados la semana sigue (lista vacía)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': withRole(ME_MEMBER),
+        'time_entries.select': { data: [], error: null },
+        'excused_days.select': { data: null, error: { message: 'boom' } },
+      },
+    })
+    const res = await get('?from=2026-08-31&to=2026-09-06')
+    expect(res.status).toBe(200)
+    expect((await readJson<{ excused: unknown[] }>(res)).excused).toEqual([])
+  })
+
   test('user que no es UUID → 400 (no 500 por 22P02)', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_ADMIN) } })
     const res = await get('?user=basura')

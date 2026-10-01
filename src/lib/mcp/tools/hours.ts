@@ -9,6 +9,11 @@ import { todayInMexico } from '@/lib/format'
 import {
   buildWeekView,
   buildWeeklyTrend,
+  EXCUSE_LABELS,
+  excusesFor,
+  weekChartData,
+  weekTargetMinutes,
+  type DayStatus,
   formatDuration,
   normalizeEntryTimes,
   shiftProgress,
@@ -17,7 +22,7 @@ import {
   weekBounds,
   shiftWeek,
 } from '@/lib/timesheet'
-import type { Profile, TimeEntry } from '@/types/database'
+import type { ExcusedDay, Profile, TimeEntry } from '@/types/database'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -39,6 +44,26 @@ async function entriesBetween(db: Db, userId: string, from: string, to: string):
   return ((data ?? []) as TimeEntry[]).map(normalizeEntryTimes)
 }
 
+async function excusedBetween(db: Db, userId: string, from: string, to: string): Promise<ExcusedDay[]> {
+  const { data, error } = await db
+    .from('excused_days')
+    .select('work_date, user_id, kind, note')
+    .gte('work_date', from)
+    .lte('work_date', to)
+    .or(`user_id.is.null,user_id.eq.${userId}`)
+  if (error) throw new ToolError('No se pudieron leer los días justificados')
+  return (data ?? []) as ExcusedDay[]
+}
+
+const DAY_STATUS_LABELS: Record<DayStatus, string | null> = {
+  met: 'cumplió',
+  short: 'no cumplió',
+  excused: 'justificado',
+  open: 'checada sin salida',
+  pending: 'en curso',
+  off: null,
+}
+
 function shiftBlock(target: Target) {
   return {
     jornada: target.shift ? SHIFT_LABELS[target.shift] : null,
@@ -56,8 +81,15 @@ export async function getWeekHours(db: Db, callerId: string, input: WeekHoursInp
   if (input.fecha && !ISO_DATE.test(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
   const target = await resolveTarget(db, callerId, input.persona)
   const { start, end } = weekBounds(input.fecha ?? todayInMexico())
-  const week = buildWeekView(await entriesBetween(db, target.id, start, end), start)
-  const progress = shiftProgress(week.minutes, target.shift)
+  const [entries, excused] = await Promise.all([
+    entriesBetween(db, target.id, start, end),
+    excusedBetween(db, target.id, start, end),
+  ])
+  const week = buildWeekView(entries, start)
+  const excuses = excusesFor(excused, target.id)
+  const weekTarget = weekTargetMinutes(week, target.shift, excuses)
+  const progress = shiftProgress(week.minutes, target.shift, weekTarget)
+  const points = weekChartData(week, target.shift, excuses, todayInMexico())
 
   return {
     persona: target.display_name,
@@ -66,12 +98,16 @@ export async function getWeekHours(db: Db, callerId: string, input: WeekHoursInp
     total_minutos: week.minutes,
     sin_salida: week.open,
     ...shiftBlock(target),
+    // Discounts holidays and authorized early exits; null without a shift.
+    objetivo_de_esta_semana: weekTarget === null ? null : formatDuration(weekTarget),
     cumplimiento_pct: progress?.pct ?? null,
     faltante: progress ? formatDuration(progress.missing) : null,
-    dias: week.days.map((d) => ({
+    dias: week.days.map((d, i) => ({
       dia: d.label,
       fecha: d.date,
       horas: formatDuration(d.minutes),
+      estado: DAY_STATUS_LABELS[points[i].status],
+      justificado: points[i].excuse ? EXCUSE_LABELS[points[i].excuse] : null,
       checadas: d.punches.map((p) => ({ entrada: p.entry.clock_in, salida: p.entry.clock_out, nota: p.entry.note })),
       sin_salida: d.open,
     })),

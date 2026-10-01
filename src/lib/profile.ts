@@ -6,7 +6,7 @@ import type { Profile, ProfileRole } from '@/types/database'
 
 export const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador', member: 'Miembro' }
 
-export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, created_at, updated_at'
+export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, created_at, updated_at'
 
 type Parsed<T> = { value: T } | { error: string }
 
