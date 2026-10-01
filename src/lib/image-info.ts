@@ -74,3 +74,34 @@ export function readImageInfo(bytes: Uint8Array): ImageInfo | null {
   }
   return null
 }
+
+function jpegHasApp1(b: Uint8Array): boolean {
+  let at = 2
+  while (at + 3 < b.length && b[at] === 0xff) {
+    const marker = b[at + 1]
+    if (marker === 0xe1) return true
+    if (marker === 0xda || marker === 0xd9) return false
+    if (marker === 0xff) { at += 1; continue }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) { at += 2; continue }
+    at += 2 + u16be(b, at + 2)
+  }
+  return false
+}
+
+function pngHasExif(b: Uint8Array): boolean {
+  let at = 8
+  while (at + 8 <= b.length) {
+    if (ascii(b, at + 4, 'eXIf')) return true
+    if (ascii(b, at + 4, 'IDAT')) return false
+    at += 12 + u32be(b, at)
+  }
+  return false
+}
+
+/** EXIF/XMP (where a phone keeps the GPS). The browser crop never emits them, so a file that
+ *  carries them skipped Mi perfil and is refused instead of reaching a public bucket (#122). */
+export function hasMetadata(bytes: Uint8Array, kind: ImageKind): boolean {
+  if (kind === 'jpeg') return jpegHasApp1(bytes)
+  if (kind === 'png') return pngHasExif(bytes)
+  return ascii(bytes, 12, 'VP8X') && (bytes[20] & 0x0c) !== 0
+}

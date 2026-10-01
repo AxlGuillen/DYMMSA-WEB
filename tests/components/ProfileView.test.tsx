@@ -59,6 +59,17 @@ describe('ProfileView', () => {
     expect(input).not.toHaveAttribute('readonly')
   })
 
+  test('al guardar el NSS nuevo vuelve a quedar oculto (review PR #126)', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderWithProviders(<ProfileView />)
+    await user.click(screen.getByRole('button', { name: 'Mostrar NSS' }))
+    expect(screen.getByLabelText('Número de Seguridad Social (NSS)')).toHaveValue('12345678903')
+
+    profile = { ...base, nss: '98765432106' }
+    rerender(<ProfileView />)
+    expect(screen.getByLabelText('Número de Seguridad Social (NSS)')).toHaveValue('•••••••2106')
+  })
+
   test('en modo discreto el NSS no se puede revelar', () => {
     useDiscreteModeStore.setState({ isDiscreteMode: true })
     renderWithProviders(<ProfileView />)

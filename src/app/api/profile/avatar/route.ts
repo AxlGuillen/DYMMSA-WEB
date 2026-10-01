@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
 import { AVATAR_BUCKET, AVATAR_MAX_BYTES, AVATAR_MAX_PX, avatarPublicUrl } from '@/lib/avatar'
-import { readImageInfo } from '@/lib/image-info'
+import { hasMetadata, readImageInfo } from '@/lib/image-info'
 
 type Supabase = Awaited<ReturnType<typeof createClient>>
 
@@ -34,6 +34,9 @@ export async function POST(request: NextRequest) {
     const bytes = new Uint8Array(await file.arrayBuffer())
     const info = readImageInfo(bytes)
     if (!info) return badRequest('El archivo debe ser JPG, PNG o WebP')
+    if (hasMetadata(bytes, info.kind)) {
+      return badRequest('La foto trae datos ocultos (como la ubicación); súbela desde Mi perfil para limpiarla')
+    }
     if (info.width > AVATAR_MAX_PX || info.height > AVATAR_MAX_PX) {
       return badRequest(`La imagen debe medir como máximo ${AVATAR_MAX_PX} × ${AVATAR_MAX_PX} px`)
     }

@@ -83,6 +83,18 @@ describe('POST /api/profile/avatar', () => {
     expect(calls.upload).toHaveLength(0)
   })
 
+  test('una foto con EXIF (subida directo, sin el recorte del navegador) → 400 sin subir', async () => {
+    const calls = setup()
+    const exifJpeg = new Uint8Array([
+      0xff, 0xd8, 0xff, 0xe1, 0x00, 0x08, 0x45, 0x78, 0x69, 0x66, 0, 0,
+      0xff, 0xc0, 0x00, 0x11, 0x08, 0, 100, 0, 100, 3,
+    ])
+    const res = await upload(file(exifJpeg, 'yo.jpg', 'image/jpeg'))
+    expect(res.status).toBe(400)
+    expect((await readJson<{ message: string }>(res)).message).toMatch(/ubicación/)
+    expect(calls.upload).toHaveLength(0)
+  })
+
   test('más de 2 MB → 400', async () => {
     const calls = setup()
     const big = new Uint8Array(2 * 1024 * 1024 + 1)

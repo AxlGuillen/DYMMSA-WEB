@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { readImageInfo } from '@/lib/image-info'
+import { hasMetadata, readImageInfo } from '@/lib/image-info'
 
 const bytes = (...parts: (number[] | string)[]) =>
   new Uint8Array(parts.flatMap((p) => (typeof p === 'string' ? [...p].map((c) => c.charCodeAt(0)) : p)))
@@ -59,5 +59,33 @@ describe('readImageInfo', () => {
     expect(readImageInfo(png(10, 10).slice(0, 20))).toBeNull()
     expect(readImageInfo(jpeg(10, 10).slice(0, 24))).toBeNull()
     expect(readImageInfo(new Uint8Array())).toBeNull()
+  })
+})
+
+describe('hasMetadata', () => {
+  const exifJpeg = () =>
+    bytes([0xff, 0xd8], [0xff, 0xe1, 0x00, 0x08], 'Exif', [0, 0], [0xff, 0xc0, 0x00, 0x11, 0x08, 0, 10, 0, 10, 3])
+
+  test('JPEG con EXIF (APP1) sí; JPEG limpio no', () => {
+    expect(readImageInfo(exifJpeg())).toMatchObject({ width: 10, height: 10 })
+    expect(hasMetadata(exifJpeg(), 'jpeg')).toBe(true)
+    expect(hasMetadata(jpeg(10, 10), 'jpeg')).toBe(false)
+  })
+
+  test('PNG con chunk eXIf sí; PNG limpio no', () => {
+    const withExif = bytes([...png(10, 10)], [0, 0, 0, 0], be32(4), 'eXIf', [1, 2, 3, 4], [0, 0, 0, 0])
+    expect(hasMetadata(withExif, 'png')).toBe(true)
+    expect(hasMetadata(png(10, 10), 'png')).toBe(false)
+  })
+
+  test('WebP extendido con bandera EXIF o XMP sí; el de canvas no', () => {
+    const exif = webpExtended(100, 100)
+    exif[20] = 0x08
+    const xmp = webpExtended(100, 100)
+    xmp[20] = 0x04
+    expect(hasMetadata(exif, 'webp')).toBe(true)
+    expect(hasMetadata(xmp, 'webp')).toBe(true)
+    expect(hasMetadata(webpExtended(100, 100), 'webp')).toBe(false)
+    expect(hasMetadata(webpLossy(256, 256), 'webp')).toBe(false)
   })
 })

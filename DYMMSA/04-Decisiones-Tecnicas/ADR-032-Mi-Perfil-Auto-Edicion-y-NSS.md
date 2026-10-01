@@ -38,8 +38,11 @@ el primer día.
    reconoce la firma de JPEG/PNG/WebP y lee sus medidas; SVG (puede llevar scripts), GIF o un
    archivo renombrado no pasan. Tope de 2 MB y 512 × 512 en el servidor. El navegador recorta al
    centro, reduce a 256 px y re-codifica en canvas (`cropAvatar`), lo que además **borra el EXIF**
-   (la ubicación GPS de las fotos del celular). Sin librería de recorte: si algún día se quiere
-   mover el recorte a mano, se agrega aparte.
+   (la ubicación GPS de las fotos del celular). Eso solo vale por la UI: el servidor no
+   re-codifica, así que **rechaza** el archivo que traiga EXIF/XMP (`hasMetadata()`: APP1 en JPEG,
+   `eXIf` en PNG, banderas EXIF/XMP del `VP8X`) — el recorte del navegador nunca los emite, y un
+   POST directo no llega con la ubicación a un bucket público (review PR #126). Sin librería de
+   recorte: si algún día se quiere mover el recorte a mano, se agrega aparte.
 
 ## Consecuencias
 
