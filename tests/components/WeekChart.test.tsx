@@ -92,6 +92,12 @@ describe('WeekChart — días justificados (meeting 2026-10-01)', () => {
     expect(screen.getByTestId('week-chart-excused')).toHaveTextContent('1 día justificado')
   })
 
+  test('sin jornada asignada no hay objetivo que descontar: el aviso no sale', () => {
+    const excused = [{ id: 'x1', work_date: '2026-09-03', user_id: null, kind: 'holiday' as const, note: null, created_by: null, created_at: '' }]
+    renderWithProviders(<WeekChart week={week} shift={null} excused={excused} userId="u-yo" />)
+    expect(screen.queryByTestId('week-chart-excused')).toBeNull()
+  })
+
   test('cada barra lleva su estado: cumplió, sin salida, justificado', async () => {
     const excused = [{ id: 'x1', work_date: '2026-09-03', user_id: null, kind: 'holiday' as const, note: null, created_by: null, created_at: '' }]
     renderWithProviders(<WeekChart week={week} shift="full_time" excused={excused} userId="u-yo" />)

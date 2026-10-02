@@ -97,6 +97,7 @@ describe('get_week_hours', () => {
     const crowded = createMockSupabase({ responses: { 'profiles.select': profiles(many) } })
     await expect(getWeekHours(asDb(crowded), 'u-tania', { persona: 'diego' })).rejects.toThrow(/más de 5 coincidencias .*…/)
     await expect(getWeekHours(asDb(client), 'u-tania', { fecha: '02/09/2026' })).rejects.toThrow(ToolError)
+    await expect(getWeekHours(asDb(client), 'u-tania', { fecha: '2026-02-30' })).rejects.toThrow(/Fecha inválida/)
   })
 
   test('sin jornada asignada no hay objetivo ni porcentaje', async () => {

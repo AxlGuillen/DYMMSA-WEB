@@ -11,6 +11,7 @@ import {
   buildWeeklyTrend,
   EXCUSE_LABELS,
   excusesFor,
+  isRealDate,
   weekChartData,
   weekTargetMinutes,
   type DayStatus,
@@ -23,8 +24,6 @@ import {
   shiftWeek,
 } from '@/lib/timesheet'
 import type { ExcusedDay, Profile, TimeEntry } from '@/types/database'
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 type Target = Pick<Profile, 'id' | 'display_name' | 'shift'>
 
@@ -80,7 +79,8 @@ export interface WeekHoursInput {
 }
 
 export async function getWeekHours(db: Db, callerId: string, input: WeekHoursInput = {}) {
-  if (input.fecha && !ISO_DATE.test(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
+  // JS rolls 2026-02-30 into March: the tool would answer another week as if it were the one asked.
+  if (input.fecha && !isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
   const target = await resolveTarget(db, callerId, input.persona)
   const { start, end } = weekBounds(input.fecha ?? todayInMexico())
   const [entries, excused] = await Promise.all([
