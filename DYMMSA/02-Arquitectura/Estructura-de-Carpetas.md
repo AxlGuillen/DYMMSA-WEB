@@ -87,6 +87,7 @@ src/
 │   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
 │   ├── profile/                  # ProfileView, UserAvatar (issue #122)
 │   ├── hours/                    # ExcusedDaysPanel (2026-10-01); HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93); WeekChart/WeekBars, TrendChart/TrendBars (gráficas con referencias de jornada, issue #101)
+│   ├── payroll/                  # PayrollView (corte sábado→viernes), PayrollDayDialog, PayrollEmployeesDialog (issue #123, solo admin)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
 │   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable, PurchasePlanner
