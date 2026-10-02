@@ -463,7 +463,7 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | Columna | Tipo | Nullable | Default | Constraint | Descripción |
 |---------|------|----------|---------|-----------|-------------|
 | `start_date` | date | No | — | PK, CHECK ISODOW = 6 | El sábado del corte |
-| `status` | text | No | `'closed'` | CHECK `open`/`closed` | |
+| `status` | text | No | `'open'` | CHECK `open`/`closed` | |
 | `closed_at` / `closed_by_name` | timestamptz / text | Sí | — | | Snapshot de quién cerró |
 | `reopened_at` / `reopened_by_name` | timestamptz / text | Sí | — | | Snapshot de quién reabrió |
 

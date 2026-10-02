@@ -176,6 +176,8 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
     const byDate = minutesByDate(entries.filter((e) => e.user_id === employee.profile_id))
     for (const [work_date, day] of byDate) {
       open += day.open
+      // Only an open punch: a gap, not a 0-hour draft that "confirm all" would freeze (review PR #127).
+      if (day.minutes === 0) continue
       inputs.push({ employee_id: employee.id, work_date, worked_minutes: day.minutes })
     }
   }
@@ -219,6 +221,13 @@ export async function setPeriodClosed(
       .lte('work_date', dates[6])
     if (error) throw new Error(`payroll_days count: ${error.message}`)
     if ((count ?? 0) > 0) throw new PayrollError(`Hay ${count} días en borrador: confírmalos o bórralos antes de cerrar`)
+  }
+  if (!closed) {
+    // Never closed = nothing to reopen: a "reopened" stamp would record something that did not happen.
+    const current = await loadPeriodRow(db, start)
+    if (current?.status !== 'closed') {
+      return current ?? { start_date: start, status: 'open', closed_at: null, closed_by_name: null, reopened_at: null, reopened_by_name: null }
+    }
   }
   const stamp = closed
     ? { status: 'closed', closed_at: now, closed_by_name: actorName }

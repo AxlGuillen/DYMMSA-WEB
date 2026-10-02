@@ -6,7 +6,7 @@
 
 import { ToolError, requireSingleMatch, type Db } from '../shared'
 import { todayInMexico } from '@/lib/format'
-import { formatDuration } from '@/lib/timesheet'
+import { formatDuration, SHIFT_LABELS } from '@/lib/timesheet'
 import { PERIOD_DAY_LABELS, isIsoDate, payrollPeriod, type HoursBreakdown } from '@/lib/payroll'
 import { PayrollError, loadEmployees, loadPayrollView, saveDays, type DayInput } from '@/lib/payroll-store'
 import type { PayrollEmployee } from '@/types/database'
@@ -54,6 +54,7 @@ export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
     empleados: view.rows.map((row) => ({
       nombre: row.employee.name,
       tipo: row.employee.profile_id ? 'oficina' : 'taller',
+      jornada: SHIFT_LABELS[row.employee.shift],
       ...totals(row.totals),
       no_trabajadas: formatDuration(row.missedMinutes),
       dias: row.days.flatMap((day, i) =>

@@ -129,7 +129,15 @@ describe('corte', () => {
     expect((await patch(true)).status).toBe(200)
     expect(activeClient.upsertPayload<Record<string, unknown>>('payroll_periods')).toMatchObject({ start_date: SAT, status: 'closed', closed_by_name: 'Axl' })
 
-    activeClient = client({ 'payroll_periods.upsert': { data: { start_date: SAT, status: 'open' }, error: null } })
+    // Reopening a cut that was never closed stamps nothing.
+    activeClient = client({ 'payroll_periods.select': { data: null, error: null } })
+    expect(await readJson(await patch(false))).toMatchObject({ start_date: SAT, status: 'open', reopened_at: null })
+    expect(activeClient.callsTo('payroll_periods', 'upsert')).toEqual([])
+
+    activeClient = client({
+      'payroll_periods.select': { data: { start_date: SAT, status: 'closed' }, error: null },
+      'payroll_periods.upsert': { data: { start_date: SAT, status: 'open' }, error: null },
+    })
     expect((await patch(false)).status).toBe(200)
     expect(activeClient.upsertPayload<Record<string, unknown>>('payroll_periods')).toMatchObject({ status: 'open', reopened_by_name: 'Axl' })
     expect(activeClient.upsertPayload<Record<string, unknown>>('payroll_periods')).not.toHaveProperty('closed_at')
@@ -218,12 +226,11 @@ describe('POST prefill', () => {
     const res = await prefill()
     expect(res.status).toBe(200)
     const body = await readJson<{ saved: number; open: number; linked: number; skipped: { work_date: string; reason: string }[] }>(res)
-    expect(body).toMatchObject({ saved: 2, open: 1, linked: 1 })
+    expect(body).toMatchObject({ saved: 1, open: 1, linked: 1 })
     expect(body.skipped.map((s) => [s.work_date, s.reason])).toEqual([['2026-09-22', 'ya está confirmado'], ['2026-09-23', 'se capturó a mano']])
     const rows = activeClient.upsertPayload('payroll_days')
     expect(rows.map((r) => [r.work_date, r.worked_minutes, r.source, r.status])).toEqual([
       ['2026-09-21', 480, 'hours', 'draft'],
-      ['2026-09-24', 0, 'hours', 'draft'],
     ])
     const read = activeClient.callsTo('time_entries')[0] as CallRecord
     expect(read.filters).toEqual(expect.arrayContaining([{ method: 'in', args: ['user_id', [PROFILE]] }]))

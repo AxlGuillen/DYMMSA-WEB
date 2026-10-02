@@ -45,7 +45,7 @@ describe('get_payroll_period', () => {
     expect(result.borradores).toBe(1)
     expect(result.nota).toBeNull()
     expect(result.empleados.map((e) => e.nombre)).toEqual(['Juan Pérez', 'Juan Carlos Ruiz', 'José Núñez'])
-    expect(result.empleados[0]).toMatchObject({ normal: '08:00', extra: '03:30', sabado: '06:00', equivalente: '23:30', tipo: 'taller' })
+    expect(result.empleados[0]).toMatchObject({ normal: '08:00', extra: '03:30', sabado: '06:00', equivalente: '23:30', tipo: 'taller', jornada: 'Tiempo completo · 8 h' })
     expect(result.empleados[0].dias).toEqual([
       { dia: 'Sáb', fecha: '2026-09-19', horas: '06:00', no_trabajadas: null, estado: 'confirmado', origen: 'hoja', nota: null },
       { dia: 'Lun', fecha: '2026-09-21', horas: '11:30', no_trabajadas: null, estado: 'confirmado', origen: 'hoja', nota: null },

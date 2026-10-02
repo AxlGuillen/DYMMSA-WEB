@@ -901,7 +901,7 @@ CREATE TRIGGER payroll_days_set_updated_at BEFORE UPDATE ON public.payroll_days
 -- payroll_periods: el corte, identificado por su sábado. Sin fila = abierto.
 CREATE TABLE public.payroll_periods (
   start_date date PRIMARY KEY,
-  status text NOT NULL DEFAULT 'closed',
+  status text NOT NULL DEFAULT 'open',
   closed_at timestamptz,
   closed_by_name text,                        -- snapshot, como audit_events.actor_name
   reopened_at timestamptz,

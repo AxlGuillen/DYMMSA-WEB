@@ -46,8 +46,8 @@ export function PayrollView() {
         return
       }
       const notes = [
-        result.skipped.length > 0 ? `${result.skipped.length} días ya capturados no se tocaron` : null,
-        result.open > 0 ? `${result.open} checadas sin salida no suman` : null,
+        result.skipped.length > 0 ? `No se tocaron (ya capturados): ${[...new Set(result.skipped.map((s) => formatDayMonth(s.work_date)))].join(', ')}` : null,
+        result.open > 0 ? `${result.open} checadas sin salida no suman: corrígelas en Horas y vuelve a traer` : null,
       ].filter(Boolean)
       toast.success(`${result.saved} días traídos de Horas como borrador`, { description: notes.join(' · ') || undefined })
     } catch (err) {

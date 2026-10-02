@@ -149,12 +149,13 @@ describe('el corte, de la hoja al cierre', () => {
     expect((await putDay({ employee_id: id, work_date: '2026-09-22', worked_minutes: 420 })).status).toBe(200)
 
     const res = await prefillRoute.POST(makeRequest(undefined, { method: 'POST' }), start)
-    expect(await readJson(res)).toMatchObject({ saved: 2, open: 1, linked: 1, skipped: [{ work_date: '2026-09-22', reason: 'ya está confirmado' }] })
+    expect(await readJson(res)).toMatchObject({ saved: 1, open: 1, linked: 1, skipped: [{ work_date: '2026-09-22', reason: 'ya está confirmado' }] })
     expect(await dayRows()).toEqual([
       { work_date: '2026-09-21', worked_minutes: 510, status: 'draft', source: 'hours' },
       { work_date: '2026-09-22', worked_minutes: 420, status: 'confirmed', source: 'manual' },
-      { work_date: '2026-09-23', worked_minutes: 0, status: 'draft', source: 'hours' },
     ])
+    // The 23rd only has an open punch: it stays a gap instead of a 0-hour draft.
+
 
     // Running it twice is idempotent: the draft it wrote is its own to refresh.
     await sql(`UPDATE public.time_entries SET clock_out = '19:00' WHERE work_date = '2026-09-21' AND clock_in = '14:00'`)
@@ -165,6 +166,8 @@ describe('el corte, de la hoja al cierre', () => {
   test('constraints: un corte que no empieza en sábado, minutos fuera de rango y empleado duplicado', async () => {
     const id = await seedEmployee('Juan Taller')
     await expect(sql(`INSERT INTO public.payroll_periods (start_date) VALUES ('2026-09-20')`)).rejects.toThrow(/payroll_periods_saturday/)
+    // A bare insert must not freeze a cut: no row and no status both mean open.
+    expect(await sql(`INSERT INTO public.payroll_periods (start_date) VALUES ('2026-09-12') RETURNING status`)).toEqual([{ status: 'open' }])
     await expect(sql(`INSERT INTO public.payroll_days (employee_id, work_date, worked_minutes) VALUES ($1, '2026-09-21', 1500)`, [id])).rejects.toThrow(/payroll_days_worked_check/)
     await expect(seedEmployee('Juan Taller')).rejects.toThrow(/payroll_employees_name_key/)
     expect((await periodRoute.GET(makeRequest(), makeParams({ start: '2026-09-20' }))).status).toBe(400)
