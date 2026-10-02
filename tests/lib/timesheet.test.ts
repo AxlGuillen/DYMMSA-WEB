@@ -14,7 +14,8 @@ import {
   parseNgtecoReport,
   shiftWeek,
   weekBounds,
-  weekChartData, shiftProgress, buildWeeklyTrend, SHIFT_HOURS,
+  weekChartData, shiftProgress, buildWeeklyTrend, SHIFT_HOURS, isRealDate, excusedWeekdays,
+  dayStatus, excusesFor, parseExcusedDay, weekTargetMinutes,
 } from '@/lib/timesheet'
 import { NGTECO_NUMERIC, NGTECO_PERIOD, NGTECO_WEEK } from '../helpers/fixtures/ngteco'
 
@@ -128,8 +129,8 @@ describe('referencias de jornada (#101)', () => {
     const week = buildWeekView([entry('2026-08-31', '09:00', '17:30'), entry('2026-09-01', '09:00', null)], '2026-08-31')
     const data = weekChartData(week)
     expect(data).toHaveLength(7)
-    expect(data[0]).toEqual({ label: 'Lun', date: '2026-08-31', hours: 8.5, minutes: 510, open: 0 })
-    expect(data[1]).toEqual({ label: 'Mar', date: '2026-09-01', hours: 0, minutes: 0, open: 1 })
+    expect(data[0]).toMatchObject({ label: 'Lun', date: '2026-08-31', hours: 8.5, minutes: 510, open: 0 })
+    expect(data[1]).toMatchObject({ label: 'Mar', date: '2026-09-01', hours: 0, minutes: 0, open: 1 })
   })
 
   test('weekChartData: los minutos exactos viajan aparte del redondeo de la barra', () => {
@@ -155,6 +156,27 @@ describe('referencias de jornada (#101)', () => {
     expect(trend.map((w) => w.hours)).toEqual([4, 0, 8])
     expect(trend[0].open).toBe(1)
     expect(trend[2].end).toBe('2026-09-06')
+    // Without a shift there is no target to discount.
+    expect(trend[2]).toMatchObject({ target: null, excused: 0 })
+  })
+
+  test('buildWeeklyTrend descuenta los días justificados del objetivo de SU semana, igual que Mi semana', () => {
+    const excuses = new Map([['2026-08-26', 'holiday'], ['2026-08-29', 'holiday']] as const)
+    const trend = buildWeeklyTrend([entry('2026-08-24', '09:00', '17:00')], '2026-08-31', 2, { shift: 'full_time', excuses })
+    // Wednesday discounts 8 h; the marked Saturday never asked for hours.
+    expect(trend[0]).toMatchObject({ start: '2026-08-24', target: 32 * 60, excused: 1 })
+    expect(trend[1]).toMatchObject({ start: '2026-08-31', target: 40 * 60, excused: 0 })
+    const week = buildWeekView([], '2026-08-24')
+    expect(excusedWeekdays(week, excuses)).toBe(1)
+  })
+
+  test('isRealDate exige que la fecha exista, no solo su forma', () => {
+    expect(isRealDate('2026-02-28')).toBe(true)
+    expect(isRealDate('2028-02-29')).toBe(true)
+    expect(isRealDate('2026-02-30')).toBe(false)
+    expect(isRealDate('2026-13-01')).toBe(false)
+    expect(isRealDate('2026-9-1')).toBe(false)
+    expect(isRealDate(null)).toBe(false)
   })
 })
 
@@ -189,5 +211,69 @@ describe('semanas', () => {
     expect(view.minutes).toBe(1126)
     expect(view.open).toBe(1)
     expect(view.end).toBe('2026-09-06')
+  })
+})
+
+describe('días cumplidos y días justificados (meeting 2026-10-01)', () => {
+  const entry = (date: string, clockIn: string, clockOut: string | null) => ({ work_date: date, clock_in: clockIn, clock_out: clockOut })
+  // Week of Mon 2026-09-21: Mon 8 h, Tue 5 h, Wed nothing (holiday), Thu 3 h (early exit), Fri open.
+  const week = buildWeekView(
+    [
+      entry('2026-09-21', '09:00', '17:00'),
+      entry('2026-09-22', '09:00', '14:00'),
+      entry('2026-09-24', '09:00', '12:00'),
+      entry('2026-09-25', '09:00', null),
+    ],
+    '2026-09-21',
+  )
+  const excuses = new Map([['2026-09-23', 'holiday'], ['2026-09-24', 'early_release']] as const)
+
+  test('verde si cumplió su jornada, rojo si no, justificado aparte; fin de semana y sin jornada neutros', () => {
+    const data = weekChartData(week, 'full_time', excuses, '2026-09-28')
+    expect(data.map((d) => d.status)).toEqual(['met', 'short', 'excused', 'excused', 'open', 'off', 'off'])
+    expect(data[1].missing).toBe(180)
+    expect(data[2].excuse).toBe('holiday')
+    expect(weekChartData(week, null, excuses, '2026-09-28').every((d) => d.status === 'off')).toBe(true)
+  })
+
+  test('medio tiempo: 4 h ya cumplen el día', () => {
+    expect(weekChartData(week, 'part_time', new Map(), '2026-09-28')[1].status).toBe('met')
+  })
+
+  test('hoy no se pinta en rojo mientras el día sigue; el futuro tampoco', () => {
+    const day = { date: '2026-09-22', minutes: 120, open: 0 }
+    expect(dayStatus(1, day, 'full_time', undefined, '2026-09-22')).toBe('pending')
+    expect(dayStatus(1, day, 'full_time', undefined, '2026-09-21')).toBe('pending')
+    expect(dayStatus(1, { ...day, minutes: 480 }, 'full_time', undefined, '2026-09-22')).toBe('met')
+  })
+
+  test('el objetivo semanal descuenta el feriado completo y la salida autorizada hasta lo trabajado', () => {
+    // 40 h − Wed (8 h holiday) − Thu (8 h asked, 3 h worked → asks 3 h) = 27 h.
+    expect(weekTargetMinutes(week, 'full_time', excuses)).toBe(27 * 60)
+    expect(weekTargetMinutes(week, 'full_time', new Map())).toBe(40 * 60)
+    expect(weekTargetMinutes(week, null, excuses)).toBeNull()
+    expect(shiftProgress(16 * 60, 'full_time', 27 * 60)).toEqual({ target: 1620, pct: 59, missing: 660 })
+    expect(shiftProgress(0, 'full_time', 0)).toEqual({ target: 0, pct: 100, missing: 0 })
+  })
+
+  test('el día propio gana al del equipo', () => {
+    const map = excusesFor(
+      [
+        { work_date: '2026-09-23', user_id: null, kind: 'holiday' },
+        { work_date: '2026-09-23', user_id: 'u1', kind: 'early_release' },
+        { work_date: '2026-09-24', user_id: 'u2', kind: 'holiday' },
+      ],
+      'u1',
+    )
+    expect([...map]).toEqual([['2026-09-23', 'early_release']])
+  })
+
+  test('parseExcusedDay valida fecha, tipo y nota; persona vacía = todo el equipo', () => {
+    expect(parseExcusedDay({ work_date: '2026-09-16', kind: 'holiday', note: '  Independencia ' })).toEqual({
+      value: { work_date: '2026-09-16', kind: 'holiday', user_id: null, note: 'Independencia' },
+    })
+    expect(parseExcusedDay({ work_date: '16/09/2026', kind: 'holiday' })).toEqual({ error: 'Fecha inválida' })
+    expect(parseExcusedDay({ work_date: '2026-09-16', kind: 'vacaciones' })).toHaveProperty('error')
+    expect(parseExcusedDay({ work_date: '2026-09-16', kind: 'holiday', note: 'x'.repeat(201) })).toHaveProperty('error')
   })
 })

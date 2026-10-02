@@ -19,7 +19,7 @@ export const FINANCE_OVERVIEW_TOUR: OverviewStep[] = [
     selector: '[data-tour="fin-income"]',
     title: 'Ingresos: leídos de Odoo',
     description:
-      'La facturación a clientes vive en Odoo y aquí solo se <b>lee</b>: lo cobrado del mes, lo facturado que vence hoy o después y lo <b>vencido por cobrar</b> de cualquier mes. Se refresca cada 15 minutos; <b>Actualizar</b> lo trae en el momento. Si Odoo no responde, la pantalla sigue con los egresos.',
+      'La facturación a clientes vive en Odoo y aquí solo se <b>lee</b>: lo cobrado del mes, el <b>por cobrar</b> total (igual que en Odoo: lo que vence hoy o después más lo vencido) y, aparte, cuánto de eso ya está <b>vencido</b>. Se refresca cada 15 minutos; <b>Actualizar</b> lo trae en el momento. Si Odoo no responde, la pantalla sigue con los egresos.',
   },
   {
     selector: '[data-tour="fin-closing"]',

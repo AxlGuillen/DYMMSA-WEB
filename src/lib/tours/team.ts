@@ -15,4 +15,10 @@ export const TEAM_TOUR: OverviewStep[] = [
     description:
       '<b>Administrador</b> ve a todo el equipo, importa el reporte y corrige checadas; <b>Miembro</b> solo ve lo suyo. El <b>id del checador</b> es el número entre paréntesis en el reporte semanal (vacío = no checa). La <b>jornada</b> (tiempo completo 8 h o medio tiempo 4 h) es la referencia que dibujan las gráficas de Horas. Edita con el lápiz; siempre debe quedar al menos un administrador.',
   },
+  {
+    selector: '[data-tour="team-excused"]',
+    title: 'Días feriados y salidas autorizadas',
+    description:
+      'Marca un <b>día feriado</b> (no pide horas) o una <b>salida autorizada</b> (el día cuenta como cumplido con lo que se trabajó), para todo el equipo o para una persona. Esos días se pintan en verde en <b>Mi semana</b> y se descuentan del objetivo semanal.',
+  },
 ]

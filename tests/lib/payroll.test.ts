@@ -51,6 +51,7 @@ describe('corte sábado → viernes', () => {
   test('isIsoDate rechaza lo que no es fecha', () => {
     expect(isIsoDate('2026-09-19')).toBe(true)
     expect(isIsoDate('2026-13-40')).toBe(false)
+    expect(isIsoDate('2026-02-30')).toBe(false)
     expect(isIsoDate('19/09/2026')).toBe(false)
     expect(isIsoDate(null)).toBe(false)
   })

@@ -207,6 +207,8 @@ export interface Profile {
   nss: string | null
   /** Object path in the avatars bucket; null = initials. */
   avatar_path: string | null
+  /** The business owner: a crown in Equipo (one at most, meeting 2026-10-01). */
+  is_owner: boolean
   created_at: string
   updated_at: string
 }
@@ -216,6 +218,22 @@ export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clo
 export type OwnProfileUpdate = Partial<Pick<Profile, 'display_name' | 'nss'>>
 export type ProfileWithAvatar = Profile & { avatar_url: string | null }
 export type OwnProfile = Omit<ProfileWithAvatar, 'created_at' | 'updated_at'> & { email: string | null }
+
+/** A day that does not count as unworked: a holiday, or an early exit the owner authorized. */
+export type ExcuseKind = 'holiday' | 'early_release'
+
+export interface ExcusedDay {
+  id: string
+  work_date: string
+  /** null = the whole team. */
+  user_id: string | null
+  kind: ExcuseKind
+  note: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export type ExcusedDayInsert = Pick<ExcusedDay, 'work_date' | 'user_id' | 'kind' | 'note'>
 
 export type TimeEntrySource = 'import' | 'manual'
 

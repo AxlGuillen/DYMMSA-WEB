@@ -17,3 +17,10 @@ export function nextMonth(month: string): string {
 export function monthRange(month: string): { from: ISODate; toExclusive: ISODate } {
   return { from: `${month}-01`, toExclusive: nextMonth(month) }
 }
+
+/** Calendar arithmetic on a date-only string, in UTC so no timezone shifts the day. */
+export function shiftDays(date: ISODate, days: number): ISODate {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}

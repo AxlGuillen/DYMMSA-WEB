@@ -7,7 +7,7 @@ import { ToolError, type Db } from '../shared'
 import { todayInMexico } from '@/lib/format'
 import { ISO_MONTH, monthRange } from '@/lib/month'
 import { summarizeMonth } from '@/lib/payables'
-import { buildIncomeOverview, INCOME_UNAVAILABLE_MESSAGES, monthClosing } from '@/lib/income'
+import { buildIncomeOverview, INCOME_UNAVAILABLE_MESSAGES, monthClosing, totalReceivable } from '@/lib/income'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
 import { cachedMonthCollections, cachedOpenCustomerMoves } from '@/lib/odoo/income-cache'
@@ -98,7 +98,9 @@ export async function getMonthClosing(db: Db, input: { mes?: string } = {}, deps
       ? {
           cobrado: summary.collectedTotal,
           cobros: summary.collectedCount,
-          por_cobrar: summary.receivableTotal,
+          // Same total Odoo shows; the two parts stay for "¿cuánto ya venció?".
+          por_cobrar_total: totalReceivable(summary).total,
+          por_cobrar_al_corriente: summary.receivableTotal,
           vencido_por_cobrar: summary.overdueTotal,
           // Customer credit, never netted against the receivables (#102).
           notas_credito_sin_aplicar: summary.creditNotesTotal,

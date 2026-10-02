@@ -3,7 +3,7 @@
  * Pure. Callers normalize supabase-js `time` strings before calling.
  */
 
-import type { ProfileShift } from '@/types/database'
+import type { ExcusedDay, ExcusedDayInsert, ExcuseKind, ProfileShift } from '@/types/database'
 
 export type ISODate = string
 export type HHMM = string
@@ -31,6 +31,13 @@ export interface ParsedReport {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Shape AND existence: 2026-02-30 matches the regex and Postgres answers 22008 → a 500 (review PR #128). */
+export function isRealDate(value: unknown): value is ISODate {
+  if (typeof value !== 'string' || !ISO_DATE.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
 const PERIOD = /(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})/
 // [\s\S] instead of the `s` flag: the project targets below es2018.
 const EMPLOYEE = /^([\s\S]*?)\s*\((\d+)\)\s*$/
@@ -271,6 +278,75 @@ export const SHIFTS: readonly ProfileShift[] = ['full_time', 'part_time']
 
 const toHours = (minutes: number) => Math.round((minutes / 60) * 10) / 10
 
+// ─── Daily compliance and excused days (meeting 2026-10-01) ───
+
+export const EXCUSE_LABELS: Record<ExcuseKind, string> = {
+  holiday: 'Día feriado',
+  early_release: 'Salida autorizada',
+}
+
+const EXCUSE_KINDS: readonly ExcuseKind[] = ['holiday', 'early_release']
+
+/** Body of a new excused day; the user id is checked as a uuid by the route. */
+export function parseExcusedDay(body: unknown): { value: ExcusedDayInsert } | { error: string } {
+  const b = (body ?? {}) as Record<string, unknown>
+  if (!isRealDate(b.work_date)) return { error: 'Fecha inválida' }
+  if (!EXCUSE_KINDS.includes(b.kind as ExcuseKind)) return { error: 'Tipo inválido: día feriado o salida autorizada' }
+  if (b.user_id !== undefined && b.user_id !== null && typeof b.user_id !== 'string') return { error: 'Persona inválida' }
+  const note = typeof b.note === 'string' ? b.note.trim() : ''
+  if (note.length > 200) return { error: 'La nota no puede pasar de 200 caracteres' }
+  return { value: { work_date: b.work_date, kind: b.kind as ExcuseKind, user_id: (b.user_id as string | null | undefined) || null, note: note || null } }
+}
+
+/** One excuse per date for a person: their own beats the team-wide one. */
+export function excusesFor(excused: readonly Pick<ExcusedDay, 'work_date' | 'user_id' | 'kind'>[], userId: string): Map<ISODate, ExcuseKind> {
+  const out = new Map<ISODate, ExcuseKind>()
+  for (const e of excused) if (e.user_id === null) out.set(e.work_date, e.kind)
+  for (const e of excused) if (e.user_id === userId) out.set(e.work_date, e.kind)
+  return out
+}
+
+const WORKDAYS = 5
+
+/** Minutes a weekday asks for: a holiday asks nothing, an authorized early exit asks what was worked. */
+export function dayTargetMinutes(index: number, minutes: number, shift: ProfileShift, excuse: ExcuseKind | undefined): number {
+  if (index >= WORKDAYS) return 0
+  const daily = SHIFT_HOURS[shift].daily * 60
+  if (excuse === 'holiday') return 0
+  if (excuse === 'early_release') return Math.min(daily, minutes)
+  return daily
+}
+
+/** Excused days that actually discount something: a marked Saturday never asked for hours. */
+export function excusedWeekdays(week: WeekView<unknown>, excuses: ReadonlyMap<ISODate, ExcuseKind>): number {
+  return week.days.filter((d, i) => i < WORKDAYS && excuses.has(d.date)).length
+}
+
+/** The week's target once excused days are discounted; null without an assigned shift. */
+export function weekTargetMinutes(week: WeekView<unknown>, shift: ProfileShift | null | undefined, excuses: ReadonlyMap<ISODate, ExcuseKind>): number | null {
+  if (!shift) return null
+  return week.days.reduce((sum, d, i) => sum + dayTargetMinutes(i, d.minutes, shift, excuses.get(d.date)), 0)
+}
+
+/** met/short paint green/red; open = clock-out missing; pending = today or later; off = weekend or no shift. */
+export type DayStatus = 'met' | 'short' | 'excused' | 'open' | 'pending' | 'off'
+
+export function dayStatus(
+  index: number,
+  day: Pick<WeekDay<unknown>, 'date' | 'minutes' | 'open'>,
+  shift: ProfileShift | null | undefined,
+  excuse: ExcuseKind | undefined,
+  today: ISODate,
+): DayStatus {
+  if (!shift || index >= WORKDAYS) return 'off'
+  if (excuse) return 'excused'
+  if (day.open > 0) return 'open'
+  if (day.date > today) return 'pending'
+  if (day.minutes >= SHIFT_HOURS[shift].daily * 60) return 'met'
+  // Today is still running: it only turns red tomorrow.
+  return day.date === today ? 'pending' : 'short'
+}
+
 export interface WeekChartPoint {
   label: (typeof WEEKDAY_LABELS)[number]
   date: ISODate
@@ -279,11 +355,25 @@ export interface WeekChartPoint {
   minutes: number
   /** Pairs without a clock-out: they add nothing, so the bar must not read as a short day. */
   open: number
+  status: DayStatus
+  excuse: ExcuseKind | null
+  /** Minutes short of the daily shift; 0 unless `short`. */
+  missing: number
 }
 
 /** The week as the chart draws it; every number is prepared here, never in the component. */
-export function weekChartData(week: WeekView<unknown>): WeekChartPoint[] {
-  return week.days.map((d) => ({ label: d.label, date: d.date, hours: toHours(d.minutes), minutes: d.minutes, open: d.open }))
+export function weekChartData(
+  week: WeekView<unknown>,
+  shift: ProfileShift | null | undefined = null,
+  excuses: ReadonlyMap<ISODate, ExcuseKind> = new Map(),
+  today: ISODate = '9999-12-31',
+): WeekChartPoint[] {
+  return week.days.map((d, i) => {
+    const excuse = excuses.get(d.date) ?? null
+    const status = dayStatus(i, d, shift, excuse ?? undefined, today)
+    const missing = status === 'short' && shift ? SHIFT_HOURS[shift].daily * 60 - d.minutes : 0
+    return { label: d.label, date: d.date, hours: toHours(d.minutes), minutes: d.minutes, open: d.open, status, excuse, missing }
+  })
 }
 
 export interface ShiftProgress {
@@ -295,10 +385,11 @@ export interface ShiftProgress {
   missing: number
 }
 
-/** Weekly total against the shift target; null without an assigned shift. */
-export function shiftProgress(minutes: number, shift: ProfileShift | null | undefined): ShiftProgress | null {
+/** Weekly total against the shift target (or `targetMinutes` once excused days are discounted); null without a shift. */
+export function shiftProgress(minutes: number, shift: ProfileShift | null | undefined, targetMinutes?: number | null): ShiftProgress | null {
   if (!shift) return null
-  const target = SHIFT_HOURS[shift].weekly * 60
+  const target = targetMinutes ?? SHIFT_HOURS[shift].weekly * 60
+  if (target === 0) return { target, pct: 100, missing: 0 }
   return { target, pct: Math.round((minutes / target) * 100), missing: Math.max(0, target - minutes) }
 }
 
@@ -308,6 +399,15 @@ export interface WeekTrendPoint {
   hours: number
   minutes: number
   open: number
+  /** The week's target once excused days are discounted; null without a shift. */
+  target: number | null
+  /** Excused weekdays of that week. */
+  excused: number
+}
+
+export interface TrendOptions {
+  shift?: ProfileShift | null
+  excuses?: ReadonlyMap<ISODate, ExcuseKind>
 }
 
 /** The `weeks` weeks ending at `lastWeekStart`, oldest first; an empty week is 0, never missing. */
@@ -315,11 +415,20 @@ export function buildWeeklyTrend<T extends EntryLike>(
   entries: readonly T[],
   lastWeekStart: ISODate,
   weeks = 8,
+  { shift = null, excuses = new Map() }: TrendOptions = {},
 ): WeekTrendPoint[] {
   const out: WeekTrendPoint[] = []
   for (let i = weeks - 1; i >= 0; i--) {
     const week = buildWeekView(entries, shiftWeek(lastWeekStart, -i))
-    out.push({ start: week.start, end: week.end, hours: toHours(week.minutes), minutes: week.minutes, open: week.open })
+    out.push({
+      start: week.start,
+      end: week.end,
+      hours: toHours(week.minutes),
+      minutes: week.minutes,
+      open: week.open,
+      target: weekTargetMinutes(week, shift, excuses),
+      excused: excusedWeekdays(week, excuses),
+    })
   }
   return out
 }

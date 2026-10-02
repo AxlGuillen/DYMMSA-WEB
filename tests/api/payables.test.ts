@@ -14,6 +14,7 @@ import * as payables from '@/app/api/payables/route'
 import * as payableById from '@/app/api/payables/[id]/route'
 import * as overview from '@/app/api/payables/overview/route'
 import * as payableEvents from '@/app/api/payables/[id]/events/route'
+import { todayInMexico } from '@/lib/format'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
@@ -74,6 +75,22 @@ describe('GET /api/payables', () => {
     const call = activeClient.callsTo('payables', 'select')[0]
     expect(filterValue(call, 'due_date', 'gte')).toBe('2026-12-01')
     expect(filterValue(call, 'due_date', 'lt')).toBe('2027-01-01')
+  })
+
+  test('estado "overdue": pendientes con vencimiento antes de hoy; un estado desconocido no filtra', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'payables.select': { data: [], error: null, count: 0 } } })
+    await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables?status=overdue' }))
+    const rec = activeClient.callsTo('payables', 'select')[0]
+    expect(filterValue(rec, 'status')).toBe('pending')
+    expect(filterValue(rec, 'due_date', 'lt')).toBe(todayInMexico())
+
+    await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables?status=paid' }))
+    const paid = activeClient.callsTo('payables', 'select')[1]
+    expect(filterValue(paid, 'status')).toBe('paid')
+    expect(filterValue(paid, 'due_date', 'lt')).toBeUndefined()
+
+    await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables?status=raro' }))
+    expect(filterValue(activeClient.callsTo('payables', 'select')[2], 'status')).toBeUndefined()
   })
 
   test('filtra por proveedor (uuid) y por rango de monto', async () => {

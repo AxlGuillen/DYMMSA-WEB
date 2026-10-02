@@ -7,8 +7,8 @@ import { getProfiles } from '@/lib/mcp/tools/profiles'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
-const TANIA = { id: 'u-tania', display_name: 'Tania', role: 'member', clock_employee_id: 5, shift: 'part_time', nss: '12345678903', avatar_path: 'u-tania/a.webp' }
-const DIEGO = { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: null, avatar_path: null }
+const TANIA = { id: 'u-tania', display_name: 'Tania', role: 'member', clock_employee_id: 5, shift: 'part_time', nss: '12345678903', avatar_path: 'u-tania/a.webp', is_owner: false }
+const DIEGO = { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: null, avatar_path: null, is_owner: true }
 
 function profiles(visible: (typeof TANIA | typeof DIEGO)[]) {
   return (rec: CallRecord) => {
@@ -38,7 +38,7 @@ describe('get_profiles', () => {
     const client = createMockSupabase({ responses: { 'profiles.select': profiles([DIEGO, TANIA]) } })
     const result = await getProfiles(asDb(client), 'u-diego')
     expect(result.total).toBe(2)
-    expect(result.perfiles.find((p) => p.nombre === 'Diego')).toMatchObject({ rol: 'Administrador', jornada: null, nss: null, foto: null })
+    expect(result.perfiles.find((p) => p.nombre === 'Diego')).toMatchObject({ rol: 'Administrador', dueno_del_negocio: true, jornada: null, nss: null, foto: null })
     expect(result.perfiles.find((p) => p.nombre === 'Tania')).not.toHaveProperty('nss')
     expect(JSON.stringify(result)).not.toContain('12345678903')
     expect(result.nota).toMatch(/por nombre/)

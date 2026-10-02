@@ -3,16 +3,15 @@
  * Pure and clock-free; the multiplier is derived from the date, never stored.
  */
 
-import { minutesBetween, SHIFT_HOURS, type ISODate } from '@/lib/timesheet'
+import { isRealDate, minutesBetween, SHIFT_HOURS, type ISODate } from '@/lib/timesheet'
 import type { PayrollDay, PayrollEmployee, PayrollPeriod, ProfileShift } from '@/types/database'
 
 const DAY_MS = 86_400_000
 const toUtc = (iso: ISODate) => new Date(`${iso}T00:00:00Z`)
 const toIso = (d: Date) => d.toISOString().slice(0, 10)
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
-export const isIsoDate = (value: unknown): value is ISODate =>
-  typeof value === 'string' && ISO_DATE.test(value) && !Number.isNaN(toUtc(value).getTime())
+// JS rolls 2026-02-30 into March instead of failing: existence is checked, not just the shape.
+export const isIsoDate = isRealDate
 
 /** Friday pays the previous Saturday and Sunday plus this Monday→Friday. */
 export function payrollPeriod(date: ISODate): { start: ISODate; end: ISODate } {

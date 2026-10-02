@@ -89,7 +89,7 @@ describe('FinanceOverview — ingresos', () => {
     expect(closing).toHaveTextContent(/Proyectado \$4,500/)
     // The closing sums the month's collections unconverted, so it carries the same warning.
     expect(closing).toHaveTextContent(/incluye USD sin convertir/)
-    expect(screen.getByText(/1 factura al día de hoy — vence hoy o después$/)).toBeInTheDocument()
+    expect(screen.getByText(/^2 facturas abiertas — incluye \$18,781.10 vencido/)).toBeInTheDocument()
     expect(screen.getByText(/1 factura al día de hoy — cualquier mes · incluye USD sin convertir/)).toBeInTheDocument()
   })
 
@@ -108,7 +108,9 @@ describe('FinanceOverview — ingresos', () => {
     expect(card).toHaveTextContent('RINV/2026/00012')
     expect(card).toHaveTextContent(/No se resta del por cobrar/)
     // Gross figures, exactly as Odoo lists them.
-    expect(screen.getByText('Por cobrar').closest('[data-slot="card"]')).toHaveTextContent('$3,000.00')
+    // Por cobrar = al corriente + vencido, as Odoo shows it (meeting 2026-10-01).
+    expect(screen.getByText('Por cobrar').closest('[data-slot="card"]')).toHaveTextContent('$21,781.10')
+    expect(screen.getByText('Por cobrar').closest('[data-slot="card"]')).toHaveTextContent('incluye $18,781.10 vencido')
     expect(screen.getByText('Vencido por cobrar').closest('[data-slot="card"]')).toHaveTextContent('$18,781.10')
   })
 

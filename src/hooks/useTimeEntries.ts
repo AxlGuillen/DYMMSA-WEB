@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
 import type { WeekView } from '@/lib/timesheet'
-import type { TimeEntry, TimeEntryUpdate, TimeImport, TimeImportResult } from '@/types/database'
+import type { ExcusedDay, TimeEntry, TimeEntryUpdate, TimeImport, TimeImportResult } from '@/types/database'
 
 export const TIME_ENTRIES_KEY = ['time-entries']
 
@@ -14,6 +14,8 @@ export interface TimeEntriesResponse {
   entries: TimeEntry[]
   /** null when from..to is not an exact Monday→Sunday week. */
   week: WeekView<TimeEntry> | null
+  /** Holidays and authorized early exits in the range: team-wide plus this person's. */
+  excused: ExcusedDay[]
 }
 
 interface TimeEntriesParams {
