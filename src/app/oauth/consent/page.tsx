@@ -16,11 +16,11 @@ export const dynamic = 'force-dynamic'
 
 export const metadata = { title: 'Autorizar conexión | DYMMSA' }
 
-function ConsentError({ message }: { message: string }) {
+function ConsentError({ title = 'Solicitud inválida', message }: { title?: string; message: string }) {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
-        <h1 className="text-xl font-semibold">Solicitud inválida</h1>
+        <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{message}</p>
       </div>
     </main>
@@ -52,8 +52,13 @@ export default async function ConsentPage({
   const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId)
 
   if (error || !data) {
-    if (error) console.warn('OAuth authorization details failed:', error.message)
-    return <ConsentError message="Esta solicitud ya se usó o expiró. Vuelve a conectar el asistente desde Claude." />
+    console.warn('OAuth authorization details failed:', authorizationId, error?.message ?? 'no data')
+    return (
+      <ConsentError
+        title="La solicitud ya no es válida"
+        message="Esta solicitud ya se usó o expiró. Vuelve a conectar el asistente desde Claude."
+      />
+    )
   }
 
   // No `authorization_id` in the response means consent was already granted and Supabase returns the redirect URL.

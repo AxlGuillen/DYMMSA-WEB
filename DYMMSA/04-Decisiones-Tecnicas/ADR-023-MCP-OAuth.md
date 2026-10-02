@@ -72,8 +72,8 @@ Claude → POST /api/mcp (sin token) → 401 + WWW-Authenticate: resource_metada
    approveAuthorization, denyAuthorization}` no existen en 2.91.
 8. Una autorización **auto-aprobada** (cliente que el usuario ya autorizó) es de **un solo uso**: la
    primera lectura de `getAuthorizationDetails` la consume y la segunda responde 400 `validation_failed`.
-   Por eso el salto login → `/oauth/consent` es **una carga completa** (`window.location.assign` en
-   `src/app/login/page.tsx`), nunca `router.push` + `router.refresh` (PR #130).
+   Por eso el login abre **cualquier** destino con **una carga completa** (`window.location.assign` en
+   `src/app/login/page.tsx`), nunca `router.push` + `router.refresh` (PR #130/#131).
 
 ## Módulo
 
