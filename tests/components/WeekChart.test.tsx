@@ -67,6 +67,17 @@ describe('TrendChart', () => {
     renderWithProviders(<TrendChart trend={undefined} shift="full_time" currentStart="2026-08-31" isError />)
     expect(screen.getByTestId('trend-chart')).toHaveTextContent('No se pudo cargar la tendencia')
   })
+
+  test('avisa de las semanas con días justificados solo cuando hay jornada contra la cual medir', () => {
+    const excuses = new Map([['2026-08-26', 'holiday']] as const)
+    const trend = buildWeeklyTrend([], '2026-08-31', 2, { shift: 'full_time', excuses })
+    const { unmount } = renderWithProviders(<TrendChart trend={trend} shift="full_time" currentStart="2026-08-31" />)
+    expect(screen.getByTestId('trend-chart-excused')).toHaveTextContent('1 semana con días justificados')
+    unmount()
+
+    renderWithProviders(<TrendChart trend={trend} shift={null} currentStart="2026-08-31" />)
+    expect(screen.queryByTestId('trend-chart-excused')).toBeNull()
+  })
 })
 
 describe('WeekChart — días justificados (meeting 2026-10-01)', () => {

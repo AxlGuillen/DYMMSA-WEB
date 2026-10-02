@@ -167,6 +167,13 @@ describe('GET /api/time-entries', () => {
 describe('POST /api/time-entries (captura manual)', () => {
   const body = { user_id: DIEGO, work_date: '2026-09-02', clock_in: '9:05', clock_out: '18:00', note: ' llegó tarde ' }
 
+  test('una fecha que no existe (2026-02-30) → 400 en el POST y en el rango del GET, sin tocar la tabla', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_ADMIN) } })
+    expect((await entriesRoute.POST(makeRequest({ ...body, work_date: '2026-02-30' }))).status).toBe(400)
+    expect((await get('?from=2026-02-30&to=2026-03-05')).status).toBe(400)
+    expect(activeClient.callsTo('time_entries')).toEqual([])
+  })
+
   test('403 para un member', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_MEMBER) } })
     expect((await entriesRoute.POST(makeRequest(body))).status).toBe(403)

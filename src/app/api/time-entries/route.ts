@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole, requireAdmin, badRequest, serverError, isUuid } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
-import { buildWeekView, normalizeEntryTimes, normalizeTime, weekBounds } from '@/lib/timesheet'
+import { buildWeekView, isRealDate, normalizeEntryTimes, normalizeTime, weekBounds } from '@/lib/timesheet'
 import type { ExcusedDay, TimeEntry } from '@/types/database'
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 function isWholeWeek(from: string, to: string): boolean {
   const bounds = weekBounds(from)
@@ -30,7 +28,7 @@ export async function GET(request: NextRequest) {
     const defaults = weekBounds(todayInMexico())
     const from = searchParams.get('from') ?? defaults.start
     const to = searchParams.get('to') ?? defaults.end
-    if (!ISO_DATE.test(from) || !ISO_DATE.test(to) || from > to) return badRequest('Rango de fechas inválido')
+    if (!isRealDate(from) || !isRealDate(to) || from > to) return badRequest('Rango de fechas inválido')
 
     const { data, error } = await supabase
       .from('time_entries')
@@ -80,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as Partial<TimeEntry>
     if (typeof body.user_id !== 'string' || !isUuid(body.user_id)) return badRequest('Usuario inválido')
-    if (typeof body.work_date !== 'string' || !ISO_DATE.test(body.work_date)) return badRequest('Fecha inválida')
+    if (!isRealDate(body.work_date)) return badRequest('Fecha inválida')
     const clockIn = typeof body.clock_in === 'string' ? normalizeTime(body.clock_in) : null
     if (!clockIn) return badRequest('Hora de entrada inválida')
     let clockOut: string | null = null

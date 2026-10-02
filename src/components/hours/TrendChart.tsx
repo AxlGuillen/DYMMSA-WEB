@@ -42,7 +42,7 @@ export function TrendChart({ trend, shift, currentStart, isLoading, isError }: T
           : isLoading || !trend
             ? <Skeleton className="h-56 w-full" />
             : <TrendBars data={trend} shift={shift ?? null} currentStart={currentStart} />}
-        {excusedWeeks > 0 && (
+        {shift && excusedWeeks > 0 && (
           <p className="mt-2 text-xs text-muted-foreground" data-testid="trend-chart-excused">
             {excusedWeeks} semana{excusedWeeks !== 1 ? 's' : ''} con días justificados: su objetivo es menor que la línea de la jornada.
           </p>

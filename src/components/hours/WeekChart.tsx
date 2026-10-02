@@ -61,7 +61,7 @@ export function WeekChart({ week, shift, isLoading, canAssignShift, excused = []
         {isLoading || !week
           ? <Skeleton className="h-56 w-full" />
           : <WeekBars data={weekChartData(week, shift, excuses, todayInMexico())} shift={shift ?? null} />}
-        {excusedCount > 0 && (
+        {shift && excusedCount > 0 && (
           <p className="mt-2 text-xs text-muted-foreground" data-testid="week-chart-excused">
             {excusedCount} día{excusedCount !== 1 ? 's' : ''} justificado{excusedCount !== 1 ? 's' : ''} esta semana: no cuentan como horas faltantes.
           </p>
