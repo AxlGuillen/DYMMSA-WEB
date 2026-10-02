@@ -22,10 +22,11 @@ const state = vi.hoisted(() => ({
   confirm: vi.fn(),
 }))
 
-vi.mock('@/lib/format', async (original) => ({
-  ...(await original<typeof import('@/lib/format')>()),
-  todayInMexico: () => '2026-09-23',
-}))
+vi.mock('@/lib/format', async (original) => {
+  const real = await original<typeof import('@/lib/format')>()
+  // Only "now" is pinned; an explicit date still converts for real.
+  return { ...real, todayInMexico: (date?: Date) => (date ? real.todayInMexico(date) : '2026-09-23') }
+})
 
 vi.mock('@/hooks/usePayroll', () => ({
   usePayrollPeriod: (start: string) => ({ data: buildPayrollView(start, state.employees, state.days, state.period), isLoading: false, isError: false }),
@@ -69,10 +70,11 @@ describe('PayrollView', () => {
 
   test('corte cerrado: celdas bloqueadas, sin acciones de captura y solo queda reabrir', () => {
     state.days = [day(SAT, 360)]
-    state.period = { start_date: SAT, status: 'closed', closed_at: '2026-09-25T20:00:00Z', closed_by_name: 'Axl', reopened_at: null, reopened_by_name: null }
+    // 01:00Z on the 26th is still Friday the 25th in Mexico: the day shown is the local one.
+    state.period = { start_date: SAT, status: 'closed', closed_at: '2026-09-26T01:00:00Z', closed_by_name: 'Axl', reopened_at: null, reopened_by_name: null }
     renderWithProviders(<PayrollView />)
     expect(screen.getByText('Cerrado')).toBeTruthy()
-    expect(screen.getByText(/Cerrado por Axl/)).toBeTruthy()
+    expect(screen.getByText(/Cerrado por Axl el .*25/)).toBeTruthy()
     expect((screen.getByRole('button', { name: /Juan Taller, Sáb/ }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.queryByRole('button', { name: 'Traer de Horas' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Cerrar corte' })).toBeNull()

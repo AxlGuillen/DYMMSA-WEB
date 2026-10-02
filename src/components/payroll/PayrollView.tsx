@@ -112,7 +112,7 @@ export function PayrollView() {
 
       {view?.closed && view.period?.closed_at && (
         <p className="text-xs text-muted-foreground">
-          Cerrado por {view.period.closed_by_name ?? 'un administrador'} el {formatDate(view.period.closed_at.slice(0, 10))}. Las horas ya no cambian.
+          Cerrado por {view.period.closed_by_name ?? 'un administrador'} el {formatDate(todayInMexico(new Date(view.period.closed_at)))}. Las horas ya no cambian.
         </p>
       )}
 

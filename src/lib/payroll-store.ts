@@ -171,15 +171,30 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
   const entries = ((data ?? []) as Pick<TimeEntry, 'user_id' | 'work_date' | 'source_clock_in' | 'clock_in' | 'clock_out'>[]).map(normalizeEntryTimes)
 
   const inputs: DayInput[] = []
+  const stale: { employee_id: string; work_date: ISODate }[] = []
   let open = 0
   for (const employee of linked) {
     const byDate = minutesByDate(entries.filter((e) => e.user_id === employee.profile_id))
     for (const [work_date, day] of byDate) {
       open += day.open
       // Only an open punch: a gap, not a 0-hour draft that "confirm all" would freeze (review PR #127).
-      if (day.minutes === 0) continue
+      if (day.minutes === 0) {
+        stale.push({ employee_id: employee.id, work_date })
+        continue
+      }
       inputs.push({ employee_id: employee.id, work_date, worked_minutes: day.minutes })
     }
+  }
+  // Its own earlier draft would survive as a number that looks good (review PR #127): drop it.
+  for (const day of stale) {
+    const { error } = await db
+      .from('payroll_days')
+      .delete()
+      .eq('employee_id', day.employee_id)
+      .eq('work_date', day.work_date)
+      .eq('source', 'hours')
+      .eq('status', 'draft')
+    if (error) throw new Error(`payroll_days stale draft: ${error.message}`)
   }
   const result = await saveDays(db, inputs, { source: 'hours', status: 'draft', overwrite: false })
   return { ...result, open, linked: linked.length }

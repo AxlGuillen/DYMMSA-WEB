@@ -161,6 +161,11 @@ describe('el corte, de la hoja al cierre', () => {
     await sql(`UPDATE public.time_entries SET clock_out = '19:00' WHERE work_date = '2026-09-21' AND clock_in = '14:00'`)
     await prefillRoute.POST(makeRequest(undefined, { method: 'POST' }), start)
     expect((await dayRows())[0]).toMatchObject({ worked_minutes: 540, status: 'draft' })
+
+    // Clearing the clock-out leaves only open punches: the stale draft goes, the manual day stays.
+    await sql(`UPDATE public.time_entries SET clock_out = NULL WHERE work_date = '2026-09-21'`)
+    await prefillRoute.POST(makeRequest(undefined, { method: 'POST' }), start)
+    expect(await dayRows()).toEqual([{ work_date: '2026-09-22', worked_minutes: 420, status: 'confirmed', source: 'manual' }])
   })
 
   test('constraints: un corte que no empieza en sábado, minutos fuera de rango y empleado duplicado', async () => {

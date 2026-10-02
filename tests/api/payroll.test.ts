@@ -232,6 +232,14 @@ describe('POST prefill', () => {
     expect(rows.map((r) => [r.work_date, r.worked_minutes, r.source, r.status])).toEqual([
       ['2026-09-21', 480, 'hours', 'draft'],
     ])
+    // The 24th only has an open punch: no 0-hour draft, and its own stale draft is dropped.
+    const stale = activeClient.callsTo('payroll_days', 'delete')
+    expect(stale).toHaveLength(1)
+    expect(stale[0].filters).toEqual(expect.arrayContaining([
+      { method: 'eq', args: ['work_date', '2026-09-24'] },
+      { method: 'eq', args: ['source', 'hours'] },
+      { method: 'eq', args: ['status', 'draft'] },
+    ]))
     const read = activeClient.callsTo('time_entries')[0] as CallRecord
     expect(read.filters).toEqual(expect.arrayContaining([{ method: 'in', args: ['user_id', [PROFILE]] }]))
   })
