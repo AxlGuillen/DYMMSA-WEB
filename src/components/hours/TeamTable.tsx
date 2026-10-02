@@ -61,9 +61,7 @@ export function TeamTable() {
                       <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} />
                       {p.display_name}
                       {p.is_owner && (
-                        <Crown className="size-4 text-amber-500" aria-label="Dueño del negocio">
-                          <title>Dueño del negocio</title>
-                        </Crown>
+                        <Crown className="size-4 text-amber-500" aria-label="Dueño del negocio" />
                       )}
                     </span>
                   </TableCell>

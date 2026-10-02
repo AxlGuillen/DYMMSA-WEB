@@ -21,6 +21,7 @@ interface TrendChartProps {
 export function TrendChart({ trend, shift, currentStart, isLoading, isError }: TrendChartProps) {
   const weeks = trend?.length ?? 0
   const average = trend && weeks > 0 ? trend.reduce((sum, w) => sum + w.minutes, 0) / weeks : null
+  const excusedWeeks = trend?.filter((w) => w.excused > 0).length ?? 0
 
   return (
     <Card data-testid="trend-chart" data-tour="hrs-trend">
@@ -41,6 +42,11 @@ export function TrendChart({ trend, shift, currentStart, isLoading, isError }: T
           : isLoading || !trend
             ? <Skeleton className="h-56 w-full" />
             : <TrendBars data={trend} shift={shift ?? null} currentStart={currentStart} />}
+        {excusedWeeks > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground" data-testid="trend-chart-excused">
+            {excusedWeeks} semana{excusedWeeks !== 1 ? 's' : ''} con días justificados: su objetivo es menor que la línea de la jornada.
+          </p>
+        )}
       </CardContent>
     </Card>
   )

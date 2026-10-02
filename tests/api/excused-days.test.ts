@@ -31,12 +31,22 @@ describe('GET /api/excused-days', () => {
   test('fecha inválida → 400; sin sesión → 401', async () => {
     activeClient = createMockSupabase({ user: AUTH })
     expect((await excusedRoute.GET(makeRequest(undefined, { url: 'http://x/api/excused-days?from=ayer' }))).status).toBe(400)
+    // Right shape, no such day: Postgres would answer 22008 and the route a 500 (review PR #128).
+    expect((await excusedRoute.GET(makeRequest(undefined, { url: 'http://x/api/excused-days?from=2026-02-31' }))).status).toBe(400)
+    expect((await excusedRoute.GET(makeRequest(undefined, { url: 'http://x/api/excused-days?to=2026-02-30' }))).status).toBe(400)
+    expect(activeClient.didCall('excused_days', 'select')).toBe(false)
     activeClient = createMockSupabase({ user: null })
     expect((await excusedRoute.GET(makeRequest(undefined, { url: 'http://x/api/excused-days' }))).status).toBe(401)
   })
 })
 
 describe('POST /api/excused-days', () => {
+  test('una fecha que no existe → 400 sin insertar', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': role('admin') } })
+    expect((await post({ work_date: '2026-02-30', kind: 'holiday' })).status).toBe(400)
+    expect(activeClient.didCall('excused_days', 'insert')).toBe(false)
+  })
+
   test('un member → 403 sin insertar', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': role('member') } })
     expect((await post({ work_date: '2026-09-16', kind: 'holiday' })).status).toBe(403)
@@ -77,6 +87,17 @@ describe('POST /api/excused-days', () => {
 })
 
 describe('DELETE /api/excused-days/[id]', () => {
+  test('el guard corre antes de validar el id: sin sesión → 401 y member → 403 aunque el id no sea uuid', async () => {
+    const del = () => excusedById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'no-uuid' }))
+    activeClient = createMockSupabase({ user: null })
+    expect((await del()).status).toBe(401)
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': role('member') } })
+    expect((await del()).status).toBe(403)
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': role('admin') } })
+    expect((await del()).status).toBe(404)
+    expect(activeClient.didCall('excused_days', 'delete')).toBe(false)
+  })
+
   test('un member → 403; el admin borra; inexistente → 404', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': role('member') } })
     expect((await excusedById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: DAY_ID }))).status).toBe(403)

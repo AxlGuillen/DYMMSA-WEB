@@ -6,10 +6,10 @@ import { requireAdmin, notFound, serverError, isUuid } from '@/lib/api-helpers'
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    if (!isUuid(id)) return notFound('El día justificado no existe')
     const supabase = await createClient()
     const auth = await requireAdmin(supabase)
     if ('error' in auth) return auth.error
+    if (!isUuid(id)) return notFound('El día justificado no existe')
 
     const { data, error } = await supabase.from('excused_days').delete().eq('id', id).select('id')
     if (error) {

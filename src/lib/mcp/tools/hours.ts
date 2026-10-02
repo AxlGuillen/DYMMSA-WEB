@@ -44,7 +44,9 @@ async function entriesBetween(db: Db, userId: string, from: string, to: string):
   return ((data ?? []) as TimeEntry[]).map(normalizeEntryTimes)
 }
 
-async function excusedBetween(db: Db, userId: string, from: string, to: string): Promise<ExcusedDay[]> {
+type ExcusedRow = Pick<ExcusedDay, 'work_date' | 'user_id' | 'kind' | 'note'>
+
+async function excusedBetween(db: Db, userId: string, from: string, to: string): Promise<ExcusedRow[]> {
   const { data, error } = await db
     .from('excused_days')
     .select('work_date, user_id, kind, note')
@@ -52,7 +54,7 @@ async function excusedBetween(db: Db, userId: string, from: string, to: string):
     .lte('work_date', to)
     .or(`user_id.is.null,user_id.eq.${userId}`)
   if (error) throw new ToolError('No se pudieron leer los días justificados')
-  return (data ?? []) as ExcusedDay[]
+  return (data ?? []) as ExcusedRow[]
 }
 
 const DAY_STATUS_LABELS: Record<DayStatus, string | null> = {
@@ -125,9 +127,15 @@ export async function getHoursTrend(db: Db, callerId: string, input: HoursTrendI
   const target = await resolveTarget(db, callerId, input.persona)
   const { start, end } = weekBounds(todayInMexico())
   const from = shiftWeek(start, -(weeks - 1))
-  const trend = buildWeeklyTrend(await entriesBetween(db, target.id, from, end), start, weeks)
+  const [entries, excused] = await Promise.all([
+    entriesBetween(db, target.id, from, end),
+    excusedBetween(db, target.id, from, end),
+  ])
+  const trend = buildWeeklyTrend(entries, start, weeks, { shift: target.shift, excuses: excusesFor(excused, target.id) })
   const total = trend.reduce((sum, w) => sum + w.minutes, 0)
-  const progress = shiftProgress(total / weeks, target.shift)
+  // Against the discounted targets, like the week view: a holiday week is not a short week (review PR #128).
+  const targetTotal = target.shift ? trend.reduce((sum, w) => sum + (w.target ?? 0), 0) : null
+  const progress = shiftProgress(total / weeks, target.shift, targetTotal === null ? null : targetTotal / weeks)
 
   return {
     persona: target.display_name,
@@ -144,6 +152,8 @@ export async function getHoursTrend(db: Db, callerId: string, input: HoursTrendI
       fin: w.end,
       horas: formatDuration(w.minutes),
       horas_decimal: w.hours,
+      objetivo: w.target === null ? null : formatDuration(w.target),
+      dias_justificados: w.excused,
       sin_salida: w.open,
     })),
   }

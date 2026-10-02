@@ -741,7 +741,7 @@ GRANT ALL ON public.profiles, public.time_entries, public.time_imports TO servic
 CREATE TABLE public.excused_days (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   work_date date NOT NULL,
-  user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,  -- CASCADE a propósito: es una marca sobre la persona, no un registro suyo (time_entries sigue bloqueando la baja)
   kind text NOT NULL CHECK (kind IN ('holiday', 'early_release')),
   note text,
   created_by uuid DEFAULT auth.uid(),

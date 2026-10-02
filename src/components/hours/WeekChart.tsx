@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { todayInMexico } from '@/lib/format'
-import { excusesFor, formatDuration, shiftProgress, SHIFT_LABELS, weekChartData, weekTargetMinutes, type WeekView } from '@/lib/timesheet'
+import { excusedWeekdays, excusesFor, formatDuration, shiftProgress, SHIFT_LABELS, weekChartData, weekTargetMinutes, type WeekView } from '@/lib/timesheet'
 import type { ExcusedDay, ProfileShift } from '@/types/database'
 
 // recharts is code-split like the dashboard donut (OrderStatusBreakdown).
@@ -28,6 +28,7 @@ const targetLabel = (minutes: number) => (minutes % 60 === 0 ? `${minutes / 60} 
 /** Bars per day against the shift references; the headline says if the week meets the target. */
 export function WeekChart({ week, shift, isLoading, canAssignShift, excused = [], userId = '' }: WeekChartProps) {
   const excuses = excusesFor(excused, userId)
+  const excusedCount = week ? excusedWeekdays(week, excuses) : 0
   const target = week ? weekTargetMinutes(week, shift, excuses) : null
   const progress = week ? shiftProgress(week.minutes, shift, target) : null
 
@@ -60,9 +61,9 @@ export function WeekChart({ week, shift, isLoading, canAssignShift, excused = []
         {isLoading || !week
           ? <Skeleton className="h-56 w-full" />
           : <WeekBars data={weekChartData(week, shift, excuses, todayInMexico())} shift={shift ?? null} />}
-        {excuses.size > 0 && (
+        {excusedCount > 0 && (
           <p className="mt-2 text-xs text-muted-foreground" data-testid="week-chart-excused">
-            {excuses.size} día{excuses.size !== 1 ? 's' : ''} justificado{excuses.size !== 1 ? 's' : ''} esta semana: no cuentan como horas faltantes.
+            {excusedCount} día{excusedCount !== 1 ? 's' : ''} justificado{excusedCount !== 1 ? 's' : ''} esta semana: no cuentan como horas faltantes.
           </p>
         )}
         {week && week.open > 0 && (

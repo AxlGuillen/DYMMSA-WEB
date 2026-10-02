@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, requireAdmin, badRequest, serverError, isUuid } from '@/lib/api-helpers'
-import { parseExcusedDay } from '@/lib/timesheet'
+import { isRealDate, parseExcusedDay } from '@/lib/timesheet'
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const COLUMNS = 'id, work_date, user_id, kind, note, created_by, created_at'
 
 // GET /api/excused-days?from=&to= — RLS decides: a member sees team-wide days and their own
@@ -16,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const from = searchParams.get('from')
     const to = searchParams.get('to')
-    if ((from && !ISO_DATE.test(from)) || (to && !ISO_DATE.test(to))) return badRequest('Rango de fechas inválido')
+    if ((from && !isRealDate(from)) || (to && !isRealDate(to))) return badRequest('Rango de fechas inválido')
 
     let query = supabase.from('excused_days').select(COLUMNS).order('work_date', { ascending: false }).limit(200)
     if (from) query = query.gte('work_date', from)

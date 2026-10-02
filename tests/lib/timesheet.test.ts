@@ -14,7 +14,7 @@ import {
   parseNgtecoReport,
   shiftWeek,
   weekBounds,
-  weekChartData, shiftProgress, buildWeeklyTrend, SHIFT_HOURS,
+  weekChartData, shiftProgress, buildWeeklyTrend, SHIFT_HOURS, isRealDate, excusedWeekdays,
   dayStatus, excusesFor, parseExcusedDay, weekTargetMinutes,
 } from '@/lib/timesheet'
 import { NGTECO_NUMERIC, NGTECO_PERIOD, NGTECO_WEEK } from '../helpers/fixtures/ngteco'
@@ -156,6 +156,27 @@ describe('referencias de jornada (#101)', () => {
     expect(trend.map((w) => w.hours)).toEqual([4, 0, 8])
     expect(trend[0].open).toBe(1)
     expect(trend[2].end).toBe('2026-09-06')
+    // Without a shift there is no target to discount.
+    expect(trend[2]).toMatchObject({ target: null, excused: 0 })
+  })
+
+  test('buildWeeklyTrend descuenta los días justificados del objetivo de SU semana, igual que Mi semana', () => {
+    const excuses = new Map([['2026-08-26', 'holiday'], ['2026-08-29', 'holiday']] as const)
+    const trend = buildWeeklyTrend([entry('2026-08-24', '09:00', '17:00')], '2026-08-31', 2, { shift: 'full_time', excuses })
+    // Wednesday discounts 8 h; the marked Saturday never asked for hours.
+    expect(trend[0]).toMatchObject({ start: '2026-08-24', target: 32 * 60, excused: 1 })
+    expect(trend[1]).toMatchObject({ start: '2026-08-31', target: 40 * 60, excused: 0 })
+    const week = buildWeekView([], '2026-08-24')
+    expect(excusedWeekdays(week, excuses)).toBe(1)
+  })
+
+  test('isRealDate exige que la fecha exista, no solo su forma', () => {
+    expect(isRealDate('2026-02-28')).toBe(true)
+    expect(isRealDate('2028-02-29')).toBe(true)
+    expect(isRealDate('2026-02-30')).toBe(false)
+    expect(isRealDate('2026-13-01')).toBe(false)
+    expect(isRealDate('2026-9-1')).toBe(false)
+    expect(isRealDate(null)).toBe(false)
   })
 })
 

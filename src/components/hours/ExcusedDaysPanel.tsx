@@ -108,7 +108,7 @@ export function ExcusedDaysPanel() {
         {isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : !days || days.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin días justificados en los últimos {HISTORY_DAYS} días.</p>
+          <p className="text-sm text-muted-foreground">Sin días justificados desde hace {HISTORY_DAYS} días ni programados.</p>
         ) : (
           <Table>
             <TableHeader>

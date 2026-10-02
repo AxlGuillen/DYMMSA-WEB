@@ -31,6 +31,13 @@ export interface ParsedReport {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Shape AND existence: 2026-02-30 matches the regex and Postgres answers 22008 → a 500 (review PR #128). */
+export function isRealDate(value: unknown): value is ISODate {
+  if (typeof value !== 'string' || !ISO_DATE.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
 const PERIOD = /(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})/
 // [\s\S] instead of the `s` flag: the project targets below es2018.
 const EMPLOYEE = /^([\s\S]*?)\s*\((\d+)\)\s*$/
@@ -283,7 +290,7 @@ const EXCUSE_KINDS: readonly ExcuseKind[] = ['holiday', 'early_release']
 /** Body of a new excused day; the user id is checked as a uuid by the route. */
 export function parseExcusedDay(body: unknown): { value: ExcusedDayInsert } | { error: string } {
   const b = (body ?? {}) as Record<string, unknown>
-  if (typeof b.work_date !== 'string' || !ISO_DATE.test(b.work_date)) return { error: 'Fecha inválida' }
+  if (!isRealDate(b.work_date)) return { error: 'Fecha inválida' }
   if (!EXCUSE_KINDS.includes(b.kind as ExcuseKind)) return { error: 'Tipo inválido: día feriado o salida autorizada' }
   if (b.user_id !== undefined && b.user_id !== null && typeof b.user_id !== 'string') return { error: 'Persona inválida' }
   const note = typeof b.note === 'string' ? b.note.trim() : ''
@@ -308,6 +315,11 @@ export function dayTargetMinutes(index: number, minutes: number, shift: ProfileS
   if (excuse === 'holiday') return 0
   if (excuse === 'early_release') return Math.min(daily, minutes)
   return daily
+}
+
+/** Excused days that actually discount something: a marked Saturday never asked for hours. */
+export function excusedWeekdays(week: WeekView<unknown>, excuses: ReadonlyMap<ISODate, ExcuseKind>): number {
+  return week.days.filter((d, i) => i < WORKDAYS && excuses.has(d.date)).length
 }
 
 /** The week's target once excused days are discounted; null without an assigned shift. */
@@ -387,6 +399,15 @@ export interface WeekTrendPoint {
   hours: number
   minutes: number
   open: number
+  /** The week's target once excused days are discounted; null without a shift. */
+  target: number | null
+  /** Excused weekdays of that week. */
+  excused: number
+}
+
+export interface TrendOptions {
+  shift?: ProfileShift | null
+  excuses?: ReadonlyMap<ISODate, ExcuseKind>
 }
 
 /** The `weeks` weeks ending at `lastWeekStart`, oldest first; an empty week is 0, never missing. */
@@ -394,11 +415,20 @@ export function buildWeeklyTrend<T extends EntryLike>(
   entries: readonly T[],
   lastWeekStart: ISODate,
   weeks = 8,
+  { shift = null, excuses = new Map() }: TrendOptions = {},
 ): WeekTrendPoint[] {
   const out: WeekTrendPoint[] = []
   for (let i = weeks - 1; i >= 0; i--) {
     const week = buildWeekView(entries, shiftWeek(lastWeekStart, -i))
-    out.push({ start: week.start, end: week.end, hours: toHours(week.minutes), minutes: week.minutes, open: week.open })
+    out.push({
+      start: week.start,
+      end: week.end,
+      hours: toHours(week.minutes),
+      minutes: week.minutes,
+      open: week.open,
+      target: weekTargetMinutes(week, shift, excuses),
+      excused: excusedWeekdays(week, excuses),
+    })
   }
   return out
 }

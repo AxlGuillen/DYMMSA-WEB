@@ -1,6 +1,8 @@
 /** MCP hours tools (#101): "me" comes from the token, everything else from RLS — the mock plays the policy. */
 
 import { describe, test, expect } from 'vitest'
+import { todayInMexico } from '@/lib/format'
+import { weekBounds } from '@/lib/timesheet'
 import { createMockSupabase, filterValue, type CallRecord } from '../helpers/supabase-mock'
 import { ToolError, type Db } from '@/lib/mcp/shared'
 import { getWeekHours, getHoursTrend, listTimeImports } from '@/lib/mcp/tools/hours'
@@ -122,6 +124,21 @@ describe('get_hours_trend', () => {
     const to = read.filters.find((f) => f.method === 'lte')?.args[1] as string
     expect(result.por_semana[0].inicio).toBe(from)
     expect(result.por_semana[3].fin).toBe(to)
+  })
+
+  test('la tendencia descuenta los días justificados: objetivo por semana y cumplimiento contra él', async () => {
+    const monday = weekBounds(todayInMexico()).start
+    const client = createMockSupabase({
+      responses: {
+        'profiles.select': profiles([ME]),
+        'time_entries.select': { data: [], error: null },
+        'excused_days.select': { data: [{ work_date: monday, user_id: null, kind: 'holiday', note: null }], error: null },
+      },
+    })
+    const result = await getHoursTrend(asDb(client), 'u-tania', { semanas: 1 })
+    // Part time: 20 h a week, minus the 4 h of the holiday.
+    expect(result.por_semana[0]).toMatchObject({ objetivo: '16:00', dias_justificados: 1 })
+    expect(result.faltante_promedio).toBe('16:00')
   })
 
   test('semanas se acota a 1..26', async () => {
