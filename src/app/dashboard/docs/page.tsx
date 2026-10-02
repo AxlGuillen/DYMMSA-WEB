@@ -25,12 +25,14 @@ import {
   Truck,
   CalendarClock,
   Sparkles,
+  Users,
 } from '@/components/icons'
 import {
   AssistantSection,
   CuttingSection,
   FinanceSection,
   HoursSection,
+  ProfileSection,
   PurchasePlannerSection,
   ShortcutsSection,
   SuppliersSection,
@@ -63,6 +65,7 @@ const sections = [
   { id: 'proveedores', label: 'Proveedores', icon: Truck },
   { id: 'finanzas', label: 'Finanzas', icon: DollarSign },
   { id: 'horas', label: 'Horas y Equipo', icon: CalendarClock },
+  { id: 'perfil', label: 'Mi perfil', icon: Users },
   { id: 'tareas', label: 'Tareas', icon: ClipboardList },
   { id: 'atajos', label: 'Tablas, vistas guiadas y atajos', icon: Sparkles },
   { id: 'asistente', label: 'Asistente (IA)', icon: Brain },
@@ -1195,6 +1198,7 @@ export default function DocsPage() {
       <SuppliersSection />
       <FinanceSection />
       <HoursSection />
+      <ProfileSection />
 
       <div id="tareas" className="login-card-border">
       <Card className="docs-card-inner border-0">

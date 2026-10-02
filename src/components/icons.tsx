@@ -221,6 +221,10 @@ export { History } from 'lucide-react'
 export { CalendarClock } from 'lucide-react'
 // Same: no team/users icon among the animated ones (#93).
 export { Users } from 'lucide-react'
+// Same: no money/payroll icon among the animated ones (#123).
+export { Banknote } from 'lucide-react'
+// Same: no crown or calendar-off among the animated ones (meeting 2026-10-01).
+export { Crown, CalendarOff } from 'lucide-react'
 export const PlusCircle = wrap(_CirclePlus)
 export const RefreshCw = wrap(_LoaderCircle)
 export const RotateCcw = wrap(_CornerUpLeft)

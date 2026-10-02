@@ -28,6 +28,12 @@ vi.mock('@/hooks/useProfile', () => ({
   useUpdateProfile: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
+vi.mock('@/hooks/useExcusedDays', () => ({
+  useExcusedDays: () => ({ data: [], isLoading: false }),
+  useCreateExcusedDay: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteExcusedDay: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 vi.mock('@/hooks/useTimeEntries', () => ({
   useTimeEntries: () => {
     const week = buildWeekView([], '2026-08-31')

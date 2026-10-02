@@ -146,7 +146,7 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/payables` | ✅ | Lista paginada con proveedor embebido. Query: `page`, `pageSize (≤100)`, `search` (concepto, ilike saneado), `status (pending/paid/cancelled)`, `month (YYYY-MM, por VENCIMIENTO)`, `supplier` (uuid; otro valor se ignora), `minAmount`/`maxAmount` (≥ 0; inválido o `min > max` → 400), `sortField (due_date/invoice_date/amount/created_at)`, `sortDir`. **Solo si el llamador es admin** cada fila trae `paid_by: { name, at } \| null` (último evento "marcada pagada" de `audit_events`); para un member la llave **no existe** (ADR-028) |
+| `GET` | `/api/payables` | ✅ | Lista paginada con proveedor embebido. Query: `page`, `pageSize (≤100)`, `search` (concepto, ilike saneado), `status` (pending/overdue/paid/cancelled — overdue = pendientes con vencimiento antes de hoy, vía `resolvePayableFilter`), `month (YYYY-MM, por VENCIMIENTO)`, `supplier` (uuid; otro valor se ignora), `minAmount`/`maxAmount` (≥ 0; inválido o `min > max` → 400), `sortField (due_date/invoice_date/amount/created_at)`, `sortDir`. **Solo si el llamador es admin** cada fila trae `paid_by: { name, at } \| null` (último evento "marcada pagada" de `audit_events`); para un member la llave **no existe** (ADR-028) |
 | `GET` | `/api/payables/[id]/events` | ✅ admin | Bitácora de la factura, más reciente primero (máx 100): `{ id, action, actor_name, data, created_at }`. Member → 403. RLS `is_admin()` + `requireAdmin()` (ADR-028) |
 | `POST` | `/api/payables` | ✅ | Registrar factura. Body: `{ supplier_id, concept, amount > 0, invoice_date, due_date, notes? }`. Proveedor obligatorio y existente (404 preciso). Siempre nace `pending` — el status del cliente se ignora |
 | `PATCH` | `/api/payables/[id]` | ✅ | Updates sparse. Regla de pago: `status→'paid'` sin `paid_at` → default hoy; `status→'pending'/'cancelled'` limpia `paid_at`; `paid_at` solo también se acepta (corregir fecha de una pagada) |
@@ -172,15 +172,38 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `GET` | `/api/profile` | ✅ | Perfil propio `{ id, display_name, role, clock_employee_id, shift }` — lo que el cliente usa para decidir qué mostrar |
-| `GET` | `/api/profiles` | Admin | Todos los perfiles |
-| `PATCH` | `/api/profiles/[id]` | Admin | `shift (full_time/part_time/null, #101)`, `display_name`, `role (admin/member)`, `clock_employee_id (entero ≥ 1 o null)`. No degrada al **último** admin (400); id de checador repetido (23505) → 400 |
-| `GET` | `/api/time-entries` | ✅ | Query: `user (uuid, solo admin — un member lo IGNORA y recibe lo propio)`, `from`, `to` (ISO; default semana actual lunes→domingo). Devuelve `{ user, from, to, entries, week }` con `week = buildWeekView()` (7 días, totales derivados). **`week` es `null` salvo que `from..to` sea exactamente una semana lunes→domingo** (la UI siempre manda eso; un rango parcial no tiene total semanal). `time` normalizado a `HH:MM` |
+| `GET` | `/api/profile` | ✅ | Perfil propio `{ id, display_name, role, clock_employee_id, shift, nss, avatar_path, avatar_url, email }` — lo que el cliente usa para decidir qué mostrar; `email` sale de la sesión |
+| `PATCH` | `/api/profile` | ✅ | Mi perfil (#122): solo `display_name` (1–80 caracteres) y `nss` (`''`/`null` lo borra; se normaliza quitando espacios y guiones y se valida el dígito verificador). Cualquier otra llave → 400 sin tocar la tabla; la BD lo respalda con el trigger `profiles_guard_admin_fields` |
+| `POST` | `/api/profile/avatar` | ✅ | `multipart/form-data` campo `file`. Tipo y medidas **por los bytes** (`readImageInfo`: JPEG/PNG/WebP; SVG, extensión cambiada o WebP animado → 400; con EXIF/XMP → 400, `hasMetadata`), máximo 2 MB y 512 × 512. Sube con el token del usuario a `avatars/<uid>/<uuid>.<ext>`, guarda `avatar_path` y borra la anterior; si falla el guardado, borra la recién subida. 201 `{ avatar_url }` |
+| `DELETE` | `/api/profile/avatar` | ✅ | Quita la foto (vuelve a las iniciales) y borra el archivo |
+| `GET` | `/api/profiles` | Admin | Todos los perfiles, con `nss` y `avatar_url` |
+| `PATCH` | `/api/profiles/[id]` | Admin | `shift (full_time/part_time/null, #101)`, `display_name`, `role (admin/member)`, `clock_employee_id (entero ≥ 1 o null)`, `nss (#122, misma validación que el propio)`. No degrada al **último** admin (400); id de checador repetido (23505) → 400 |
+| `GET` | `/api/time-entries` | ✅ | Query: `user (uuid, solo admin — un member lo IGNORA y recibe lo propio)`, `from`, `to` (ISO; default semana actual lunes→domingo). Devuelve `{ user, from, to, entries, week, excused }` con `week = buildWeekView()` (7 días, totales derivados) y `excused` = días justificados del rango (los del equipo + los de esa persona; si su lectura falla, `[]` y la semana sigue). **`week` es `null` salvo que `from..to` sea exactamente una semana lunes→domingo** (la UI siempre manda eso; un rango parcial no tiene total semanal). `time` normalizado a `HH:MM` |
+| `GET` | `/api/excused-days` | ✅ | Días feriados y salidas autorizadas. Query: `from`, `to` (ISO, opcionales; tope 200, más reciente primero). La RLS decide: un member ve los del equipo y los suyos |
+| `POST` | `/api/excused-days` | Admin | `{ work_date, kind (holiday/early_release), user_id? (uuid; vacío = todo el equipo), note? (≤ 200) }` → 201. Repetido (23505) → 400 descriptivo; persona inexistente (23503) → 400 |
+| `DELETE` | `/api/excused-days/[id]` | Admin | Quitar un día justificado; inexistente → 404 |
 | `POST` | `/api/time-entries` | Admin | Captura manual: `{ user_id, work_date, clock_in, clock_out?, note? }` → nace `source='manual'`, `source_clock_in = clock_in`. Duplicada → 400 |
 | `PATCH` | `/api/time-entries/[id]` | Admin | `clock_in`, `clock_out` (vacío = abierta), `note`. **Solo un cambio de hora** sella `edited_by/edited_at` y escribe `original` (la primera vez): una nota sola no congela la fila para el import. **Jamás** toca `source_clock_in` |
 | `DELETE` | `/api/time-entries/[id]` | Admin | Eliminar pareja; id inexistente → 404 |
 | `POST` | `/api/time-entries/import` | Admin | `multipart/form-data` campo `file` (el `.xls` NGTeco; hoja `Employee Timecard` o la primera). Mapea `(id)` del reporte → `profiles.clock_employee_id`, llama a la RPC `import_time_entries`. Responde `{ period, inserted, updated, skipped_edited, unmapped: [{ clockId, name }], warnings }`. Los no mapeados **no bloquean**; re-subir es idempotente. Una pareja con salida anterior a la entrada se filtra con `warning` (el CHECK la rechazaría y la RPC transaccional tiraría el archivo entero); `23514` → 400. Máximo 5 MB |
 | `GET` | `/api/time-entries/imports` | Admin | Bitácora de cargas (52 más recientes). La RLS de `time_imports` también es solo admin |
+
+---
+
+## Nómina
+
+> Módulo: Nómina (issue #123, ADR-033) · **Todas** las rutas son `requireAdmin()` (401 sin sesión, 403 para member) y las tres tablas repiten la regla con RLS `is_admin()`. Reglas de horas en `src/lib/payroll.ts`; lecturas y escrituras compartidas con el MCP en `src/lib/payroll-store.ts` (`PayrollError` → 400).
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/payroll/employees` | Admin | Empleados de nómina (lista propia: el taller no tiene cuenta) |
+| `POST` | `/api/payroll/employees` | Admin | `{ name, profile_id?, shift? }`. Nombre o perfil repetido (23505) → 400 con el mensaje de cuál |
+| `PATCH` | `/api/payroll/employees/[id]` | Admin | `name`, `profile_id`, `shift`, `active`. **Sin DELETE**: la baja es desactivar |
+| `GET` | `/api/payroll/periods/[start]` | Admin | El corte sábado→viernes (`start` debe ser sábado, si no 400): `{ start, end, dates, closed, period, rows[{ employee, days[7], totals, missedMinutes, drafts }], totals, drafts }`. Solo los días confirmados suman |
+| `PATCH` | `/api/payroll/periods/[start]` | Admin | `{ closed: boolean }`. Cerrar exige cero borradores (400 con el conteo) y sella `closed_at`/`closed_by_name`; reabrir sella `reopened_*` |
+| `POST` | `/api/payroll/periods/[start]/prefill` | Admin | "Traer de Horas": copia los minutos por día de los empleados ligados a un perfil como **borrador**. No pisa confirmados ni manuales. `{ saved, skipped[], open, linked }` (`open` = checadas sin salida, no suman) |
+| `POST` | `/api/payroll/periods/[start]/confirm` | Admin | Todos los borradores del corte → confirmados. `{ confirmed }` |
+| `PUT` | `/api/payroll/days` | Admin | `{ employee_id, work_date, worked_minutes, missed_minutes?, note? }` — la captura del admin: sobrescribe y queda `manual`/`confirmed`. Día vacío (0, 0, sin nota) borra la fila. Corte cerrado → 400 |
 
 ---
 

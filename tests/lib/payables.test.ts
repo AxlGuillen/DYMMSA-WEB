@@ -1,7 +1,7 @@
 /** Payables math (#84). The clock is always injected; nothing reads new Date(). */
 
 import { describe, test, expect } from 'vitest'
-import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, paymentTermsLabel, resolvePaymentUpdate, summarizeMonth, weekOfMonth } from '@/lib/payables'
+import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, paymentTermsLabel, resolvePayableFilter, resolvePaymentUpdate, summarizeMonth, weekOfMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -182,5 +182,13 @@ describe('resolvePaymentUpdate (regla compartida ruta/MCP, #109)', () => {
     expect(resolvePaymentUpdate('cancelled', undefined, '2026-09-24')).toEqual({ ok: true, updates: { status: 'cancelled', paid_at: null } })
     expect(resolvePaymentUpdate('pagada', undefined, '2026-09-24')).toEqual({ ok: false, error: 'Estado inválido' })
     expect(resolvePaymentUpdate('paid', '10/09/2026', '2026-09-24')).toEqual({ ok: false, error: 'Fecha de pago inválida' })
+  })
+})
+
+describe('resolvePayableFilter', () => {
+  test('overdue = pendientes que vencen antes de hoy; los estados pasan tal cual; otro valor no filtra', () => {
+    expect(resolvePayableFilter('overdue', '2026-10-01')).toEqual({ status: 'pending', dueBefore: '2026-10-01' })
+    expect(resolvePayableFilter('paid', '2026-10-01')).toEqual({ status: 'paid' })
+    expect(resolvePayableFilter('vencida', '2026-10-01')).toBeNull()
   })
 })

@@ -14,7 +14,7 @@ import { useCurrency } from '@/hooks/useCurrency'
 import { formatRelative, todayInMexico } from '@/lib/format'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { monthOf, weekOfMonth } from '@/lib/payables'
-import { monthClosing } from '@/lib/income'
+import { monthClosing, totalReceivable } from '@/lib/income'
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -44,6 +44,7 @@ export function FinanceOverview() {
   const summary = data?.summary
   const incomeData = incomeQuery.data
   const income = incomeData?.income ?? null
+  const receivable = income ? totalReceivable(income) : null
   const incomeLoading = incomeQuery.isLoading || refreshIncome.isPending
   // Unavailable = nothing to show. A failed refetch keeps the cached data, and hiding
   // figures that did load would be worse than flagging them as stale (review PR #98).
@@ -203,8 +204,10 @@ export function FinanceOverview() {
             />
             <MetricCard
               title="Por cobrar"
-              value={fmt(income?.receivableTotal ?? 0)}
-              description={income ? `${pieces(income.receivableCount)} al día de hoy — vence hoy o después${currencyNote(income.receivableCurrencies)}` : undefined}
+              value={fmt(receivable?.total ?? 0)}
+              description={income && receivable
+                ? `${pieces(receivable.count)} abiertas — incluye ${fmt(income.overdueTotal)} vencido${currencyNote(receivable.currencies)}`
+                : undefined}
               icon={<Clock className="size-5" />}
               color="blue"
               isLoading={incomeLoading}

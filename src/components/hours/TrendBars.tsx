@@ -25,6 +25,11 @@ function WeekTooltip({ active, payload }: TooltipProps) {
     <div className="rounded-lg border bg-background px-3 py-2 shadow-md">
       <p className="text-sm font-medium">{formatDayMonth(point.start)} – {formatDayMonth(point.end)}</p>
       <p className="text-xs text-muted-foreground">{formatDuration(point.minutes)} h</p>
+      {point.excused > 0 && point.target !== null && (
+        <p className="text-xs text-muted-foreground">
+          Objetivo {formatDuration(point.target)} h · {point.excused} día{point.excused !== 1 ? 's' : ''} justificado{point.excused !== 1 ? 's' : ''}
+        </p>
+      )}
       {point.open > 0 && <p className="text-xs text-amber-600">{point.open} sin salida</p>}
     </div>
   )

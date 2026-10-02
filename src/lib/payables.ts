@@ -37,6 +37,21 @@ export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
   cancelled: 'Cancelada',
 }
 
+/** List filter: the three statuses plus `overdue` (pending with due date before today, as the overview counts it). */
+export type PayableFilter = PayableStatus | 'overdue'
+
+export const PAYABLE_FILTER_LABELS: Record<PayableFilter, string> = {
+  pending: 'Pendiente',
+  overdue: 'Vencida',
+  paid: 'Pagada',
+  cancelled: 'Cancelada',
+}
+
+export function resolvePayableFilter(filter: string, today: ISODate): { status: PayableStatus; dueBefore?: ISODate } | null {
+  if (filter === 'overdue') return { status: 'pending', dueBefore: today }
+  return PAYABLE_STATUSES.includes(filter as PayableStatus) ? { status: filter as PayableStatus } : null
+}
+
 /** Adds the credit days to the invoice date. UTC arithmetic: no DST jumps. */
 export function dueDateFrom(invoiceDate: ISODate, termsDays: number | null | undefined): ISODate {
   const days = Number.isInteger(termsDays) && (termsDays as number) > 0 ? (termsDays as number) : 0

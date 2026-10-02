@@ -35,6 +35,9 @@ import * as payableById from '@/app/api/payables/[id]/route'
 import * as payablesOverview from '@/app/api/payables/overview/route'
 import * as payableEvents from '@/app/api/payables/[id]/events/route'
 import * as profileRoute from '@/app/api/profile/route'
+import * as profileAvatar from '@/app/api/profile/avatar/route'
+import * as excusedDays from '@/app/api/excused-days/route'
+import * as excusedDayById from '@/app/api/excused-days/[id]/route'
 import * as profilesRoute from '@/app/api/profiles/route'
 import * as profileById from '@/app/api/profiles/[id]/route'
 import * as timeEntries from '@/app/api/time-entries/route'
@@ -98,6 +101,12 @@ const protectedRoutes: Array<{ name: string; call: () => Promise<Response> }> = 
   { name: 'DELETE /payables/[id]',                    call: () => payableById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'p1' })) },
   { name: 'GET    /payables/overview',                call: () => payablesOverview.GET(makeRequest(undefined, { url: 'http://x/api/payables/overview' })) },
   { name: 'GET    /profile',                          call: () => profileRoute.GET() },
+  { name: 'PATCH  /profile',                          call: () => profileRoute.PATCH(makeRequest({ display_name: 'X' }, { method: 'PATCH' })) },
+  { name: 'POST   /profile/avatar',                   call: () => profileAvatar.POST(makeRequest(undefined, { method: 'POST' })) },
+  { name: 'DELETE /profile/avatar',                   call: () => profileAvatar.DELETE() },
+  { name: 'GET    /excused-days',                     call: () => excusedDays.GET(makeRequest(undefined, { url: 'http://x/api/excused-days' })) },
+  { name: 'POST   /excused-days',                     call: () => excusedDays.POST(makeRequest({ work_date: '2026-09-16', kind: 'holiday' })) },
+  { name: 'DELETE /excused-days/[id]',                call: () => excusedDayById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '22222222-2222-4222-8222-222222222222' })) },
   { name: 'GET    /time-entries',                     call: () => timeEntries.GET(makeRequest(undefined, { url: 'http://x/api/time-entries' })) },
   { name: 'GET    /finance/income',                   call: () => financeIncome.GET(makeRequest(undefined, { url: 'http://x/api/finance/income' })) },
   { name: 'POST   /finance/income/refresh',           call: () => financeIncomeRefresh.POST(makeRequest(undefined, { method: 'POST', url: 'http://x/api/finance/income/refresh' })) },

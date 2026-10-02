@@ -1,4 +1,4 @@
-/** /api/profile + /api/profiles: role gate (403) and the profile edits admins can make (#93). */
+/** /api/profile + /api/profiles: role gate (403), the admin edits (#93) and the self-service ones (#122). */
 
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, filterValue, hasFilter, type CallRecord } from '../helpers/supabase-mock'
@@ -14,9 +14,10 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 let activeClient: MockSupabaseClient
 injectSupabaseServer(() => activeClient)
 
-const ME_ADMIN = { id: AUTH.id, role: 'admin', display_name: 'Axl', clock_employee_id: null }
-const ME_MEMBER = { id: AUTH.id, role: 'member', display_name: 'Tania', clock_employee_id: 5 }
-const OTHER = { id: 'u-diego', role: 'admin', display_name: 'Diego', clock_employee_id: 1 }
+const ME_ADMIN = { id: AUTH.id, role: 'admin', display_name: 'Axl', clock_employee_id: null, avatar_path: null }
+const ME_MEMBER = { id: AUTH.id, role: 'member', display_name: 'Tania', clock_employee_id: 5, avatar_path: `${AUTH.id}/a.webp` }
+const OTHER = { id: '11111111-1111-4111-8111-111111111111', role: 'admin', display_name: 'Diego', clock_employee_id: 1, avatar_path: null }
+const VALID_NSS = '12345678903'
 
 /** Simulates the profiles table: the caller by id, the target by id, and the admin count. */
 function profilesTable(me: typeof ME_ADMIN, target = OTHER, adminCount = 2) {
@@ -34,14 +35,19 @@ function patch(id: string, body: unknown) {
   return profileById.PATCH(makeRequest(body, { method: 'PATCH' }), makeParams({ id }))
 }
 
+function patchOwn(body: unknown) {
+  return profileRoute.PATCH(makeRequest(body, { method: 'PATCH' }))
+}
+
 describe('GET /api/profile', () => {
   test('devuelve el perfil propio', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_MEMBER) } })
     const res = await profileRoute.GET()
     expect(res.status).toBe(200)
-    const body = await readJson<{ role: string; clock_employee_id: number }>(res)
+    const body = await readJson<{ role: string; clock_employee_id: number; avatar_url: string | null }>(res)
     expect(body.role).toBe('member')
     expect(body.clock_employee_id).toBe(5)
+    expect(body.avatar_url).toMatch(new RegExp(`/storage/v1/object/public/avatars/${AUTH.id}/a\\.webp$`))
     expect(filterValue(activeClient.callsTo('profiles')[0], 'id')).toBe(AUTH.id)
   })
 
@@ -167,12 +173,91 @@ describe('PATCH /api/profiles/[id]', () => {
     expect(activeClient.updatePayload('profiles')).toEqual({ clock_employee_id: null, display_name: 'Diego B.' })
   })
 
+  test('id que no es uuid → 404 sin consultar', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_ADMIN) } })
+    expect((await patch('no-es-uuid', { role: 'member' })).status).toBe(404)
+    expect(activeClient.didCall('profiles', 'update')).toBe(false)
+  })
+
   test('perfil inexistente → 404', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'profiles.select': profilesTable(ME_ADMIN) },
     })
-    const res = await patch('u-nadie', { role: 'member' })
+    const res = await patch('99999999-9999-4999-8999-999999999999', { role: 'member' })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('PATCH /api/profile', () => {
+  const ownUpdate = (data: unknown) =>
+    createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': profilesTable(ME_MEMBER), 'profiles.update': { data, error: null } },
+    })
+
+  test('un member cambia su nombre y su NSS, solo en su propia fila', async () => {
+    activeClient = ownUpdate({ ...ME_MEMBER, display_name: 'Tania Cruz', nss: VALID_NSS })
+    const res = await patchOwn({ display_name: '  Tania Cruz ', nss: '1234-5678-903' })
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('profiles')).toEqual({ display_name: 'Tania Cruz', nss: VALID_NSS })
+    expect(filterValue(activeClient.callsTo('profiles', 'update')[0], 'id')).toBe(AUTH.id)
+  })
+
+  test('NSS vacío lo borra', async () => {
+    activeClient = ownUpdate({ ...ME_MEMBER, nss: null })
+    expect((await patchOwn({ nss: '' })).status).toBe(200)
+    expect(activeClient.updatePayload('profiles')).toEqual({ nss: null })
+  })
+
+  test('NSS con dígito verificador incorrecto → 400 descriptivo', async () => {
+    activeClient = ownUpdate(null)
+    const res = await patchOwn({ nss: '12345678904' })
+    expect(res.status).toBe(400)
+    expect((await readJson<{ message: string }>(res)).message).toMatch(/NSS no es válido/)
+    expect(activeClient.didCall('profiles', 'update')).toBe(false)
+  })
+
+  test.each([['role', 'admin'], ['shift', 'full_time'], ['clock_employee_id', 3], ['avatar_path', 'x/y.webp']])(
+    'mandar %s → 400 sin tocar la tabla',
+    async (field, value) => {
+      activeClient = ownUpdate(null)
+      const res = await patchOwn({ display_name: 'Tania', [field]: value })
+      expect(res.status).toBe(400)
+      expect(activeClient.didCall('profiles', 'update')).toBe(false)
+    },
+  )
+
+  test('nombre vacío o cuerpo sin cambios → 400', async () => {
+    activeClient = ownUpdate(null)
+    expect((await patchOwn({ display_name: '   ' })).status).toBe(400)
+    expect((await patchOwn({})).status).toBe(400)
+  })
+
+  test('sin sesión → 401', async () => {
+    activeClient = createMockSupabase({ user: null })
+    expect((await patchOwn({ display_name: 'X' })).status).toBe(401)
+  })
+
+  test('un body null → 400, no 500', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_MEMBER) } })
+    expect((await patchOwn(null)).status).toBe(400)
+  })
+})
+
+describe('PATCH /api/profiles/[id] — NSS', () => {
+  test('el admin captura el NSS de otro, normalizado', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': profilesTable(ME_ADMIN), 'profiles.update': { data: { ...OTHER, nss: VALID_NSS }, error: null } },
+    })
+    const res = await patch(OTHER.id, { nss: '123 4567 8903' })
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('profiles')).toEqual({ nss: VALID_NSS })
+  })
+
+  test('NSS inválido → 400', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_ADMIN) } })
+    expect((await patch(OTHER.id, { nss: '123' })).status).toBe(400)
   })
 })

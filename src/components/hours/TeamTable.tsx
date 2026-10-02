@@ -11,19 +11,24 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Pencil } from '@/components/icons'
+import { Crown, Pencil } from '@/components/icons'
 import { useProfiles, useUpdateProfile } from '@/hooks/useProfile'
+import { UserAvatar } from '@/components/profile/UserAvatar'
+import { NssField } from '@/components/profile/NssField'
+import { useDiscreteModeStore } from '@/stores/discreteModeStore'
+import { maskNss, normalizeNss, nssError } from '@/lib/nss'
+import { ROLE_LABELS } from '@/lib/profile'
 import { SHIFT_LABELS, SHIFTS } from '@/lib/timesheet'
-import type { Profile, ProfileRole, ProfileShift } from '@/types/database'
+import type { ProfileRole, ProfileShift, ProfileWithAvatar } from '@/types/database'
 
-const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador', member: 'Miembro' }
 /** Radix rejects value="" in SelectItem; sentinel for "no shift". */
 const NO_SHIFT = '__none__'
 
-/** Who is who: role and the clock id that maps the NGTeco report to a user. */
+/** Who is who: role, the clock id that maps the NGTeco report to a user, shift and NSS. */
 export function TeamTable() {
   const { data: profiles, isLoading } = useProfiles()
-  const [editing, setEditing] = useState<Profile | null>(null)
+  const [editing, setEditing] = useState<ProfileWithAvatar | null>(null)
+  const isDiscrete = useDiscreteModeStore((s) => s.isDiscreteMode)
 
   if (isLoading || !profiles) {
     return (
@@ -44,13 +49,22 @@ export function TeamTable() {
                 <TableHead>Rol</TableHead>
                 <TableHead>Id checador</TableHead>
                 <TableHead>Jornada</TableHead>
+                <TableHead>NSS</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {profiles.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.display_name}</TableCell>
+                  <TableCell>
+                    <span className="flex items-center gap-2 font-medium">
+                      <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} />
+                      {p.display_name}
+                      {p.is_owner && (
+                        <Crown className="size-4 text-amber-500" aria-label="Dueño del negocio" />
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={p.role === 'admin' ? 'default' : 'secondary'}>{ROLE_LABELS[p.role]}</Badge>
                   </TableCell>
@@ -59,6 +73,9 @@ export function TeamTable() {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {p.shift ? SHIFT_LABELS[p.shift] : <span className="italic">sin jornada</span>}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-sm text-muted-foreground">
+                    {p.nss ? (isDiscrete ? '•••••••••••' : maskNss(p.nss)) : <span className="italic">sin capturar</span>}
                   </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(p)} aria-label={`Editar ${p.display_name}`}>
@@ -77,7 +94,7 @@ export function TeamTable() {
   )
 }
 
-function ProfileDialog({ profile, onClose }: { profile: Profile | null; onClose: () => void }) {
+function ProfileDialog({ profile, onClose }: { profile: ProfileWithAvatar | null; onClose: () => void }) {
   return (
     <Dialog open={!!profile} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="sm:max-w-md">
@@ -87,11 +104,15 @@ function ProfileDialog({ profile, onClose }: { profile: Profile | null; onClose:
   )
 }
 
-function ProfileFields({ profile, onClose }: { profile: Profile; onClose: () => void }) {
+function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClose: () => void }) {
   const [name, setName] = useState(profile.display_name)
   const [role, setRole] = useState<ProfileRole>(profile.role)
   const [clockId, setClockId] = useState(profile.clock_employee_id == null ? '' : String(profile.clock_employee_id))
   const [shift, setShift] = useState<ProfileShift | null>(profile.shift ?? null)
+  const [nss, setNss] = useState(profile.nss ?? '')
+  const normalizedNss = normalizeNss(nss) || null
+  const nssChanged = normalizedNss !== profile.nss
+  const nssProblem = nssChanged && normalizedNss ? nssError(normalizedNss) : null
   const update = useUpdateProfile()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,10 +122,14 @@ function ProfileFields({ profile, onClose }: { profile: Profile; onClose: () => 
       toast.error('El id del checador debe ser un entero mayor a 0')
       return
     }
+    if (nssProblem) {
+      toast.error(nssProblem)
+      return
+    }
     try {
       await update.mutateAsync({
         id: profile.id,
-        updates: { display_name: name.trim(), role, clock_employee_id: parsed, shift },
+        updates: { display_name: name.trim(), role, clock_employee_id: parsed, shift, ...(nssChanged ? { nss: normalizedNss } : {}) },
       })
       toast.success('Perfil actualizado')
       onClose()
@@ -154,6 +179,7 @@ function ProfileFields({ profile, onClose }: { profile: Profile; onClose: () => 
             </Select>
             <p className="text-xs text-muted-foreground">Referencia de las gráficas de horas: 8 h o 4 h al día, 40 h o 20 h a la semana.</p>
           </div>
+          <NssField id="pf-nss" label="NSS" saved={profile.nss} value={nss} onChange={setNss} error={nssProblem} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={update.isPending}>Cancelar</Button>
             <Button type="submit" disabled={update.isPending}>{update.isPending ? 'Guardando…' : 'Guardar'}</Button>

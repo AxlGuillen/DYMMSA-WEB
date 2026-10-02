@@ -2,14 +2,14 @@
 
 import { describe, test, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { AssistantSection, FinanceSection } from '@/app/dashboard/docs/sections'
-import { TOOL_MANIFEST, manifestFor } from '@/lib/mcp/manifest'
+import { AssistantSection, FinanceSection, ProfileSection } from '@/app/dashboard/docs/sections'
+import { DOCS_MANIFEST, manifestFor } from '@/lib/mcp/manifest'
 
 describe('AssistantSection', () => {
   test('pinta cada capacidad del manifiesto con su pregunta ejemplo y marca las que escriben', () => {
     render(<AssistantSection />)
-    expect(screen.getByText(new RegExp(`${TOOL_MANIFEST.length} capacidades, ${manifestFor('app').length} de la app y ${manifestFor('odoo').length} de Odoo`))).toBeTruthy()
-    for (const tool of TOOL_MANIFEST) {
+    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.block === 'app').length} de la app y ${manifestFor('odoo').length} de Odoo`))).toBeTruthy()
+    for (const tool of DOCS_MANIFEST) {
       expect(screen.getAllByText(tool.title).length, tool.name).toBeGreaterThan(0)
     }
     // Only the module blocks carry the badge; the actions list repeats the limits, not the badge.
@@ -24,5 +24,13 @@ describe('FinanceSection', () => {
     render(<FinanceSection />)
     expect(screen.getByText(/facturacion oficial/)).toBeTruthy()
     expect(screen.getByText(/nunca se restan/)).toBeTruthy()
+  })
+})
+
+describe('ProfileSection', () => {
+  test('dice quién ve el NSS y no menciona el registro de quién pagó (ADR-028)', () => {
+    const { container } = render(<ProfileSection />)
+    expect(screen.getByText(/solo lo ven tu y los administradores/)).toBeTruthy()
+    expect(container.textContent).not.toMatch(/pagad|bitacora|historial/i)
   })
 })

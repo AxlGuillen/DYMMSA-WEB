@@ -399,12 +399,26 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 -- ─── Storage ────────────────────────────────────────────────────────────────
 -- bucket task-images · public=true · límite 5 MB · PNG/JPEG/GIF/WEBP
 -- (creado por la migración create_task_images_bucket, ADR-014)
+-- bucket avatars · public=true · límite 2 MB · JPEG/PNG/WEBP (#122) · policies: solo la carpeta `<uid>/` propia
 
 -- ─── Storage bucket task-images (ADR-014) — el schema.sql solo lo comenta ──
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('task-images', 'task-images', true, 5242880,
         ARRAY['image/png','image/jpeg','image/gif','image/webp'])
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('avatars', 'avatars', true, 2097152, ARRAY['image/jpeg','image/png','image/webp'])
+ON CONFLICT (id) DO NOTHING;
+CREATE POLICY "Users read own avatars" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = (SELECT auth.uid())::text);
+CREATE POLICY "Users upload own avatars" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = (SELECT auth.uid())::text);
+CREATE POLICY "Users delete own avatars" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = (SELECT auth.uid())::text);
 
 -- ─── Inventario con marca resuelta (issue #53) ──────────────────────────────
 -- `store_inventory` no guarda la marca: se cruza POR VALOR con `etm_products`
@@ -533,11 +547,39 @@ CREATE TABLE public.profiles (
   role text NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
   clock_employee_id integer UNIQUE CHECK (clock_employee_id > 0),
   shift text CHECK (shift IN ('full_time', 'part_time')),  -- jornada (#101): NULL = sin asignar
+  nss text CHECK (nss ~ '^[0-9]{11}$'),
+  avatar_path text,
+  is_owner boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT profiles_avatar_own_folder CHECK (avatar_path IS NULL OR avatar_path LIKE id::text || '/%'),
+  CONSTRAINT profiles_display_name_length CHECK (char_length(btrim(display_name)) BETWEEN 1 AND 80)
 );
 CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+CREATE UNIQUE INDEX profiles_single_owner ON public.profiles (is_owner) WHERE is_owner;
+
+-- RLS cannot restrict columns (#122): without this a member could promote themself via their own row.
+CREATE OR REPLACE FUNCTION public.guard_profile_admin_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF (SELECT auth.uid()) IS NOT NULL AND NOT public.is_admin() AND (
+    NEW.role IS DISTINCT FROM OLD.role
+    OR NEW.clock_employee_id IS DISTINCT FROM OLD.clock_employee_id
+    OR NEW.shift IS DISTINCT FROM OLD.shift
+    OR NEW.is_owner IS DISTINCT FROM OLD.is_owner
+  ) THEN
+    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada o el id del checador'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER profiles_guard_admin_fields BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_profile_admin_fields();
 
 -- Perfil automático por usuario nuevo. Corre como supabase_auth_admin, que no tiene
 -- permisos en public: SECURITY DEFINER es obligatorio. Si falla, el alta aborta a propósito.
@@ -551,12 +593,13 @@ BEGIN
   INSERT INTO public.profiles (id, display_name)
   VALUES (
     NEW.id,
-    COALESCE(
-      NULLIF(NEW.raw_user_meta_data->>'full_name', ''),
-      NULLIF(NEW.raw_user_meta_data->>'display_name', ''),
-      NULLIF(split_part(COALESCE(NEW.email, ''), '@', 1), ''),
+    -- Trimmed and capped: a blank or long metadata name must not trip profiles_display_name_length.
+    left(COALESCE(
+      NULLIF(btrim(NEW.raw_user_meta_data->>'full_name'), ''),
+      NULLIF(btrim(NEW.raw_user_meta_data->>'display_name'), ''),
+      NULLIF(btrim(split_part(COALESCE(NEW.email, ''), '@', 1)), ''),
       NEW.id::text
-    )
+    ), 80)
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
@@ -601,6 +644,8 @@ CREATE POLICY "Users read own profile, admins read all" ON public.profiles
   FOR SELECT TO authenticated USING (id = (SELECT auth.uid()) OR public.is_admin());
 CREATE POLICY "Admins can update profiles" ON public.profiles
   FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Users update own profile" ON public.profiles
+  FOR UPDATE TO authenticated USING (id = (SELECT auth.uid())) WITH CHECK (id = (SELECT auth.uid()));
 
 -- time_entries: una fila por pareja de checada. Totales calculados, nunca guardados.
 CREATE TABLE public.time_entries (
@@ -731,6 +776,28 @@ GRANT SELECT, UPDATE ON public.profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.time_entries TO authenticated;
 GRANT SELECT, INSERT ON public.time_imports TO authenticated;
 GRANT ALL ON public.profiles, public.time_entries, public.time_imports TO service_role;
+
+-- excused_days (meeting 2026-10-01): holidays and authorized early exits; user_id NULL = whole team.
+CREATE TABLE public.excused_days (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  work_date date NOT NULL,
+  user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,  -- CASCADE a propósito: es una marca sobre la persona, no un registro suyo (time_entries sigue bloqueando la baja)
+  kind text NOT NULL CHECK (kind IN ('holiday', 'early_release')),
+  note text,
+  created_by uuid DEFAULT auth.uid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT excused_days_unique UNIQUE NULLS NOT DISTINCT (work_date, user_id)
+);
+CREATE INDEX excused_days_work_date ON public.excused_days (work_date);
+ALTER TABLE public.excused_days ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Team-wide or own excused days, admins all" ON public.excused_days
+  FOR SELECT TO authenticated USING (user_id IS NULL OR user_id = (SELECT auth.uid()) OR public.is_admin());
+CREATE POLICY "Admins add excused days" ON public.excused_days
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY "Admins delete excused days" ON public.excused_days
+  FOR DELETE TO authenticated USING (public.is_admin());
+GRANT SELECT, INSERT, DELETE ON public.excused_days TO authenticated;
+GRANT ALL ON public.excused_days TO service_role;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.import_time_entries(jsonb, date, date, text) TO authenticated, service_role;
 
@@ -814,3 +881,99 @@ CREATE TRIGGER payables_audit
 GRANT SELECT ON public.audit_events TO authenticated;
 GRANT ALL ON public.audit_events TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.audit_events_id_seq TO service_role;
+
+-- ============================================================================
+-- Nómina (issue #123, ADR-033): horas por empleado y día, corte sábado → viernes.
+-- Solo admin de punta a punta; los trabajadores del taller no tienen cuenta.
+-- ============================================================================
+CREATE TABLE public.payroll_employees (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  profile_id uuid UNIQUE REFERENCES public.profiles(id) ON DELETE SET NULL,  -- oficina: prellenado desde Horas
+  shift text NOT NULL DEFAULT 'full_time',    -- tope de horas normales L-V (8 h / 4 h)
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT payroll_employees_name_length CHECK (char_length(btrim(name)) BETWEEN 1 AND 80),
+  CONSTRAINT payroll_employees_shift_check CHECK (shift IN ('full_time', 'part_time'))
+);
+CREATE TRIGGER payroll_employees_set_updated_at BEFORE UPDATE ON public.payroll_employees
+  FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+-- payroll_days: una fila por empleado y día. El multiplicador (sábado ×2, domingo ×3)
+-- NO se guarda: sale de la fecha en src/lib/payroll.ts.
+CREATE TABLE public.payroll_days (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid NOT NULL REFERENCES public.payroll_employees(id),  -- sin cascade: la baja es desactivar
+  work_date date NOT NULL,
+  worked_minutes integer NOT NULL DEFAULT 0,
+  missed_minutes integer NOT NULL DEFAULT 0,  -- HRS NO TRABAJADAS: solo registro
+  note text,
+  source text NOT NULL DEFAULT 'manual',      -- sheet (MCP) | hours (prellenado) | manual
+  status text NOT NULL DEFAULT 'draft',       -- draft | confirmed
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT payroll_days_employee_date_key UNIQUE (employee_id, work_date),
+  CONSTRAINT payroll_days_worked_check CHECK (worked_minutes BETWEEN 0 AND 1440),
+  CONSTRAINT payroll_days_missed_check CHECK (missed_minutes BETWEEN 0 AND 1440),
+  CONSTRAINT payroll_days_source_check CHECK (source IN ('sheet', 'hours', 'manual')),
+  CONSTRAINT payroll_days_status_check CHECK (status IN ('draft', 'confirmed'))
+);
+CREATE INDEX idx_payroll_days_date ON public.payroll_days (work_date);
+CREATE TRIGGER payroll_days_set_updated_at BEFORE UPDATE ON public.payroll_days
+  FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+-- payroll_periods: el corte, identificado por su sábado. Sin fila = abierto.
+CREATE TABLE public.payroll_periods (
+  start_date date PRIMARY KEY,
+  status text NOT NULL DEFAULT 'open',
+  closed_at timestamptz,
+  closed_by_name text,                        -- snapshot, como audit_events.actor_name
+  reopened_at timestamptz,
+  reopened_by_name text,
+  CONSTRAINT payroll_periods_saturday CHECK (EXTRACT(ISODOW FROM start_date) = 6),
+  CONSTRAINT payroll_periods_status_check CHECK (status IN ('open', 'closed'))
+);
+
+-- Un corte cerrado no cambia: ni por la app, ni por el MCP, ni con service_role.
+CREATE OR REPLACE FUNCTION public.guard_closed_payroll_period()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+DECLARE
+  v_date date;
+BEGIN
+  FOREACH v_date IN ARRAY ARRAY[
+    CASE WHEN TG_OP <> 'INSERT' THEN OLD.work_date END,
+    CASE WHEN TG_OP <> 'DELETE' THEN NEW.work_date END
+  ] LOOP
+    IF v_date IS NOT NULL AND EXISTS (
+      SELECT 1 FROM public.payroll_periods p
+      WHERE p.status = 'closed'
+        AND p.start_date = v_date - ((EXTRACT(ISODOW FROM v_date)::int + 1) % 7)
+    ) THEN
+      RAISE EXCEPTION 'El corte de nómina que incluye el % está cerrado', v_date
+        USING ERRCODE = '23514';
+    END IF;
+  END LOOP;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+CREATE TRIGGER payroll_days_guard_closed BEFORE INSERT OR UPDATE OR DELETE ON public.payroll_days
+  FOR EACH ROW EXECUTE FUNCTION public.guard_closed_payroll_period();
+
+ALTER TABLE public.payroll_employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payroll_days ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payroll_periods ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins manage payroll employees" ON public.payroll_employees
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Admins manage payroll days" ON public.payroll_days
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Admins manage payroll periods" ON public.payroll_periods
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- Sin anon, como el resto de las tablas por rol.
+REVOKE ALL ON public.payroll_employees, public.payroll_days, public.payroll_periods FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.payroll_employees, public.payroll_days, public.payroll_periods TO authenticated;
+GRANT ALL ON public.payroll_employees, public.payroll_days, public.payroll_periods TO service_role;

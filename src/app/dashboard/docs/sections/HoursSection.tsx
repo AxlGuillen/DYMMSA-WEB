@@ -8,6 +8,7 @@ export function HoursSection() {
       <List>
         <li>Cada quien ve sus propias checadas por dia (entrada, salida, notas) y el total de la semana. Un <strong>administrador</strong> ve a todos.</li>
         <li>Dos graficas: las horas por dia de la semana y la tendencia de las ultimas 8 semanas, con las lineas de referencia de <strong>medio tiempo</strong> (4 h / 20 h) y <strong>tiempo completo</strong> (8 h / 40 h) y el aviso de cumplimiento o de cuantas horas faltan.</li>
+        <li>Cada dia de lunes a viernes se pinta en <strong>verde</strong> si se cumplio la jornada (4 u 8 horas) y en <strong>rojo</strong> si no; el dia de hoy no se pinta en rojo mientras sigue en curso.</li>
         <li>Una checada <strong>sin salida</strong> (se olvido checar) se pinta aparte: no suma horas y no es un dia corto.</li>
       </List>
       <Sub>Importar reporte (administradores)</Sub>
@@ -20,6 +21,7 @@ export function HoursSection() {
         <li>Rol de cada persona: <strong>administrador</strong> o <strong>miembro</strong>. Un miembro solo ve lo suyo en Horas.</li>
         <li>Numero de checador y <strong>jornada</strong> (tiempo completo, medio tiempo o ninguna), que es la referencia de las graficas.</li>
         <li>Correcciones a una checada: se guarda el rastro (quien, cuando, valor original); la hora que dijo el reloj nunca se pierde.</li>
+        <li><strong>Dias feriados y salidas autorizadas</strong>, para todo el equipo o una persona: no cuentan como horas faltantes. Un feriado no pide horas; una salida autorizada da el dia por cumplido con lo que se trabajo. Se descuentan del objetivo de la semana.</li>
       </List>
       <Note>
         Dar de baja a alguien es <strong>desactivar</strong>, no borrar: sus checadas se conservan.

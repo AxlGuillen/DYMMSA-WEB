@@ -204,11 +204,36 @@ export interface Profile {
   /** NGTeco employee id; null = does not clock in. */
   clock_employee_id: number | null
   shift: ProfileShift | null
+  nss: string | null
+  /** Object path in the avatars bucket; null = initials. */
+  avatar_path: string | null
+  /** The business owner: a crown in Equipo (one at most, meeting 2026-10-01). */
+  is_owner: boolean
   created_at: string
   updated_at: string
 }
 
-export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift'>>
+export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss'>>
+/** What a person may change on their own profile (#122); the rest stays with the admin. */
+export type OwnProfileUpdate = Partial<Pick<Profile, 'display_name' | 'nss'>>
+export type ProfileWithAvatar = Profile & { avatar_url: string | null }
+export type OwnProfile = Omit<ProfileWithAvatar, 'created_at' | 'updated_at'> & { email: string | null }
+
+/** A day that does not count as unworked: a holiday, or an early exit the owner authorized. */
+export type ExcuseKind = 'holiday' | 'early_release'
+
+export interface ExcusedDay {
+  id: string
+  work_date: string
+  /** null = the whole team. */
+  user_id: string | null
+  kind: ExcuseKind
+  note: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export type ExcusedDayInsert = Pick<ExcusedDay, 'work_date' | 'user_id' | 'kind' | 'note'>
 
 export type TimeEntrySource = 'import' | 'manual'
 
@@ -485,4 +510,44 @@ export interface ExcelExtractedRow {
   quantity: number | null
   price: number | null
   brand: string
+}
+
+// ─── Payroll (#123, ADR-033) ───
+
+/** Workshop people have no account, so payroll keeps its own list; `profile_id` links the office. */
+export interface PayrollEmployee {
+  id: string
+  name: string
+  profile_id: string | null
+  shift: ProfileShift
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type PayrollDaySource = 'sheet' | 'hours' | 'manual'
+export type PayrollDayStatus = 'draft' | 'confirmed'
+
+/** One row per employee and day; the weekend multiplier comes from the date, never stored. */
+export interface PayrollDay {
+  id: string
+  employee_id: string
+  work_date: string
+  worked_minutes: number
+  missed_minutes: number
+  note: string | null
+  source: PayrollDaySource
+  status: PayrollDayStatus
+  created_at: string
+  updated_at: string
+}
+
+/** The cut, keyed by its Saturday. No row = open. */
+export interface PayrollPeriod {
+  start_date: string
+  status: 'open' | 'closed'
+  closed_at: string | null
+  closed_by_name: string | null
+  reopened_at: string | null
+  reopened_by_name: string | null
 }

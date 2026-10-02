@@ -10,10 +10,11 @@ import { WeekChart } from '@/components/hours/WeekChart'
 import { TrendChart } from '@/components/hours/TrendChart'
 import { TimeEntryForm } from '@/components/hours/TimeEntryForm'
 import { useProfile, useProfiles } from '@/hooks/useProfile'
+import { UserAvatar } from '@/components/profile/UserAvatar'
 import { useTimeEntries } from '@/hooks/useTimeEntries'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { todayInMexico } from '@/lib/format'
-import { buildWeeklyTrend, shiftWeek, weekBounds } from '@/lib/timesheet'
+import { buildWeeklyTrend, excusesFor, shiftWeek, weekBounds } from '@/lib/timesheet'
 import type { TimeEntry } from '@/types/database'
 
 /** Week stepper + (admin) employee selector + the grid. */
@@ -40,7 +41,12 @@ export function HoursView() {
   const TREND_WEEKS = 8
   const trendQuery = useTimeEntries({ user: targetUser, from: shiftWeek(start, -(TREND_WEEKS - 1)), to: end })
   // No useMemo: the React Compiler memoizes this itself and rejects the manual one.
-  const trend = trendQuery.data ? buildWeeklyTrend(trendQuery.data.entries, start, TREND_WEEKS) : undefined
+  const trend = trendQuery.data
+    ? buildWeeklyTrend(trendQuery.data.entries, start, TREND_WEEKS, {
+        shift: targetShift,
+        excuses: excusesFor(trendQuery.data.excused ?? [], trendQuery.data.user),
+      })
+    : undefined
 
   const namesById = useMemo(
     () => Object.fromEntries((profiles ?? []).map((p) => [p.id, p.display_name])),
@@ -74,7 +80,12 @@ export function HoursView() {
               </SelectTrigger>
               <SelectContent>
                 {profiles.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} size="sm" />
+                      {p.display_name}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -84,7 +95,14 @@ export function HoursView() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <WeekChart week={data?.week ?? undefined} shift={targetShift} isLoading={isLoading} canAssignShift={isAdmin} />
+        <WeekChart
+          week={data?.week ?? undefined}
+          shift={targetShift}
+          isLoading={isLoading}
+          canAssignShift={isAdmin}
+          excused={data?.excused}
+          userId={data?.user}
+        />
         <TrendChart trend={trend} shift={targetShift} currentStart={start} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
       </div>
 

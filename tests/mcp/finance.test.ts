@@ -53,7 +53,7 @@ describe('getMonthClosing', () => {
       }),
     }
     const result = await getMonthClosing(asDb(client), { mes: MONTH }, live)
-    expect(result.ingresos).toMatchObject({ cobrado: 0, por_cobrar: 0, notas_credito_sin_aplicar: 0, truncado: false })
+    expect(result.ingresos).toMatchObject({ cobrado: 0, por_cobrar_total: 0, por_cobrar_al_corriente: 0, notas_credito_sin_aplicar: 0, truncado: false })
     expect(result.ingresos_no_disponibles).toBeNull()
     expect(result.cierre.real).toBe(-400)
   })

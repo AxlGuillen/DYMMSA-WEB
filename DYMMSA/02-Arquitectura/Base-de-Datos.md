@@ -372,13 +372,18 @@ RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRAN
 | Columna | Tipo | Nullable | Default | Constraint | Descripción |
 |---------|------|----------|---------|-----------|-------------|
 | `id` | uuid | No | — | PK, FK → `auth.users` CASCADE | Lo crea el trigger `handle_new_user` (SECURITY DEFINER; si falla, bloquea el alta) |
-| `display_name` | text | No | — | | `COALESCE(full_name, display_name, email)` al crearse |
+| `display_name` | text | No | — | CHECK `profiles_display_name_length` (1–80 sin espacios de orilla) | `COALESCE(full_name, display_name, email)` recortado y topado a 80 al crearse |
 | `role` | text | No | `'member'` | CHECK `admin·member` | |
 | `clock_employee_id` | integer | Sí | — | UNIQUE, CHECK > 0 | Número entre paréntesis del reporte NGTeco; NULL = no checa |
 | `shift` | text | Sí | — | CHECK `full_time·part_time` | Jornada (#101, ADR-029): referencia de las gráficas de Horas (8 h/4 h al día, 40 h/20 h a la semana); NULL = sin asignar |
+| `nss` | text | Sí | — | CHECK `^[0-9]{11}$` | Número de Seguridad Social (Mi perfil, #122). Lo editan la persona y el admin; el dígito verificador se valida en la API |
+| `avatar_path` | text | Sí | — | CHECK `profiles_avatar_own_folder` (empieza con `<id>/`) | Ruta de la foto en el bucket `avatars`; NULL = avatar de iniciales |
+| `is_owner` | boolean | No | `false` | índice único parcial `profiles_single_owner` (a lo más uno) | Dueño del negocio: corona en Equipo (2026-10-01). Lo protege el trigger de campos de admin |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
-RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()`. Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
+RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **o fila propia** (#122). Como la RLS no restringe columnas, el trigger `profiles_guard_admin_fields` → `guard_profile_admin_fields()` rechaza con 42501 los cambios a `role`, `clock_employee_id` y `shift` si quien edita no es admin (sin `auth.uid()` —service role, SQL directo— pasa). Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
+
+**Storage `avatars`** (#122): bucket público, 2 MB, JPEG/PNG/WebP. Policies en `storage.objects`: SELECT/INSERT/DELETE solo cuando la primera carpeta de la ruta es el `auth.uid()` de quien llama. La de SELECT existe porque borrar (`remove`) la necesita, **no** porque las fotos sean privadas: el bucket es público y la app pinta la foto de los demás por URL. Lo que se protege es la ruta (`avatar_path` solo la leen su dueño y el admin) y que nadie suba ni borre en carpeta ajena.
 
 ---
 
@@ -422,6 +427,68 @@ RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()`. F
 
 RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_entries jsonb, p_period_start, p_period_end, p_file_name)`** (SECURITY INVOKER, transaccional): upsert `ON CONFLICT ... DO UPDATE SET clock_out, source='import' WHERE edited_at IS NULL`, cuenta con `xmax = 0`, dedupe `DISTINCT ON` (y el conteo total sobre los mismos valores casteados), devuelve `{import_id, inserted, updated, skipped_edited}`.
 
+
+---
+
+## Tabla: `excused_days`
+
+**Propósito:** Días que no cuentan como horas faltantes: feriados y salidas autorizadas por el dueño.
+**Módulo:** Horas (ajustes del 2026-10-01)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `work_date` | date | No | — | índice | El día justificado |
+| `user_id` | uuid | Sí | — | FK → `profiles` CASCADE | NULL = todo el equipo |
+| `kind` | text | No | — | CHECK `holiday·early_release` | Feriado (no pide horas) o salida autorizada (el día cuenta como cumplido con lo trabajado) |
+| `note` | text | Sí | — | | |
+| `created_by` | uuid | Sí | `auth.uid()` | sin FK | Quién lo marcó |
+| `created_at` | timestamptz | No | `now()` | | |
+
+`UNIQUE NULLS NOT DISTINCT (work_date, user_id)`: un día no se justifica dos veces para la misma persona ni para el equipo. RLS: SELECT `user_id IS NULL OR user_id = auth.uid() OR is_admin()`; INSERT y DELETE `is_admin()` (sin UPDATE: se borra y se vuelve a marcar). GRANTs sin `anon`. Se aplica en `weekTargetMinutes`/`dayStatus` (`src/lib/timesheet.ts`): el de la persona gana al del equipo.
+---
+
+## Tablas: `payroll_employees`, `payroll_days`, `payroll_periods`
+
+**Propósito:** Horas de nómina por empleado y día, con corte sábado → viernes.
+**Módulo:** Nómina (issue #123, [[04-Decisiones-Tecnicas/ADR-033-Nomina-Horas-por-Corte]]) · **solo administradores**
+
+**`payroll_employees`**
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `name` | text | No | — | UNIQUE, CHECK 1–80 | Debe coincidir con la hoja: por él lo encuentra el asistente |
+| `profile_id` | uuid | Sí | — | UNIQUE, FK → `profiles` SET NULL | Oficina: habilita "Traer de Horas" |
+| `shift` | text | No | `'full_time'` | CHECK `full_time`/`part_time` | Tope de horas normales L-V |
+| `active` | boolean | No | `true` | | La baja es desactivar |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+**`payroll_days`**
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `employee_id` | uuid | No | — | FK → `payroll_employees` **sin cascade** | |
+| `work_date` | date | No | — | UNIQUE con `employee_id` | |
+| `worked_minutes` | integer | No | `0` | CHECK 0–1440 | Total del día (jornada + extras) |
+| `missed_minutes` | integer | No | `0` | CHECK 0–1440 | HRS NO TRABAJADAS — solo registro |
+| `note` | text | Sí | — | | |
+| `source` | text | No | `'manual'` | CHECK `sheet`/`hours`/`manual` | Hoja (MCP), checador o captura |
+| `status` | text | No | `'draft'` | CHECK `draft`/`confirmed` | Solo `confirmed` suma |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+**`payroll_periods`** — sin fila = corte abierto.
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `start_date` | date | No | — | PK, CHECK ISODOW = 6 | El sábado del corte |
+| `status` | text | No | `'open'` | CHECK `open`/`closed` | |
+| `closed_at` / `closed_by_name` | timestamptz / text | Sí | — | | Snapshot de quién cerró |
+| `reopened_at` / `reopened_by_name` | timestamptz / text | Sí | — | | Snapshot de quién reabrió |
+
+RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll_days_guard_closed` → `guard_closed_payroll_period()` (INVOKER, `search_path=''`): INSERT/UPDATE/DELETE de un día cuyo corte está `closed` → 23514, también con service_role. El multiplicador de fin de semana no se guarda (sale de la fecha en `src/lib/payroll.ts`).
+
 ---
 
 ## Historial de migraciones
@@ -446,6 +513,9 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `20260924031216` | `add_audit_events` | Bitácora genérica `audit_events` (solo admin lee, sin INSERT para authenticated) + `audit_payable()` DEFINER y trigger `payables_audit`. Issue #100, ADR-028 |
 | `20260924034509` | `audit_events_actor_without_fk` | Se quita el FK `actor_id → profiles`: dentro del trigger tumbaba la escritura del usuario (review PR #106) |
 | `20260924055249` | `add_profile_shift` | Columna `shift` en `profiles` (jornada por persona) + paso de datos en la nube: todos `full_time`, Tania `part_time`. Issue #101, ADR-029 |
+| `20260929225740` | `add_profile_self_service` | Mi perfil (issue #122): columnas `nss` y `avatar_path` en `profiles`, policy "cada quien actualiza su fila", trigger `profiles_guard_admin_fields` (rol/jornada/checador solo admin), bucket `avatars` + 3 policies por carpeta |
+| `20260930234735` | `profiles_display_name_length` | CHECK de 1–80 caracteres en `display_name` (mismo límite que la ruta) + `handle_new_user` recorta y topa a 80. Review PR #126 |
+| `20261001224650` | `owner_and_excused_days` | `profiles.is_owner` (único parcial) protegido por el trigger de campos de admin + tabla `excused_days` con RLS (lee el equipo/la persona, escribe el admin) + Diego marcado como dueño. Ajustes del 2026-10-01 |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |
@@ -456,3 +526,4 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `create_suppliers_module` | (2026-07-16) | Tablas `suppliers`, `brands` (sembrada con las marcas existentes) y `supplier_brands` (M2M; brand_id sin cascade → borrar marca en uso se bloquea). RLS + policies. Issue #21 |
 | `add_separator_color` | (2026-08-21) | Columna `separator_color` (text, nullable) en `quotation_items` y `order_items`, CHECK solo-separadores. Override manual del color de sección; NULL = automático. Issue #73 |
 | `add_finance_payables` | (2026-09-02) | Columna `payment_terms_days` en `suppliers` y tabla `payables` (facturas por pagar: FK a suppliers sin cascade, concept/amount/fechas, status pending·paid·cancelled, `paid_at` fecha real). Índice (status, due_date), RLS + policy. Issue #84 |
+| `20261001052530` | `add_payroll` | Nómina (#123): `payroll_employees`, `payroll_days`, `payroll_periods`, trigger del corte cerrado y RLS solo admin |
