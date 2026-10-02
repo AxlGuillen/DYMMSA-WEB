@@ -131,6 +131,12 @@ describe('record_payroll_hours', () => {
     await expect(call([{ empleado: 'José', fecha: '2026-09-21', horas: 8 }, { empleado: 'jose nunez', fecha: '2026-09-21', horas: 9 }])).rejects.toThrow(/viene repetido/)
     expect(client.callsTo('payroll_days', 'upsert')).toEqual([])
 
+    // A 0-hour day never becomes a draft; with missed hours it is a real record (review PR #129).
+    await expect(call([{ empleado: 'José', fecha: '2026-09-21', horas: 0 }])).rejects.toThrow(/un día sin horas no se carga/)
+    expect(client.callsTo('payroll_days', 'upsert')).toEqual([])
+    await recordPayrollHours(asDb(client), { dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 0, horas_no_trabajadas: 8 }] })
+    expect(client.upsertPayload('payroll_days')[0]).toMatchObject({ worked_minutes: 0, missed_minutes: 480 })
+
     const member = createMockSupabase({ responses: { 'payroll_employees.select': { data: [], error: null } } })
     await expect(recordPayrollHours(asDb(member), { dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/solo la ve un administrador/)
   })

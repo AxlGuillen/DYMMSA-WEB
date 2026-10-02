@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAdmin, badRequest, notFound, serverError } from '@/lib/api-helpers'
+import { requireAdmin, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
 import { PROFILE_COLUMNS, parseDisplayName, parseNss, withAvatarUrl } from '@/lib/profile'
 import type { Profile, ProfileRole, ProfileShift, ProfileUpdate } from '@/types/database'
 
@@ -17,6 +17,7 @@ export async function PATCH(
     const supabase = await createClient()
     const auth = await requireAdmin(supabase)
     if ('error' in auth) return auth.error
+    if (!isUuid(id)) return notFound('El perfil no existe')
 
     const body = (await request.json()) as ProfileUpdate
     const updates: Record<string, unknown> = {}

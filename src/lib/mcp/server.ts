@@ -1,4 +1,4 @@
-/** MCP tool registry: reads + 5 scoped writes (ADR-015, ADR-030). Each call's db comes from the OAuth token, no service_role (ADR-023). */
+/** MCP tool registry: reads + 6 scoped writes (ADR-015, ADR-030, ADR-033). Each call's db comes from the OAuth token, no service_role (ADR-023). */
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'

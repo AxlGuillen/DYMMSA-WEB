@@ -16,7 +16,7 @@ injectSupabaseServer(() => activeClient)
 
 const ME_ADMIN = { id: AUTH.id, role: 'admin', display_name: 'Axl', clock_employee_id: null, avatar_path: null }
 const ME_MEMBER = { id: AUTH.id, role: 'member', display_name: 'Tania', clock_employee_id: 5, avatar_path: `${AUTH.id}/a.webp` }
-const OTHER = { id: 'u-diego', role: 'admin', display_name: 'Diego', clock_employee_id: 1, avatar_path: null }
+const OTHER = { id: '11111111-1111-4111-8111-111111111111', role: 'admin', display_name: 'Diego', clock_employee_id: 1, avatar_path: null }
 const VALID_NSS = '12345678903'
 
 /** Simulates the profiles table: the caller by id, the target by id, and the admin count. */
@@ -173,12 +173,18 @@ describe('PATCH /api/profiles/[id]', () => {
     expect(activeClient.updatePayload('profiles')).toEqual({ clock_employee_id: null, display_name: 'Diego B.' })
   })
 
+  test('id que no es uuid → 404 sin consultar', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_ADMIN) } })
+    expect((await patch('no-es-uuid', { role: 'member' })).status).toBe(404)
+    expect(activeClient.didCall('profiles', 'update')).toBe(false)
+  })
+
   test('perfil inexistente → 404', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'profiles.select': profilesTable(ME_ADMIN) },
     })
-    const res = await patch('u-nadie', { role: 'member' })
+    const res = await patch('99999999-9999-4999-8999-999999999999', { role: 'member' })
     expect(res.status).toBe(404)
   })
 })
@@ -231,6 +237,11 @@ describe('PATCH /api/profile', () => {
   test('sin sesión → 401', async () => {
     activeClient = createMockSupabase({ user: null })
     expect((await patchOwn({ display_name: 'X' })).status).toBe(401)
+  })
+
+  test('un body null → 400, no 500', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_MEMBER) } })
+    expect((await patchOwn(null)).status).toBe(400)
   })
 })
 

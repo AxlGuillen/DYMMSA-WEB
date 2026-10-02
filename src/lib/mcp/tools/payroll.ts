@@ -112,6 +112,10 @@ export async function recordPayrollHours(db: Db, input: RecordPayrollHoursInput)
     if (!Number.isFinite(d.horas) || d.horas < 0 || d.horas > 24) throw new ToolError(`Horas inválidas para ${d.empleado} el ${d.fecha} (0 a 24)`)
     const missed = d.horas_no_trabajadas ?? 0
     if (!Number.isFinite(missed) || missed < 0 || missed > 24) throw new ToolError(`Horas no trabajadas inválidas para ${d.empleado} el ${d.fecha} (0 a 24)`)
+    // Same rule as prefillFromHours: a 0-hour draft would be frozen by "confirm all" (review PR #129).
+    if (d.horas === 0 && missed === 0) {
+      throw new ToolError(`${d.empleado} el ${d.fecha}: un día sin horas no se carga — si no trabajó, no lo mandes`)
+    }
     return {
       employee_id: resolveEmployee(employees, d.empleado).id,
       work_date: d.fecha,

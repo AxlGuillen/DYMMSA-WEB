@@ -38,7 +38,7 @@ export async function PATCH(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as Record<string, unknown>
+    const body = ((await request.json()) ?? {}) as Record<string, unknown>
     if (Object.keys(body).some((key) => !EDITABLE.has(key as keyof OwnProfileUpdate))) {
       return badRequest('Solo puedes editar tu nombre y tu NSS; lo demás lo cambia un administrador')
     }
