@@ -856,3 +856,99 @@ CREATE TRIGGER payables_audit
 GRANT SELECT ON public.audit_events TO authenticated;
 GRANT ALL ON public.audit_events TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.audit_events_id_seq TO service_role;
+
+-- ============================================================================
+-- Nómina (issue #123, ADR-033): horas por empleado y día, corte sábado → viernes.
+-- Solo admin de punta a punta; los trabajadores del taller no tienen cuenta.
+-- ============================================================================
+CREATE TABLE public.payroll_employees (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  profile_id uuid UNIQUE REFERENCES public.profiles(id) ON DELETE SET NULL,  -- oficina: prellenado desde Horas
+  shift text NOT NULL DEFAULT 'full_time',    -- tope de horas normales L-V (8 h / 4 h)
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT payroll_employees_name_length CHECK (char_length(btrim(name)) BETWEEN 1 AND 80),
+  CONSTRAINT payroll_employees_shift_check CHECK (shift IN ('full_time', 'part_time'))
+);
+CREATE TRIGGER payroll_employees_set_updated_at BEFORE UPDATE ON public.payroll_employees
+  FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+-- payroll_days: una fila por empleado y día. El multiplicador (sábado ×2, domingo ×3)
+-- NO se guarda: sale de la fecha en src/lib/payroll.ts.
+CREATE TABLE public.payroll_days (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid NOT NULL REFERENCES public.payroll_employees(id),  -- sin cascade: la baja es desactivar
+  work_date date NOT NULL,
+  worked_minutes integer NOT NULL DEFAULT 0,
+  missed_minutes integer NOT NULL DEFAULT 0,  -- HRS NO TRABAJADAS: solo registro
+  note text,
+  source text NOT NULL DEFAULT 'manual',      -- sheet (MCP) | hours (prellenado) | manual
+  status text NOT NULL DEFAULT 'draft',       -- draft | confirmed
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT payroll_days_employee_date_key UNIQUE (employee_id, work_date),
+  CONSTRAINT payroll_days_worked_check CHECK (worked_minutes BETWEEN 0 AND 1440),
+  CONSTRAINT payroll_days_missed_check CHECK (missed_minutes BETWEEN 0 AND 1440),
+  CONSTRAINT payroll_days_source_check CHECK (source IN ('sheet', 'hours', 'manual')),
+  CONSTRAINT payroll_days_status_check CHECK (status IN ('draft', 'confirmed'))
+);
+CREATE INDEX idx_payroll_days_date ON public.payroll_days (work_date);
+CREATE TRIGGER payroll_days_set_updated_at BEFORE UPDATE ON public.payroll_days
+  FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+-- payroll_periods: el corte, identificado por su sábado. Sin fila = abierto.
+CREATE TABLE public.payroll_periods (
+  start_date date PRIMARY KEY,
+  status text NOT NULL DEFAULT 'open',
+  closed_at timestamptz,
+  closed_by_name text,                        -- snapshot, como audit_events.actor_name
+  reopened_at timestamptz,
+  reopened_by_name text,
+  CONSTRAINT payroll_periods_saturday CHECK (EXTRACT(ISODOW FROM start_date) = 6),
+  CONSTRAINT payroll_periods_status_check CHECK (status IN ('open', 'closed'))
+);
+
+-- Un corte cerrado no cambia: ni por la app, ni por el MCP, ni con service_role.
+CREATE OR REPLACE FUNCTION public.guard_closed_payroll_period()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+DECLARE
+  v_date date;
+BEGIN
+  FOREACH v_date IN ARRAY ARRAY[
+    CASE WHEN TG_OP <> 'INSERT' THEN OLD.work_date END,
+    CASE WHEN TG_OP <> 'DELETE' THEN NEW.work_date END
+  ] LOOP
+    IF v_date IS NOT NULL AND EXISTS (
+      SELECT 1 FROM public.payroll_periods p
+      WHERE p.status = 'closed'
+        AND p.start_date = v_date - ((EXTRACT(ISODOW FROM v_date)::int + 1) % 7)
+    ) THEN
+      RAISE EXCEPTION 'El corte de nómina que incluye el % está cerrado', v_date
+        USING ERRCODE = '23514';
+    END IF;
+  END LOOP;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+CREATE TRIGGER payroll_days_guard_closed BEFORE INSERT OR UPDATE OR DELETE ON public.payroll_days
+  FOR EACH ROW EXECUTE FUNCTION public.guard_closed_payroll_period();
+
+ALTER TABLE public.payroll_employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payroll_days ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payroll_periods ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins manage payroll employees" ON public.payroll_employees
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Admins manage payroll days" ON public.payroll_days
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Admins manage payroll periods" ON public.payroll_periods
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- Sin anon, como el resto de las tablas por rol.
+REVOKE ALL ON public.payroll_employees, public.payroll_days, public.payroll_periods FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.payroll_employees, public.payroll_days, public.payroll_periods TO authenticated;
+GRANT ALL ON public.payroll_employees, public.payroll_days, public.payroll_periods TO service_role;

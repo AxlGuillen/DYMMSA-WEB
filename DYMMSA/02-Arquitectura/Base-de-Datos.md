@@ -428,6 +428,49 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 
 ---
 
+## Tablas: `payroll_employees`, `payroll_days`, `payroll_periods`
+
+**Propósito:** Horas de nómina por empleado y día, con corte sábado → viernes.
+**Módulo:** Nómina (issue #123, [[04-Decisiones-Tecnicas/ADR-033-Nomina-Horas-por-Corte]]) · **solo administradores**
+
+**`payroll_employees`**
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `name` | text | No | — | UNIQUE, CHECK 1–80 | Debe coincidir con la hoja: por él lo encuentra el asistente |
+| `profile_id` | uuid | Sí | — | UNIQUE, FK → `profiles` SET NULL | Oficina: habilita "Traer de Horas" |
+| `shift` | text | No | `'full_time'` | CHECK `full_time`/`part_time` | Tope de horas normales L-V |
+| `active` | boolean | No | `true` | | La baja es desactivar |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+**`payroll_days`**
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `id` | uuid | No | `gen_random_uuid()` | PK | |
+| `employee_id` | uuid | No | — | FK → `payroll_employees` **sin cascade** | |
+| `work_date` | date | No | — | UNIQUE con `employee_id` | |
+| `worked_minutes` | integer | No | `0` | CHECK 0–1440 | Total del día (jornada + extras) |
+| `missed_minutes` | integer | No | `0` | CHECK 0–1440 | HRS NO TRABAJADAS — solo registro |
+| `note` | text | Sí | — | | |
+| `source` | text | No | `'manual'` | CHECK `sheet`/`hours`/`manual` | Hoja (MCP), checador o captura |
+| `status` | text | No | `'draft'` | CHECK `draft`/`confirmed` | Solo `confirmed` suma |
+| `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+**`payroll_periods`** — sin fila = corte abierto.
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `start_date` | date | No | — | PK, CHECK ISODOW = 6 | El sábado del corte |
+| `status` | text | No | `'open'` | CHECK `open`/`closed` | |
+| `closed_at` / `closed_by_name` | timestamptz / text | Sí | — | | Snapshot de quién cerró |
+| `reopened_at` / `reopened_by_name` | timestamptz / text | Sí | — | | Snapshot de quién reabrió |
+
+RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll_days_guard_closed` → `guard_closed_payroll_period()` (INVOKER, `search_path=''`): INSERT/UPDATE/DELETE de un día cuyo corte está `closed` → 23514, también con service_role. El multiplicador de fin de semana no se guarda (sale de la fecha en `src/lib/payroll.ts`).
+
+---
+
 ## Historial de migraciones
 
 | Versión | Nombre | Descripción |
@@ -462,3 +505,4 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `create_suppliers_module` | (2026-07-16) | Tablas `suppliers`, `brands` (sembrada con las marcas existentes) y `supplier_brands` (M2M; brand_id sin cascade → borrar marca en uso se bloquea). RLS + policies. Issue #21 |
 | `add_separator_color` | (2026-08-21) | Columna `separator_color` (text, nullable) en `quotation_items` y `order_items`, CHECK solo-separadores. Override manual del color de sección; NULL = automático. Issue #73 |
 | `add_finance_payables` | (2026-09-02) | Columna `payment_terms_days` en `suppliers` y tabla `payables` (facturas por pagar: FK a suppliers sin cascade, concept/amount/fechas, status pending·paid·cancelled, `paid_at` fecha real). Índice (status, due_date), RLS + policy. Issue #84 |
+| `20261001052530` | `add_payroll` | Nómina (#123): `payroll_employees`, `payroll_days`, `payroll_periods`, trigger del corte cerrado y RLS solo admin |
