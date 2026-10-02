@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -16,7 +15,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const { push, refresh } = useRouter()
   const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -34,8 +32,8 @@ export default function LoginPage() {
     toast.success('Sesión iniciada')
     // Honor ?next= (ADR-023) behind the isSafeNext guard; window.location avoids requiring Suspense.
     const next = new URLSearchParams(window.location.search).get('next')
-    push(isSafeNext(next) ? next : '/dashboard')
-    refresh()
+    // Always one full load: push + refresh rendered the target twice, and an auto-approved OAuth authorization is single-use (ADR-023 #8).
+    window.location.assign(isSafeNext(next) ? next : '/dashboard')
   }
 
   return (
