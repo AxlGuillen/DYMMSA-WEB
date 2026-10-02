@@ -3,6 +3,12 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-02
+
+### Corregido
+- **Reconectar el asistente (Claude) ya no marca "Solicitud inválida"** cuando
+  hay que iniciar sesión antes de autorizar la conexión.
+
 ## 2026-10-01
 
 ### Nuevo
