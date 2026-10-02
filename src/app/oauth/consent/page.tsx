@@ -52,7 +52,8 @@ export default async function ConsentPage({
   const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId)
 
   if (error || !data) {
-    return <ConsentError message={error?.message ?? 'La solicitud no es válida o ya expiró.'} />
+    if (error) console.warn('OAuth authorization details failed:', error.message)
+    return <ConsentError message="Esta solicitud ya se usó o expiró. Vuelve a conectar el asistente desde Claude." />
   }
 
   // No `authorization_id` in the response means consent was already granted and Supabase returns the redirect URL.

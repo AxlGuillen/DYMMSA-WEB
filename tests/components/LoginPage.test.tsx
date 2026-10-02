@@ -49,6 +49,13 @@ describe('LoginPage — destino después de iniciar sesión', () => {
     expect(assign).not.toHaveBeenCalled()
   })
 
+  test('sin next va al dashboard por el router', async () => {
+    await login('')
+    expect(push).toHaveBeenCalledWith('/dashboard')
+    expect(refresh).toHaveBeenCalled()
+    expect(assign).not.toHaveBeenCalled()
+  })
+
   test('un next externo cae al dashboard', async () => {
     await login(`?next=${encodeURIComponent('//evil.com/oauth/x')}`)
     expect(push).toHaveBeenCalledWith('/dashboard')

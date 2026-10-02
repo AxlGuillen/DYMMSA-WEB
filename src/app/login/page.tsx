@@ -34,12 +34,13 @@ export default function LoginPage() {
     toast.success('Sesión iniciada')
     // Honor ?next= (ADR-023) behind the isSafeNext guard; window.location avoids requiring Suspense.
     const next = new URLSearchParams(window.location.search).get('next')
-    if (isSafeNext(next) && next.startsWith('/oauth/')) {
-      // One full load: push + refresh renders consent twice, and an auto-approved authorization is single-use.
-      window.location.assign(next)
+    const target = isSafeNext(next) ? next : '/dashboard'
+    // One full load: push + refresh renders consent twice, and an auto-approved authorization is single-use.
+    if (target.startsWith('/oauth/')) {
+      window.location.assign(target)
       return
     }
-    push(isSafeNext(next) ? next : '/dashboard')
+    push(target)
     refresh()
   }
 
