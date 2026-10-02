@@ -178,7 +178,7 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
     for (const [work_date, day] of byDate) {
       open += day.open
       // Only an open punch: a gap, not a 0-hour draft that "confirm all" would freeze (review PR #127).
-      if (day.minutes === 0) {
+      if (day.minutes === 0 && day.open > 0) {
         stale.push({ employee_id: employee.id, work_date })
         continue
       }
@@ -194,6 +194,7 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
       .eq('work_date', day.work_date)
       .eq('source', 'hours')
       .eq('status', 'draft')
+    if (error?.code === '23514') throw new PayrollError(error.message)
     if (error) throw new Error(`payroll_days stale draft: ${error.message}`)
   }
   const result = await saveDays(db, inputs, { source: 'hours', status: 'draft', overwrite: false })

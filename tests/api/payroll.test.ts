@@ -244,6 +244,30 @@ describe('POST prefill', () => {
     expect(read.filters).toEqual(expect.arrayContaining([{ method: 'in', args: ['user_id', [PROFILE]] }]))
   })
 
+  test('una pareja cerrada que da 0 minutos (cruza medianoche) deja su fila visible y no borra nada', async () => {
+    activeClient = client({
+      'payroll_employees.select': { data: [employee({ profile_id: PROFILE })], error: null },
+      'time_entries.select': { data: [{ user_id: PROFILE, work_date: '2026-09-21', source_clock_in: '22:00', clock_in: '22:00', clock_out: '06:00' }], error: null },
+      'payroll_days.select': { data: [], error: null },
+      'payroll_periods.select': { data: [], error: null },
+      'payroll_days.upsert': { data: null, error: null },
+    })
+    expect(await readJson(await prefill())).toMatchObject({ saved: 1, open: 0 })
+    expect(activeClient.upsertPayload('payroll_days')[0]).toMatchObject({ work_date: '2026-09-21', worked_minutes: 0 })
+    expect(activeClient.callsTo('payroll_days', 'delete')).toEqual([])
+  })
+
+  test('si el borrado del borrador viejo topa con un corte cerrado responde 400, no 500', async () => {
+    activeClient = client({
+      'payroll_employees.select': { data: [employee({ profile_id: PROFILE })], error: null },
+      'time_entries.select': { data: [{ user_id: PROFILE, work_date: '2026-09-21', source_clock_in: '09:00', clock_in: '09:00', clock_out: null }], error: null },
+      'payroll_days.delete': { data: null, error: { code: '23514', message: 'El corte de nómina que incluye el 2026-09-21 está cerrado' } },
+    })
+    const res = await prefill()
+    expect(res.status).toBe(400)
+    expect((await readJson<{ message: string }>(res)).message).toMatch(/está cerrado/)
+  })
+
   test('sin nadie ligado no lee checadas', async () => {
     activeClient = client({ 'payroll_employees.select': { data: [employee()], error: null } })
     expect(await readJson(await prefill())).toEqual({ saved: 0, skipped: [], open: 0, linked: 0 })
