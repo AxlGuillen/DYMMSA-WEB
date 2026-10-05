@@ -3,12 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
 import { presentProfile } from '@/lib/profile'
-import { buildOfficeRows, buildWorkshopRows, teamTotals } from '@/lib/team-hours'
+import { buildClockWorkshopRows, buildOfficeRows, buildWorkshopRows, teamTotals } from '@/lib/team-hours'
 import { isRealDate, normalizeEntryTimes, weekBounds } from '@/lib/timesheet'
 import { shiftDays } from '@/lib/month'
 import type { ExcusedDay, PayrollDay, PayrollEmployee, Profile, TimeEntry } from '@/types/database'
 
-// GET /api/hours/overview?week= — one Monday→Sunday week of the whole team (admin)
+// GET /api/hours/overview?week= — one Monday→Sunday week of the whole team by area (admin)
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -23,12 +23,14 @@ export async function GET(request: NextRequest) {
 
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, display_name, shift, hourly_rate, avatar_path')
+      .select('id, display_name, shift, hourly_rate, avatar_path, area')
       .not('clock_employee_id', 'is', null)
       .order('display_name', { ascending: true })
     if (profilesError) throw profilesError
-    const office = ((profiles ?? []) as Pick<Profile, 'id' | 'display_name' | 'shift' | 'hourly_rate' | 'avatar_path'>[]).map(presentProfile)
-    const officeIds = office.map((p) => p.id)
+    const clocked = ((profiles ?? []) as Pick<Profile, 'id' | 'display_name' | 'shift' | 'hourly_rate' | 'avatar_path' | 'area'>[]).map(presentProfile)
+    const office = clocked.filter((p) => p.area !== 'workshop')
+    const workshopClocked = clocked.filter((p) => p.area === 'workshop')
+    const officeIds = clocked.map((p) => p.id)
 
     const [entriesRes, excusedRes, employeesRes] = await Promise.all([
       officeIds.length
@@ -45,14 +47,12 @@ export async function GET(request: NextRequest) {
       : { data: [], error: null }
     if (daysRes.error) throw daysRes.error
 
-    const officeRows = buildOfficeRows(
-      office,
-      ((entriesRes.data ?? []) as Pick<TimeEntry, 'user_id' | 'work_date' | 'source_clock_in' | 'clock_in' | 'clock_out'>[]).map(normalizeEntryTimes),
-      (excusedRes.data ?? []) as Pick<ExcusedDay, 'work_date' | 'user_id' | 'kind'>[],
-      start,
-      today,
-    )
-    const workshopRows = buildWorkshopRows(workshop, (daysRes.data ?? []) as Pick<PayrollDay, 'employee_id' | 'work_date' | 'worked_minutes' | 'status'>[], dates)
+    const entries = ((entriesRes.data ?? []) as Pick<TimeEntry, 'user_id' | 'work_date' | 'source_clock_in' | 'clock_in' | 'clock_out'>[]).map(normalizeEntryTimes)
+    const officeRows = buildOfficeRows(office, entries, (excusedRes.data ?? []) as Pick<ExcusedDay, 'work_date' | 'user_id' | 'kind'>[], start, today)
+    const workshopRows = [
+      ...buildClockWorkshopRows(workshopClocked, entries, start),
+      ...buildWorkshopRows(workshop, (daysRes.data ?? []) as Pick<PayrollDay, 'employee_id' | 'work_date' | 'worked_minutes' | 'status'>[], dates),
+    ]
 
     return NextResponse.json({
       start,

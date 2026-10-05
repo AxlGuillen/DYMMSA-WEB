@@ -65,7 +65,7 @@ export default async function ChangelogPage() {
             Mejoras y correcciones del sistema, de lo más reciente a lo más antiguo.
           </p>
           <div className="mt-4">
-            <ChangelogTabs active="novedades" />
+            <ChangelogTabs active="novedades" isAdmin={isAdmin} />
           </div>
         </div>
 

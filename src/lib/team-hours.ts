@@ -29,7 +29,9 @@ export interface OfficeRow {
 export interface WorkshopRow {
   id: string
   name: string
-  shift: ProfileShift
+  shift: ProfileShift | null
+  /** payroll = the weekly sheet in Nómina; clock = a workshop person with an account who clocks in. */
+  source: 'payroll' | 'clock'
   days: { date: ISODate; minutes: number; draft: boolean }[]
   minutes: number
   /** Days still in draft: they do not count for the cut until the admin confirms them. */
@@ -75,9 +77,30 @@ export function buildWorkshopRows(
       id: e.id,
       name: e.name,
       shift: e.shift,
+      source: 'payroll' as const,
       days: perDay,
       minutes: perDay.reduce((sum, d) => sum + d.minutes, 0),
       drafts: perDay.filter((d) => d.draft).length,
+    }
+  })
+}
+
+/** Workshop people with an account: hours from the clock, never a pay estimate (the workshop has no amount). */
+export function buildClockWorkshopRows(
+  profiles: readonly Pick<Profile, 'id' | 'display_name' | 'shift'>[],
+  entries: readonly EntryLike[],
+  weekStart: ISODate,
+): WorkshopRow[] {
+  return profiles.map((p) => {
+    const week = buildWeekView(entries.filter((e) => e.user_id === p.id), weekStart)
+    return {
+      id: p.id,
+      name: p.display_name,
+      shift: p.shift,
+      source: 'clock' as const,
+      days: week.days.map((d) => ({ date: d.date, minutes: d.minutes, draft: false })),
+      minutes: week.minutes,
+      drafts: 0,
     }
   })
 }

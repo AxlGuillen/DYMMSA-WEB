@@ -18,7 +18,7 @@ const DATA: TeamHoursResponse = {
     pay: { rate: 52, workedMinutes: 360, saturdayHours: 4, paidHours: 10, amount: 520 },
   }],
   workshop: [{
-    id: 'e-jose', name: 'José', shift: 'full_time', minutes: 900, drafts: 1,
+    id: 'e-jose', name: 'José', shift: 'full_time', source: 'payroll', minutes: 900, drafts: 1,
     days: [600, 0, 0, 0, 0, 300, 0].map((m, i) => ({ date: `2026-09-${28 + i}`, minutes: m, draft: i === 5 })),
   }],
   totals: { officeMinutes: 360, officePay: 520, workshopMinutes: 900 },

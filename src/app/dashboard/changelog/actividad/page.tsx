@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/api-helpers'
 import { readFile, readdir } from 'fs/promises'
 import { join } from 'path'
 import { History } from '@/components/icons'
@@ -125,6 +128,9 @@ function ActivityBlockView({ block, open }: { block: ActivityBlock; open: boolea
 }
 
 export default async function ActivityPage() {
+  // Admin-only (2026-10-05): the log names admin features and the audit trail (ADR-028).
+  const auth = await requireRole(await createClient())
+  if ('error' in auth || auth.profile?.role !== 'admin') redirect('/dashboard/changelog')
   const months = await readActivity()
   const totalDays = months.reduce((n, m) => n + m.days.length, 0)
   const totalBlocks = months.reduce(
@@ -145,7 +151,7 @@ export default async function ActivityPage() {
             en lenguaje llano vive en Novedades.
           </p>
           <div className="mt-4">
-            <ChangelogTabs active="actividad" />
+            <ChangelogTabs active="actividad" isAdmin />
           </div>
           {totalDays > 0 && (
             <p className="mt-4 text-xs text-muted-foreground">

@@ -267,6 +267,25 @@ describe('PATCH /api/profiles/[id] — tarifa por hora', () => {
   })
 })
 
+describe('PATCH /api/profiles/[id] — área', () => {
+  test('oficina o taller; otro valor → 400', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': profilesTable(ME_ADMIN), 'profiles.update': { data: { ...OTHER, area: 'workshop' }, error: null } },
+    })
+    expect((await patch(OTHER.id, { area: 'workshop' })).status).toBe(200)
+    expect(activeClient.updatePayload('profiles')).toEqual({ area: 'workshop' })
+    expect((await patch(OTHER.id, { area: 'bodega' })).status).toBe(400)
+  })
+
+  test('el perfil propio no trae la tarifa: el monto no se le muestra a la persona', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_MEMBER) } })
+    await profileRoute.GET()
+    const columns = activeClient.callsTo('profiles', 'select').map((c) => c.filters.find((f) => f.method === 'select')?.args[0] ?? '')
+    expect(columns.join(' ')).not.toContain('hourly_rate')
+  })
+})
+
 describe('PATCH /api/profiles/[id] — NSS', () => {
   test('el admin captura el NSS de otro, normalizado', async () => {
     activeClient = createMockSupabase({

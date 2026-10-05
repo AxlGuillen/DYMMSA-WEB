@@ -57,6 +57,7 @@ describe('profiles: auto-edición', () => {
     ['jornada', { shift: 'full_time' }],
     ['id del checador', { clock_employee_id: 9 }],
     ['tarifa por hora', { hourly_rate: 100 }],
+    ['área', { area: 'workshop' }],
   ])('un member no puede cambiar su %s (42501) y la fila no se toca', async (_label, change) => {
     const res = await member.from('profiles').update({ display_name: 'Colado', ...change }).eq('id', MEMBER_ID).select()
     expect(res.error?.code).toBe('42501')

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChevronLeft, ChevronRight } from '@/components/icons'
 import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { WeekGrid } from '@/components/hours/WeekGrid'
@@ -13,6 +13,7 @@ import { TimeEntryForm } from '@/components/hours/TimeEntryForm'
 import { useProfile, useProfiles } from '@/hooks/useProfile'
 import { UserAvatar } from '@/components/profile/UserAvatar'
 import { useTimeEntries } from '@/hooks/useTimeEntries'
+import { AREA_LABELS, AREAS } from '@/lib/profile'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { todayInMexico } from '@/lib/format'
 import { buildWeeklyTrend, excusesFor, shiftWeek, weekBounds } from '@/lib/timesheet'
@@ -80,13 +81,19 @@ export function HoursView() {
                 <SelectValue placeholder="Empleado" />
               </SelectTrigger>
               <SelectContent>
-                {profiles.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="flex items-center gap-2">
-                      <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} size="sm" />
-                      {p.display_name}
-                    </span>
-                  </SelectItem>
+                {AREAS.filter((a) => profiles.some((p) => (p.area ?? 'office') === a)).map((area, i) => (
+                  <SelectGroup key={area}>
+                    {i > 0 && <SelectSeparator />}
+                    <SelectLabel>{AREA_LABELS[area]}</SelectLabel>
+                    {profiles.filter((p) => (p.area ?? 'office') === area).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="flex items-center gap-2">
+                          <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} size="sm" />
+                          {p.display_name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
@@ -107,7 +114,10 @@ export function HoursView() {
         <TrendChart trend={trend} shift={targetShift} currentStart={start} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
       </div>
 
-      <WeekPayCard week={data?.week ?? undefined} shift={targetShift} rate={(shown ?? profile)?.hourly_rate} />
+      {/* Pay is admin-only (2026-10-05) and only for the office. */}
+      {isAdmin && shown?.area !== 'workshop' && (
+        <WeekPayCard week={data?.week ?? undefined} shift={targetShift} rate={shown?.hourly_rate} />
+      )}
 
       <div data-tour="hrs-grid">
         <WeekGrid

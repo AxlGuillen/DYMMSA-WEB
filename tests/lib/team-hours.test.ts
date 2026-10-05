@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildOfficeRows, buildWorkshopRows, teamTotals } from '@/lib/team-hours'
+import { buildClockWorkshopRows, buildOfficeRows, buildWorkshopRows, teamTotals } from '@/lib/team-hours'
 
 const MON = '2026-09-28'
 const DATES = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']
@@ -54,5 +54,13 @@ describe('teamTotals', () => {
     const office = buildOfficeRows([{ id: 'u', display_name: 'U', shift: 'full_time', hourly_rate: 52 }], [entry('u', MON, '09:00', '17:00')], [], MON, '2026-10-05')
     const workshop = buildWorkshopRows([{ id: 'e', name: 'E', shift: 'full_time' }], [{ employee_id: 'e', work_date: MON, worked_minutes: 120, status: 'draft' }], DATES)
     expect(teamTotals(office, workshop)).toEqual({ officeMinutes: 480, officePay: (8 + 8) * 52, workshopMinutes: 120 })
+  })
+})
+
+describe('buildClockWorkshopRows', () => {
+  test('alguien del taller con cuenta: horas del checador, sin pago ni borradores', () => {
+    const [row] = buildClockWorkshopRows([{ id: 'u-t', display_name: 'Taller Uno', shift: 'full_time' }], [entry('u-t', MON, '08:00', '18:00')], MON)
+    expect(row).toMatchObject({ source: 'clock', minutes: 600, drafts: 0 })
+    expect(row).not.toHaveProperty('pay')
   })
 })

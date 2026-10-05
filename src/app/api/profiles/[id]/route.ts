@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
-import { PROFILE_COLUMNS, parseDisplayName, parseHourlyRate, parseNss, presentProfile } from '@/lib/profile'
-import type { Profile, ProfileRole, ProfileShift, ProfileUpdate } from '@/types/database'
+import { AREAS, PROFILE_COLUMNS, parseDisplayName, parseHourlyRate, parseNss, presentProfile } from '@/lib/profile'
+import type { Profile, ProfileArea, ProfileRole, ProfileShift, ProfileUpdate } from '@/types/database'
 
 const ROLES: ProfileRole[] = ['admin', 'member']
 const SHIFTS: ProfileShift[] = ['full_time', 'part_time']
 
-// PATCH /api/profiles/[id] — display name, role, clock id, shift, NSS, hourly rate (admin)
+// PATCH /api/profiles/[id] — display name, role, clock id, shift, area, NSS, hourly rate (admin)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -46,6 +46,10 @@ export async function PATCH(
       const nss = parseNss(body.nss)
       if ('error' in nss) return badRequest(nss.error)
       updates.nss = nss.value
+    }
+    if (body.area !== undefined) {
+      if (!AREAS.includes(body.area as ProfileArea)) return badRequest('Área inválida: oficina o taller')
+      updates.area = body.area
     }
     if (body.hourly_rate !== undefined) {
       const rate = parseHourlyRate(body.hourly_rate)

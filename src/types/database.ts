@@ -195,6 +195,8 @@ export type PayableUpdate = Partial<PayableInsert>
 export type ProfileRole = 'admin' | 'member'
 /** Daily/weekly reference for the hours charts (#101); null = not assigned. */
 export type ProfileShift = 'full_time' | 'part_time'
+/** Where the person works (2026-10-05): splits Mi semana's selector and the team overview. */
+export type ProfileArea = 'office' | 'workshop'
 
 /** 1:1 with auth.users; the first per-person permission in the app (ADR-026, #93). */
 export interface Profile {
@@ -211,11 +213,12 @@ export interface Profile {
   is_owner: boolean
   /** Pesos per hour for the weekly pay estimate; null = no estimate. */
   hourly_rate: number | null
+  area: ProfileArea
   created_at: string
   updated_at: string
 }
 
-export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss' | 'hourly_rate'>>
+export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss' | 'hourly_rate' | 'area'>>
 /** What a person may change on their own profile (#122); the rest stays with the admin. */
 export type OwnProfileUpdate = Partial<Pick<Profile, 'display_name' | 'nss'>>
 export type ProfileWithAvatar = Profile & { avatar_url: string | null }

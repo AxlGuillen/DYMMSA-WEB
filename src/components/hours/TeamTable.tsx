@@ -18,9 +18,9 @@ import { NssField } from '@/components/profile/NssField'
 import { useDiscreteModeStore } from '@/stores/discreteModeStore'
 import { useCurrency } from '@/hooks/useCurrency'
 import { maskNss, normalizeNss, nssError } from '@/lib/nss'
-import { ROLE_LABELS } from '@/lib/profile'
+import { AREA_LABELS, AREAS, ROLE_LABELS } from '@/lib/profile'
 import { SHIFT_LABELS, SHIFTS } from '@/lib/timesheet'
-import type { ProfileRole, ProfileShift, ProfileWithAvatar } from '@/types/database'
+import type { ProfileArea, ProfileRole, ProfileShift, ProfileWithAvatar } from '@/types/database'
 
 /** Radix rejects value="" in SelectItem; sentinel for "no shift". */
 const NO_SHIFT = '__none__'
@@ -49,6 +49,7 @@ export function TeamTable() {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Rol</TableHead>
+                <TableHead>Área</TableHead>
                 <TableHead>Id checador</TableHead>
                 <TableHead>Jornada</TableHead>
                 <TableHead>NSS</TableHead>
@@ -70,6 +71,9 @@ export function TeamTable() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={p.role === 'admin' ? 'default' : 'secondary'}>{ROLE_LABELS[p.role]}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{AREA_LABELS[p.area ?? 'office']}</Badge>
                   </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {p.clock_employee_id ?? <span className="italic">no checa</span>}
@@ -113,6 +117,7 @@ function ProfileDialog({ profile, onClose }: { profile: ProfileWithAvatar | null
 function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClose: () => void }) {
   const [name, setName] = useState(profile.display_name)
   const [role, setRole] = useState<ProfileRole>(profile.role)
+  const [area, setArea] = useState<ProfileArea>(profile.area ?? 'office')
   const [clockId, setClockId] = useState(profile.clock_employee_id == null ? '' : String(profile.clock_employee_id))
   const [shift, setShift] = useState<ProfileShift | null>(profile.shift ?? null)
   const [nss, setNss] = useState(profile.nss ?? '')
@@ -142,7 +147,7 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
       await update.mutateAsync({
         id: profile.id,
         updates: {
-          display_name: name.trim(), role, clock_employee_id: parsed, shift,
+          display_name: name.trim(), role, area, clock_employee_id: parsed, shift,
           ...(nssChanged ? { nss: normalizedNss } : {}),
           ...(parsedRate !== (profile.hourly_rate ?? null) ? { hourly_rate: parsedRate } : {}),
         },
@@ -175,6 +180,15 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
                 {(Object.keys(ROLE_LABELS) as ProfileRole[]).map((r) => (
                   <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pf-area">Área</Label>
+            <Select value={area} onValueChange={(v) => setArea(v as ProfileArea)}>
+              <SelectTrigger id="pf-area"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {AREAS.map((a) => <SelectItem key={a} value={a}>{AREA_LABELS[a]}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

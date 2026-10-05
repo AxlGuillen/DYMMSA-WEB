@@ -3,11 +3,14 @@
 import { avatarPublicUrl } from './avatar'
 import { normalizeNss, nssError } from './nss'
 import { parseRate } from './office-pay'
-import type { Profile, ProfileRole } from '@/types/database'
+import type { Profile, ProfileArea, ProfileRole } from '@/types/database'
 
 export const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador', member: 'Miembro' }
 
-export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, hourly_rate, created_at, updated_at'
+export const AREA_LABELS: Record<ProfileArea, string> = { office: 'Oficina', workshop: 'Taller' }
+export const AREAS: readonly ProfileArea[] = ['office', 'workshop']
+
+export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, hourly_rate, area, created_at, updated_at'
 
 type Parsed<T> = { value: T } | { error: string }
 

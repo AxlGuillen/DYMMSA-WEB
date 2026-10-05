@@ -13,8 +13,8 @@ const { updateAsync } = vi.hoisted(() => ({ updateAsync: vi.fn().mockResolvedVal
 vi.mock('@/hooks/useProfile', () => ({
   useProfiles: () => ({
     data: [
-      { id: 'u-tania', display_name: 'Tania', role: 'member', clock_employee_id: 5, shift: 'part_time', nss: '12345678903', avatar_path: 'u-tania/a.webp', avatar_url: 'https://cdn/avatars/u-tania/a.webp', is_owner: false, hourly_rate: 52, created_at: '', updated_at: '' },
-      { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: null, avatar_path: null, avatar_url: null, is_owner: true, hourly_rate: null, created_at: '', updated_at: '' },
+      { id: 'u-tania', display_name: 'Tania', role: 'member', clock_employee_id: 5, shift: 'part_time', nss: '12345678903', avatar_path: 'u-tania/a.webp', avatar_url: 'https://cdn/avatars/u-tania/a.webp', is_owner: false, hourly_rate: 52, area: 'office', created_at: '', updated_at: '' },
+      { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: null, avatar_path: null, avatar_url: null, is_owner: true, hourly_rate: null, area: 'workshop', created_at: '', updated_at: '' },
     ],
     isLoading: false,
   }),
@@ -37,7 +37,7 @@ describe('TeamTable — jornada', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(updateAsync).toHaveBeenCalledWith({
       id: 'u-diego',
-      updates: { display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: 'full_time' },
+      updates: { display_name: 'Diego', role: 'admin', area: 'workshop', clock_employee_id: 1, shift: 'full_time' },
     })
   })
 })
@@ -67,7 +67,7 @@ describe('TeamTable — avatar y NSS (#122)', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(updateAsync).toHaveBeenCalledWith({
       id: 'u-diego',
-      updates: { display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: '12345678903' },
+      updates: { display_name: 'Diego', role: 'admin', area: 'workshop', clock_employee_id: 1, shift: null, nss: '12345678903' },
     })
   })
 
@@ -114,5 +114,22 @@ describe('TeamTable — tarifa por hora (2026-10-05)', () => {
     await user.type(screen.getByLabelText('Tarifa por hora'), '60')
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(updateAsync.mock.calls[1][0].updates).toMatchObject({ hourly_rate: 60 })
+  })
+})
+
+describe('TeamTable — área (2026-10-05)', () => {
+  beforeEach(() => { updateAsync.mockClear(); resetStores() })
+
+  test('cada persona dice si es de oficina o de taller, y el editor la cambia', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<TeamTable />)
+    expect(screen.getByText('Oficina')).toBeInTheDocument()
+    expect(screen.getByText('Taller')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Editar Tania' }))
+    await user.click(screen.getByLabelText('Área'))
+    await user.click(await screen.findByRole('option', { name: 'Taller' }))
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(updateAsync.mock.calls[0][0].updates).toMatchObject({ area: 'workshop' })
   })
 })

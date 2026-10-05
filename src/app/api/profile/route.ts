@@ -4,7 +4,8 @@ import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helper
 import { parseDisplayName, parseNss, presentProfile } from '@/lib/profile'
 import type { OwnProfile, OwnProfileUpdate, Profile } from '@/types/database'
 
-const OWN_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, hourly_rate'
+// No hourly_rate: pay amounts are never shown to the person (2026-10-05).
+const OWN_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, area'
 const EDITABLE = new Set<keyof OwnProfileUpdate>(['display_name', 'nss'])
 
 type OwnRow = Omit<Profile, 'created_at' | 'updated_at'>

@@ -127,7 +127,7 @@ export function TeamHoursOverview() {
       {(!single || workshop.length > 0) && (
         <Card data-testid="team-workshop">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Taller <span className="text-sm font-normal text-muted-foreground">· hoja de Nómina</span></CardTitle>
+            <CardTitle className="text-base">Taller <span className="text-sm font-normal text-muted-foreground">· hoja de Nómina o checador</span></CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto p-0">
             {isLoading ? <Skeleton className="m-4 h-24" /> : (
@@ -146,7 +146,10 @@ export function TeamHoursOverview() {
                   )}
                   {workshop.map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {r.name}
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">{r.source === 'clock' ? 'checador' : 'hoja'}</span>
+                      </TableCell>
                       {r.days.map((d) => (
                         <TableCell
                           key={d.date}
