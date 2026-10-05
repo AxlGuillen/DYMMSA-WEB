@@ -30,6 +30,7 @@ const COVERAGE: Record<string, string> = {
   'finance/income': 'get_month_closing',
   'excused-days': 'get_week_hours (días justificados de la semana)',
   health: 'fuera: diagnóstico del servidor',
+  'hours/overview': 'fuera: tablero admin de una semana; get_week_hours (oficina) y get_payroll_period (taller) leen lo mismo por persona',
   inventory: 'search_inventory',
   'inventory/stats': 'get_inventory_stats',
   'material-presentations': 'get_cut_plan (presentaciones por grupo)',

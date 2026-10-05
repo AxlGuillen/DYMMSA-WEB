@@ -10,6 +10,7 @@ src/
 │   │   ├── payables/[id]/events/ # GET admin: bitácora de una factura desde audit_events (issue #100, ADR-028)
 │   │   ├── profile/avatar/       # POST/DELETE: foto propia validada por sus bytes (issue #122, ADR-032)
 │   │   ├── excused-days/         # GET/POST + [id] DELETE: días feriados y salidas autorizadas (2026-10-01)
+│   │   ├── hours/overview/       # GET admin: resumen semanal oficina + taller (2026-10-05)
 │   │   ├── orders/
 │   │   │   ├── [id]/
 │   │   │   │   ├── cancel/       # POST: cancelar orden + restaurar inventario
@@ -59,6 +60,7 @@ src/
 │   │   ├── hours/
 │   │   │   ├── page.tsx          # Mi semana: stepper + WeekGrid (issue #93)
 │   │   │   ├── import/page.tsx   # Importar reporte NGTeco (admin)
+│   │   │   ├── overview/page.tsx # Resumen del equipo: oficina + taller (admin, 2026-10-05)
 │   │   │   └── team/page.tsx     # Roles e ids de checador (admin)
 │   │   ├── profile/page.tsx      # Mi perfil: foto, nombre y NSS (issue #122)
 │   │   ├── orders/
@@ -86,7 +88,7 @@ src/
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
 │   ├── profile/                  # ProfileView, UserAvatar (issue #122)
-│   ├── hours/                    # ExcusedDaysPanel (2026-10-01); HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93); WeekChart/WeekBars, TrendChart/TrendBars (gráficas con referencias de jornada, issue #101)
+│   ├── hours/                    # TeamHoursOverview, WeekPayCard (2026-10-05); ExcusedDaysPanel (2026-10-01); HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93); WeekChart/WeekBars, TrendChart/TrendBars (gráficas con referencias de jornada, issue #101)
 │   ├── payroll/                  # PayrollView (corte sábado→viernes), PayrollDayDialog, PayrollEmployeesDialog (issue #123, solo admin)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar

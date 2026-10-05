@@ -3,6 +3,22 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-05
+
+### Nuevo
+- **Pago estimado de la semana en Mi semana.** Debajo de las gráficas ves
+  cuánto te tocaría esa semana: todas tus horas a tu tarifa por hora, más el
+  sábado pagado. Es un estimado; el pago oficial lo confirma la administración.
+- [admin] **Tarifa por hora en Equipo.** Cada persona tiene su tarifa ($52 por
+  default); vacía = sin pago estimado.
+- [admin] **Resumen del equipo.** Nueva página en Horas con la semana de la
+  oficina (checador, con pago estimado) y del taller (hoja de Nómina), de todos
+  o por persona.
+
+### Mejorado
+- [admin] **Novedades** ya no muestra a los miembros lo que solo usan los
+  administradores.
+
 ## 2026-10-02
 
 ### Corregido

@@ -106,6 +106,7 @@ const hoursLinks: LinkItem[] = [
 
 // Hidden for members; the server still answers 403 (ADR-026).
 const hoursAdminLinks: LinkItem[] = [
+  { href: '/dashboard/hours/overview', label: 'Resumen del equipo', icon: ClipboardList },
   { href: '/dashboard/hours/import', label: 'Importar reporte', icon: Upload },
   { href: '/dashboard/hours/team',   label: 'Equipo',           icon: Users },
 ]
