@@ -26,6 +26,9 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 - Las gráficas de **Mi semana** ya no cortan los números del eje de horas.
 
 ### Mejorado
+- **Apartados colapsables en Finanzas.** Egresos, Ingresos, Vencimientos, Cobros
+  y Notas de crédito se pueden contraer con la flecha de su título, o todos a la
+  vez con **Contraer todo**; la app recuerda cómo los dejaste.
 - **Formato de entrega más completo.** Los precios, totales, subtotal e IVA
   llevan signo de pesos; la columna **Comments** trae la marca de cada
   producto, y **Descripcion** usa la descripción en español guardada en la BD
