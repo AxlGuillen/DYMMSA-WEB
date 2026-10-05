@@ -245,6 +245,28 @@ describe('PATCH /api/profile', () => {
   })
 })
 
+describe('PATCH /api/profiles/[id] — tarifa por hora', () => {
+  test('el admin la cambia o la quita; un monto inválido → 400', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': profilesTable(ME_ADMIN), 'profiles.update': { data: { ...OTHER, hourly_rate: '60.00' }, error: null } },
+    })
+    const res = await patch(OTHER.id, { hourly_rate: 60 })
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('profiles')).toEqual({ hourly_rate: 60 })
+    expect((await readJson<{ hourly_rate: number }>(res)).hourly_rate).toBe(60)
+
+    expect((await patch(OTHER.id, { hourly_rate: null })).status).toBe(200)
+    expect((await patch(OTHER.id, { hourly_rate: 0 })).status).toBe(400)
+  })
+
+  test('un member no puede cambiar su propia tarifa por /api/profile', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': profilesTable(ME_MEMBER) } })
+    expect((await patchOwn({ hourly_rate: 100 })).status).toBe(400)
+    expect(activeClient.didCall('profiles', 'update')).toBe(false)
+  })
+})
+
 describe('PATCH /api/profiles/[id] — NSS', () => {
   test('el admin captura el NSS de otro, normalizado', async () => {
     activeClient = createMockSupabase({

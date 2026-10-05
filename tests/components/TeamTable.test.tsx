@@ -13,8 +13,8 @@ const { updateAsync } = vi.hoisted(() => ({ updateAsync: vi.fn().mockResolvedVal
 vi.mock('@/hooks/useProfile', () => ({
   useProfiles: () => ({
     data: [
-      { id: 'u-tania', display_name: 'Tania', role: 'member', clock_employee_id: 5, shift: 'part_time', nss: '12345678903', avatar_path: 'u-tania/a.webp', avatar_url: 'https://cdn/avatars/u-tania/a.webp', is_owner: false, created_at: '', updated_at: '' },
-      { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: null, avatar_path: null, avatar_url: null, is_owner: true, created_at: '', updated_at: '' },
+      { id: 'u-tania', display_name: 'Tania', role: 'member', clock_employee_id: 5, shift: 'part_time', nss: '12345678903', avatar_path: 'u-tania/a.webp', avatar_url: 'https://cdn/avatars/u-tania/a.webp', is_owner: false, hourly_rate: 52, created_at: '', updated_at: '' },
+      { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, nss: null, avatar_path: null, avatar_url: null, is_owner: true, hourly_rate: null, created_at: '', updated_at: '' },
     ],
     isLoading: false,
   }),
@@ -90,5 +90,29 @@ describe('TeamTable — dueño (meeting 2026-10-01)', () => {
     const crowns = screen.getAllByLabelText('Dueño del negocio')
     expect(crowns).toHaveLength(1)
     expect(crowns[0].closest('tr')).toHaveTextContent('Diego')
+  })
+})
+
+describe('TeamTable — tarifa por hora (2026-10-05)', () => {
+  beforeEach(() => { updateAsync.mockClear(); resetStores() })
+
+  test('la columna muestra la tarifa o "sin tarifa"', () => {
+    renderWithProviders(<TeamTable />)
+    expect(screen.getByText('$52.00')).toBeInTheDocument()
+    expect(screen.getByText('sin tarifa')).toBeInTheDocument()
+  })
+
+  test('el editor manda la tarifa solo si cambió', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<TeamTable />)
+    await user.click(screen.getByRole('button', { name: 'Editar Tania' }))
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(updateAsync.mock.calls[0][0].updates).not.toHaveProperty('hourly_rate')
+
+    await user.click(screen.getByRole('button', { name: 'Editar Tania' }))
+    await user.clear(screen.getByLabelText('Tarifa por hora'))
+    await user.type(screen.getByLabelText('Tarifa por hora'), '60')
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(updateAsync.mock.calls[1][0].updates).toMatchObject({ hourly_rate: 60 })
   })
 })

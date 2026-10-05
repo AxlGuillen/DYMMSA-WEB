@@ -8,6 +8,7 @@ import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { WeekGrid } from '@/components/hours/WeekGrid'
 import { WeekChart } from '@/components/hours/WeekChart'
 import { TrendChart } from '@/components/hours/TrendChart'
+import { WeekPayCard } from '@/components/hours/WeekPayCard'
 import { TimeEntryForm } from '@/components/hours/TimeEntryForm'
 import { useProfile, useProfiles } from '@/hooks/useProfile'
 import { UserAvatar } from '@/components/profile/UserAvatar'
@@ -105,6 +106,8 @@ export function HoursView() {
         />
         <TrendChart trend={trend} shift={targetShift} currentStart={start} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
       </div>
+
+      <WeekPayCard week={data?.week ?? undefined} shift={targetShift} rate={(shown ?? profile)?.hourly_rate} />
 
       <div data-tour="hrs-grid">
         <WeekGrid

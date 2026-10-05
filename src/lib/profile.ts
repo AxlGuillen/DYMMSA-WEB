@@ -2,11 +2,12 @@
 
 import { avatarPublicUrl } from './avatar'
 import { normalizeNss, nssError } from './nss'
+import { parseRate } from './office-pay'
 import type { Profile, ProfileRole } from '@/types/database'
 
 export const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador', member: 'Miembro' }
 
-export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, created_at, updated_at'
+export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, hourly_rate, created_at, updated_at'
 
 type Parsed<T> = { value: T } | { error: string }
 
@@ -27,6 +28,18 @@ export function parseNss(input: unknown): Parsed<string | null> {
   return error ? { error } : { value: nss }
 }
 
-export function withAvatarUrl<T extends Pick<Profile, 'avatar_path'>>(row: T): T & { avatar_url: string | null } {
-  return { ...row, avatar_url: avatarPublicUrl(row.avatar_path) }
+/** A profile row as the API sends it: avatar URL resolved and the numeric rate coerced. */
+export function presentProfile<T extends Pick<Profile, 'avatar_path'> & { hourly_rate?: unknown }>(row: T): T & { avatar_url: string | null } {
+  return {
+    ...row,
+    ...('hourly_rate' in row ? { hourly_rate: parseRate(row.hourly_rate) } : {}),
+    avatar_url: avatarPublicUrl(row.avatar_path),
+  }
+}
+
+/** Admin input: null clears it (no estimate); anything else must be a positive amount. */
+export function parseHourlyRate(input: unknown): Parsed<number | null> {
+  if (input === null) return { value: null }
+  const rate = parseRate(input)
+  return rate === null ? { error: 'La tarifa por hora debe ser un monto mayor a 0' } : { value: rate }
 }

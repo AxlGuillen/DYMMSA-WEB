@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
-import { PROFILE_COLUMNS, parseDisplayName, parseNss, withAvatarUrl } from '@/lib/profile'
+import { PROFILE_COLUMNS, parseDisplayName, parseHourlyRate, parseNss, presentProfile } from '@/lib/profile'
 import type { Profile, ProfileRole, ProfileShift, ProfileUpdate } from '@/types/database'
 
 const ROLES: ProfileRole[] = ['admin', 'member']
 const SHIFTS: ProfileShift[] = ['full_time', 'part_time']
 
-// PATCH /api/profiles/[id] — display name, role, clock id, shift, NSS (admin)
+// PATCH /api/profiles/[id] — display name, role, clock id, shift, NSS, hourly rate (admin)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -47,6 +47,11 @@ export async function PATCH(
       if ('error' in nss) return badRequest(nss.error)
       updates.nss = nss.value
     }
+    if (body.hourly_rate !== undefined) {
+      const rate = parseHourlyRate(body.hourly_rate)
+      if ('error' in rate) return badRequest(rate.error)
+      updates.hourly_rate = rate.value
+    }
     if (Object.keys(updates).length === 0) return badRequest('No hay cambios para guardar')
 
     const { data: current } = await supabase
@@ -73,7 +78,7 @@ export async function PATCH(
       console.error('Error updating profile:', error)
       return serverError('Error al actualizar el perfil')
     }
-    return NextResponse.json(withAvatarUrl(data as Profile))
+    return NextResponse.json(presentProfile(data as Profile))
   } catch (error) {
     console.error('Profile PATCH error:', error)
     return serverError('Error al actualizar el perfil')

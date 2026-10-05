@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, serverError } from '@/lib/api-helpers'
-import { PROFILE_COLUMNS, withAvatarUrl } from '@/lib/profile'
+import { PROFILE_COLUMNS, presentProfile } from '@/lib/profile'
 import type { Profile } from '@/types/database'
 
 // GET /api/profiles — every team profile (admin)
@@ -20,7 +20,7 @@ export async function GET() {
       console.error('Error fetching profiles:', error)
       return serverError('Error al obtener los perfiles')
     }
-    return NextResponse.json(((data ?? []) as Profile[]).map(withAvatarUrl))
+    return NextResponse.json(((data ?? []) as Profile[]).map(presentProfile))
   } catch (error) {
     console.error('Profiles GET error:', error)
     return serverError('Error al obtener los perfiles')

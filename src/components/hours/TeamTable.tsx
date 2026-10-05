@@ -16,6 +16,7 @@ import { useProfiles, useUpdateProfile } from '@/hooks/useProfile'
 import { UserAvatar } from '@/components/profile/UserAvatar'
 import { NssField } from '@/components/profile/NssField'
 import { useDiscreteModeStore } from '@/stores/discreteModeStore'
+import { useCurrency } from '@/hooks/useCurrency'
 import { maskNss, normalizeNss, nssError } from '@/lib/nss'
 import { ROLE_LABELS } from '@/lib/profile'
 import { SHIFT_LABELS, SHIFTS } from '@/lib/timesheet'
@@ -29,6 +30,7 @@ export function TeamTable() {
   const { data: profiles, isLoading } = useProfiles()
   const [editing, setEditing] = useState<ProfileWithAvatar | null>(null)
   const isDiscrete = useDiscreteModeStore((s) => s.isDiscreteMode)
+  const fmt = useCurrency()
 
   if (isLoading || !profiles) {
     return (
@@ -50,6 +52,7 @@ export function TeamTable() {
                 <TableHead>Id checador</TableHead>
                 <TableHead>Jornada</TableHead>
                 <TableHead>NSS</TableHead>
+                <TableHead className="text-right">Tarifa/h</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -76,6 +79,9 @@ export function TeamTable() {
                   </TableCell>
                   <TableCell className="tabular-nums text-sm text-muted-foreground">
                     {p.nss ? (isDiscrete ? '•••••••••••' : maskNss(p.nss)) : <span className="italic">sin capturar</span>}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                    {p.hourly_rate == null ? <span className="italic">sin tarifa</span> : fmt(p.hourly_rate)}
                   </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(p)} aria-label={`Editar ${p.display_name}`}>
@@ -110,6 +116,7 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
   const [clockId, setClockId] = useState(profile.clock_employee_id == null ? '' : String(profile.clock_employee_id))
   const [shift, setShift] = useState<ProfileShift | null>(profile.shift ?? null)
   const [nss, setNss] = useState(profile.nss ?? '')
+  const [rate, setRate] = useState(profile.hourly_rate == null ? '' : String(profile.hourly_rate))
   const normalizedNss = normalizeNss(nss) || null
   const nssChanged = normalizedNss !== profile.nss
   const nssProblem = nssChanged && normalizedNss ? nssError(normalizedNss) : null
@@ -126,10 +133,19 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
       toast.error(nssProblem)
       return
     }
+    const parsedRate = rate.trim() === '' ? null : Number(rate)
+    if (parsedRate !== null && !(parsedRate > 0)) {
+      toast.error('La tarifa por hora debe ser un monto mayor a 0')
+      return
+    }
     try {
       await update.mutateAsync({
         id: profile.id,
-        updates: { display_name: name.trim(), role, clock_employee_id: parsed, shift, ...(nssChanged ? { nss: normalizedNss } : {}) },
+        updates: {
+          display_name: name.trim(), role, clock_employee_id: parsed, shift,
+          ...(nssChanged ? { nss: normalizedNss } : {}),
+          ...(parsedRate !== (profile.hourly_rate ?? null) ? { hourly_rate: parsedRate } : {}),
+        },
       })
       toast.success('Perfil actualizado')
       onClose()
@@ -180,6 +196,11 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
             <p className="text-xs text-muted-foreground">Referencia de las gráficas de horas: 8 h o 4 h al día, 40 h o 20 h a la semana.</p>
           </div>
           <NssField id="pf-nss" label="NSS" saved={profile.nss} value={nss} onChange={setNss} error={nssProblem} />
+          <div className="space-y-2">
+            <Label htmlFor="pf-rate">Tarifa por hora</Label>
+            <Input id="pf-rate" type="number" min={0.01} step={0.01} inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Vacío = sin pago estimado" />
+            <p className="text-xs text-muted-foreground">Calcula el pago estimado en Mi semana: todas las horas a esta tarifa más el sábado pagado.</p>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={update.isPending}>Cancelar</Button>
             <Button type="submit" disabled={update.isPending}>{update.isPending ? 'Guardando…' : 'Guardar'}</Button>

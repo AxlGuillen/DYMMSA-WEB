@@ -209,11 +209,13 @@ export interface Profile {
   avatar_path: string | null
   /** The business owner: a crown in Equipo (one at most, meeting 2026-10-01). */
   is_owner: boolean
+  /** Pesos per hour for the weekly pay estimate; null = no estimate. */
+  hourly_rate: number | null
   created_at: string
   updated_at: string
 }
 
-export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss'>>
+export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss' | 'hourly_rate'>>
 /** What a person may change on their own profile (#122); the rest stays with the admin. */
 export type OwnProfileUpdate = Partial<Pick<Profile, 'display_name' | 'nss'>>
 export type ProfileWithAvatar = Profile & { avatar_url: string | null }

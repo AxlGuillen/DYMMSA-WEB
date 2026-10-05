@@ -510,6 +510,7 @@ CREATE TABLE public.profiles (
   nss text CHECK (nss ~ '^[0-9]{11}$'),
   avatar_path text,
   is_owner boolean NOT NULL DEFAULT false,
+  hourly_rate numeric(10,2) DEFAULT 52 CHECK (hourly_rate IS NULL OR hourly_rate > 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT profiles_avatar_own_folder CHECK (avatar_path IS NULL OR avatar_path LIKE id::text || '/%'),
@@ -531,8 +532,9 @@ BEGIN
     OR NEW.clock_employee_id IS DISTINCT FROM OLD.clock_employee_id
     OR NEW.shift IS DISTINCT FROM OLD.shift
     OR NEW.is_owner IS DISTINCT FROM OLD.is_owner
+    OR NEW.hourly_rate IS DISTINCT FROM OLD.hourly_rate
   ) THEN
-    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada o el id del checador'
+    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada, el id del checador, el dueño o la tarifa por hora'
       USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
