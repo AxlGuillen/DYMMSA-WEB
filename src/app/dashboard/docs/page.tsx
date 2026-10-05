@@ -958,7 +958,8 @@ export default function DocsPage() {
               <li>
                 <strong className="text-foreground">Formato de Entrega</strong>{' '}
                 <span className="inline-flex items-center gap-1">(<Download className="size-3" /></span>) e <strong className="text-foreground">Imprimir</strong> {'\u2014'} el Excel para el cliente con lo recibido
-                (sin excedentes ni No surtidos) y la version imprimible de la orden.
+                (sin excedentes ni No surtidos) y la version imprimible de la orden. En el Excel, Descripcion lleva la descripcion en espanol
+                de la BD de ETM (o la de Translate si no hay), Comments lleva la marca y todos los montos van con signo de pesos.
               </li>
               <li>
                 <strong className="text-foreground">Cancelar Orden</strong> {'\u2014'} disponible mientras la orden no este

@@ -25,6 +25,12 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ### Corregido
 - Las gráficas de **Mi semana** ya no cortan los números del eje de horas.
 
+### Mejorado
+- **Formato de entrega más completo.** Los precios, totales, subtotal e IVA
+  llevan signo de pesos; la columna **Comments** trae la marca de cada
+  producto, y **Descripcion** usa la descripción en español guardada en la BD
+  de ETM (si no hay, repite la de Translate).
+
 ## 2026-10-02
 
 ### Corregido

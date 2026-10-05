@@ -227,9 +227,19 @@ export async function generateUrreaOrderExcel(rows: UrreaOrderRow[]): Promise<Bl
 }
 
 const IVA_RATE = 0.16
+const MONEY_FORMAT = '"$"#,##0.00'
+
+/** Spanish description saved in the ETM table, or the Translate one (the only one filled today). */
+export function deliveryDescription(item: Pick<OrderItem, 'etm' | 'description'>, spanishByEtm: Readonly<Record<string, string>>): string {
+  return spanishByEtm[item.etm]?.trim() || item.description
+}
 
 /** Delivered = stock + min(received, ordered); the excess is never delivered (ADR-019). */
-export function generateDeliveryExcel(items: OrderItem[], _customerName: string): Blob {
+export function generateDeliveryExcel(
+  items: OrderItem[],
+  _customerName: string,
+  spanishByEtm: Readonly<Record<string, string>> = {},
+): Blob {
   const deliveredItems = items.filter(
     (item) => item.quantity_in_stock + receivedForCustomer(item) > 0
   )
@@ -251,12 +261,12 @@ export function generateDeliveryExcel(items: OrderItem[], _customerName: string)
     return [
       item.etm,
       qty,
-      '', // description_es not stored in order_items
+      deliveryDescription(item, spanishByEtm),
       item.description,
       item.model_code,
       item.unit_price,
       qty * item.unit_price,
-      '',
+      item.brand ?? '',
       '',
     ]
   })
@@ -279,14 +289,22 @@ export function generateDeliveryExcel(items: OrderItem[], _customerName: string)
 
   const worksheet = XLSX.utils.aoa_to_sheet(data)
 
+  // Every amount carries the peso sign while staying a number Excel can add (Precio and Total columns).
+  for (let r = 1; r < data.length; r++) {
+    for (const c of [5, 6]) {
+      const cell = worksheet[XLSX.utils.encode_cell({ r, c })]
+      if (cell && cell.t === 'n') cell.z = MONEY_FORMAT
+    }
+  }
+
   worksheet['!cols'] = [
     { wch: 14 }, // ETM
     { wch: 10 }, // CANTIDAD
     { wch: 35 }, // Descripcion
     { wch: 35 }, // Translate
     { wch: 14 }, // DYMMSA
-    { wch: 12 }, // Precio
-    { wch: 12 }, // Total
+    { wch: 14 }, // Precio
+    { wch: 14 }, // Total
     { wch: 18 }, // Comments
     { wch: 18 }, // Comments2
   ]
