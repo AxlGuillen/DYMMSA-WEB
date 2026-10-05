@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { parseChangelog } from '@/lib/changelog'
+import { parseChangelog, visibleReleases } from '@/lib/changelog'
 
 const SAMPLE = `# Novedades
 
@@ -80,5 +80,39 @@ describe('parseChangelog', () => {
   test('encabezado ## sin fecha no abre release', () => {
     const raw = `## Sin fecha aquí\n### Nuevo\n- algo\n`
     expect(parseChangelog(raw)).toEqual([])
+  })
+})
+
+describe('entradas solo para administradores', () => {
+  const raw = [
+    '## 2026-10-01',
+    '### Nuevo',
+    '- **Para todos.** Algo que ve el equipo.',
+    '- [admin] **Días feriados.** En Equipo, un administrador',
+    '  marca los días.',
+    '## 2026-09-30',
+    '### Corregido',
+    '- [ADMIN] Solo admin.',
+  ].join('\n')
+
+  test('la etiqueta se quita del texto y marca la entrada', () => {
+    const [release] = parseChangelog(raw)
+    expect(release.entries[1]).toEqual({ category: 'nuevo', text: '**Días feriados.** En Equipo, un administrador marca los días.', adminOnly: true })
+    expect(release.entries[0].adminOnly).toBe(false)
+  })
+
+  test('un miembro no las ve y una fecha que se queda vacía desaparece; el admin ve todo', () => {
+    const releases = parseChangelog(raw)
+    const member = visibleReleases(releases, false)
+    expect(member).toHaveLength(1)
+    expect(member[0].entries.map((e) => e.text)).toEqual(['**Para todos.** Algo que ve el equipo.'])
+    expect(visibleReleases(releases, true)).toEqual(releases)
+  })
+
+  test('el CHANGELOG real no filtra a un miembro nada que mencione a "los administradores"', async () => {
+    const { readFileSync } = await import('node:fs')
+    const real = parseChangelog(readFileSync('CHANGELOG.md', 'utf8'))
+    const leaked = visibleReleases(real, false).flatMap((r) => r.entries).filter((e) => /\badministrador(es)?\b.*\b(marca|suben|asignan|corregir|ven quién|ven y capturan)/i.test(e.text))
+    expect(leaked.map((e) => e.text.slice(0, 60))).toEqual([])
   })
 })

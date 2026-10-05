@@ -5,7 +5,9 @@ import { Sparkles, Plus, ArrowUp, Wrench } from '@/components/icons'
 import { Card, CardContent } from '@/components/ui/card'
 import { ChangelogTabs } from '@/components/changelog/ChangelogTabs'
 import { RichText } from '@/components/changelog/RichText'
-import { parseChangelog, type ChangelogCategory } from '@/lib/changelog'
+import { parseChangelog, visibleReleases, type ChangelogCategory } from '@/lib/changelog'
+import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/api-helpers'
 
 export const metadata: Metadata = {
   title: 'Novedades',
@@ -47,7 +49,9 @@ function formatDate(iso: string): string {
 
 export default async function ChangelogPage() {
   const raw = await readFile(join(process.cwd(), 'CHANGELOG.md'), 'utf-8')
-  const releases = parseChangelog(raw)
+  const auth = await requireRole(await createClient())
+  const isAdmin = !('error' in auth) && auth.profile?.role === 'admin'
+  const releases = visibleReleases(parseChangelog(raw), isAdmin)
 
   return (
     <div className="docs-page-bg -mx-4 -my-8 px-4 py-8">
