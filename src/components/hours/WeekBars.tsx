@@ -55,10 +55,10 @@ export default function WeekBars({ data, shift }: { data: WeekChartPoint[]; shif
   const max = Math.max(9, ...data.map((d) => d.hours + 1))
   return (
     <ChartContainer config={config} className="h-56 w-full aspect-auto">
-      <BarChart data={data} margin={{ top: 12, right: 8, left: -20, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="label" tickLine={false} axisLine={false} />
-        <YAxis domain={[0, max]} tickLine={false} axisLine={false} width={40} unit=" h" />
+        <YAxis domain={[0, max]} tickLine={false} axisLine={false} width={44} allowDecimals={false} unit=" h" />
         <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<DayTooltip />} />
         <ShiftLine shift="part_time" own={shift === 'part_time'} label="Medio tiempo (4 h)" />
         <ShiftLine shift="full_time" own={shift === 'full_time'} label="Tiempo completo (8 h)" />

@@ -43,10 +43,10 @@ export default function TrendBars({ data, shift, currentStart }: { data: WeekTre
   const max = Math.max(44, ...data.map((d) => d.hours + 4))
   return (
     <ChartContainer config={config} className="h-56 w-full aspect-auto">
-      <BarChart data={data} margin={{ top: 12, right: 8, left: -20, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="start" tickLine={false} axisLine={false} tickFormatter={formatDayMonth} />
-        <YAxis domain={[0, max]} tickLine={false} axisLine={false} width={40} unit=" h" />
+        <YAxis domain={[0, max]} tickLine={false} axisLine={false} width={44} allowDecimals={false} unit=" h" />
         <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<WeekTooltip />} />
         <ShiftLine shift="part_time" own={shift === 'part_time'} label="Medio tiempo (20 h)" />
         <ShiftLine shift="full_time" own={shift === 'full_time'} label="Tiempo completo (40 h)" />

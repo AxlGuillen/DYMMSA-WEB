@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ChevronLeft, ChevronRight } from '@/components/icons'
+import { ChevronLeft, ChevronRight, Trophy } from '@/components/icons'
 import { UserAvatar } from '@/components/profile/UserAvatar'
 import { useTeamHours } from '@/hooks/useTeamHours'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -14,6 +15,8 @@ import { useDateFormat } from '@/hooks/useDateFormat'
 import { todayInMexico } from '@/lib/format'
 import { formatDuration, shiftWeek, weekBounds, WEEKDAY_LABELS, type DayStatus } from '@/lib/timesheet'
 import { cn } from '@/lib/utils'
+import { AREA_LABELS } from '@/lib/profile'
+import type { HoursLeader } from '@/lib/team-hours'
 
 /** Radix rejects value="" in SelectItem; sentinel for the whole team. */
 const EVERYONE = '__all__'
@@ -28,6 +31,40 @@ const STATUS_CELL: Record<DayStatus, string> = {
 }
 
 const hours = (minutes: number) => (minutes > 0 ? formatDuration(minutes) : '—')
+
+const monthLabel = (month: string) =>
+  new Date(`${month}-15T12:00:00Z`).toLocaleDateString('es-MX', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+
+function LeaderList({ title, leaders, testId }: { title: string; leaders: HoursLeader[]; testId: string }) {
+  return (
+    <Card data-testid={testId}>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Trophy className="size-4 text-amber-500" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {leaders.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nadie tiene horas registradas todavía.</p>
+        ) : (
+          <ol className="space-y-2">
+            {leaders.map((l, i) => (
+              <li key={l.id} className={cn('flex items-center justify-between gap-3 text-sm', i === 0 && 'font-semibold')}>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="w-4 text-muted-foreground tabular-nums">{i + 1}</span>
+                  <span className="truncate">{l.name}</span>
+                  <Badge variant="outline" className="font-normal">{AREA_LABELS[l.area]}</Badge>
+                </span>
+                <span className="tabular-nums">{formatDuration(l.minutes)} h</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 /** Admin: one week of the office (clock) and the workshop (Nómina), for everyone or one person. */
 export function TeamHoursOverview() {
@@ -69,6 +106,13 @@ export function TeamHoursOverview() {
       </div>
 
       {isError && <p className="text-sm text-destructive">No se pudo cargar el resumen. Intenta de nuevo.</p>}
+
+      {data && (
+        <div className="grid gap-4 md:grid-cols-2" data-testid="team-leaders">
+          <LeaderList title="Más horas esta semana" leaders={data.leaders.week} testId="leaders-week" />
+          <LeaderList title={`Más horas en ${monthLabel(data.leaders.month.month)}`} leaders={data.leaders.month.ranking} testId="leaders-month" />
+        </div>
+      )}
 
       {(!single || office.length > 0) && (
         <Card data-testid="team-office">

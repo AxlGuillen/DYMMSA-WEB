@@ -22,6 +22,10 @@ const DATA: TeamHoursResponse = {
     days: [600, 0, 0, 0, 0, 300, 0].map((m, i) => ({ date: `2026-09-${28 + i}`, minutes: m, draft: i === 5 })),
   }],
   totals: { officeMinutes: 360, officePay: 520, workshopMinutes: 900 },
+  leaders: {
+    week: [{ id: 'e-jose', name: 'José', area: 'workshop', minutes: 900 }, { id: 'u-tania', name: 'Tania', area: 'office', minutes: 360 }],
+    month: { month: '2026-10', ranking: [] },
+  },
 }
 
 vi.mock('@/hooks/useTeamHours', () => ({ useTeamHours: () => ({ data: DATA, isLoading: false, isError: false }) }))
@@ -51,5 +55,17 @@ describe('TeamHoursOverview', () => {
     expect(screen.queryByTestId('team-office')).not.toBeInTheDocument()
     expect(screen.getByTestId('team-workshop')).toHaveTextContent('José')
     expect(screen.queryByText('Total taller')).not.toBeInTheDocument()
+  })
+})
+
+describe('TeamHoursOverview — más horas', () => {
+  test('la semana muestra el ranking con su área; el mes vacío lo dice', () => {
+    renderWithProviders(<TeamHoursOverview />)
+    const week = screen.getByTestId('leaders-week')
+    expect(week).toHaveTextContent('Más horas esta semana')
+    expect(within(week).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1JoséTaller15:00 h', '2TaniaOficina06:00 h'])
+    const month = screen.getByTestId('leaders-month')
+    expect(month).toHaveTextContent(/Más horas en octubre de 2026/)
+    expect(month).toHaveTextContent('Nadie tiene horas registradas todavía.')
   })
 })

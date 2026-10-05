@@ -19,6 +19,11 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 - [admin] **Mi semana separa Oficina y Taller** en el selector de persona.
 - [admin] **Novedades** ya no muestra a los miembros lo que solo usan los
   administradores, y la pestaña **Actividad** es solo para administradores.
+- [admin] **Quién lleva más horas.** El Resumen del equipo muestra los tres con
+  más horas registradas en la semana y en el mes, de oficina y taller.
+
+### Corregido
+- Las gráficas de **Mi semana** ya no cortan los números del eje de horas.
 
 ## 2026-10-02
 

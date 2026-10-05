@@ -52,6 +52,14 @@ describe('GET /api/hours/overview', () => {
     expect(body.workshop[1]).toMatchObject({ minutes: 300, drafts: 1 })
     expect(body.office).toHaveLength(1)
     expect(body.totals).toEqual({ officeMinutes: 240, officePay: 416, workshopMinutes: 300 })
+    // The week 28/09–04/10 belongs to October (its Thursday); the read spans the whole month.
+    expect((body as unknown as { leaders: { week: { name: string }[]; month: { month: string } } }).leaders).toMatchObject({
+      week: [{ name: 'José' }, { name: 'Tania' }],
+      month: { month: '2026-10' },
+    })
+    const read = activeClient.callsTo('time_entries', 'select')[0]
+    expect(filterValue(read, 'work_date', 'gte')).toBe('2026-09-28')
+    expect(filterValue(read, 'work_date', 'lte')).toBe('2026-10-31')
     // Only active workshop people without an app account.
     const employees = activeClient.callsTo('payroll_employees', 'select')[0]
     expect(filterValue(employees, 'active')).toBe(true)

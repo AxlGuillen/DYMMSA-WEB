@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildClockWorkshopRows, buildOfficeRows, buildWorkshopRows, teamTotals } from '@/lib/team-hours'
+import { buildClockWorkshopRows, buildOfficeRows, buildWorkshopRows, clockMinutesByPerson, monthOfWeek, payrollMinutesByEmployee, rankLeaders, teamTotals } from '@/lib/team-hours'
 
 const MON = '2026-09-28'
 const DATES = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']
@@ -62,5 +62,35 @@ describe('buildClockWorkshopRows', () => {
     const [row] = buildClockWorkshopRows([{ id: 'u-t', display_name: 'Taller Uno', shift: 'full_time' }], [entry('u-t', MON, '08:00', '18:00')], MON)
     expect(row).toMatchObject({ source: 'clock', minutes: 600, drafts: 0 })
     expect(row).not.toHaveProperty('pay')
+  })
+})
+
+describe('quién tiene más horas', () => {
+  test('el mes de una semana es el de su jueves (el que tiene más días)', () => {
+    expect(monthOfWeek('2026-09-28')).toBe('2026-10')
+    expect(monthOfWeek('2026-09-21')).toBe('2026-09')
+    expect(monthOfWeek('2026-08-31')).toBe('2026-09')
+  })
+
+  test('minutos por persona dentro del rango; sin salida no suma', () => {
+    const minutes = clockMinutesByPerson(
+      [entry('a', '2026-09-30', '09:00', '17:00'), entry('a', '2026-10-01', '09:00', '13:00'), entry('a', '2026-10-02', '09:00', null), entry('b', '2026-10-01', '09:00', '10:00')],
+      '2026-10-01', '2026-10-31',
+    )
+    expect(Object.fromEntries(minutes)).toEqual({ a: 240, b: 60 })
+    const payroll = payrollMinutesByEmployee([{ employee_id: 'e', work_date: '2026-10-03', worked_minutes: 600 }, { employee_id: 'e', work_date: '2026-11-01', worked_minutes: 99 }], '2026-10-01', '2026-10-31')
+    expect(Object.fromEntries(payroll)).toEqual({ e: 600 })
+  })
+
+  test('ranking: más horas primero, sin los que no registraron, empates por nombre, tope 3', () => {
+    const people = [
+      { id: 'a', name: 'Beto', area: 'office' as const },
+      { id: 'b', name: 'Ana', area: 'office' as const },
+      { id: 'c', name: 'Carlos', area: 'workshop' as const },
+      { id: 'd', name: 'Dora', area: 'office' as const },
+      { id: 'e', name: 'Eva', area: 'workshop' as const },
+    ]
+    const ranking = rankLeaders(people, new Map([['a', 300], ['b', 300], ['c', 600], ['d', 0], ['e', 100]]))
+    expect(ranking.map((r) => r.name)).toEqual(['Carlos', 'Ana', 'Beto'])
   })
 })

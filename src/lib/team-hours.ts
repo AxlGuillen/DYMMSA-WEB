@@ -1,15 +1,17 @@
 /** Admin team overview (2026-10-05): the office from the clock (Horas), the workshop from Nómina. Pure; clock injected. */
 
 import { officeWeekPay, type WeekPay } from './office-pay'
+import { monthOf, shiftDays } from './month'
 import {
   buildWeekView,
   excusesFor,
+  minutesBetween,
   weekChartData,
   weekTargetMinutes,
   type DayStatus,
   type ISODate,
 } from './timesheet'
-import type { ExcusedDay, PayrollDay, PayrollEmployee, Profile, ProfileShift } from '@/types/database'
+import type { ExcusedDay, PayrollDay, PayrollEmployee, Profile, ProfileArea, ProfileShift } from '@/types/database'
 
 type EntryLike = { user_id: string; work_date: string; clock_in: string; clock_out: string | null }
 type OfficeProfile = Pick<Profile, 'id' | 'display_name' | 'shift' | 'hourly_rate'> & { avatar_url?: string | null }
@@ -111,4 +113,54 @@ export function teamTotals(office: readonly OfficeRow[], workshop: readonly Work
     officePay: Math.round(office.reduce((sum, r) => sum + (r.pay?.amount ?? 0), 0) * 100) / 100,
     workshopMinutes: workshop.reduce((sum, r) => sum + r.minutes, 0),
   }
+}
+
+// ─── Who has the most hours (2026-10-05) ───
+
+/** The month a Monday→Sunday week belongs to: the one holding its Thursday, i.e. most of its days. */
+export const monthOfWeek = (weekStart: ISODate): string => monthOf(shiftDays(weekStart, 3))
+
+/** Closed punches only, per person, inside [from, to]. */
+export function clockMinutesByPerson(entries: readonly EntryLike[], from: ISODate, to: ISODate): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const e of entries) {
+    if (e.work_date < from || e.work_date > to) continue
+    const minutes = minutesBetween(e.clock_in, e.clock_out)
+    if (minutes != null) out.set(e.user_id, (out.get(e.user_id) ?? 0) + minutes)
+  }
+  return out
+}
+
+/** Nómina days per employee inside [from, to], drafts included: it is "registered", not "paid". */
+export function payrollMinutesByEmployee(
+  days: readonly Pick<PayrollDay, 'employee_id' | 'work_date' | 'worked_minutes'>[],
+  from: ISODate,
+  to: ISODate,
+): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const d of days) {
+    if (d.work_date < from || d.work_date > to) continue
+    out.set(d.employee_id, (out.get(d.employee_id) ?? 0) + d.worked_minutes)
+  }
+  return out
+}
+
+export interface HoursLeader {
+  id: string
+  name: string
+  area: ProfileArea
+  minutes: number
+}
+
+/** Most hours first; people with nothing registered are left out, ties keep name order. */
+export function rankLeaders(
+  people: readonly { id: string; name: string; area: ProfileArea }[],
+  minutes: ReadonlyMap<string, number>,
+  limit = 3,
+): HoursLeader[] {
+  return people
+    .map((p) => ({ ...p, minutes: minutes.get(p.id) ?? 0 }))
+    .filter((p) => p.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name, 'es'))
+    .slice(0, limit)
 }

@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
-import type { OfficeRow, WorkshopRow } from '@/lib/team-hours'
+import type { HoursLeader, OfficeRow, WorkshopRow } from '@/lib/team-hours'
 
 export interface TeamHoursResponse {
   start: string
@@ -10,6 +10,8 @@ export interface TeamHoursResponse {
   office: OfficeRow[]
   workshop: WorkshopRow[]
   totals: { officeMinutes: number; officePay: number; workshopMinutes: number }
+  /** Top 3 by registered hours: the visible week and the month that holds it. */
+  leaders: { week: HoursLeader[]; month: { month: string; ranking: HoursLeader[] } }
 }
 
 export function useTeamHours(week: string) {
