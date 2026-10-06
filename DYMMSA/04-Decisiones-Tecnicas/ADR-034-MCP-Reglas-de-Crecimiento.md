@@ -48,6 +48,7 @@ que se parecen entre sí; conviene fijar las reglas antes de sumar las nuevas.
 | Herramientas | 47 | 44 |
 | Descripciones | ~15,900 caracteres | ~13,200 |
 | Instrucciones | ~7,250 | ~6,850 |
+| `tools/list` completa (nombre + título + descripción + esquema) | ~33,300 | ~29,300 |
 
 El recurso duplicado (~3,100) desapareció; la guía (~1,500) solo la paga un admin.
 
