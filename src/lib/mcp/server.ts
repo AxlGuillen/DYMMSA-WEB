@@ -1,4 +1,4 @@
-/** MCP tool registry: reads + 6 scoped writes (ADR-015, ADR-030, ADR-033). Each call's db comes from the OAuth token, no service_role (ADR-023). */
+/** MCP tool registry: reads + the scoped writes listed in manifest.ts (ADR-015). Each call's db comes from the OAuth token, no service_role (ADR-023); a member gets the list without the admin-only tools (ADR-034). */
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -30,6 +30,7 @@ import { getMonthClosing } from './tools/finance'
 import { getCutPlan } from './tools/cutting'
 import { getPurchasePlan } from './tools/purchase'
 import { getAppSettings } from './tools/settings'
+import type { McpRole } from './manifest'
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
 
@@ -80,8 +81,14 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Vínculo factura↔orden de venta (Odoo)**: la verdad es ordenes_ligadas (el botón "Órdenes de venta" de la factura) y el vínculo línea a línea; origen (invoice_origin) es texto libre y NO prueba el vínculo — una factura con origen pero 0 órdenes ligadas tiene el vínculo roto. Las notas al pie (pedido_pie, "PEDIDO: …") vienen de Odoo, no de capturas.
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
-/** Grouping lives here because the MCP tool listing itself is flat (#72). */
-export const SERVER_INSTRUCTIONS = `# MCP DYMMSA — mapa de herramientas
+/** The guide travels with the tool, not with every conversation: only an admin registers it (#133). */
+const SHEET_GUIDE =
+  'CÓMO LEER LA HOJA (interprétala antes de guardar nada): 1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que el encabezado "Semana del … – …" se lea bien, y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; pasa cada día con su fecha real (una misma hoja cae en dos cortes: lunes a viernes en uno, sábado y domingo en el siguiente — la tool los reparte sola por fecha). 2. Una fila por trabajador. Lunes a viernes: la marca "°" con guion = asistió su jornada normal (8 h); una hora escrita (19:00, 21:00) = salió tarde, y las extras de ese día son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra. Día tachado o vacío = no trabajó: no lo mandes. Sábado y domingo: manda las horas que trabajó ese día. 3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras de junto al nombre; si no cuadra, o si aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar — no lo adivines ni lo guardes. 4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta). 5. Antes de llamar la tool, muestra una tabla con lo que leíste (empleado × día, horas) y marca lo dudoso; guarda solo tras la confirmación. Un número mal leído es dinero. Los nombres deben coincidir con los empleados dados de alta en Nómina; si uno no existe, la tool lo dice y se da de alta en la app.'
+
+/** Grouping lives here because the MCP tool listing itself is flat (#72); a member gets the map without the admin-only lines (#133). */
+export function serverInstructions(role: McpRole): string {
+  const admin = role === 'admin'
+  return `# MCP DYMMSA — mapa de herramientas
 
 Las tools se dividen en DOS bloques que NO se cruzan:
 
@@ -94,11 +101,10 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte).
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
-- Horas del equipo (checador): get_week_hours, get_hours_trend, list_time_imports. Solo lectura. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
+- Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports' : ''}. Solo lectura. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
 - Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona igual que en horas: un miembro solo ve su perfil, un administrador el de todos. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan explícitamente y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
-- Nómina (SOLO administradores; a un miembro la BD no le devuelve nada): get_payroll_period (el corte sábado→viernes que se paga el viernes: horas por empleado y día, y el total equivalente) y la escritura record_payroll_hours (carga horas como BORRADOR; confirmar y cerrar el corte se hace en la app). Son HORAS, nunca montos ni salarios.
-
+${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes que se paga el viernes: horas por empleado y día, y el total equivalente) y la escritura record_payroll_hours (carga horas como BORRADOR; confirmar y cerrar el corte se hace en la app; la guía para leer la hoja del taller va en la descripción de la tool). Son HORAS, nunca montos ni salarios.\n' : ''}
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
@@ -106,23 +112,21 @@ La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Ventas y cobranza: odoo_sales_summary, odoo_customer_profile (incluye la cartera del cliente: deuda total, vencido y días promedio de pago), odoo_sale_detail, odoo_receivables_ranking ("¿a quién le cobro primero?" / "¿quién paga más lento?").
 - Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
 
-Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las seis del bloque A listadas arriba (set_inventory_location, create_task, update_task, mark_payable_paid, create_payable, record_payroll_hours); todo lo demás es lectura.
+Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las del bloque A listadas arriba (set_inventory_location, create_task, update_task, mark_payable_paid, create_payable${admin ? ', record_payroll_hours' : ''}); todo lo demás es lectura.
 
 Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
-
-Hoja de asistencia del taller → record_payroll_hours. Cuando un administrador comparta la hoja semanal (PDF o foto, llenada a mano), INTERPRÉTALA antes de guardar nada:
-1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que el encabezado "Semana del … – …" se lea bien, y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; pasa cada día con su fecha real (una misma hoja cae en dos cortes: lunes a viernes en uno, sábado y domingo en el siguiente — la tool los reparte sola por fecha).
-2. Una fila por trabajador. Lunes a viernes: la marca "°" con guion = asistió su jornada normal (8 h); una hora escrita (19:00, 21:00) = salió tarde, y las extras de ese día son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra. Día tachado o vacío = no trabajó: no lo mandes. Sábado y domingo: manda las horas que trabajó ese día.
-3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras de junto al nombre; si no cuadra, o si aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar — no lo adivines ni lo guardes.
-4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta).
-5. Antes de llamar la tool, muestra una tabla con lo que leíste (empleado × día, horas) y marca lo dudoso; guarda solo tras la confirmación. Un número mal leído es dinero.
-Los nombres deben coincidir con los empleados dados de alta en Nómina; si uno no existe, la tool lo dice y se da de alta en la app.
 
 Notas de crédito (Odoo): una nota de crédito sin aplicar es SALDO A FAVOR del cliente, no deuda. Las tools la reportan aparte (campos notas_credito*) y NUNCA la restan del vencido ni del por cobrar — es decisión del negocio (no se sabe si el cliente la usará o si se aplicará a una factura). No hagas ese neteo tú tampoco.
 
 ${BUSINESS_RULES_MD}`
+}
 
-export function registerDymmsaTools(server: McpServer): void {
+/**
+ * A member's server skips the tools the manifest marks adminOnly (#133): guarded one by one with
+ * `forAdmin`, and tests/mcp/manifest.test.ts fails if a guard and the manifest ever disagree.
+ */
+export function registerDymmsaTools(server: McpServer, role: McpRole = 'admin'): void {
+  const forAdmin = role === 'admin'
   // Block A — DYMMSA-WEB tools (no title suffix: the app is the default).
   server.registerTool(
     'get_business_summary',
@@ -445,7 +449,7 @@ export function registerDymmsaTools(server: McpServer): void {
     (input, extra) => run(extra, (db, ctx) => getHoursTrend(db, ctx.userId, input)),
   )
 
-  server.registerTool(
+  if (forAdmin) server.registerTool(
     'list_time_imports',
     {
       title: 'Cargas del checador',
@@ -473,7 +477,7 @@ export function registerDymmsaTools(server: McpServer): void {
     (input, extra) => run(extra, (db, ctx) => getProfiles(db, ctx.userId, input)),
   )
 
-  server.registerTool(
+  if (forAdmin) server.registerTool(
     'get_payroll_period',
     {
       title: 'Corte de nómina',
@@ -487,12 +491,13 @@ export function registerDymmsaTools(server: McpServer): void {
     (input, extra) => run(extra, (db) => getPayrollPeriod(db, input)),
   )
 
-  server.registerTool(
+  if (forAdmin) server.registerTool(
     'record_payroll_hours',
     {
       title: 'Cargar horas de nómina (borrador)',
       description:
-        'Guarda horas trabajadas por empleado y día como BORRADOR — típicamente lo leído de la hoja semanal de asistencia del taller. ESCRIBE: úsala solo cuando un administrador lo pida y después de mostrarle lo que leíste y recibir su confirmación (ver las instrucciones de la hoja). `horas` es el total trabajado ese día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado y el triple de domingo los calcula la app por la fecha, no los multipliques. Nunca pisa un día ya confirmado, capturado a mano o traído del checador, ni toca un corte cerrado: esos vuelven en `omitidos` con el motivo. No confirma, no cierra cortes y no crea empleados. El empleado se busca por nombre; con varias coincidencias devuelve la lista para precisar.',
+        'Guarda horas trabajadas por empleado y día como BORRADOR — típicamente lo leído de la hoja semanal de asistencia del taller. ESCRIBE: úsala solo cuando un administrador lo pida y después de mostrarle lo que leíste y recibir su confirmación. `horas` es el total trabajado ese día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado y el triple de domingo los calcula la app por la fecha, no los multipliques. Nunca pisa un día ya confirmado, capturado a mano o traído del checador, ni toca un corte cerrado: esos vuelven en `omitidos` con el motivo. No confirma, no cierra cortes y no crea empleados. El empleado se busca por nombre; con varias coincidencias devuelve la lista para precisar. ' +
+        SHEET_GUIDE,
       inputSchema: {
         dias: z
           .array(
@@ -817,18 +822,5 @@ export function registerDymmsaTools(server: McpServer): void {
       annotations: readOnly,
     },
     (_input, extra) => run(extra, () => odooFleetStatus(callOdoo)),
-  )
-
-  server.registerResource(
-    'reglas-negocio',
-    'dymmsa://reglas-negocio',
-    {
-      title: 'Reglas de negocio DYMMSA',
-      description: 'Reglas críticas del sistema (estados, separadores, is_sold, stock, jerarquía de descripciones). Léelas antes de interpretar datos.',
-      mimeType: 'text/markdown',
-    },
-    async (uri) => ({
-      contents: [{ uri: uri.href, mimeType: 'text/markdown', text: BUSINESS_RULES_MD }],
-    }),
   )
 }

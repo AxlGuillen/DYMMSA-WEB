@@ -18,9 +18,14 @@ export interface ToolManifestEntry {
   example: string
   /** Writes only: what the tool will never do. */
   limits?: string
-  /** Admin-only module kept out of the in-app docs, which every member reads (#123). */
-  hidden?: true
+  /**
+   * Admin-only tool (#133): not registered for a member, not in the in-app docs every member
+   * reads. The RLS is still the barrier; this only trims the list the model sees.
+   */
+  adminOnly?: true
 }
+
+export type McpRole = 'admin' | 'member'
 
 export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   // Block A — the app
@@ -47,10 +52,10 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'get_month_closing', block: 'app', module: 'Finanzas', kind: 'read', title: 'Cierre del mes', example: '¿Como cierra el mes?' },
   { name: 'get_week_hours', block: 'app', module: 'Horas', kind: 'read', title: 'Horas de la semana', example: '¿Cuantas horas llevo esta semana?' },
   { name: 'get_hours_trend', block: 'app', module: 'Horas', kind: 'read', title: 'Tendencia de horas', example: '¿Como viene Tania en las ultimas semanas?' },
-  { name: 'list_time_imports', block: 'app', module: 'Horas', kind: 'read', title: 'Cargas del checador', example: '¿Cuando se cargo el ultimo reporte del checador?' },
+  { name: 'list_time_imports', block: 'app', module: 'Horas', kind: 'read', title: 'Cargas del checador', example: '¿Cuando se cargo el ultimo reporte del checador?', adminOnly: true },
   { name: 'get_profiles', block: 'app', module: 'Perfil', kind: 'read', title: 'Perfiles del equipo', example: '¿Cual es mi NSS?' },
-  { name: 'get_payroll_period', block: 'app', module: 'Nomina', kind: 'read', title: 'Corte de nomina', example: '¿Cuantas horas lleva cada quien en el corte de esta semana?', hidden: true },
-  { name: 'record_payroll_hours', block: 'app', module: 'Nomina', kind: 'write', title: 'Cargar horas de nomina', example: 'Esta es la hoja de asistencia de la semana, cargala.', limits: 'Solo borradores: no confirma, no cierra cortes, no pisa lo ya confirmado ni crea empleados.', hidden: true },
+  { name: 'get_payroll_period', block: 'app', module: 'Nomina', kind: 'read', title: 'Corte de nomina', example: '¿Cuantas horas lleva cada quien en el corte de esta semana?', adminOnly: true },
+  { name: 'record_payroll_hours', block: 'app', module: 'Nomina', kind: 'write', title: 'Cargar horas de nomina', example: 'Esta es la hoja de asistencia de la semana, cargala.', limits: 'Solo borradores: no confirma, no cierra cortes, no pisa lo ya confirmado ni crea empleados.', adminOnly: true },
   { name: 'list_tasks', block: 'app', module: 'Tareas', kind: 'read', title: 'Listar tareas', example: '¿Que tareas siguen abiertas?' },
   { name: 'get_task', block: 'app', module: 'Tareas', kind: 'read', title: 'Detalle de tarea', example: '¿Que dice la tarea 45?' },
   { name: 'create_task', block: 'app', module: 'Tareas', kind: 'write', title: 'Crear tarea', example: 'Registra una tarea: revisar los precios de Truper.', limits: 'Queda reportada por el asistente.' },
@@ -77,8 +82,28 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
 
 export const manifestFor = (block: ToolBlock) => TOOL_MANIFEST.filter((t) => t.block === block)
 
+/** What a caller of this role gets registered (#133): a member never sees the admin-only tools. */
+export const manifestForRole = (role: McpRole) =>
+  role === 'admin' ? TOOL_MANIFEST : TOOL_MANIFEST.filter((t) => !t.adminOnly)
+
+export const ADMIN_ONLY_TOOLS: ReadonlySet<string> = new Set(TOOL_MANIFEST.filter((t) => t.adminOnly).map((t) => t.name))
+
 /** What the docs page shows: everything except the admin-only modules. */
-export const DOCS_MANIFEST: readonly ToolManifestEntry[] = TOOL_MANIFEST.filter((t) => !t.hidden)
+export const DOCS_MANIFEST: readonly ToolManifestEntry[] = manifestForRole('member')
+
+/**
+ * Budget every tool must fit in (#133, ADR-034). Raising a cap is an explicit decision in the
+ * PR, with its why: each new tool has to earn its place or replace another.
+ */
+export const TOOL_BUDGET = {
+  tools: { app: 36, odoo: 16 },
+  /** Characters of description per tool; the exceptions carry a guide the model needs in full. */
+  description: 1000,
+  descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
+  descriptionsTotal: 18_000,
+  /** Characters of the server instructions, per role. */
+  instructions: 7500,
+} as const
 
 /** Entries grouped by module, in first-appearance order. */
 export function groupByModule(entries: readonly ToolManifestEntry[]): { module: string; tools: ToolManifestEntry[] }[] {
