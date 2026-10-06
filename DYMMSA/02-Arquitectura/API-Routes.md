@@ -238,7 +238,7 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `POST` | `/api/mcp` | **OAuth 2.1 de Supabase** (Bearer JWT con `client_id`) | Servidor MCP (Streamable HTTP, `mcp-handler` + `withMcpAuth`). 13 tools de lectura + `create_task` + resource `dymmsa://reglas-negocio`. Sin token → **401 con `resource_metadata`** (discovery). Ruta física: `src/app/api/[transport]/route.ts` (runtime nodejs, maxDuration 60) |
+| `POST` | `/api/mcp` | **OAuth 2.1 de Supabase** (Bearer JWT con `client_id`) | Servidor MCP (Streamable HTTP, `mcp-handler` + `withMcpAuth`). Las tools del manifiesto (`src/lib/mcp/manifest.ts`: 47 — 44 para un member, ADR-034) con las reglas de negocio en las `instructions`; **dos handlers, uno por rol**, elegidos por el `role` que `verifyToken` cuelga en la identidad del token. Sin resource (eliminado en #133). Sin token → **401 con `resource_metadata`** (discovery). Ruta física: `src/app/api/[transport]/route.ts` (runtime nodejs, maxDuration 60) |
 | `GET` | `/.well-known/oauth-protected-resource[/...]` | Pública | Metadata RFC 9728 (catch-all: responde también con sufijo `/api/mcp`). Anuncia `authorization_servers` = issuer OAuth de Supabase |
 | `GET` | `/oauth/consent?authorization_id=` | Sesión (detrás del login) | Pantalla de consentimiento del OAuth Server de Supabase; server actions aprueban/deniegan (`auth.oauth.*`) y redirigen al cliente |
 

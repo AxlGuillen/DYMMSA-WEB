@@ -21,11 +21,6 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   administradores, y la pestaña **Actividad** es solo para administradores.
 - [admin] **Quién lleva más horas.** El Resumen del equipo muestra los tres con
   más horas registradas en la semana y en el mes, de oficina y taller.
-
-### Corregido
-- Las gráficas de **Mi semana** ya no cortan los números del eje de horas.
-
-### Mejorado
 - **Apartados colapsables en Finanzas.** Egresos, Ingresos, Vencimientos, Cobros
   y Notas de crédito se pueden contraer con la flecha de su título, o todos a la
   vez con **Contraer todo**; la app recuerda cómo los dejaste.
@@ -33,6 +28,14 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   llevan signo de pesos; la columna **Comments** trae la marca de cada
   producto, y **Descripcion** usa la descripción en español guardada en la BD
   de ETM (si no hay, repite la de Translate).
+- **El asistente le muestra a cada quien solo lo que puede usar.** Al conectar
+  el asistente, un miembro ya no ve las funciones que son solo de administrador,
+  y la pantalla de autorización dice exactamente qué consulta y qué acciones
+  puede hacer, generada de la lista real de capacidades. Si ya tenías el
+  asistente conectado, reconéctalo para ver la lista nueva.
+
+### Corregido
+- Las gráficas de **Mi semana** ya no cortan los números del eje de horas.
 
 ## 2026-10-02
 

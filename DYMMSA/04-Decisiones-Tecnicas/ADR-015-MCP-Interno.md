@@ -62,7 +62,7 @@ Decisiones clave:
 6. **Respuestas resueltas y compactas**: los tools devuelven valores finales
    (Descripción DYMMSA ya resuelta con jerarquía, totales de `business-rules.ts`,
    ubicación oculta sin stock) para que el LLM no re-derive reglas de negocio.
-   Además se expone el resource `dymmsa://reglas-negocio` con las reglas críticas.
+   ~~Además se expone el resource `dymmsa://reglas-negocio` con las reglas críticas.~~ Eliminado el 2026-10-05 (ADR-034): era el mismo texto dos veces y muchos clientes nunca leen recursos; las reglas viajan solo en las instrucciones.
 
 ### Tools (Fase 1 — lectura)
 
@@ -148,7 +148,7 @@ Decisión explícita del usuario (2026-08-20): el **núcleo transaccional se que
 
 El listado MCP es plano — la agrupación se logra con cuatro mecanismos, no con carpetas:
 
-1. **`instructions` del server** (el más fuerte): `SERVER_INSTRUCTIONS` = mapa de los dos bloques (qué tool para qué, las 3 escrituras señaladas, la advertencia de mundos separados) + las reglas de negocio. Es lo primero que el cliente entrega al modelo al conectar.
+1. **`instructions` del server** (el más fuerte): `serverInstructions(role)` (hasta ADR-034, `SERVER_INSTRUCTIONS`) = mapa de los dos bloques (qué tool para qué, las 3 escrituras señaladas, la advertencia de mundos separados) + las reglas de negocio. Es lo primero que el cliente entrega al modelo al conectar.
 2. **Prefijo y título**: Odoo lleva `odoo_*` + título "(Odoo)"; la app va sin sufijo (el default es la app, lo marcado es lo externo). Decisión: **NO se renombran** las tools de la app con prefijo — cosmética que rompe el hábito.
 3. **Orden de registro** por bloques: A (app: resumen → cotizaciones → órdenes → inventario → catálogos → tareas) y B (Odoo: primitivas → contabilidad → ventas → documentos/pagos → operación).
 4. **Descripciones**: las de Odoo dicen "externo"; las stale se alinearon (p. ej. `odoo_query` ya lista todos los módulos del catálogo).
