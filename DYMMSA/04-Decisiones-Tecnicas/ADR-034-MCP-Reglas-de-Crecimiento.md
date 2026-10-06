@@ -36,7 +36,7 @@ que se parecen entre sí; conviene fijar las reglas antes de sumar las nuevas.
 4. **Presupuesto vigilado por test** (`TOOL_BUDGET` en `manifest.ts`, `tests/mcp/manifest.test.ts`):
    app ≤ 36 y Odoo ≤ 16 herramientas; ≤ 1,000 caracteres de descripción por herramienta (excepción
    nombrada: `record_payroll_hours` ≤ 2,600, lleva la guía); ≤ 18,000 en total; instrucciones
-   ≤ 7,500 por rol. Subir un tope es un cambio explícito en el PR, con su porqué. El test registra
+   ≤ 7,500 por rol; y ≤ 36,000 de `tools/list` completa (nombre + título + descripción + esquema JSON: lo que el cliente paga de verdad). Subir un tope es un cambio explícito en el PR, con su porqué. El test registra
    el servidor real con un stub para medir lo que el cliente recibiría, por rol.
 5. **Fusionar lecturas partidas** (listar + detalle; Odoo específicas vs primitivas) queda como
    segunda etapa, una por una y cuando el presupuesto lo pida: cambia nombres que las rutinas usan.

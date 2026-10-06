@@ -91,7 +91,7 @@ export default async function ConsentPage({
         </p>
 
         <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-          <li>• Consulta {summary.reads.join(', ').toLowerCase()} y la facturación de Odoo — lo mismo que ves tú.</li>
+          <li>• Consulta {summary.reads.join(', ')} y la facturación de Odoo — lo mismo que ves tú.</li>
           <li>
             • Puede hacer {summary.writes.length} acciones, siempre confirmando antes:
             <ul className="mt-1 space-y-1 pl-4">

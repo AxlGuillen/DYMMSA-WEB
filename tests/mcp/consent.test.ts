@@ -24,4 +24,11 @@ describe('consentSummary', () => {
     expect(reads).not.toContain('Contabilidad')
     expect(new Set(reads).size).toBe(reads.length)
   })
+
+  test('REGLA: solo escrituras del bloque app, nunca de Odoo (la pantalla promete que no escribe ahi)', () => {
+    for (const w of consentSummary('admin').writes) {
+      const entry = TOOL_MANIFEST.find((t) => t.title === w.title)
+      expect(entry?.block, w.title).toBe('app')
+    }
+  })
 })

@@ -75,7 +75,9 @@ async function identify(token: string): Promise<CachedIdentity | null> {
 /** Own profile row with the caller's token (RLS allows it); anything odd → member, never a wider list. */
 async function roleFor(token: string, userId: string): Promise<McpRole> {
   try {
-    const { data } = await clientForToken(token).from('profiles').select('role').eq('id', userId).maybeSingle()
+    const { data, error } = await clientForToken(token).from('profiles').select('role').eq('id', userId).maybeSingle()
+    // An admin silently demoted for 60 s would read as "payroll tools vanished": leave a trace (review PR #136).
+    if (error) console.warn('[mcp] no se pudo leer el rol; se registra como member:', error.message)
     return (data as { role?: string } | null)?.role === 'admin' ? 'admin' : 'member'
   } catch (error) {
     console.warn('[mcp] no se pudo leer el rol; se registra como member:', error)

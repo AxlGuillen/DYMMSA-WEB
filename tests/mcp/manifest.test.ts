@@ -7,6 +7,7 @@
 import { describe, test, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   ADMIN_ONLY_TOOLS,
@@ -23,14 +24,25 @@ import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
 const serverSrc = readFileSync(join(process.cwd(), 'src/lib/mcp/server.ts'), 'utf8')
 const registered = [...serverSrc.matchAll(/registerTool\(\s*'([a-z_]+)'/g)].map((m) => m[1])
 
-interface Registered { name: string; description: string; readOnly: boolean }
+interface Registered { name: string; description: string; readOnly: boolean; /** name + title + description + JSON schema */ size: number }
 
 /** What a connector of this role would get in tools/list, captured from the real registry. */
 function toolsFor(role: McpRole): Registered[] {
   const out: Registered[] = []
   const stub = {
-    registerTool(name: string, cfg: { description?: string; annotations?: { readOnlyHint?: boolean } }) {
-      out.push({ name, description: cfg.description ?? '', readOnly: cfg.annotations?.readOnlyHint !== false })
+    registerTool(
+      name: string,
+      cfg: { title?: string; description?: string; inputSchema?: Record<string, z.ZodTypeAny>; annotations?: { readOnlyHint?: boolean } },
+    ) {
+      // The schema is half of what the client pays (review PR #136): measured as the JSON the SDK would send.
+      const schema = JSON.stringify(z.toJSONSchema(z.object(cfg.inputSchema ?? {})))
+      const description = cfg.description ?? ''
+      out.push({
+        name,
+        description,
+        readOnly: cfg.annotations?.readOnlyHint !== false,
+        size: name.length + (cfg.title ?? '').length + description.length + schema.length,
+      })
     },
   }
   registerDymmsaTools(stub as unknown as McpServer, role)
@@ -99,6 +111,8 @@ describe('manifiesto del MCP', () => {
     }
     const total = tools.reduce((n, t) => n + t.description.length, 0)
     expect(total, `descripciones: ${total} caracteres, tope ${TOOL_BUDGET.descriptionsTotal}`).toBeLessThanOrEqual(TOOL_BUDGET.descriptionsTotal)
+    const list = tools.reduce((n, t) => n + t.size, 0)
+    expect(list, `tools/list: ${list} caracteres, tope ${TOOL_BUDGET.listTotal}`).toBeLessThanOrEqual(TOOL_BUDGET.listTotal)
     // The exception list only names tools that exist, so it cannot hide a dead entry.
     for (const name of Object.keys(TOOL_BUDGET.descriptionExceptions)) expect(registered).toContain(name)
 

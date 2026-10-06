@@ -2,6 +2,7 @@
 // No requiredScopes: Supabase tokens carry no scope claim (it would 403).
 
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
 import { roleFrom } from '@/lib/mcp/context'
 import type { McpRole } from '@/lib/mcp/manifest'
@@ -39,8 +40,9 @@ const handlers: Record<McpRole, ReturnType<typeof handlerFor>> = {
   member: handlerFor('member'),
 }
 
-// withMcpAuth hangs the verified AuthInfo on req.auth before calling us.
-const handler = (req: Request) => handlers[roleFrom(req.auth)](req)
+// withMcpAuth hangs the verified AuthInfo on req.auth (same instance) before calling us; typed
+// here on purpose so a package change shows up as a type error, not as every admin going member.
+const handler = (req: Request & { auth?: AuthInfo }) => handlers[roleFrom(req.auth)](req)
 
 const authedHandler = withMcpAuth(handler, verifyToken, {
   required: true,

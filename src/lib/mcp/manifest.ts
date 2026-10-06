@@ -101,6 +101,8 @@ export const TOOL_BUDGET = {
   description: 1000,
   descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
   descriptionsTotal: 18_000,
+  /** Characters of the whole tools/list an admin receives (name + title + description + JSON schema). */
+  listTotal: 36_000,
   /** Characters of the server instructions, per role. */
   instructions: 7500,
 } as const

@@ -125,7 +125,7 @@ ${BUSINESS_RULES_MD}`
  * A member's server skips the tools the manifest marks adminOnly (#133): guarded one by one with
  * `forAdmin`, and tests/mcp/manifest.test.ts fails if a guard and the manifest ever disagree.
  */
-export function registerDymmsaTools(server: McpServer, role: McpRole = 'admin'): void {
+export function registerDymmsaTools(server: McpServer, role: McpRole): void {
   const forAdmin = role === 'admin'
   // Block A — DYMMSA-WEB tools (no title suffix: the app is the default).
   server.registerTool(
