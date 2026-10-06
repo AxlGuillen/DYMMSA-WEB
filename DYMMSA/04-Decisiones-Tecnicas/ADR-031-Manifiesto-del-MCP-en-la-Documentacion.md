@@ -37,3 +37,7 @@ cada semana, no aparecía en ningún lado. Una pestaña escrita a mano envejecer
 - `SERVER_INSTRUCTIONS` no se genera del manifiesto (agrupa con reglas, no solo lista); queda
   como está.
 - La documentación no describe la bitácora de facturas (ADR-028): un member la lee.
+
+## Adenda 2026-10-05 (ADR-034)
+
+La bandera `hidden` del manifiesto pasó a llamarse **`adminOnly`** y ganó un segundo efecto: además de sacar la tool de la documentación in-app (`DOCS_MANIFEST`), `registerDymmsaTools(server, role)` no la registra para un member y `serverInstructions(role)` omite sus líneas. `manifestForRole(role)` es la lista que cada rol recibe; `consentSummary(role)` genera la pantalla de consentimiento de ahí. `TOOL_BUDGET` (topes de tools, descripciones e instrucciones) vive junto al manifiesto y lo vigila el mismo test.

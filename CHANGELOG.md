@@ -3,6 +3,15 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-05
+
+### Mejorado
+- **El asistente le muestra a cada quien solo lo que puede usar.** Al conectar
+  el asistente, un miembro ya no ve las funciones que son solo de administrador,
+  y la pantalla de autorización dice exactamente qué consulta y qué acciones
+  puede hacer, generada de la lista real de capacidades. Si ya tenías el
+  asistente conectado, reconéctalo para ver la lista nueva.
+
 ## 2026-10-02
 
 ### Corregido
