@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
+import { consentSummary } from '@/lib/mcp/consent'
 import { createClient } from '@/lib/supabase/server'
 
 import { approveAction, denyAction } from './actions'
@@ -66,6 +67,10 @@ export default async function ConsentPage({
 
   const clientName = data.client?.name ?? 'La aplicación'
 
+  // The list promises what THIS person's connector will get (#133): a member never sees the admin-only writes.
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+  const summary = consentSummary(profile?.role === 'admin' ? 'admin' : 'member')
+
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-md rounded-xl border bg-card p-8 shadow-sm">
@@ -86,9 +91,18 @@ export default async function ConsentPage({
         </p>
 
         <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-          <li>• Consulta cotizaciones, órdenes, inventario y catálogos — lo mismo que ves tú.</li>
-          <li>• Puede crear tareas (quedan marcadas como creadas por el asistente).</li>
-          <li>• No puede modificar cotizaciones, órdenes ni inventario.</li>
+          <li>• Consulta {summary.reads.join(', ').toLowerCase()} y la facturación de Odoo — lo mismo que ves tú.</li>
+          <li>
+            • Puede hacer {summary.writes.length} acciones, siempre confirmando antes:
+            <ul className="mt-1 space-y-1 pl-4">
+              {summary.writes.map((w) => (
+                <li key={w.title}>
+                  – {w.title}. <span className="text-xs">{w.limits}</span>
+                </li>
+              ))}
+            </ul>
+          </li>
+          <li>• Nunca modifica cotizaciones, órdenes ni cantidades de inventario, y nunca escribe en Odoo.</li>
           <li>• Puedes revocar el acceso cuando quieras desde el panel de Supabase.</li>
         </ul>
 
