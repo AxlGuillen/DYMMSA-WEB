@@ -8,12 +8,15 @@ import { createHash } from 'node:crypto'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 
 import { allowedClientIds } from './env'
-import { verifierClient } from './supabase'
+import { clientForToken, verifierClient } from './supabase'
+import type { McpRole } from './manifest'
 
 export type McpIdentity = {
   userId: string
   email: string | null
   clientId: string
+  /** Decides which tool list the connector gets (#133); the RLS still decides what each tool returns. */
+  role: McpRole
 }
 
 type CachedIdentity = McpIdentity & { expiresAt: number }
@@ -64,7 +67,19 @@ async function identify(token: string): Promise<CachedIdentity | null> {
     userId: data.user.id,
     email: data.user.email ?? null,
     clientId,
+    role: await roleFor(token, data.user.id),
     expiresAt: typeof payload.exp === 'number' ? payload.exp : 0,
+  }
+}
+
+/** Own profile row with the caller's token (RLS allows it); anything odd → member, never a wider list. */
+async function roleFor(token: string, userId: string): Promise<McpRole> {
+  try {
+    const { data } = await clientForToken(token).from('profiles').select('role').eq('id', userId).maybeSingle()
+    return (data as { role?: string } | null)?.role === 'admin' ? 'admin' : 'member'
+  } catch (error) {
+    console.warn('[mcp] no se pudo leer el rol; se registra como member:', error)
+    return 'member'
   }
 }
 

@@ -2,7 +2,9 @@
 // No requiredScopes: Supabase tokens carry no scope claim (it would 403).
 
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
-import { registerDymmsaTools, SERVER_INSTRUCTIONS } from '@/lib/mcp/server'
+import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
+import { roleFrom } from '@/lib/mcp/context'
+import type { McpRole } from '@/lib/mcp/manifest'
 import { verifyToken } from '@/lib/mcp/oauth'
 import { appUrl } from '@/lib/mcp/env'
 import { PROTECTED_RESOURCE_PATH } from '@/lib/mcp/routes'
@@ -13,20 +15,32 @@ export const runtime = 'nodejs'
 // breaks it. Must match the createMcpHandler maxDuration below.
 export const maxDuration = 60
 
-const handler = createMcpHandler(
-  registerDymmsaTools,
-  {
-    serverInfo: { name: 'dymmsa', version: '2.0.0' },
-    // Block map (app vs Odoo, #72) + business rules as server instructions, so clients
-    // that never read resources still get them.
-    instructions: SERVER_INSTRUCTIONS,
-  },
-  {
-    basePath: '/api',
-    disableSse: true,
-    maxDuration: 60,
-  },
-)
+// One handler per role (#133): a member's tools/list never carries the admin-only tools.
+// Trimming the list is noise reduction; the RLS behind every tool is still the barrier.
+function handlerFor(role: McpRole) {
+  return createMcpHandler(
+    (server) => registerDymmsaTools(server, role),
+    {
+      serverInfo: { name: 'dymmsa', version: '2.1.0' },
+      // Block map (app vs Odoo, #72) + business rules as server instructions, so clients
+      // that never read resources still get them.
+      instructions: serverInstructions(role),
+    },
+    {
+      basePath: '/api',
+      disableSse: true,
+      maxDuration: 60,
+    },
+  )
+}
+
+const handlers: Record<McpRole, ReturnType<typeof handlerFor>> = {
+  admin: handlerFor('admin'),
+  member: handlerFor('member'),
+}
+
+// withMcpAuth hangs the verified AuthInfo on req.auth before calling us.
+const handler = (req: Request) => handlers[roleFrom(req.auth)](req)
 
 const authedHandler = withMcpAuth(handler, verifyToken, {
   required: true,
