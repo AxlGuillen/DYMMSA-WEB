@@ -1,4 +1,8 @@
-/** Office pay estimate (2026-10-05): every hour at the person's rate, plus the Saturday they are given. */
+/**
+ * Office pay estimate (2026-10-05): Monday–Friday (and a Sunday, if any) at the person's rate, plus
+ * the Saturday the office is given — a worked Saturday replaces the gift, it is never paid twice
+ * (review PR #137). The workshop's Saturday/Sunday rules live in payroll, not here.
+ */
 
 import { SHIFT_HOURS, type WeekView } from './timesheet'
 import type { ProfileShift } from '@/types/database'
@@ -7,22 +11,27 @@ export const DEFAULT_HOURLY_RATE = 52
 
 export interface WeekPay {
   rate: number
-  /** Closed punches only: a pair without clock-out adds nothing, as in the week total. */
+  /** Closed punches Monday–Friday and Sunday; a pair without clock-out adds nothing, as in the week total. */
   workedMinutes: number
-  /** The paid Saturday: the shift's daily hours, worked or not; 0 without a shift. */
+  /** Hours counted for Saturday: the shift's daily hours (worked or not) or the worked ones if more; 0 without a shift. */
   saturdayHours: number
   paidHours: number
   amount: number
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
+const SATURDAY = 5
 
-/** Overtime and a worked Saturday are paid at the same rate; null = no rate, no estimate. */
-export function officeWeekPay(week: Pick<WeekView<unknown>, 'minutes'>, shift: ProfileShift | null | undefined, rate: number | null | undefined): WeekPay | null {
+type WeekLike = Pick<WeekView<unknown>, 'days'>
+
+/** Overtime is paid at the same rate; null = no rate, no estimate. */
+export function officeWeekPay(week: WeekLike, shift: ProfileShift | null | undefined, rate: number | null | undefined): WeekPay | null {
   if (rate == null || !(rate > 0)) return null
-  const saturdayHours = shift ? SHIFT_HOURS[shift].daily : 0
-  const paidHours = week.minutes / 60 + saturdayHours
-  return { rate, workedMinutes: week.minutes, saturdayHours, paidHours: round2(paidHours), amount: round2(paidHours * rate) }
+  const workedMinutes = week.days.reduce((sum, d, i) => (i === SATURDAY ? sum : sum + d.minutes), 0)
+  const saturdayWorked = (week.days[SATURDAY]?.minutes ?? 0) / 60
+  const saturdayHours = Math.max(shift ? SHIFT_HOURS[shift].daily : 0, saturdayWorked)
+  const paidHours = workedMinutes / 60 + saturdayHours
+  return { rate, workedMinutes, saturdayHours: round2(saturdayHours), paidHours: round2(paidHours), amount: round2(paidHours * rate) }
 }
 
 /** Numeric columns can arrive as strings from PostgREST; coerce at the boundary, never trust them raw. */

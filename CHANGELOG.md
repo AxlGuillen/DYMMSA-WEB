@@ -15,6 +15,11 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   oficina (con pago estimado) y del taller (horas de la hoja de Nómina o del
   checador), de todos o por persona.
 
+### Corregido
+- [admin] **El sábado ya no se paga dos veces en el estimado.** Si alguien de
+  oficina trabaja un sábado, cuenta lo mayor entre las horas que se le regalan
+  y las que trabajó, no la suma de las dos.
+
 ### Mejorado
 - [admin] **Mi semana separa Oficina y Taller** en el selector de persona.
 - [admin] **Novedades** ya no muestra a los miembros lo que solo usan los

@@ -246,17 +246,27 @@ describe('PATCH /api/profile', () => {
 })
 
 describe('PATCH /api/profiles/[id] — tarifa por hora', () => {
-  test('el admin la cambia o la quita; un monto inválido → 400', async () => {
+  test('la tarifa vive en profile_pay (solo admin): cambiarla es un upsert, quitarla borra la fila; inválida → 400', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'profiles.select': profilesTable(ME_ADMIN), 'profiles.update': { data: { ...OTHER, hourly_rate: '60.00' }, error: null } },
+      responses: {
+        'profiles.select': (rec: CallRecord) =>
+          filterValue(rec, 'id') === OTHER.id && rec.single && !hasFilter(rec, 'role')
+            ? { data: { ...OTHER, profile_pay: { hourly_rate: '60.00' } }, error: null }
+            : profilesTable(ME_ADMIN)(rec),
+        'profile_pay.upsert': { data: null, error: null },
+        'profile_pay.delete': { data: null, error: null },
+      },
     })
     const res = await patch(OTHER.id, { hourly_rate: 60 })
     expect(res.status).toBe(200)
-    expect(activeClient.updatePayload('profiles')).toEqual({ hourly_rate: 60 })
+    // profiles itself is not touched: the column no longer exists there (review PR #137).
+    expect(activeClient.didCall('profiles', 'update')).toBe(false)
+    expect(activeClient.upsertPayload<Record<string, unknown>>('profile_pay')).toEqual({ profile_id: OTHER.id, hourly_rate: 60 })
     expect((await readJson<{ hourly_rate: number }>(res)).hourly_rate).toBe(60)
 
     expect((await patch(OTHER.id, { hourly_rate: null })).status).toBe(200)
+    expect(filterValue(activeClient.callsTo('profile_pay', 'delete')[0], 'profile_id')).toBe(OTHER.id)
     expect((await patch(OTHER.id, { hourly_rate: 0 })).status).toBe(400)
   })
 

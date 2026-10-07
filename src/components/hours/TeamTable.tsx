@@ -18,6 +18,7 @@ import { NssField } from '@/components/profile/NssField'
 import { useDiscreteModeStore } from '@/stores/discreteModeStore'
 import { useCurrency } from '@/hooks/useCurrency'
 import { maskNss, normalizeNss, nssError } from '@/lib/nss'
+import { parseRate } from '@/lib/office-pay'
 import { AREA_LABELS, AREAS, ROLE_LABELS } from '@/lib/profile'
 import { SHIFT_LABELS, SHIFTS } from '@/lib/timesheet'
 import type { ProfileArea, ProfileRole, ProfileShift, ProfileWithAvatar } from '@/types/database'
@@ -73,7 +74,7 @@ export function TeamTable() {
                     <Badge variant={p.role === 'admin' ? 'default' : 'secondary'}>{ROLE_LABELS[p.role]}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{AREA_LABELS[p.area ?? 'office']}</Badge>
+                    <Badge variant="outline">{AREA_LABELS[p.area]}</Badge>
                   </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {p.clock_employee_id ?? <span className="italic">no checa</span>}
@@ -117,7 +118,7 @@ function ProfileDialog({ profile, onClose }: { profile: ProfileWithAvatar | null
 function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClose: () => void }) {
   const [name, setName] = useState(profile.display_name)
   const [role, setRole] = useState<ProfileRole>(profile.role)
-  const [area, setArea] = useState<ProfileArea>(profile.area ?? 'office')
+  const [area, setArea] = useState<ProfileArea>(profile.area)
   const [clockId, setClockId] = useState(profile.clock_employee_id == null ? '' : String(profile.clock_employee_id))
   const [shift, setShift] = useState<ProfileShift | null>(profile.shift ?? null)
   const [nss, setNss] = useState(profile.nss ?? '')
@@ -138,8 +139,9 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
       toast.error(nssProblem)
       return
     }
-    const parsedRate = rate.trim() === '' ? null : Number(rate)
-    if (parsedRate !== null && !(parsedRate > 0)) {
+    // Rounded here too: what the admin sees after saving must be what they typed (numeric(10,2)).
+    const parsedRate = rate.trim() === '' ? null : parseRate(rate)
+    if (rate.trim() !== '' && parsedRate === null) {
       toast.error('La tarifa por hora debe ser un monto mayor a 0')
       return
     }

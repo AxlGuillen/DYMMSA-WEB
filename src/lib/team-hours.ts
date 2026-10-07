@@ -14,7 +14,8 @@ import {
 import type { ExcusedDay, PayrollDay, PayrollEmployee, Profile, ProfileArea, ProfileShift } from '@/types/database'
 
 type EntryLike = { user_id: string; work_date: string; clock_in: string; clock_out: string | null }
-type OfficeProfile = Pick<Profile, 'id' | 'display_name' | 'shift' | 'hourly_rate'> & { avatar_url?: string | null }
+/** The rate comes flattened from `profile_pay` (admin-only); absent = no estimate. */
+type OfficeProfile = Pick<Profile, 'id' | 'display_name' | 'shift'> & { avatar_url?: string | null; hourly_rate?: number | null }
 
 export interface OfficeRow {
   id: string

@@ -15,7 +15,7 @@ injectSupabaseServer(() => activeClient)
 const role = (r: 'admin' | 'member') => (rec: CallRecord) =>
   filterValue(rec, 'id') === AUTH.id
     ? { data: { id: AUTH.id, role: r, display_name: 'Axl' }, error: null }
-    : { data: [{ id: 'u-tania', display_name: 'Tania', shift: 'part_time', hourly_rate: '52.00', avatar_path: null, area: 'office' }, { id: 'u-taller', display_name: 'Pedro', shift: 'full_time', hourly_rate: '52.00', avatar_path: null, area: 'workshop' }], error: null }
+    : { data: [{ id: 'u-tania', display_name: 'Tania', shift: 'part_time', profile_pay: { hourly_rate: '52.00' }, avatar_path: null, area: 'office' }, { id: 'u-taller', display_name: 'Pedro', shift: 'full_time', profile_pay: null, avatar_path: null, area: 'workshop' }], error: null }
 
 const get = (query = '') => overview.GET(makeRequest(undefined, { url: `http://x/api/hours/overview${query}` }))
 
@@ -60,9 +60,32 @@ describe('GET /api/hours/overview', () => {
     const read = activeClient.callsTo('time_entries', 'select')[0]
     expect(filterValue(read, 'work_date', 'gte')).toBe('2026-09-28')
     expect(filterValue(read, 'work_date', 'lte')).toBe('2026-10-31')
-    // Only active workshop people without an app account.
+    // Every active employee is read; the ones already on screen through the clock are dropped in code.
     const employees = activeClient.callsTo('payroll_employees', 'select')[0]
     expect(filterValue(employees, 'active')).toBe(true)
-    expect(employees.filters.some((f) => f.method === 'is' && f.args[0] === 'profile_id')).toBe(true)
+    expect(employees.filters.some((f) => f.method === 'is' && f.args[0] === 'profile_id')).toBe(false)
+  })
+
+  test('un empleado de Nómina ligado a un perfil que no checa sigue apareciendo; uno ligado a quien checa no se duplica (review PR #137)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': role('admin'),
+        'time_entries.select': { data: [], error: null },
+        'excused_days.select': { data: [], error: null },
+        'payroll_employees.select': {
+          data: [
+            { id: 'e-pedro', name: 'Pedro', shift: 'full_time', profile_id: 'u-taller' },
+            { id: 'e-sinreloj', name: 'Luis', shift: 'full_time', profile_id: 'u-sin-checador' },
+            { id: 'e-jose', name: 'José', shift: 'full_time', profile_id: null },
+          ],
+          error: null,
+        },
+        'payroll_days.select': { data: [{ employee_id: 'e-sinreloj', work_date: '2026-09-28', worked_minutes: 480, status: 'confirmed' }], error: null },
+      },
+    })
+    const body = await readJson<{ workshop: { id: string; source: string; minutes: number }[] }>(await get('?week=2026-10-01'))
+    expect(body.workshop.map((w) => [w.id, w.source])).toEqual([['u-taller', 'clock'], ['e-sinreloj', 'payroll'], ['e-jose', 'payroll']])
+    expect(body.workshop[1].minutes).toBe(480)
   })
 })

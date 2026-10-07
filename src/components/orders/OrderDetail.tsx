@@ -114,7 +114,8 @@ const EMPTY_ADD_FORM = {
   quantity_approved: '',
 }
 
-/** etm → Spanish description saved in the ETM table; a failed read falls back to Translate, never blocks the download. */
+/** etm → Spanish description saved in the ETM table; a failed read falls back to Translate, never blocks the download.
+ *  Read live on purpose, unlike the frozen DYMMSA description: it is a label for the delivery sheet, not a quoted term (review PR #137). */
 async function loadSpanishDescriptions(etms: string[]): Promise<Record<string, string>> {
   const etmCodes = [...new Set(etms.filter(Boolean))]
   if (etmCodes.length === 0) return {}

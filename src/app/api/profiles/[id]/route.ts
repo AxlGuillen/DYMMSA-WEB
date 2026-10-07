@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
-import { AREAS, PROFILE_COLUMNS, parseDisplayName, parseHourlyRate, parseNss, presentProfile } from '@/lib/profile'
+import { AREAS, PROFILE_WITH_PAY_COLUMNS, parseDisplayName, parseHourlyRate, parseNss, presentProfile, type PayEmbed } from '@/lib/profile'
 import type { Profile, ProfileArea, ProfileRole, ProfileShift, ProfileUpdate } from '@/types/database'
 
 const ROLES: ProfileRole[] = ['admin', 'member']
@@ -51,12 +51,14 @@ export async function PATCH(
       if (!AREAS.includes(body.area as ProfileArea)) return badRequest('Área inválida: oficina o taller')
       updates.area = body.area
     }
+    // The rate lives in profile_pay, admin-only (review PR #137): never a column of the row the person reads.
+    let rateChange: { value: number | null } | undefined
     if (body.hourly_rate !== undefined) {
       const rate = parseHourlyRate(body.hourly_rate)
       if ('error' in rate) return badRequest(rate.error)
-      updates.hourly_rate = rate.value
+      rateChange = { value: rate.value }
     }
-    if (Object.keys(updates).length === 0) return badRequest('No hay cambios para guardar')
+    if (Object.keys(updates).length === 0 && !rateChange) return badRequest('No hay cambios para guardar')
 
     const { data: current } = await supabase
       .from('profiles').select('id, role').eq('id', id).single()
@@ -69,20 +71,33 @@ export async function PATCH(
       if ((count ?? 0) <= 1) return badRequest('Debe quedar al menos un administrador')
     }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', id)
-      .select(PROFILE_COLUMNS)
-      .single()
+    if (Object.keys(updates).length > 0) {
+      const { error } = await supabase.from('profiles').update(updates).eq('id', id)
+      if (error) {
+        if (error.code === '23505') return badRequest('Ese id de checador ya está asignado a otro usuario')
+        console.error('Error updating profile:', error)
+        return serverError('Error al actualizar el perfil')
+      }
+    }
+    if (rateChange) {
+      // null = no estimate = no row; the CHECK (> 0) makes a stored 0 impossible.
+      const { error } =
+        rateChange.value === null
+          ? await supabase.from('profile_pay').delete().eq('profile_id', id)
+          : await supabase.from('profile_pay').upsert({ profile_id: id, hourly_rate: rateChange.value }, { onConflict: 'profile_id' })
+      if (error) {
+        console.error('Error updating profile pay:', error)
+        return serverError('Error al actualizar la tarifa por hora')
+      }
+    }
 
+    const { data, error } = await supabase.from('profiles').select(PROFILE_WITH_PAY_COLUMNS).eq('id', id).single()
     if (error || !data) {
-      if (error?.code === '23505') return badRequest('Ese id de checador ya está asignado a otro usuario')
       if (error?.code === 'PGRST116') return notFound('El perfil no existe')
-      console.error('Error updating profile:', error)
+      console.error('Error reading profile:', error)
       return serverError('Error al actualizar el perfil')
     }
-    return NextResponse.json(presentProfile(data as Profile))
+    return NextResponse.json(presentProfile(data as Profile & { profile_pay: PayEmbed }))
   } catch (error) {
     console.error('Profile PATCH error:', error)
     return serverError('Error al actualizar el perfil')

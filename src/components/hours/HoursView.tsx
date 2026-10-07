@@ -39,6 +39,8 @@ export function HoursView() {
   // The reference lines follow whoever is on screen; a person without a shift must not inherit mine.
   const shown = isAdmin ? profiles?.find((p) => p.id === targetUser) : profile
   const targetShift = (shown ?? profile)?.shift ?? null
+  // The rate only exists on the admin list (profile_pay is admin-only): the own profile never carries it.
+  const adminShown = isAdmin ? profiles?.find((p) => p.id === targetUser) : undefined
 
   const TREND_WEEKS = 8
   const trendQuery = useTimeEntries({ user: targetUser, from: shiftWeek(start, -(TREND_WEEKS - 1)), to: end })
@@ -81,11 +83,11 @@ export function HoursView() {
                 <SelectValue placeholder="Empleado" />
               </SelectTrigger>
               <SelectContent>
-                {AREAS.filter((a) => profiles.some((p) => (p.area ?? 'office') === a)).map((area, i) => (
+                {AREAS.filter((a) => profiles.some((p) => p.area === a)).map((area, i) => (
                   <SelectGroup key={area}>
                     {i > 0 && <SelectSeparator />}
                     <SelectLabel>{AREA_LABELS[area]}</SelectLabel>
-                    {profiles.filter((p) => (p.area ?? 'office') === area).map((p) => (
+                    {profiles.filter((p) => p.area === area).map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         <span className="flex items-center gap-2">
                           <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} size="sm" />
@@ -116,7 +118,7 @@ export function HoursView() {
 
       {/* Pay is admin-only (2026-10-05) and only for the office. */}
       {isAdmin && shown?.area !== 'workshop' && (
-        <WeekPayCard week={data?.week ?? undefined} shift={targetShift} rate={shown?.hourly_rate} />
+        <WeekPayCard week={data?.week ?? undefined} shift={targetShift} rate={adminShown?.hourly_rate} />
       )}
 
       <div data-tour="hrs-grid">
