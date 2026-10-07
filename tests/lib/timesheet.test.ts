@@ -12,6 +12,7 @@ import {
   minutesBetween,
   normalizeTime,
   parseNgtecoReport,
+  reportMismatches,
   shiftWeek,
   weekBounds,
   weekChartData, shiftProgress, buildWeeklyTrend, SHIFT_HOURS, isRealDate, excusedWeekdays,
@@ -34,10 +35,10 @@ describe('parseNgtecoReport', () => {
   test('la fila de continuación hereda la fecha y los días vacíos no producen checadas', () => {
     const diego = report.employees[0]
     expect(diego.punches).toEqual([
-      { date: '2026-08-31', clockIn: '10:06', clockOut: '18:27', note: null },
-      { date: '2026-09-01', clockIn: '08:55', clockOut: '19:20', note: null },
-      { date: '2026-09-01', clockIn: '19:21', clockOut: '19:21', note: null },
-      { date: '2026-09-03', clockIn: '09:02', clockOut: null, note: 'olvidó checar salida' },
+      { date: '2026-08-31', clockIn: '10:06', clockOut: '18:27', note: null, reported: '08:21' },
+      { date: '2026-09-01', clockIn: '08:55', clockOut: '19:20', note: null, reported: '10:24' },
+      { date: '2026-09-01', clockIn: '19:21', clockOut: '19:21', note: null, reported: '00:00' },
+      { date: '2026-09-03', clockIn: '09:02', clockOut: null, note: 'olvidó checar salida', reported: null },
     ])
   })
 
@@ -57,7 +58,7 @@ describe('parseNgtecoReport', () => {
     const numeric = parseNgtecoReport(NGTECO_NUMERIC)
     expect(numeric.employees[0].clockId).toBe(1)
     expect(numeric.employees[0].punches).toEqual([
-      { date: '2026-08-31', clockIn: '10:06', clockOut: '18:27', note: null },
+      { date: '2026-08-31', clockIn: '10:06', clockOut: '18:27', note: null, reported: null },
     ])
   })
 
@@ -90,6 +91,33 @@ describe('parseNgtecoReport', () => {
     ])
     expect(badIn.warnings).toEqual([expect.stringMatching(/^Hora de entrada inválida: Tania 2026-08-31/)])
     expect(badIn.employees[0].punches).toEqual([])
+  })
+})
+
+describe('reportMismatches: lo transcrito debe cuadrar con los totales del checador (#132)', () => {
+  const withRow = (index: number, row: string[]) => NGTECO_WEEK.map((r, i) => (i === index ? row : r))
+  const diegoMonday = NGTECO_WEEK.findIndex((r) => r[1] === '2026-08-31')
+
+  test('el reporte tal cual cuadra, aunque el checador difiera un minuto por segundos', () => {
+    expect(reportMismatches(parseNgtecoReport(NGTECO_WEEK))).toEqual([])
+  })
+
+  test('una hora mal copiada no cuadra con su "Tiempo de trabajo" ni con el total', () => {
+    const typo = parseNgtecoReport(withRow(diegoMonday, ['LU', '2026-08-31', '10:06', '18:47', '08:21', '08:21', '', '']))
+    expect(reportMismatches(typo)).toEqual([
+      'Diego Baltazar 2026-08-31 10:06–18:47: el reporte dice 08:21 de trabajo',
+      'Diego Baltazar: las checadas suman 19:06 y el reporte dice 18:46',
+    ])
+  })
+
+  test('una fila que se quedó fuera se nota en el total del bloque', () => {
+    const dropped = parseNgtecoReport(NGTECO_WEEK.filter((_, i) => i !== diegoMonday))
+    expect(reportMismatches(dropped)).toEqual(['Diego Baltazar: las checadas suman 10:25 y el reporte dice 18:46'])
+  })
+
+  test('un bloque con checadas y sin su fila "Horas totales" no se acepta', () => {
+    const noTotal = parseNgtecoReport(NGTECO_WEEK.filter((r) => !(r[0] === 'Horas totales' && r[5] === '16:46')))
+    expect(reportMismatches(noTotal)).toEqual(['Tania: falta su fila "Horas totales"'])
   })
 })
 

@@ -3,6 +3,15 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-07
+
+### Nuevo
+- [admin] **El asistente carga el reporte del checador.** Pásale a Claude el
+  reporte semanal de la oficina y lo sube como Horas → Importar reporte; antes
+  de guardar revisa que cuadre con los totales del propio reporte. También
+  puede **traer las horas de la oficina a Nómina** como borrador, igual que el
+  botón "Traer de Horas". Confirmar y cerrar el corte sigue siendo en la app.
+
 ## 2026-10-05
 
 ### Nuevo

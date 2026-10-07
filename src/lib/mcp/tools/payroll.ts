@@ -8,7 +8,7 @@ import { ToolError, requireSingleMatch, type Db } from '../shared'
 import { todayInMexico } from '@/lib/format'
 import { formatDuration, SHIFT_LABELS } from '@/lib/timesheet'
 import { PERIOD_DAY_LABELS, isIsoDate, payrollPeriod, type HoursBreakdown } from '@/lib/payroll'
-import { PayrollError, loadEmployees, loadPayrollView, saveDays, type DayInput } from '@/lib/payroll-store'
+import { PayrollError, loadEmployees, loadPayrollView, prefillFromHours, saveDays, type DayInput } from '@/lib/payroll-store'
 import type { PayrollEmployee } from '@/types/database'
 
 const NO_ACCESS = 'Sin empleados visibles: Nómina solo la ve un administrador, y los empleados se dan de alta en la app (Nómina → Empleados).'
@@ -86,7 +86,7 @@ function resolveEmployee(employees: readonly PayrollEmployee[], name: string): P
 }
 
 export interface RecordPayrollHoursInput {
-  dias: {
+  dias?: {
     empleado: string
     fecha: string
     /** Hours worked that day, decimals allowed (8, 11.5). */
@@ -94,12 +94,21 @@ export interface RecordPayrollHoursInput {
     horas_no_trabajadas?: number
     nota?: string
   }[]
+  /** "Traer de Horas" (#132): copies the office's clocked hours of the cut instead of `dias`. */
+  traer_de_horas?: boolean
+  /** Any day of the cut for `traer_de_horas` (default: the current one). */
+  fecha?: string
 }
 
 const toMinutes = (hours: number) => Math.round(hours * 60)
 
 /** Saves the sheet as DRAFTS. Confirming and closing stay in the app, with the admin. */
 export async function recordPayrollHours(db: Db, input: RecordPayrollHoursInput) {
+  if (input.traer_de_horas) {
+    if (input.dias?.length) throw new ToolError('Usa `dias` o `traer_de_horas`, no los dos en la misma llamada')
+    return prefillCut(db, input.fecha)
+  }
+  if (input.fecha !== undefined) throw new ToolError('`fecha` solo aplica con `traer_de_horas`; con `dias`, cada día lleva la suya')
   if (!input.dias?.length) throw new ToolError('Indica al menos un día')
   if (input.dias.length > 200) throw new ToolError('Máximo 200 días por llamada')
 
@@ -137,5 +146,24 @@ export async function recordPayrollHours(db: Db, input: RecordPayrollHoursInput)
     })),
     cortes: cortes.map((start) => ({ inicio: start, fin: payrollPeriod(start).end })),
     nota: 'Quedaron como BORRADOR y todavía no suman: un administrador los revisa y confirma en la app (Nómina → Confirmar borradores).',
+  }
+}
+
+/** Same rules as the app's button: drafts only, never over a confirmed day, another source or a closed cut. */
+async function prefillCut(db: Db, fecha?: string) {
+  if (fecha !== undefined && !isIsoDate(fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
+  const { start, end } = payrollPeriod(fecha ?? todayInMexico())
+  const [result, employees] = await asTool(() => Promise.all([prefillFromHours(db, start), loadEmployees(db)]))
+  const byId = new Map(employees.map((e) => [e.id, e.name]))
+  return {
+    corte: { inicio: start, fin: end },
+    empleados_ligados: result.linked,
+    guardados: result.saved,
+    omitidos: result.skipped.map((s) => ({ empleado: byId.get(s.employee_id) ?? s.employee_id, fecha: s.work_date, motivo: s.reason })),
+    checadas_sin_salida: result.open,
+    nota:
+      result.linked === 0
+        ? 'Ningún empleado de nómina está ligado a un perfil de la app: se liga en Nómina → Empleados.'
+        : 'Quedaron como BORRADOR y todavía no suman: un administrador los revisa y confirma en la app. Una checada sin salida no suma: corrígela en Horas y vuelve a traer.',
   }
 }

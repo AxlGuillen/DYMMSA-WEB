@@ -5,7 +5,8 @@ import { todayInMexico } from '@/lib/format'
 import { weekBounds } from '@/lib/timesheet'
 import { createMockSupabase, filterValue, type CallRecord } from '../helpers/supabase-mock'
 import { ToolError, type Db } from '@/lib/mcp/shared'
-import { getWeekHours, getHoursTrend, listTimeImports } from '@/lib/mcp/tools/hours'
+import { getWeekHours, getHoursTrend, listTimeImports, saveTimeEntries } from '@/lib/mcp/tools/hours'
+import { NGTECO_PERIOD, NGTECO_WEEK } from '../helpers/fixtures/ngteco'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
@@ -174,5 +175,49 @@ describe('list_time_imports', () => {
     const result = await listTimeImports(asDb(client))
     expect(result.cargas).toEqual([])
     expect(result.nota).toMatch(/solo la ve un administrador/)
+  })
+})
+
+describe('save_time_entries (#132)', () => {
+  const MAPPED = [
+    { id: 'u-diego', display_name: 'Diego', clock_employee_id: 1 },
+    { id: 'u-tania', display_name: 'Tania', clock_employee_id: 5 },
+    { id: 'u-santi', display_name: 'Santi', clock_employee_id: 2 },
+  ]
+  const importClient = (rpc: unknown = { data: { inserted: 5, updated: 0, skipped_edited: 0 }, error: null }) =>
+    createMockSupabase({ responses: { 'profiles.select': { data: MAPPED, error: null }, 'rpc.import_time_entries': rpc } })
+
+  test('las filas pasan por el parser de la app y la misma RPC; avisa quién no vino en el reporte', async () => {
+    const client = importClient()
+    const result = await saveTimeEntries(asDb(client), { filas: NGTECO_WEEK, nombre_archivo: 'ASISTENCIA_OFICINA.xls' })
+
+    expect(result.periodo).toEqual({ inicio: NGTECO_PERIOD.start, fin: NGTECO_PERIOD.end })
+    expect(result).toMatchObject({ insertadas: 5, actualizadas: 0, saltadas_por_edicion: 0, sin_perfil: [], no_vinieron_en_el_reporte: ['Santi'] })
+    expect(result.personas).toEqual([
+      { nombre: 'Diego Baltazar', id_checador: 1, checadas: 4, sin_salida: 1 },
+      { nombre: 'Tania', id_checador: 5, checadas: 2, sin_salida: 0 },
+    ])
+    const { fn, params } = client._rpcCalls[0] as { fn: string; params: Record<string, unknown> }
+    expect(fn).toBe('import_time_entries')
+    expect(params).toMatchObject({ p_period_start: '2026-08-31', p_period_end: '2026-09-06', p_file_name: 'Asistente (MCP): ASISTENCIA_OFICINA.xls' })
+    expect(params.p_entries).toHaveLength(6)
+  })
+
+  test('si lo transcrito no cuadra con los totales del reporte no guarda nada y dice qué revisar', async () => {
+    const client = importClient()
+    const typo = NGTECO_WEEK.map((r) => (r[1] === '2026-08-31' && r[2] === '10:06' && r[3] === '18:27' ? ['LU', '2026-08-31', '10:06', '18:57', '08:21', '08:21'] : r))
+    const err = await saveTimeEntries(asDb(client), { filas: typo }).catch((e) => e)
+    expect(err).toBeInstanceOf(ToolError)
+    expect(err.message).toMatch(/No guardé nada/)
+    expect(err.message).toMatch(/Diego Baltazar 2026-08-31 10:06–18:57: el reporte dice 08:21/)
+    expect(client._rpcCalls).toEqual([])
+    expect(client.callsTo('profiles')).toEqual([])
+  })
+
+  test('sin período, sin bloques o con la RLS diciendo no: error claro de la tool', async () => {
+    await expect(saveTimeEntries(asDb(importClient()), { filas: [] })).rejects.toThrow(/Manda las filas/)
+    await expect(saveTimeEntries(asDb(importClient()), { filas: NGTECO_WEEK.filter((r) => r[0] !== 'Período de pago') })).rejects.toThrow(/Período de pago/)
+    const denied = importClient({ data: null, error: { code: '42501', message: 'denied' } })
+    await expect(saveTimeEntries(asDb(denied), { filas: NGTECO_WEEK })).rejects.toThrow(/Solo un administrador/)
   })
 })

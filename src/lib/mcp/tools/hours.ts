@@ -1,11 +1,12 @@
 /**
- * Hours module, read-only (#101, ADR-029). No permission logic here on purpose: the db comes
- * from the caller's token, so RLS decides — a member sees only their own rows and profile.
+ * Hours module (#101, ADR-029) plus the clock report write (#132). No permission logic here on
+ * purpose: the db comes from the caller's token, so RLS decides — a member sees only their own rows.
  */
 
 import { ToolError, type Db } from '../shared'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
+import { importTimeReport, TimeImportError } from '@/lib/time-import'
 import {
   buildWeekView,
   buildWeeklyTrend,
@@ -17,6 +18,8 @@ import {
   type DayStatus,
   formatDuration,
   normalizeEntryTimes,
+  parseNgtecoReport,
+  reportMismatches,
   shiftProgress,
   SHIFT_HOURS,
   SHIFT_LABELS,
@@ -179,5 +182,54 @@ export async function listTimeImports(db: Db, input: { limit?: number } = {}) {
       saltadas_por_edicion: r.skipped_edited,
       cargada_el: r.created_at,
     })),
+  }
+}
+
+export interface SaveTimeEntriesInput {
+  /** The clock report's rows, cell by cell, as the sheet prints them. */
+  filas: string[][]
+  nombre_archivo?: string
+}
+
+const ASSISTANT_FILE = 'Asistente (MCP)'
+
+/** The rows go through the app's own parser, and must add up to the clock's totals (#132, ADR-035). */
+export async function saveTimeEntries(db: Db, input: SaveTimeEntriesInput) {
+  if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador')
+  const report = parseNgtecoReport(input.filas)
+  const mismatches = reportMismatches(report)
+  if (mismatches.length > 0) {
+    throw new ToolError(
+      `No guardé nada: lo que mandaste no cuadra con los totales del propio reporte. Revisa esas filas contra el archivo y vuelve a mandarlo completo. ${mismatches.join(' · ')}`,
+    )
+  }
+  const name = input.nombre_archivo?.trim()
+  const { result, absent } = await asTool(() =>
+    importTimeReport(db, report, name ? `${ASSISTANT_FILE}: ${name.slice(0, 120)}` : ASSISTANT_FILE),
+  )
+  return {
+    periodo: { inicio: result.period.start, fin: result.period.end },
+    insertadas: result.inserted,
+    actualizadas: result.updated,
+    saltadas_por_edicion: result.skipped_edited,
+    personas: report.employees.map((e) => ({
+      nombre: e.name,
+      id_checador: e.clockId,
+      checadas: e.punches.length,
+      sin_salida: e.punches.filter((p) => !p.clockOut).length,
+    })),
+    sin_perfil: result.unmapped.map((u) => `${u.name} (${u.clockId})`),
+    no_vinieron_en_el_reporte: absent,
+    avisos: result.warnings,
+    nota: 'Re-subir la misma semana no duplica y nunca pisa una checada corregida por un administrador (sale en saltadas_por_edicion).',
+  }
+}
+
+async function asTool<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    if (error instanceof TimeImportError) throw new ToolError(error.message)
+    throw error
   }
 }

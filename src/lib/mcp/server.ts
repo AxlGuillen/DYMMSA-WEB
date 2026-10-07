@@ -21,7 +21,7 @@ import { searchProducts } from './tools/products'
 import { searchUrreaCatalog } from './tools/urrea'
 import { listTasks, getTask, createTask, updateTask } from './tools/tasks'
 import { getBusinessSummary } from './tools/summary'
-import { getWeekHours, getHoursTrend, listTimeImports } from './tools/hours'
+import { getWeekHours, getHoursTrend, listTimeImports, saveTimeEntries } from './tools/hours'
 import { getProfiles } from './tools/profiles'
 import { getPayrollPeriod, recordPayrollHours } from './tools/payroll'
 import { listSuppliers } from './tools/suppliers'
@@ -101,10 +101,10 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte).
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
-- Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports' : ''}. Solo lectura. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
+- Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports y save_time_entries (escribe: carga el reporte del checador)' : ' (solo lectura)'}. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
 - Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona igual que en horas: un miembro solo ve su perfil, un administrador el de todos. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan explícitamente y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
-${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes que se paga el viernes: horas por empleado y día, y el total equivalente) y la escritura record_payroll_hours (carga horas como BORRADOR; confirmar y cerrar el corte se hace en la app; la guía para leer la hoja del taller va en la descripción de la tool). Son HORAS, nunca montos ni salarios.\n' : ''}
+${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes que se paga el viernes: horas por empleado y día, y el total equivalente) y la escritura record_payroll_hours (carga horas como BORRADOR; confirmar y cerrar el corte se hace en la app; la guía para leer la hoja del taller va en la descripción de la tool). Son HORAS, nunca montos ni salarios. Rutina de los viernes: save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
@@ -112,7 +112,7 @@ La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Ventas y cobranza: odoo_sales_summary, odoo_customer_profile (incluye la cartera del cliente: deuda total, vencido y días promedio de pago), odoo_sale_detail, odoo_receivables_ranking ("¿a quién le cobro primero?" / "¿quién paga más lento?").
 - Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
 
-Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las del bloque A listadas arriba (set_inventory_location, create_task, update_task, mark_payable_paid, create_payable${admin ? ', record_payroll_hours' : ''}); todo lo demás es lectura.
+Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las del bloque A listadas arriba (set_inventory_location, create_task, update_task, mark_payable_paid, create_payable${admin ? ', save_time_entries, record_payroll_hours' : ''}); todo lo demás es lectura.
 
 Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
 
@@ -463,6 +463,26 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
     (input, extra) => run(extra, (db) => listTimeImports(db, input)),
   )
 
+  if (forAdmin) server.registerTool(
+    'save_time_entries',
+    {
+      title: 'Cargar reporte del checador',
+      description:
+        'Carga el reporte semanal del checador de la oficina (NGTeco, "Informe de tarjetas horarias", .xls): lo mismo que Horas → Importar reporte en la app. ESCRIBE: solo cuando un administrador lo pida. `filas` = TODAS las filas de la hoja tal cual, cada una como lista de celdas en su columna original ("" en las vacías; sin reordenar, resumir ni interpretar), incluidas "Período de pago", "Empleado", cada día, las filas de continuación y "Horas totales". Si puedes ejecutar código, lee la hoja con código y pásala sin tocar. Ej.: ["LU","2026-09-28","10:09","19:48","09:38","09:38"] y una segunda checada del mismo día ["","","19:21","19:21","00:00","10:25"]. La app la interpreta y la compara con los totales del propio reporte: si no cuadran no guarda nada y dice qué revisar. Re-subir la misma semana no duplica ni pisa las correcciones de un administrador.',
+      inputSchema: {
+        filas: z
+          .array(z.array(z.string().max(200)).max(20))
+          .min(1)
+          .max(1000)
+          .describe('Filas de la hoja, celda por celda, como texto'),
+        nombre_archivo: z.string().max(200).optional().describe('Nombre del archivo, para la bitácora de cargas'),
+      },
+      // Scoped write (#132, ADR-035): same RPC and rules as the app's import.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (db) => saveTimeEntries(db, input)),
+  )
+
   server.registerTool(
     'get_profiles',
     {
@@ -496,7 +516,7 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
     {
       title: 'Cargar horas de nómina (borrador)',
       description:
-        'Guarda horas trabajadas por empleado y día como BORRADOR — típicamente lo leído de la hoja semanal de asistencia del taller. ESCRIBE: úsala solo cuando un administrador lo pida y después de mostrarle lo que leíste y recibir su confirmación. `horas` es el total trabajado ese día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado y el triple de domingo los calcula la app por la fecha, no los multipliques. Nunca pisa un día ya confirmado, capturado a mano o traído del checador, ni toca un corte cerrado: esos vuelven en `omitidos` con el motivo. No confirma, no cierra cortes y no crea empleados. El empleado se busca por nombre; con varias coincidencias devuelve la lista para precisar. ' +
+        'Guarda horas trabajadas por empleado y día como BORRADOR — típicamente lo leído de la hoja semanal de asistencia del taller. ESCRIBE: úsala solo cuando un administrador lo pida y después de mostrarle lo que leíste y recibir su confirmación. `horas` es el total trabajado ese día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado y el triple de domingo los calcula la app por la fecha, no los multipliques. Nunca pisa un día ya confirmado, capturado a mano o traído del checador, ni toca un corte cerrado: esos vuelven en `omitidos` con el motivo. No confirma, no cierra cortes y no crea empleados. El empleado se busca por nombre; con varias coincidencias devuelve la lista para precisar. Con `traer_de_horas: true` (sin `dias`) copia al corte que contiene `fecha` (default el actual) las horas checadas de la oficina, como el botón "Traer de Horas"; antes carga el reporte con save_time_entries. ' +
         SHEET_GUIDE,
       inputSchema: {
         dias: z
@@ -511,7 +531,10 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
           )
           .min(1)
           .max(200)
-          .describe('Un elemento por empleado y día'),
+          .optional()
+          .describe('Un elemento por empleado y día (la hoja del taller)'),
+        traer_de_horas: z.boolean().optional().describe('true = copiar las horas del checador de la oficina en vez de mandar `dias`'),
+        fecha: z.string().optional().describe('Con traer_de_horas: cualquier día del corte, YYYY-MM-DD (default el actual)'),
       },
       // Scoped write (#123, ADR-033): drafts only; the admin confirms in the app.
       annotations: { readOnlyHint: false, openWorldHint: false },

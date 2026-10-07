@@ -139,6 +139,7 @@ src/
 │   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); describeAuditEvent (#100); re-exporta month.ts
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94)
+│   ├── time-import.ts            # importTimeReport: reporte NGTeco → RPC, compartido por la ruta y el MCP (#132)
 │   └── utils.ts                  # cn() — class merging
 │
 ├── stores/
