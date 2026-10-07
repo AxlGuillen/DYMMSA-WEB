@@ -5,12 +5,42 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-10-05
 
+### Nuevo
+- [admin] **Pago estimado en Mi semana.** Al ver la semana de alguien de la
+  oficina aparece cuánto le tocaría: todas sus horas a su tarifa, más el sábado
+  pagado. Solo lo ven los administradores.
+- [admin] **Tarifa por hora y área en Equipo.** Cada persona tiene su tarifa
+  ($52 por default; vacía = sin pago estimado) y su área: oficina o taller.
+- [admin] **Resumen del equipo.** Nueva página en Horas con la semana de la
+  oficina (con pago estimado) y del taller (horas de la hoja de Nómina o del
+  checador), de todos o por persona.
+
+### Corregido
+- [admin] **El sábado ya no se paga dos veces en el estimado.** Si alguien de
+  oficina trabaja un sábado, cuenta lo mayor entre las horas que se le regalan
+  y las que trabajó, no la suma de las dos.
+
 ### Mejorado
+- [admin] **Mi semana separa Oficina y Taller** en el selector de persona.
+- [admin] **Novedades** ya no muestra a los miembros lo que solo usan los
+  administradores, y la pestaña **Actividad** es solo para administradores.
+- [admin] **Quién lleva más horas.** El Resumen del equipo muestra los tres con
+  más horas registradas en la semana y en el mes, de oficina y taller.
+- **Apartados colapsables en Finanzas.** Egresos, Ingresos, Vencimientos, Cobros
+  y Notas de crédito se pueden contraer con la flecha de su título, o todos a la
+  vez con **Contraer todo**; la app recuerda cómo los dejaste.
+- **Formato de entrega más completo.** Los precios, totales, subtotal e IVA
+  llevan signo de pesos; la columna **Comments** trae la marca de cada
+  producto, y **Descripcion** usa la descripción en español guardada en la BD
+  de ETM (si no hay, repite la de Translate).
 - **El asistente le muestra a cada quien solo lo que puede usar.** Al conectar
   el asistente, un miembro ya no ve las funciones que son solo de administrador,
   y la pantalla de autorización dice exactamente qué consulta y qué acciones
   puede hacer, generada de la lista real de capacidades. Si ya tenías el
   asistente conectado, reconéctalo para ver la lista nueva.
+
+### Corregido
+- Las gráficas de **Mi semana** ya no cortan los números del eje de horas.
 
 ## 2026-10-02
 
@@ -26,11 +56,11 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 - **Días cumplidos en verde y en rojo.** En Mi semana cada día de lunes a
   viernes se pinta en verde si se cumplió la jornada (4 u 8 horas) y en rojo si
   no.
-- **Días feriados y salidas autorizadas.** En Equipo, un administrador marca
+- [admin] **Días feriados y salidas autorizadas.** En Equipo, un administrador marca
   los días feriados o los días que dejó salir antes a alguien (o a todo el
   equipo). Esos días no cuentan como horas faltantes y se descuentan del
   objetivo de la semana.
-- **Corona del dueño** junto a su nombre en Equipo.
+- [admin] **Corona del dueño** junto a su nombre en Equipo.
 
 ### Mejorado
 - **Por cobrar ahora cuadra con Odoo**: el total incluye lo vencido, y la
@@ -50,7 +80,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   "¿qué jornada tiene Tania?" (un miembro solo consulta lo suyo).
 
 ### Mejorado
-- En **Equipo** los administradores ven y capturan el NSS de cada persona
+- [admin] En **Equipo** los administradores ven y capturan el NSS de cada persona
   (oculto salvo los últimos 4 dígitos).
 
 ## 2026-09-25
@@ -94,7 +124,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   la que corresponde a la jornada de la persona, con un aviso de si cumple o
   cuántas horas le faltan. Un día con una checada sin salida se pinta aparte:
   no suma horas y no debe leerse como un día corto.
-- **Jornada por persona en Equipo.** Cada perfil puede tener jornada de
+- [admin] **Jornada por persona en Equipo.** Cada perfil puede tener jornada de
   tiempo completo o de medio tiempo (o ninguna); es la referencia que usan
   las gráficas.
 - **El asistente ya responde sobre horas.** Puede decir cuántas horas lleva
@@ -137,7 +167,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   es la que alimenta el cierre del mes en Finanzas.
 
 ### Mejorado
-- Los administradores ven quién marcó cada factura como pagada (columna
+- [admin] Los administradores ven quién marcó cada factura como pagada (columna
   "Pagada por") y el historial de cambios de estado dentro del popup.
 
 ## 2026-09-21
@@ -172,14 +202,14 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   sus checadas de entrada y salida por día, con el total diario y el de la
   semana; las salidas que faltaron se marcan en ámbar y no suman. Se puede
   navegar semana por semana.
-- **Importar el reporte del checador.** Los administradores suben el Excel
+- [admin] **Importar el reporte del checador.** Los administradores suben el Excel
   semanal del NGTeco tal cual sale del aparato. Se ve cuántas checadas entraron,
   cuántas se actualizaron y si algún empleado del reporte aún no tiene usuario
   asignado. Volver a subir la misma semana no duplica nada.
-- **Correcciones con rastro.** Un administrador puede corregir una checada o
+- [admin] **Correcciones con rastro.** Un administrador puede corregir una checada o
   registrar una a mano; queda marcada con quién la editó y cuándo, y el dato
   original del checador se conserva. Un reporte posterior no pisa lo corregido.
-- **Equipo.** Los administradores asignan el rol de cada persona y el número con
+- [admin] **Equipo.** Los administradores asignan el rol de cada persona y el número con
   el que aparece en el reporte del checador.
 
 ## 2026-09-07

@@ -9,13 +9,14 @@ const TABS = [
   { key: 'actividad', href: '/dashboard/changelog/actividad', label: 'Actividad', icon: History },
 ] as const
 
-export function ChangelogTabs({ active }: { active: 'novedades' | 'actividad' }) {
+/** Actividad is the technical log: admin-only (2026-10-05), so members get no tab for it. */
+export function ChangelogTabs({ active, isAdmin }: { active: 'novedades' | 'actividad'; isAdmin: boolean }) {
   return (
     <nav
       aria-label="Vistas del registro de cambios"
       className="inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-1"
     >
-      {TABS.map((tab) => {
+      {TABS.filter((tab) => isAdmin || tab.key !== 'actividad').map((tab) => {
         const isActive = tab.key === active
         const Icon = tab.icon
         return (

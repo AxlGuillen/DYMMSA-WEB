@@ -56,10 +56,27 @@ describe('profiles: auto-edición', () => {
     ['rol', { role: 'admin' }],
     ['jornada', { shift: 'full_time' }],
     ['id del checador', { clock_employee_id: 9 }],
+    ['área', { area: 'workshop' }],
   ])('un member no puede cambiar su %s (42501) y la fila no se toca', async (_label, change) => {
     const res = await member.from('profiles').update({ display_name: 'Colado', ...change }).eq('id', MEMBER_ID).select()
     expect(res.error?.code).toBe('42501')
     expect(await profileRow(MEMBER_ID)).toMatchObject({ display_name: 'Member', role: 'member', shift: null, clock_employee_id: 5 })
+  })
+
+  test('REGLA: la tarifa por hora no es legible por la persona — vive en profile_pay, solo admin (review PR #137)', async () => {
+    // The column is gone from the row the person can read.
+    const column = await member.from('profiles').select('hourly_rate').eq('id', MEMBER_ID)
+    expect(column.error?.code).toBe('42703')
+    // The admin-only table: a member reads nothing and cannot write, even their own row.
+    expect((await member.from('profile_pay').select('*')).data).toEqual([])
+    expect((await member.from('profile_pay').upsert({ profile_id: MEMBER_ID, hourly_rate: 100 })).error?.code).toBe('42501')
+    expect(await sql('SELECT hourly_rate::text FROM public.profile_pay WHERE profile_id = $1', [MEMBER_ID])).toEqual([{ hourly_rate: '52.00' }])
+    // The admin sees it embedded and can change it.
+    const seen = await admin.from('profiles').select('id, profile_pay(hourly_rate)').eq('id', MEMBER_ID).single()
+    // numeric arrives as 52 or '52.00' depending on the PostgREST build: compare the value, not the type.
+    expect(Number((seen.data as { profile_pay: { hourly_rate: unknown } | null } | null)?.profile_pay?.hourly_rate)).toBe(52)
+    expect((await admin.from('profile_pay').upsert({ profile_id: MEMBER_ID, hourly_rate: 60 }, { onConflict: 'profile_id' })).error).toBeNull()
+    expect(await sql('SELECT hourly_rate::text FROM public.profile_pay WHERE profile_id = $1', [MEMBER_ID])).toEqual([{ hourly_rate: '60.00' }])
   })
 
   test('un member no edita el perfil de otro (0 filas) ni lo lee', async () => {

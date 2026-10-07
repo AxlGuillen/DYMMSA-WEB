@@ -95,12 +95,14 @@ import {
   receptionExcess,
 } from '@/lib/business-rules'
 import { separatorRowClass } from '@/lib/separator-palette'
+import { fetchJson } from '@/lib/fetch-json'
 import type {
   OrderWithItems,
   OrderStatus,
   UrreaStatus,
   DeliveryTime,
   ConfirmReceptionResult,
+  EtmProduct,
 } from '@/types/database'
 
 const EMPTY_ADD_FORM = {
@@ -110,6 +112,24 @@ const EMPTY_ADD_FORM = {
   brand: '',
   unit_price: '',
   quantity_approved: '',
+}
+
+/** etm → Spanish description saved in the ETM table; a failed read falls back to Translate, never blocks the download.
+ *  Read live on purpose, unlike the frozen DYMMSA description: it is a label for the delivery sheet, not a quoted term (review PR #137). */
+async function loadSpanishDescriptions(etms: string[]): Promise<Record<string, string>> {
+  const etmCodes = [...new Set(etms.filter(Boolean))]
+  if (etmCodes.length === 0) return {}
+  try {
+    const { found } = await fetchJson<{ found: Pick<EtmProduct, 'etm' | 'description_es'>[] }>('/api/quotes/lookup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ etmCodes }),
+    })
+    return Object.fromEntries(found.filter((p) => p.description_es?.trim()).map((p) => [p.etm, p.description_es]))
+  } catch {
+    toast.info('No se pudieron leer las descripciones en español: se usó la de Translate')
+    return {}
+  }
 }
 
 const DELIVERY_TIME_OPTIONS: { value: DeliveryTime; label: string }[] = [
@@ -215,7 +235,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
     try {
       // Lazy: xlsx only downloads with the delivery format.
       const { generateDeliveryExcel, downloadDeliveryExcel } = await import('@/lib/excel/generator')
-      const blob = generateDeliveryExcel(order.order_items, order.customer_name)
+      const spanishByEtm = await loadSpanishDescriptions(deliveredItems.map((item) => item.etm))
+      const blob = generateDeliveryExcel(order.order_items, order.customer_name, spanishByEtm)
       downloadDeliveryExcel(blob, order.customer_name)
       toast.success(`Formato de entrega descargado (${deliveredItems.length} productos)`)
     } catch (error) {

@@ -16,10 +16,12 @@ import { useProfiles, useUpdateProfile } from '@/hooks/useProfile'
 import { UserAvatar } from '@/components/profile/UserAvatar'
 import { NssField } from '@/components/profile/NssField'
 import { useDiscreteModeStore } from '@/stores/discreteModeStore'
+import { useCurrency } from '@/hooks/useCurrency'
 import { maskNss, normalizeNss, nssError } from '@/lib/nss'
-import { ROLE_LABELS } from '@/lib/profile'
+import { parseRate } from '@/lib/office-pay'
+import { AREA_LABELS, AREAS, ROLE_LABELS } from '@/lib/profile'
 import { SHIFT_LABELS, SHIFTS } from '@/lib/timesheet'
-import type { ProfileRole, ProfileShift, ProfileWithAvatar } from '@/types/database'
+import type { ProfileArea, ProfileRole, ProfileShift, ProfileWithAvatar } from '@/types/database'
 
 /** Radix rejects value="" in SelectItem; sentinel for "no shift". */
 const NO_SHIFT = '__none__'
@@ -29,6 +31,7 @@ export function TeamTable() {
   const { data: profiles, isLoading } = useProfiles()
   const [editing, setEditing] = useState<ProfileWithAvatar | null>(null)
   const isDiscrete = useDiscreteModeStore((s) => s.isDiscreteMode)
+  const fmt = useCurrency()
 
   if (isLoading || !profiles) {
     return (
@@ -47,9 +50,11 @@ export function TeamTable() {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Rol</TableHead>
+                <TableHead>Área</TableHead>
                 <TableHead>Id checador</TableHead>
                 <TableHead>Jornada</TableHead>
                 <TableHead>NSS</TableHead>
+                <TableHead className="text-right">Tarifa/h</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -68,6 +73,9 @@ export function TeamTable() {
                   <TableCell>
                     <Badge variant={p.role === 'admin' ? 'default' : 'secondary'}>{ROLE_LABELS[p.role]}</Badge>
                   </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{AREA_LABELS[p.area]}</Badge>
+                  </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {p.clock_employee_id ?? <span className="italic">no checa</span>}
                   </TableCell>
@@ -76,6 +84,9 @@ export function TeamTable() {
                   </TableCell>
                   <TableCell className="tabular-nums text-sm text-muted-foreground">
                     {p.nss ? (isDiscrete ? '•••••••••••' : maskNss(p.nss)) : <span className="italic">sin capturar</span>}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                    {p.hourly_rate == null ? <span className="italic">sin tarifa</span> : fmt(p.hourly_rate)}
                   </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(p)} aria-label={`Editar ${p.display_name}`}>
@@ -107,9 +118,11 @@ function ProfileDialog({ profile, onClose }: { profile: ProfileWithAvatar | null
 function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClose: () => void }) {
   const [name, setName] = useState(profile.display_name)
   const [role, setRole] = useState<ProfileRole>(profile.role)
+  const [area, setArea] = useState<ProfileArea>(profile.area)
   const [clockId, setClockId] = useState(profile.clock_employee_id == null ? '' : String(profile.clock_employee_id))
   const [shift, setShift] = useState<ProfileShift | null>(profile.shift ?? null)
   const [nss, setNss] = useState(profile.nss ?? '')
+  const [rate, setRate] = useState(profile.hourly_rate == null ? '' : String(profile.hourly_rate))
   const normalizedNss = normalizeNss(nss) || null
   const nssChanged = normalizedNss !== profile.nss
   const nssProblem = nssChanged && normalizedNss ? nssError(normalizedNss) : null
@@ -126,10 +139,20 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
       toast.error(nssProblem)
       return
     }
+    // Rounded here too: what the admin sees after saving must be what they typed (numeric(10,2)).
+    const parsedRate = rate.trim() === '' ? null : parseRate(rate)
+    if (rate.trim() !== '' && parsedRate === null) {
+      toast.error('La tarifa por hora debe ser un monto mayor a 0')
+      return
+    }
     try {
       await update.mutateAsync({
         id: profile.id,
-        updates: { display_name: name.trim(), role, clock_employee_id: parsed, shift, ...(nssChanged ? { nss: normalizedNss } : {}) },
+        updates: {
+          display_name: name.trim(), role, area, clock_employee_id: parsed, shift,
+          ...(nssChanged ? { nss: normalizedNss } : {}),
+          ...(parsedRate !== (profile.hourly_rate ?? null) ? { hourly_rate: parsedRate } : {}),
+        },
       })
       toast.success('Perfil actualizado')
       onClose()
@@ -163,6 +186,15 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
             </Select>
           </div>
           <div className="space-y-2">
+            <Label htmlFor="pf-area">Área</Label>
+            <Select value={area} onValueChange={(v) => setArea(v as ProfileArea)}>
+              <SelectTrigger id="pf-area"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {AREAS.map((a) => <SelectItem key={a} value={a}>{AREA_LABELS[a]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="pf-clock">Id checador</Label>
             <Input id="pf-clock" type="number" min={1} step={1} value={clockId} onChange={(e) => setClockId(e.target.value)} placeholder="Vacío = no checa" />
           </div>
@@ -180,6 +212,11 @@ function ProfileFields({ profile, onClose }: { profile: ProfileWithAvatar; onClo
             <p className="text-xs text-muted-foreground">Referencia de las gráficas de horas: 8 h o 4 h al día, 40 h o 20 h a la semana.</p>
           </div>
           <NssField id="pf-nss" label="NSS" saved={profile.nss} value={nss} onChange={setNss} error={nssProblem} />
+          <div className="space-y-2">
+            <Label htmlFor="pf-rate">Tarifa por hora</Label>
+            <Input id="pf-rate" type="number" min={0.01} step={0.01} inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Vacío = sin pago estimado" />
+            <p className="text-xs text-muted-foreground">Calcula el pago estimado en Mi semana: todas las horas a esta tarifa más el sábado pagado.</p>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={update.isPending}>Cancelar</Button>
             <Button type="submit" disabled={update.isPending}>{update.isPending ? 'Guardando…' : 'Guardar'}</Button>
