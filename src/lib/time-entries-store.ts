@@ -15,7 +15,14 @@ export class TimeEntryError extends Error {
   }
 }
 
-type ClockProfile = Pick<Profile, 'id' | 'display_name' | 'clock_employee_id'>
+export type ClockProfile = Pick<Profile, 'id' | 'display_name' | 'clock_employee_id'>
+
+/** People the clock report maps to, by the "(id)" next to their name. */
+export async function loadClockProfiles(db: SupabaseClient): Promise<ClockProfile[]> {
+  const { data, error } = await db.from('profiles').select('id, display_name, clock_employee_id').not('clock_employee_id', 'is', null)
+  if (error) throw new Error(`profiles: ${error.message}`)
+  return (data ?? []) as ClockProfile[]
+}
 
 export interface TimeImportOutcome {
   result: TimeImportResult
@@ -27,12 +34,7 @@ export async function importTimeReport(db: SupabaseClient, report: ParsedReport,
   if (!report.period) throw new TimeEntryError('El archivo no trae "Período de pago": ¿es el reporte del checador?')
   if (report.employees.length === 0) throw new TimeEntryError('El archivo no trae bloques de empleado')
 
-  const { data: profiles, error: profilesError } = await db
-    .from('profiles')
-    .select('id, display_name, clock_employee_id')
-    .not('clock_employee_id', 'is', null)
-  if (profilesError) throw new Error(`profiles: ${profilesError.message}`)
-  const clockProfiles = (profiles ?? []) as ClockProfile[]
+  const clockProfiles = await loadClockProfiles(db)
   const byClockId = new Map(clockProfiles.map((p) => [p.clock_employee_id, p.id]))
 
   const entries: { user_id: string; work_date: string; clock_in: string; clock_out: string | null }[] = []

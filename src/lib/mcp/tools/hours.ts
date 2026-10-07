@@ -6,7 +6,7 @@
 import { ToolError, type Db } from '../shared'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
-import { correctTimeEntry, createManualEntry, importTimeReport, TimeEntryError } from '@/lib/time-entries-store'
+import { correctTimeEntry, createManualEntry, importTimeReport, loadClockProfiles, TimeEntryError } from '@/lib/time-entries-store'
 import {
   buildWeekView,
   buildWeeklyTrend,
@@ -20,6 +20,8 @@ import {
   minutesBetween,
   normalizeEntryTimes,
   normalizeTime,
+  employeeMismatches,
+  WEEKDAY_LABELS,
   parseExcusedDay,
   parseNgtecoReport,
   reportMismatches,
@@ -244,6 +246,71 @@ async function importReport(db: Db, input: SaveTimeEntriesInput) {
     no_vinieron_en_el_reporte: absent,
     avisos: result.warnings,
     nota: 'Re-subir la misma semana no duplica y nunca pisa una checada corregida por un administrador (sale en saltadas_por_edicion).',
+  }
+}
+
+const DAY_MS = 86_400_000
+const MAX_PREVIEW_DAYS = 14
+
+function periodDays(start: string, end: string) {
+  const days: { fecha: string; dia: string }[] = []
+  for (let t = Date.parse(`${start}T00:00:00Z`); t <= Date.parse(`${end}T00:00:00Z`) && days.length < MAX_PREVIEW_DAYS; t += DAY_MS) {
+    const d = new Date(t)
+    days.push({ fecha: d.toISOString().slice(0, 10), dia: WEEKDAY_LABELS[(d.getUTCDay() + 6) % 7] })
+  }
+  return days
+}
+
+/** Read-only twin of save_time_entries (ADR-034: never read and write in one tool); the MCP App view renders it (ADR-036). */
+export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>) {
+  if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador')
+  const report = parseNgtecoReport(input.filas)
+  if (!report.period) throw new ToolError('Las filas no traen "Período de pago": ¿es el reporte del checador?')
+  if (report.employees.length === 0) throw new ToolError('Las filas no traen bloques de empleado')
+
+  const profiles = await asTool(() => loadClockProfiles(db))
+  const byClockId = new Map(profiles.map((p) => [p.clock_employee_id, p.display_name]))
+  const reported = new Set(report.employees.map((e) => e.clockId))
+  const days = periodDays(report.period.start, report.period.end)
+  const problems: string[] = []
+
+  const personas = report.employees.map((e) => {
+    const mismatches = employeeMismatches(e)
+    problems.push(...mismatches)
+    const total = e.punches.reduce((sum, p) => sum + (minutesBetween(p.clockIn, p.clockOut) ?? 0), 0)
+    return {
+      nombre: e.name,
+      id_checador: e.clockId,
+      perfil: e.clockId == null ? null : (byClockId.get(e.clockId) ?? null),
+      por_dia: days.map(({ fecha }) => {
+        const punches = e.punches.filter((p) => p.date === fecha)
+        const minutes = punches.reduce((sum, p) => sum + (minutesBetween(p.clockIn, p.clockOut) ?? 0), 0)
+        return {
+          fecha,
+          horas: punches.length ? formatDuration(minutes) : null,
+          checadas: punches.map((p) => `${p.clockIn}–${p.clockOut ?? '?'}`),
+          sin_salida: punches.some((p) => !p.clockOut),
+        }
+      }),
+      total: formatDuration(total),
+      total_reporte: e.reportedTotal,
+      cuadra: mismatches.length === 0,
+    }
+  })
+
+  return {
+    periodo: { inicio: report.period.start, fin: report.period.end },
+    nombre_archivo: input.nombre_archivo ?? null,
+    cuadra: problems.length === 0,
+    problemas: problems,
+    dias: days,
+    personas,
+    sin_perfil: personas.filter((p) => !p.perfil).map((p) => `${p.nombre} (${p.id_checador ?? 'sin id'})`),
+    no_vinieron_en_el_reporte: profiles.filter((p) => !reported.has(p.clock_employee_id)).map((p) => p.display_name),
+    avisos: report.warnings,
+    siguiente_paso: problems.length
+      ? 'No cuadra con los totales del reporte: revisa esas filas contra el archivo antes de guardar.'
+      : 'Nada se ha guardado. Muestra el resumen y, si el administrador confirma, llama save_time_entries con las mismas filas.',
   }
 }
 

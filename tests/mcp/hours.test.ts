@@ -5,7 +5,7 @@ import { todayInMexico } from '@/lib/format'
 import { weekBounds } from '@/lib/timesheet'
 import { createMockSupabase, filterValue, type CallRecord } from '../helpers/supabase-mock'
 import { ToolError, type Db } from '@/lib/mcp/shared'
-import { getWeekHours, getHoursTrend, listTimeImports, saveTimeEntries, saveExcusedDay } from '@/lib/mcp/tools/hours'
+import { getWeekHours, getHoursTrend, listTimeImports, previewTimeReport, saveTimeEntries, saveExcusedDay } from '@/lib/mcp/tools/hours'
 import { NGTECO_PERIOD, NGTECO_WEEK } from '../helpers/fixtures/ngteco'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
@@ -314,5 +314,41 @@ describe('save_excused_day (#134)', () => {
     await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-02-30', tipo: 'feriado' })).rejects.toThrow(/Fecha inválida/)
     expect(client.callsTo('excused_days', 'insert')).toEqual([])
     expect(client.callsTo('excused_days', 'delete')).toEqual([])
+  })
+})
+
+describe('preview_time_report (ADR-036)', () => {
+  const MAPPED = [
+    { id: 'u-tania', display_name: 'Tania', clock_employee_id: 5 },
+    { id: 'u-santi', display_name: 'Santi', clock_employee_id: 2 },
+  ]
+  const client = () => createMockSupabase({ responses: { 'profiles.select': { data: MAPPED, error: null } } })
+
+  test('arma la tabla por persona y día sin escribir nada; marca quién no tiene perfil y quién no vino', async () => {
+    const db = client()
+    const result = await previewTimeReport(asDb(db), { filas: NGTECO_WEEK, nombre_archivo: 'semana.xls' })
+
+    expect(result).toMatchObject({ periodo: { inicio: '2026-08-31', fin: '2026-09-06' }, nombre_archivo: 'semana.xls', cuadra: true, problemas: [] })
+    expect(result.dias.map((d) => d.dia)).toEqual(['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'])
+    const [diego, tania] = result.personas
+    expect(diego).toMatchObject({ nombre: 'Diego Baltazar', perfil: null, total: '18:46', total_reporte: '18:46', cuadra: true })
+    expect(diego.por_dia[1]).toEqual({ fecha: '2026-09-01', horas: '10:25', checadas: ['08:55–19:20', '19:21–19:21'], sin_salida: false })
+    expect(diego.por_dia[3]).toMatchObject({ horas: '00:00', sin_salida: true })
+    expect(diego.por_dia[2]).toMatchObject({ horas: null, checadas: [] })
+    expect(tania).toMatchObject({ perfil: 'Tania', total: '16:47', total_reporte: '16:46', cuadra: true })
+    expect(result.sin_perfil).toEqual(['Diego Baltazar (1)'])
+    expect(result.no_vinieron_en_el_reporte).toEqual(['Santi'])
+    expect(db._rpcCalls).toEqual([])
+    expect(db._calls.filter((c) => c.op !== 'select')).toEqual([])
+  })
+
+  test('lo que no cuadra se marca por persona y en problemas, para que la vista no deje guardar', async () => {
+    const typo = NGTECO_WEEK.map((r) => (r[1] === '2026-08-31' && r[3] === '18:27' ? ['LU', '2026-08-31', '10:06', '18:57', '08:21', '08:21'] : r))
+    const result = await previewTimeReport(asDb(client()), { filas: typo })
+    expect(result.cuadra).toBe(false)
+    expect(result.personas.map((p) => p.cuadra)).toEqual([false, true])
+    expect(result.problemas).toHaveLength(2)
+    expect(result.siguiente_paso).toMatch(/No cuadra/)
+    await expect(previewTimeReport(asDb(client()), { filas: NGTECO_WEEK.filter((r) => r[0] !== 'Período de pago') })).rejects.toThrow(/Período de pago/)
   })
 })

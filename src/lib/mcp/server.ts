@@ -1,6 +1,7 @@
 /** MCP tool registry: reads + the scoped writes listed in manifest.ts (ADR-015). Each call's db comes from the OAuth token, no service_role (ADR-023); a member gets the list without the admin-only tools (ADR-034). */
 
 import { z } from 'zod'
+import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from '@modelcontextprotocol/ext-apps/server'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { GitHubError } from '@/lib/github'
@@ -21,7 +22,8 @@ import { searchProducts } from './tools/products'
 import { searchUrreaCatalog } from './tools/urrea'
 import { listTasks, getTask, createTask, updateTask } from './tools/tasks'
 import { getBusinessSummary } from './tools/summary'
-import { getWeekHours, getHoursTrend, listTimeImports, saveTimeEntries, saveExcusedDay } from './tools/hours'
+import { getWeekHours, getHoursTrend, listTimeImports, previewTimeReport, saveTimeEntries, saveExcusedDay } from './tools/hours'
+import { MCP_VIEWS } from './views/generated'
 import { getProfiles } from './tools/profiles'
 import { getPayrollPeriod, recordPayrollHours } from './tools/payroll'
 import { listSuppliers } from './tools/suppliers'
@@ -55,6 +57,9 @@ async function run(extra: ToolExtra, fn: (db: Db, ctx: McpContext) => Promise<un
 
 /** Read-only — every tool except the scoped writes of ADR-015. */
 const readOnly = { readOnlyHint: true, openWorldHint: false } as const
+
+/** MCP App views (ADR-036): HTML bundled by scripts/build-mcp-views.ts. */
+const TIME_REPORT_VIEW = 'ui://dymmsa/time-report.html'
 
 const pagination = {
   page: z.number().int().min(1).optional().describe('Página (1-indexada, default 1)'),
@@ -101,10 +106,10 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte).
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
-- Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports; escriben save_time_entries y save_excused_day' : ' (solo lectura)'}. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
+- Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports, preview_time_report; escriben save_time_entries y save_excused_day' : ' (solo lectura)'}. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
 - Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona igual que en horas: un miembro solo ve su perfil, un administrador el de todos. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan explícitamente y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
-${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes que se paga el viernes: horas por empleado y día, y el total equivalente) y la escritura record_payroll_hours (carga horas como BORRADOR; confirmar y cerrar el corte se hace en la app; la guía para leer la hoja del taller va en la descripción de la tool). Son HORAS, nunca montos ni salarios. Rutina de los viernes: save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
+${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes que se paga el viernes: horas por empleado y día, y el total equivalente) y la escritura record_payroll_hours (carga horas como BORRADOR; confirmar y cerrar el corte se hace en la app; la guía para leer la hoja del taller va en la descripción de la tool). Son HORAS, nunca montos ni salarios. Rutina de los viernes: preview_time_report → save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
@@ -463,12 +468,34 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
     (input, extra) => run(extra, (db) => listTimeImports(db, input)),
   )
 
+  if (forAdmin) {
+    registerAppTool(
+      server,
+      'preview_time_report',
+      {
+        title: 'Revisar reporte del checador',
+        description:
+          'Revisa SIN guardar el reporte semanal del checador (NGTeco .xls) contra sus propios totales; úsala antes de save_time_entries (en Claude se ve como tabla con botón para guardar). `filas`: TODAS las filas tal cual, cada celda en su columna ("" si vacía; sin resumir), con "Período de pago", "Empleado", continuaciones y "Horas totales". Ej.: ["LU","2026-09-28","10:09","19:48","09:38","09:38"].',
+        inputSchema: {
+          filas: z.array(z.array(z.string().max(200)).max(20)).min(1).max(1000),
+          nombre_archivo: z.string().max(200).optional(),
+        },
+        annotations: readOnly,
+        _meta: { ui: { resourceUri: TIME_REPORT_VIEW } },
+      },
+      (input, extra) => run(extra, (db) => previewTimeReport(db, input)),
+    )
+    registerAppResource(server, 'Vista: reporte del checador', TIME_REPORT_VIEW, { description: 'Tabla del reporte del checador con botón para guardarlo' }, async () => ({
+      contents: [{ uri: TIME_REPORT_VIEW, mimeType: RESOURCE_MIME_TYPE, text: MCP_VIEWS['time-report'].html, _meta: { ui: { prefersBorder: true } } }],
+    }))
+  }
+
   if (forAdmin) server.registerTool(
     'save_time_entries',
     {
       title: 'Guardar checadas',
       description:
-        'Escribe checadas, solo si un administrador lo pide. A) `filas`: el reporte semanal del checador (NGTeco .xls), TODAS sus filas tal cual, cada celda en su columna ("" si está vacía; sin resumir ni interpretar), incluidas "Período de pago", "Empleado", las de continuación y "Horas totales". Ej.: ["LU","2026-09-28","10:09","19:48","09:38","09:38"]. Si no cuadra con los totales del reporte, no guarda nada. B) `checada`: corrige una (`entrada_actual` = su entrada de hoy, ver get_week_hours) o registra una a mano (con `entrada`); `salida: ""` la borra. Lo corregido sobrevive al re-import.',
+        'Escribe checadas, solo si un administrador lo pide. A) `filas`: el reporte semanal del checador, las mismas filas que en preview_time_report (revísalo ahí primero). Si no cuadra con los totales del reporte, no guarda nada. B) `checada`: corrige una (`entrada_actual` = su entrada de hoy, ver get_week_hours) o registra una a mano (con `entrada`); `salida: ""` la borra. Lo corregido sobrevive al re-import.',
       inputSchema: {
         filas: z.array(z.array(z.string().max(200)).max(20)).min(1).max(1000).optional(),
         nombre_archivo: z.string().max(200).optional(),
@@ -558,8 +585,8 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
           .max(200)
           .optional()
           .describe('Un elemento por empleado y día (la hoja del taller)'),
-        traer_de_horas: z.boolean().optional().describe('true = copiar las horas del checador de la oficina en vez de mandar `dias`'),
-        fecha: z.string().optional().describe('Con traer_de_horas: cualquier día del corte, YYYY-MM-DD (default el actual)'),
+        traer_de_horas: z.boolean().optional(),
+        fecha: z.string().optional().describe('YYYY-MM-DD'),
       },
       // Scoped write (#123, ADR-033): drafts only; the admin confirms in the app.
       annotations: { readOnlyHint: false, openWorldHint: false },

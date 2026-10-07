@@ -3,6 +3,7 @@
 
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
+import type { Implementation } from '@modelcontextprotocol/sdk/types.js'
 import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
 import { roleFrom } from '@/lib/mcp/context'
 import type { McpRole } from '@/lib/mcp/manifest'
@@ -16,13 +17,23 @@ export const runtime = 'nodejs'
 // breaks it. Must match the createMcpHandler maxDuration below.
 export const maxDuration = 60
 
+// mcp-handler types serverInfo as { name, version } but hands it to McpServer as is. Claude does not
+// draw a custom connector's icon yet (claude-ai-mcp#152): declared so it shows once it does.
+const SERVER_INFO: Implementation = {
+  name: 'dymmsa',
+  title: 'DYMMSA',
+  version: '2.2.0',
+  websiteUrl: appUrl(),
+  icons: [{ src: `${appUrl()}/dymmsa-logo.webp`, mimeType: 'image/webp' }],
+}
+
 // One handler per role (#133): a member's tools/list never carries the admin-only tools.
 // Trimming the list is noise reduction; the RLS behind every tool is still the barrier.
 function handlerFor(role: McpRole) {
   return createMcpHandler(
     (server) => registerDymmsaTools(server, role),
     {
-      serverInfo: { name: 'dymmsa', version: '2.1.0' },
+      serverInfo: SERVER_INFO,
       // Block map (app vs Odoo, #72) + business rules as server instructions, so clients
       // that never read resources still get them.
       instructions: serverInstructions(role),

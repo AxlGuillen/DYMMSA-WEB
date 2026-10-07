@@ -140,7 +140,11 @@ src/
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
+│   ├── mcp/views/generated.ts    # HTML de las vistas MCP Apps, generado por scripts/build-mcp-views.ts (ADR-036)
 │   └── utils.ts                  # cn() — class merging
+│
+├── mcp-views/                    # Vistas MCP Apps (ADR-036): main.ts + styles.css por vista; bun run build:mcp-views
+│   └── time-report/              # Revisión del reporte del checador con botón Guardar
 │
 ├── stores/
 │   ├── cutDraftStore.ts          # Zustand store: borrador del corte rápido (persist 'dymmsa-cut-draft', issue #71)

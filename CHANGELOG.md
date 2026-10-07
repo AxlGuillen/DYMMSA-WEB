@@ -15,6 +15,10 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   Claude "a Tania le faltó la salida del miércoles, salió a las 6" o "el lunes
   fue feriado" y lo guarda como en Equipo y Mi semana, conservando lo que dijo
   el checador.
+- [admin] **El reporte del checador se revisa en una tabla dentro de Claude.**
+  Antes de cargarlo, Claude muestra la semana por persona y día, marca lo que
+  no cuadra y tiene un botón **Guardar en Horas**. Se ve en Claude web,
+  escritorio y móvil.
 
 ## 2026-10-05
 

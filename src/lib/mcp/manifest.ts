@@ -53,6 +53,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'get_week_hours', block: 'app', module: 'Horas', kind: 'read', title: 'Horas de la semana', example: '¿Cuantas horas llevo esta semana?' },
   { name: 'get_hours_trend', block: 'app', module: 'Horas', kind: 'read', title: 'Tendencia de horas', example: '¿Como viene Tania en las ultimas semanas?' },
   { name: 'list_time_imports', block: 'app', module: 'Horas', kind: 'read', title: 'Cargas del checador', example: '¿Cuando se cargo el ultimo reporte del checador?', adminOnly: true },
+  { name: 'preview_time_report', block: 'app', module: 'Horas', kind: 'read', title: 'Revisar reporte del checador', example: 'Revisa el reporte del checador de esta semana antes de cargarlo.', adminOnly: true },
   { name: 'save_time_entries', block: 'app', module: 'Horas', kind: 'write', title: 'Guardar checadas', example: 'Este es el reporte del checador de la semana, cargalo. / A Tania le falto la salida del miercoles, salio a las 6.', limits: 'Carga el reporte (no duplica, no pisa correcciones y no guarda nada si no cuadra con sus totales) o corrige/registra una checada, conservando lo que dijo el checador. No borra checadas.', adminOnly: true },
   { name: 'save_excused_day', block: 'app', module: 'Horas', kind: 'write', title: 'Guardar dia justificado', example: 'El lunes fue feriado.', limits: 'Feriados y salidas autorizadas, para el equipo o una persona; marca, cambia o quita.', adminOnly: true },
   { name: 'get_profiles', block: 'app', module: 'Perfil', kind: 'read', title: 'Perfiles del equipo', example: '¿Cual es mi NSS?' },
@@ -103,8 +104,8 @@ export const TOOL_BUDGET = {
   description: 1000,
   descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
   descriptionsTotal: 18_000,
-  /** Characters of the whole tools/list an admin receives (name + title + description + JSON schema). */
-  listTotal: 36_000,
+  /** Characters of the whole tools/list an admin receives (name + title + description + schema + _meta). Raised from 36,000 for the first MCP App's read twin (ADR-036). */
+  listTotal: 37_000,
   /** Characters of the server instructions, per role. */
   instructions: 7500,
 } as const
