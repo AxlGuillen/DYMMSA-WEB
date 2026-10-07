@@ -268,6 +268,8 @@ describe('PATCH /api/profiles/[id] — tarifa por hora', () => {
     expect((await patch(OTHER.id, { hourly_rate: null })).status).toBe(200)
     expect(filterValue(activeClient.callsTo('profile_pay', 'delete')[0], 'profile_id')).toBe(OTHER.id)
     expect((await patch(OTHER.id, { hourly_rate: 0 })).status).toBe(400)
+    // Rounds to 0: a 400 here, never the CHECK of profile_pay as a 500.
+    expect((await patch(OTHER.id, { hourly_rate: 0.004 })).status).toBe(400)
   })
 
   test('un member no puede cambiar su propia tarifa por /api/profile', async () => {

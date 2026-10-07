@@ -38,5 +38,7 @@ export function officeWeekPay(week: WeekLike, shift: ProfileShift | null | undef
 export function parseRate(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
   const n = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(n) && n > 0 ? round2(n) : null
+  // Rounded BEFORE the check: 0.004 would pass as > 0 and then hit the CHECK (> 0) as 0 (review PR #137).
+  const rounded = round2(n)
+  return Number.isFinite(n) && rounded > 0 ? rounded : null
 }
