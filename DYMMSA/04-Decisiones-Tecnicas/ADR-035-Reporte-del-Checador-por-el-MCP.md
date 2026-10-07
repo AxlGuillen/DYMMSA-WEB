@@ -41,8 +41,9 @@ vacías, y la lógica para leerlas ya existe y está probada en `parseNgtecoRepo
    Envuelve `prefillFromHours()` con sus reglas (borrador; nunca sobre un día confirmado, de otro
    origen ni de un corte cerrado). `dias` y `traer_de_horas` no van juntos.
 5. Las dos son `adminOnly`. La rutina vive en las instrucciones del rol admin:
-   `save_time_entries` → `record_payroll_hours` con `traer_de_horas` → `record_payroll_hours` con
-   la hoja del taller → el admin confirma y cierra en la app (ADR-033: es dinero).
+   `preview_time_report` (la vista de ADR-036) → `save_time_entries` → `record_payroll_hours` con
+   `traer_de_horas` → `record_payroll_hours` con la hoja del taller → el admin confirma y cierra
+   en la app (ADR-033: es dinero).
 
 6. **Corregir una checada es la misma herramienta** (#134, regla 1 de ADR-034): `checada` con
    `entrada_actual` (la entrada que tiene hoy, que el modelo ve en `get_week_hours`) corrige esa
