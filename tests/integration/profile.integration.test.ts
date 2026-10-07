@@ -73,7 +73,8 @@ describe('profiles: auto-edición', () => {
     expect(await sql('SELECT hourly_rate::text FROM public.profile_pay WHERE profile_id = $1', [MEMBER_ID])).toEqual([{ hourly_rate: '52.00' }])
     // The admin sees it embedded and can change it.
     const seen = await admin.from('profiles').select('id, profile_pay(hourly_rate)').eq('id', MEMBER_ID).single()
-    expect(seen.data).toMatchObject({ profile_pay: { hourly_rate: '52.00' } })
+    // numeric arrives as 52 or '52.00' depending on the PostgREST build: compare the value, not the type.
+    expect(Number((seen.data as { profile_pay: { hourly_rate: unknown } } | null)?.profile_pay.hourly_rate)).toBe(52)
     expect((await admin.from('profile_pay').upsert({ profile_id: MEMBER_ID, hourly_rate: 60 }, { onConflict: 'profile_id' })).error).toBeNull()
     expect(await sql('SELECT hourly_rate::text FROM public.profile_pay WHERE profile_id = $1', [MEMBER_ID])).toEqual([{ hourly_rate: '60.00' }])
   })
