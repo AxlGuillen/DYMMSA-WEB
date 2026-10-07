@@ -270,6 +270,7 @@ describe('PATCH /api/profiles/[id] — tarifa por hora', () => {
     expect((await patch(OTHER.id, { hourly_rate: 0 })).status).toBe(400)
     // Rounds to 0: a 400 here, never the CHECK of profile_pay as a 500.
     expect((await patch(OTHER.id, { hourly_rate: 0.004 })).status).toBe(400)
+    expect((await patch(OTHER.id, { hourly_rate: 1e9 })).status).toBe(400)
   })
 
   test('un member no puede cambiar su propia tarifa por /api/profile', async () => {

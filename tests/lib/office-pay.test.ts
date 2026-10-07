@@ -58,6 +58,8 @@ describe('parseRate', () => {
     expect(parseRate(0)).toBeNull()
     expect(parseRate(0.004)).toBeNull()
     expect(parseRate(0.005)).toBe(0.01)
+    expect(parseRate(99_999_999.99)).toBe(99_999_999.99)
+    expect(parseRate(1e9)).toBeNull()
     expect(parseRate('abc')).toBeNull()
     expect(parseRate(null)).toBeNull()
   })

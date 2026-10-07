@@ -87,7 +87,9 @@ export async function PATCH(
           : await supabase.from('profile_pay').upsert({ profile_id: id, hourly_rate: rateChange.value }, { onConflict: 'profile_id' })
       if (error) {
         console.error('Error updating profile pay:', error)
-        return serverError('Error al actualizar la tarifa por hora')
+        // Two writes, no transaction: the profile part may already be saved, so the message says so.
+        const saved = Object.keys(updates).length > 0 ? 'El perfil se guardó, pero la tarifa por hora no' : 'Error al actualizar la tarifa por hora'
+        return serverError(saved)
       }
     }
 

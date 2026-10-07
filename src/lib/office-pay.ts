@@ -7,8 +7,6 @@
 import { SHIFT_HOURS, type WeekView } from './timesheet'
 import type { ProfileShift } from '@/types/database'
 
-export const DEFAULT_HOURLY_RATE = 52
-
 export interface WeekPay {
   rate: number
   /** Closed punches Monday–Friday and Sunday; a pair without clock-out adds nothing, as in the week total. */
@@ -20,6 +18,8 @@ export interface WeekPay {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
+/** numeric(10,2) ceiling of profile_pay.hourly_rate. */
+export const MAX_HOURLY_RATE = 99_999_999.99
 const SATURDAY = 5
 
 type WeekLike = Pick<WeekView<unknown>, 'days'>
@@ -38,7 +38,8 @@ export function officeWeekPay(week: WeekLike, shift: ProfileShift | null | undef
 export function parseRate(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
   const n = typeof value === 'number' ? value : Number(value)
-  // Rounded BEFORE the check: 0.004 would pass as > 0 and then hit the CHECK (> 0) as 0 (review PR #137).
+  // Rounded BEFORE the check: 0.004 would pass as > 0 and then hit the CHECK (> 0) as 0; the ceiling is
+  // what numeric(10,2) holds, so an absurd value is a 400 here and never a 22003 (review PR #137).
   const rounded = round2(n)
-  return Number.isFinite(n) && rounded > 0 ? rounded : null
+  return Number.isFinite(n) && rounded > 0 && rounded <= MAX_HOURLY_RATE ? rounded : null
 }
