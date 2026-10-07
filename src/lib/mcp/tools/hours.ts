@@ -6,7 +6,7 @@
 import { ToolError, type Db } from '../shared'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
-import { importTimeReport, TimeImportError } from '@/lib/time-import'
+import { correctTimeEntry, createManualEntry, importTimeReport, TimeEntryError } from '@/lib/time-entries-store'
 import {
   buildWeekView,
   buildWeeklyTrend,
@@ -17,7 +17,10 @@ import {
   weekTargetMinutes,
   type DayStatus,
   formatDuration,
+  minutesBetween,
   normalizeEntryTimes,
+  normalizeTime,
+  parseExcusedDay,
   parseNgtecoReport,
   reportMismatches,
   shiftProgress,
@@ -26,7 +29,7 @@ import {
   weekBounds,
   shiftWeek,
 } from '@/lib/timesheet'
-import type { ExcusedDay, Profile, TimeEntry } from '@/types/database'
+import type { ExcusedDay, Profile, TimeEntry, TimeEntryUpdate } from '@/types/database'
 
 type Target = Pick<Profile, 'id' | 'display_name' | 'shift'>
 
@@ -185,17 +188,36 @@ export async function listTimeImports(db: Db, input: { limit?: number } = {}) {
   }
 }
 
+export interface PunchInput {
+  persona?: string
+  fecha: string
+  /** The punch's clock-in as it is now; omitted = a new manual punch. */
+  entrada_actual?: string
+  entrada?: string
+  /** '' clears it. */
+  salida?: string
+  nota?: string
+}
+
 export interface SaveTimeEntriesInput {
   /** The clock report's rows, cell by cell, as the sheet prints them. */
-  filas: string[][]
+  filas?: string[][]
   nombre_archivo?: string
+  checada?: PunchInput
 }
 
 const ASSISTANT_FILE = 'Asistente (MCP)'
 
-/** The rows go through the app's own parser, and must add up to the clock's totals (#132, ADR-035). */
-export async function saveTimeEntries(db: Db, input: SaveTimeEntriesInput) {
-  if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador')
+/** One tool per entity (ADR-034): the weekly report (#132) or a single punch (#134). */
+export async function saveTimeEntries(db: Db, callerId: string, input: SaveTimeEntriesInput) {
+  if (input.filas?.length && input.checada) throw new ToolError('Manda `filas` o `checada`, no las dos en la misma llamada')
+  if (input.checada) return savePunch(db, callerId, input.checada)
+  return importReport(db, input)
+}
+
+/** The rows go through the app's own parser, and must add up to the clock's totals (ADR-035). */
+async function importReport(db: Db, input: SaveTimeEntriesInput) {
+  if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador, o una `checada` para corregir o registrar')
   const report = parseNgtecoReport(input.filas)
   const mismatches = reportMismatches(report)
   if (mismatches.length > 0) {
@@ -225,11 +247,105 @@ export async function saveTimeEntries(db: Db, input: SaveTimeEntriesInput) {
   }
 }
 
+/** Same rules as the app's dialog: corrections keep the clock's original and survive the re-import. */
+async function savePunch(db: Db, callerId: string, input: PunchInput) {
+  if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
+  const person = await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.persona, 'id, display_name')
+  let entry: TimeEntry
+  let corrected = false
+  if (input.entrada_actual === undefined) {
+    if (input.entrada === undefined) throw new ToolError('Para registrar una checada nueva manda `entrada`; para corregir una, `entrada_actual`')
+    entry = await asTool(() =>
+      createManualEntry(db, { user_id: person.id, work_date: input.fecha, clock_in: input.entrada, clock_out: input.salida, note: input.nota }),
+    )
+  } else {
+    const day = await entriesBetween(db, person.id, input.fecha, input.fecha)
+    const wanted = normalizeTime(input.entrada_actual)
+    const target = day.find((e) => e.clock_in === wanted)
+    if (!target) {
+      const seen = day.map((e) => `${e.clock_in}–${e.clock_out ?? 'sin salida'}`).join(', ') || 'ninguna'
+      throw new ToolError(`${person.display_name} no tiene una checada con entrada ${input.entrada_actual} el ${input.fecha}. Checadas de ese día: ${seen}`)
+    }
+    const update: TimeEntryUpdate = {}
+    if (input.entrada !== undefined) update.clock_in = input.entrada
+    if (input.salida !== undefined) update.clock_out = input.salida
+    if (input.nota !== undefined) update.note = input.nota
+    entry = await asTool(() => correctTimeEntry(db, target.id, update, callerId))
+    corrected = true
+  }
+  const minutes = minutesBetween(entry.clock_in, entry.clock_out)
+  return {
+    accion: corrected ? 'corregida' : 'registrada a mano',
+    persona: person.display_name,
+    fecha: entry.work_date,
+    entrada: entry.clock_in,
+    salida: entry.clock_out,
+    horas: minutes === null ? null : formatDuration(minutes),
+    nota: entry.note,
+    lo_que_dijo_el_checador: entry.original ? { entrada: entry.original.clock_in, salida: entry.original.clock_out } : null,
+  }
+}
+
 async function asTool<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
   } catch (error) {
-    if (error instanceof TimeImportError) throw new ToolError(error.message)
+    if (error instanceof TimeEntryError) throw new ToolError(error.message)
     throw error
+  }
+}
+
+const KIND_BY_INPUT = { feriado: 'holiday', salida_autorizada: 'early_release' } as const
+
+export interface SaveExcusedDayInput {
+  fecha: string
+  tipo?: keyof typeof KIND_BY_INPUT
+  /** Omitted = the whole team. */
+  persona?: string
+  nota?: string
+  quitar?: boolean
+}
+
+/** Marks, changes or removes a holiday / authorized early exit (#134); same parser as the route. */
+export async function saveExcusedDay(db: Db, callerId: string, input: SaveExcusedDayInput) {
+  const person = input.persona?.trim()
+    ? await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.persona, 'id, display_name')
+    : null
+  const who = person?.display_name ?? 'todo el equipo'
+  if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
+
+  let existing = db.from('excused_days').select('id, kind, note').eq('work_date', input.fecha)
+  existing = person ? existing.eq('user_id', person.id) : existing.is('user_id', null)
+  const { data: found, error: findError } = await existing.maybeSingle()
+  if (findError) throw new ToolError('No se pudieron leer los días justificados')
+  const current = found as Pick<ExcusedDay, 'id' | 'kind' | 'note'> | null
+
+  if (input.quitar) {
+    if (!current) throw new ToolError(`El ${input.fecha} no está justificado para ${who}`)
+    const { error } = await db.from('excused_days').delete().eq('id', current.id)
+    if (error) throw new ToolError('No se pudo quitar el día justificado')
+    return { accion: 'quitado', fecha: input.fecha, para: who, era: EXCUSE_LABELS[current.kind] }
+  }
+
+  const kind = input.tipo ? KIND_BY_INPUT[input.tipo] : current?.kind
+  const parsed = parseExcusedDay({ work_date: input.fecha, kind, user_id: person?.id ?? null, note: input.nota ?? current?.note ?? '' })
+  if ('error' in parsed) throw new ToolError(parsed.error)
+  const { error } = current
+    ? await db.from('excused_days').update({ kind: parsed.value.kind, note: parsed.value.note }).eq('id', current.id)
+    : await db.from('excused_days').insert(parsed.value)
+  if (error) {
+    if (error.code === '42501') throw new ToolError('Solo un administrador puede justificar días')
+    throw new ToolError('No se pudo guardar el día justificado')
+  }
+  return {
+    accion: current ? 'actualizado' : 'marcado',
+    fecha: input.fecha,
+    tipo: EXCUSE_LABELS[parsed.value.kind],
+    para: who,
+    nota: parsed.value.note,
+    efecto:
+      parsed.value.kind === 'holiday'
+        ? 'Ese día no pide horas: se descuenta del objetivo de la semana.'
+        : 'Ese día cuenta como cumplido con lo que se trabajó.',
   }
 }

@@ -1,7 +1,7 @@
 # ADR-035 — El reporte del checador por el MCP: filas transcritas, no el archivo
 
 **Fecha:** 2026-10-07
-**Estado:** Aceptado · issue #132
+**Estado:** Aceptado · issues #132 y #134 (bloque Horas)
 **Relacionado:** [[ADR-015-MCP-Interno]] · [[ADR-026-Perfiles-y-Permisos-por-Rol]] · [[ADR-029-Jornada-y-Horas-por-MCP]] · [[ADR-033-Nomina-Horas-por-Corte]] · [[ADR-034-MCP-Reglas-de-Crecimiento]]
 
 ## Contexto
@@ -23,7 +23,7 @@ vacías, y la lógica para leerlas ya existe y está probada en `parseNgtecoRepo
 
 1. **El modelo transcribe, la app interpreta.** `save_time_entries` recibe `filas`: todas las
    filas de la hoja, celda por celda, en su columna original. El servidor las pasa por el mismo
-   `parseNgtecoReport` y la misma `importTimeReport()` (`src/lib/time-import.ts`) que usa
+   `parseNgtecoReport` y la misma `importTimeReport()` (`src/lib/time-entries-store.ts`) que usa
    `POST /api/time-entries/import`; la ruta solo añade la lectura del `.xls`. Un reporte de
    cuatro personas son ~1,900 caracteres.
 2. **Lo transcrito debe cuadrar con el propio reporte** (`reportMismatches()` en
@@ -44,12 +44,23 @@ vacías, y la lógica para leerlas ya existe y está probada en `parseNgtecoRepo
    `save_time_entries` → `record_payroll_hours` con `traer_de_horas` → `record_payroll_hours` con
    la hoja del taller → el admin confirma y cierra en la app (ADR-033: es dinero).
 
+6. **Corregir una checada es la misma herramienta** (#134, regla 1 de ADR-034): `checada` con
+   `entrada_actual` (la entrada que tiene hoy, que el modelo ve en `get_week_hours`) corrige esa
+   pareja; sin ella, con `entrada`, registra una manual. Mismas reglas que el diálogo de la app,
+   porque es el mismo código (`correctTimeEntry` / `createManualEntry`): jamás toca
+   `source_clock_in`, solo un cambio de hora sella el rastro y `original` se escribe una vez.
+   Borrar una checada se queda en la app.
+7. **`save_excused_day`** (#134): marca, cambia o quita (`quitar: true`) un feriado o una salida
+   autorizada, para el equipo o una persona, con el `parseExcusedDay` de la ruta. Si ya hay uno
+   esa fecha para esa persona (o el equipo) lo actualiza en vez de chocar con el UNIQUE.
+
 ## Consecuencias
 
-- Séptima escritura del MCP. `save_time_entries` es el nombre por entidad (`time_entries`): una
-  corrección de checada desde el asistente (#134) entraría en la misma herramienta.
-- `tools/list` del admin: ~35,100 de 36,000 caracteres. La próxima escritura grande obliga a la
-  etapa 2 de ADR-034 (fusionar lecturas) o a subir el tope con su porqué.
+- Séptima y octava escrituras del MCP, ambas `adminOnly`.
+- `tools/list` del admin: ~35,700 de 36,000 caracteres e instrucciones ~7,450 de 7,500 (se
+  recortaron las descripciones para caber). Lo que sigue de la #134 (proveedores, facturas,
+  empleados de nómina, materiales) obliga a la etapa 2 de ADR-034 (fusionar lecturas) o a subir
+  el tope con su porqué.
 - Si el chat no puede abrir el `.xls`, el usuario lo exporta o lo copia como tabla: la
   herramienta solo necesita las filas.
 

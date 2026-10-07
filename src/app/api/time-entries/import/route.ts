@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, forbidden, serverError } from '@/lib/api-helpers'
 import { parseNgtecoReport } from '@/lib/timesheet'
-import { importTimeReport, TimeImportError } from '@/lib/time-import'
+import { importTimeReport, TimeEntryError } from '@/lib/time-entries-store'
 
 const SHEET = 'Employee Timecard'
 // The weekly report is ~30 KB; anything near this is not the clock's file.
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const { result } = await importTimeReport(supabase, parseNgtecoReport(rows), file.name)
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof TimeImportError) return error.forbidden ? forbidden() : badRequest(error.message)
+    if (error instanceof TimeEntryError) return error.kind === 'forbidden' ? forbidden() : badRequest(error.message)
     console.error('Time entries import error:', error)
     return serverError('Error al importar las checadas')
   }

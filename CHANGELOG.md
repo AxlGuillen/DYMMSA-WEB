@@ -11,6 +11,10 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   de guardar revisa que cuadre con los totales del propio reporte. También
   puede **traer las horas de la oficina a Nómina** como borrador, igual que el
   botón "Traer de Horas". Confirmar y cerrar el corte sigue siendo en la app.
+- [admin] **Corregir checadas y justificar días desde el asistente.** Dile a
+  Claude "a Tania le faltó la salida del miércoles, salió a las 6" o "el lunes
+  fue feriado" y lo guarda como en Equipo y Mi semana, conservando lo que dijo
+  el checador.
 
 ## 2026-10-05
 
