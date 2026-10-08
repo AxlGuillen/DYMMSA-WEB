@@ -58,7 +58,7 @@ Donde no hay soporte, el host usa el resultado de texto de siempre.
 
 - **Presupuesto:** `TOOL_BUDGET.listTotal` sube de 36,000 a 37,000. La tool de lectura gemela
   es obligatoria por ADR-034, y el test ahora mide también `_meta`. Medición: admin 50 tools,
-  ~36,350 de `tools/list`, ~7,495 de instrucciones.
+  ~36,350 de `tools/list`, ~7,310 de instrucciones (tras recortar dos líneas en la review del PR #138; el tope sigue en 7,500).
 - **Vistas siguientes,** si la prueba convence: corte de nómina, Mi semana, cierre del mes. Cada
   una se suma a `VIEWS` en `scripts/mcp-views.ts` y lleva su tool de lectura.
 - **Al subir ext-apps** cambia el hash: hay que regenerar las vistas, y el test lo recuerda.

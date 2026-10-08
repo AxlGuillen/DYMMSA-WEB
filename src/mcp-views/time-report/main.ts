@@ -177,7 +177,14 @@ app.ontoolinput = ({ arguments: args }) => {
 app.ontoolresult = (result) => {
   const text = textOf(result)
   if (result.isError) state.error = text || 'No se pudo leer el reporte'
-  else state.preview = JSON.parse(text) as Preview
+  else {
+    // A truncated payload must not leave the view stuck on "Leyendo el reporte…" (review PR #138).
+    try {
+      state.preview = JSON.parse(text) as Preview
+    } catch {
+      state.error = 'La respuesta del servidor llegó incompleta: vuelve a pedir la vista previa'
+    }
+  }
   render()
 }
 app.onhostcontextchanged = applyContext

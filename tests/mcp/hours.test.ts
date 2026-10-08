@@ -278,7 +278,7 @@ describe('save_time_entries con una checada (#134)', () => {
 describe('save_excused_day (#134)', () => {
   test('sin persona marca el feriado para todo el equipo', async () => {
     const client = createMockSupabase({
-      responses: { 'excused_days.select': { data: null, error: null }, 'excused_days.insert': { data: null, error: null } },
+      responses: { 'excused_days.select': { data: null, error: null }, 'excused_days.insert': { data: [{ id: 'new' }], error: null } },
     })
     const result = await saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16', tipo: 'feriado', nota: 'Revolución' })
     expect(result).toMatchObject({ accion: 'marcado', tipo: 'Día feriado', para: 'todo el equipo', nota: 'Revolución' })
@@ -293,8 +293,8 @@ describe('save_excused_day (#134)', () => {
       responses: {
         'profiles.select': profiles([ME, DIEGO]),
         'excused_days.select': { data: existing, error: null },
-        'excused_days.update': { data: null, error: null },
-        'excused_days.delete': { data: null, error: null },
+        'excused_days.update': { data: [{ id: 'x1' }], error: null },
+        'excused_days.delete': { data: [{ id: 'x1' }], error: null },
       },
     })
     const result = await saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-10-01', tipo: 'salida_autorizada', persona: 'Diego' })
@@ -305,6 +305,18 @@ describe('save_excused_day (#134)', () => {
     const removed = await saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-10-01', persona: 'Diego', quitar: true })
     expect(removed).toEqual({ accion: 'quitado', fecha: '2026-10-01', para: 'Diego', era: 'Día feriado' })
     expect(client.callsTo('excused_days', 'delete')[0].filters).toContainEqual({ method: 'eq', args: ['id', 'x1'] })
+  })
+
+  test('REGLA: si la RLS filtró la escritura a 0 filas no se reporta éxito (review PR #138)', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'excused_days.select': { data: { id: 'x1', kind: 'holiday', note: null }, error: null },
+        'excused_days.update': { data: [], error: null },
+        'excused_days.delete': { data: [], error: null },
+      },
+    })
+    await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16', tipo: 'salida_autorizada' })).rejects.toThrow(/Solo un administrador/)
+    await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16', quitar: true })).rejects.toThrow(/Solo un administrador/)
   })
 
   test('nuevo sin tipo, quitar uno que no existe o fecha inválida: error sin escribir', async () => {

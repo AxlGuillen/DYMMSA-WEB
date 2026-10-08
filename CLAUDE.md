@@ -255,7 +255,7 @@ Instalado en `main` el 2026-05-17. Claude revisa automáticamente cada PR abiert
 | 5 — Flujo completo | ✅ | `src/app/api/quotations/` + `src/app/api/orders/` |
 | 5.5 — Flexibilidad post-aprobación | ✅ | `src/app/api/orders/[id]/items/` |
 | 6 — Mejoras UX | 🔄 | — |
-| 7 — MCP interno | 🔄 lectura ✅ · escrituras acotadas (`create_task`, `update_task`, `set_inventory_location`, `mark_payable_paid`, `create_payable`, `record_payroll_hours`, `save_time_entries`, `save_excused_day`) ✅ · primera vista MCP Apps (`preview_time_report`, ADR-036) ✅ · OAuth 2.1 Supabase (conectores) ✅ · bloque Odoo (15 tools, fases 1-8) ✅ · horas (3 tools de lectura, #101) ✅ · perfiles con NSS (`get_profiles`, #122) ✅ · cobertura de todos los módulos + test anti-drift (47 tools, #109/#110/#113/#122) ✅ · núcleo transaccional solo-lectura por decisión | `src/lib/mcp/` + `/api/mcp` + `src/lib/odoo/` |
+| 7 — MCP interno | 🔄 lectura ✅ · escrituras acotadas (`create_task`, `update_task`, `set_inventory_location`, `mark_payable_paid`, `create_payable`, `record_payroll_hours`, `save_time_entries`, `save_excused_day`) ✅ · primera vista MCP Apps (`preview_time_report`, ADR-036) ✅ · OAuth 2.1 Supabase (conectores) ✅ · bloque Odoo (15 tools, fases 1-8) ✅ · horas (lectura #101 + `preview_time_report`/`save_time_entries`/`save_excused_day`, #132/#134) ✅ · perfiles con NSS (`get_profiles`, #122) ✅ · cobertura de todos los módulos + test anti-drift (50 tools, #109/#110/#113/#122/#132) ✅ · núcleo transaccional solo-lectura por decisión | `src/lib/mcp/` + `/api/mcp` + `src/lib/odoo/` |
 
 ---
 

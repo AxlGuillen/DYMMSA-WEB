@@ -179,6 +179,10 @@ describe('record_payroll_hours con traer_de_horas (#132)', () => {
   test('sin nadie ligado lo explica; dias y traer_de_horas juntos, o fecha sin traer, se rechazan', async () => {
     const result = await recordPayrollHours(asDb(writeClient()), { traer_de_horas: true, fecha: '2026-09-23' })
     expect(result).toMatchObject({ empleados_ligados: 0, guardados: 0, nota: expect.stringMatching(/ligado a un perfil/) })
+    // A member reads zero employees: no access, not "nobody linked" (review PR #138).
+    const member = createMockSupabase({ responses: { 'payroll_employees.select': { data: [], error: null } } })
+    await expect(recordPayrollHours(asDb(member), { traer_de_horas: true })).rejects.toThrow(/solo la ve un administrador/)
+    expect(member.callsTo('time_entries')).toEqual([])
 
     const client = writeClient()
     await expect(recordPayrollHours(asDb(client), { traer_de_horas: true, dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/no los dos/)

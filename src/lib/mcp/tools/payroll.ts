@@ -153,7 +153,10 @@ export async function recordPayrollHours(db: Db, input: RecordPayrollHoursInput)
 async function prefillCut(db: Db, fecha?: string) {
   if (fecha !== undefined && !isIsoDate(fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
   const { start, end } = payrollPeriod(fecha ?? todayInMexico())
-  const [result, employees] = await asTool(() => Promise.all([prefillFromHours(db, start), loadEmployees(db)]))
+  const employees = await loadEmployees(db)
+  // A member reads zero employees by RLS: say so instead of sending them to a screen they cannot open (review PR #138).
+  if (employees.length === 0) throw new ToolError(NO_ACCESS)
+  const result = await asTool(() => prefillFromHours(db, start))
   const byId = new Map(employees.map((e) => [e.id, e.name]))
   return {
     corte: { inicio: start, fin: end },

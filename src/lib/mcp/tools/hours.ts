@@ -252,13 +252,19 @@ async function importReport(db: Db, input: SaveTimeEntriesInput) {
 const DAY_MS = 86_400_000
 const MAX_PREVIEW_DAYS = 14
 
+/** The first MAX_PREVIEW_DAYS of the period; `truncated` so the table never hides what save will write in silence. */
 function periodDays(start: string, end: string) {
   const days: { fecha: string; dia: string }[] = []
-  for (let t = Date.parse(`${start}T00:00:00Z`); t <= Date.parse(`${end}T00:00:00Z`) && days.length < MAX_PREVIEW_DAYS; t += DAY_MS) {
+  let truncated = false
+  for (let t = Date.parse(`${start}T00:00:00Z`); t <= Date.parse(`${end}T00:00:00Z`); t += DAY_MS) {
+    if (days.length >= MAX_PREVIEW_DAYS) {
+      truncated = true
+      break
+    }
     const d = new Date(t)
     days.push({ fecha: d.toISOString().slice(0, 10), dia: WEEKDAY_LABELS[(d.getUTCDay() + 6) % 7] })
   }
-  return days
+  return { days, truncated }
 }
 
 /** Read-only twin of save_time_entries (ADR-034: never read and write in one tool); the MCP App view renders it (ADR-036). */
@@ -271,7 +277,7 @@ export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput
   const profiles = await asTool(() => loadClockProfiles(db))
   const byClockId = new Map(profiles.map((p) => [p.clock_employee_id, p.display_name]))
   const reported = new Set(report.employees.map((e) => e.clockId))
-  const days = periodDays(report.period.start, report.period.end)
+  const { days, truncated } = periodDays(report.period.start, report.period.end)
   const problems: string[] = []
 
   const personas = report.employees.map((e) => {
@@ -307,7 +313,9 @@ export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput
     personas,
     sin_perfil: personas.filter((p) => !p.perfil).map((p) => `${p.nombre} (${p.id_checador ?? 'sin id'})`),
     no_vinieron_en_el_reporte: profiles.filter((p) => !reported.has(p.clock_employee_id)).map((p) => p.display_name),
-    avisos: report.warnings,
+    avisos: truncated
+      ? [...report.warnings, `La tabla muestra solo los primeros ${MAX_PREVIEW_DAYS} días del periodo; el total y "cuadra" sí consideran todas las checadas, y guardar las escribe todas.`]
+      : report.warnings,
     siguiente_paso: problems.length
       ? 'No cuadra con los totales del reporte: revisa esas filas contra el archivo antes de guardar.'
       : 'Nada se ha guardado. Muestra el resumen y, si el administrador confirma, llama save_time_entries con las mismas filas.',
@@ -389,21 +397,24 @@ export async function saveExcusedDay(db: Db, callerId: string, input: SaveExcuse
 
   if (input.quitar) {
     if (!current) throw new ToolError(`El ${input.fecha} no está justificado para ${who}`)
-    const { error } = await db.from('excused_days').delete().eq('id', current.id)
+    // RLS filters a non-admin's delete to 0 rows without an error: report only what really happened (review PR #138).
+    const { data: gone, error } = await db.from('excused_days').delete().eq('id', current.id).select('id')
     if (error) throw new ToolError('No se pudo quitar el día justificado')
+    if (!gone?.length) throw new ToolError('Solo un administrador puede justificar días')
     return { accion: 'quitado', fecha: input.fecha, para: who, era: EXCUSE_LABELS[current.kind] }
   }
 
   const kind = input.tipo ? KIND_BY_INPUT[input.tipo] : current?.kind
   const parsed = parseExcusedDay({ work_date: input.fecha, kind, user_id: person?.id ?? null, note: input.nota ?? current?.note ?? '' })
   if ('error' in parsed) throw new ToolError(parsed.error)
-  const { error } = current
-    ? await db.from('excused_days').update({ kind: parsed.value.kind, note: parsed.value.note }).eq('id', current.id)
-    : await db.from('excused_days').insert(parsed.value)
+  const { data: written, error } = current
+    ? await db.from('excused_days').update({ kind: parsed.value.kind, note: parsed.value.note }).eq('id', current.id).select('id')
+    : await db.from('excused_days').insert(parsed.value).select('id')
   if (error) {
     if (error.code === '42501') throw new ToolError('Solo un administrador puede justificar días')
     throw new ToolError('No se pudo guardar el día justificado')
   }
+  if (!written?.length) throw new ToolError('Solo un administrador puede justificar días')
   return {
     accion: current ? 'actualizado' : 'marcado',
     fecha: input.fecha,
