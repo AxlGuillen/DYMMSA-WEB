@@ -798,7 +798,10 @@ CREATE POLICY "Admins add excused days" ON public.excused_days
   FOR INSERT TO authenticated WITH CHECK (public.is_admin());
 CREATE POLICY "Admins delete excused days" ON public.excused_days
   FOR DELETE TO authenticated USING (public.is_admin());
-GRANT SELECT, INSERT, DELETE ON public.excused_days TO authenticated;
+-- UPDATE llegó con save_excused_day (review PR #138): cambiar feriado ↔ salida autorizada en su lugar.
+CREATE POLICY "Admins update excused days" ON public.excused_days
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.excused_days TO authenticated;
 GRANT ALL ON public.excused_days TO service_role;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.import_time_entries(jsonb, date, date, text) TO authenticated, service_role;
