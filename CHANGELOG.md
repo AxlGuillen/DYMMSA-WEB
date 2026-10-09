@@ -3,6 +3,26 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-08
+
+### Nuevo
+- **El asistente da de alta y edita proveedores.** Dile a Claude "da de alta a
+  Tornillos MX, 30 días de crédito, surte SURTEK" y queda registrado; si al
+  registrar una factura el proveedor no existía, ya no hay que abrir la app.
+  Las marcas deben existir: una nueva se crea en Proveedores → Marcas.
+- **Corregir o cancelar facturas por pagar desde el asistente.** "La factura de
+  Perfiles era por $3,200, no $2,300" o "cancélala". Pagarla sigue igual;
+  borrarla o reactivar una cancelada, en la app.
+- **Registrar medidas de material desde el asistente.** "Agrega barra de tubo
+  de 1 pulgada de 6 metros": Claude la convierte a milímetros, te la confirma y
+  la registra para la lista de corte.
+- [admin] **Empleados de Nómina desde el asistente.** Alta, cambio de jornada,
+  liga con su perfil y baja (sin borrar sus horas).
+
+### Corregido
+- **Fechas que no existen en facturas por pagar.** Un 30 de febrero ahora da un
+  aviso claro en vez de un error del servidor.
+
 ## 2026-10-07
 
 ### Nuevo

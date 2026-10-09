@@ -62,8 +62,8 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `GET` | `/api/suppliers` | ✅ | Lista paginada (search nombre/teléfonos/correo, sort whitelist, filtro `brandId`) con marcas embebidas y aplanadas |
-| `POST` | `/api/suppliers` | ✅ | Crear proveedor + links de marcas (**rollback** del padre si fallan los links) |
-| `PATCH` | `/api/suppliers/[id]` | ✅ | Updates sparse + `brandIds` con **replace por diff** (nunca hay ventana sin links) |
+| `POST` | `/api/suppliers` | ✅ | Crear proveedor + links de marcas (**rollback** del padre si fallan los links). Lógica en `src/lib/suppliers-store.ts`, compartida con `save_supplier` (#134) |
+| `PATCH` | `/api/suppliers/[id]` | ✅ | Updates sparse + `brandIds` con **replace por diff** (nunca hay ventana sin links). Mismo `suppliers-store.ts` |
 | `DELETE` | `/api/suppliers/[id]` | ✅ | Eliminar (links caen por CASCADE) |
 | `GET` | `/api/brands` | ✅ | Marcas con conteo de proveedores que las usan |
 | `POST` | `/api/brands` | ✅ | Crear marca (normalizada trim+upper; duplicada → 400) |
@@ -76,7 +76,7 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `POST` | `/api/material-presentations` | ✅ | Registra la presentación que ofreció el proveedor ("barras de 6 m de Ø30"). Upsert contra el UNIQUE NULLS NOT DISTINCT + refresca `last_used_at` — el catálogo del proveedor **se arma solo con el uso** (issue #59) |
+| `POST` | `/api/material-presentations` | ✅ | Registra la presentación que ofreció el proveedor ("barras de 6 m de Ø30"). Upsert contra el UNIQUE NULLS NOT DISTINCT + refresca `last_used_at` — el catálogo del proveedor **se arma solo con el uso** (issue #59). Validación y llave del upsert (`parsePresentationInput`, `PRESENTATION_KEY` en `cut-plan.ts`) compartidas con `save_material_presentation` (#134) |
 | `GET` | `/api/material-presentations` | ✅ | Catálogo completo de medidas registradas, ordenado por último uso (issue #71: lo consumen el corte rápido y la página de control). `numeric` coercido a number |
 | `DELETE` | `/api/material-presentations/[id]` | ✅ | Elimina una medida registrada (captura errónea — issue #71). Seguro: `cut_plan_pieces` no referencia presentaciones. 404 si no existe |
 
@@ -148,8 +148,8 @@
 |--------|------|------|-------------|
 | `GET` | `/api/payables` | ✅ | Lista paginada con proveedor embebido. Query: `page`, `pageSize (≤100)`, `search` (concepto, ilike saneado), `status` (pending/overdue/paid/cancelled — overdue = pendientes con vencimiento antes de hoy, vía `resolvePayableFilter`), `month (YYYY-MM, por VENCIMIENTO)`, `supplier` (uuid; otro valor se ignora), `minAmount`/`maxAmount` (≥ 0; inválido o `min > max` → 400), `sortField (due_date/invoice_date/amount/created_at)`, `sortDir`. **Solo si el llamador es admin** cada fila trae `paid_by: { name, at } \| null` (último evento "marcada pagada" de `audit_events`); para un member la llave **no existe** (ADR-028) |
 | `GET` | `/api/payables/[id]/events` | ✅ admin | Bitácora de la factura, más reciente primero (máx 100): `{ id, action, actor_name, data, created_at }`. Member → 403. RLS `is_admin()` + `requireAdmin()` (ADR-028) |
-| `POST` | `/api/payables` | ✅ | Registrar factura. Body: `{ supplier_id, concept, amount > 0, invoice_date, due_date, notes? }`. Proveedor obligatorio y existente (404 preciso). Siempre nace `pending` — el status del cliente se ignora |
-| `PATCH` | `/api/payables/[id]` | ✅ | Updates sparse. Regla de pago: `status→'paid'` sin `paid_at` → default hoy; `status→'pending'/'cancelled'` limpia `paid_at`; `paid_at` solo también se acepta (corregir fecha de una pagada) |
+| `POST` | `/api/payables` | ✅ | Registrar factura. Body: `{ supplier_id, concept, amount > 0, invoice_date, due_date, notes? }`. Proveedor obligatorio y existente (404 preciso). Siempre nace `pending` — el status del cliente se ignora. Fechas con `isRealDate` (un `2026-02-30` → 400, no 500; #134) |
+| `PATCH` | `/api/payables/[id]` | ✅ | Updates sparse. Regla de pago: `status→'paid'` sin `paid_at` → default hoy; `status→'pending'/'cancelled'` limpia `paid_at`; `paid_at` solo también se acepta (corregir fecha de una pagada). Reglas en `parsePayableUpdate()` (`src/lib/payables.ts`), compartidas con `update_payable`; fechas con `isRealDate` (#134) |
 | `DELETE` | `/api/payables/[id]` | ✅ | Eliminar factura |
 | `GET` | `/api/payables/overview` | ✅ | Query: `month (YYYY-MM, default mes actual)`. Devuelve `{ month, summary, payables, pendingTruncated, paidTruncated }` — todas las pendientes (las vencidas de meses previos cuentan) + pagadas del mes; ambas banderas avisan si su lectura superó las 1000 filas, porque las pendientes alimentan el cierre proyectado de #94 y las pagadas el real; resumen de `summarizeMonth()` (incluye `carryOverTotal/Count`) |
 
@@ -198,8 +198,8 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `GET` | `/api/payroll/employees` | Admin | Empleados de nómina (lista propia: el taller no tiene cuenta) |
-| `POST` | `/api/payroll/employees` | Admin | `{ name, profile_id?, shift? }`. Nombre o perfil repetido (23505) → 400 con el mensaje de cuál |
-| `PATCH` | `/api/payroll/employees/[id]` | Admin | `name`, `profile_id`, `shift`, `active`. **Sin DELETE**: la baja es desactivar |
+| `POST` | `/api/payroll/employees` | Admin | `{ name, profile_id?, shift? }`. Nombre o perfil repetido (23505) → 400 con el mensaje de cuál. `createEmployee()` de `payroll-store.ts`, compartida con `save_payroll_employee` (#134) |
+| `PATCH` | `/api/payroll/employees/[id]` | Admin | `name`, `profile_id`, `shift`, `active`. **Sin DELETE**: la baja es desactivar. `updateEmployee()` de `payroll-store.ts` |
 | `GET` | `/api/payroll/periods/[start]` | Admin | El corte sábado→viernes (`start` debe ser sábado, si no 400): `{ start, end, dates, closed, period, rows[{ employee, days[7], totals, missedMinutes, drafts }], totals, drafts }`. Solo los días confirmados suman |
 | `PATCH` | `/api/payroll/periods/[start]` | Admin | `{ closed: boolean }`. Cerrar exige cero borradores (400 con el conteo) y sella `closed_at`/`closed_by_name`; reabrir sella `reopened_*` |
 | `POST` | `/api/payroll/periods/[start]/prefill` | Admin | "Traer de Horas": copia los minutos por día de los empleados ligados a un perfil como **borrador**. No pisa confirmados ni manuales. `{ saved, skipped[], open, linked }` (`open` = checadas sin salida, no suman) |
@@ -238,7 +238,7 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `POST` | `/api/mcp` | **OAuth 2.1 de Supabase** (Bearer JWT con `client_id`) | Servidor MCP (Streamable HTTP, `mcp-handler` + `withMcpAuth`). Las tools del manifiesto (`src/lib/mcp/manifest.ts`: 47 — 44 para un member, ADR-034) con las reglas de negocio en las `instructions`; **dos handlers, uno por rol**, elegidos por el `role` que `verifyToken` cuelga en la identidad del token. Sin resource (eliminado en #133). Sin token → **401 con `resource_metadata`** (discovery). Ruta física: `src/app/api/[transport]/route.ts` (runtime nodejs, maxDuration 60) |
+| `POST` | `/api/mcp` | **OAuth 2.1 de Supabase** (Bearer JWT con `client_id`) | Servidor MCP (Streamable HTTP, `mcp-handler` + `withMcpAuth`). Las tools del manifiesto (`src/lib/mcp/manifest.ts`: 51 — 44 para un member, ADR-034/ADR-037) con las reglas de negocio en las `instructions`; **dos handlers, uno por rol**, elegidos por el `role` que `verifyToken` cuelga en la identidad del token. Sin resource (eliminado en #133). Sin token → **401 con `resource_metadata`** (discovery). Ruta física: `src/app/api/[transport]/route.ts` (runtime nodejs, maxDuration 60) |
 | `GET` | `/.well-known/oauth-protected-resource[/...]` | Pública | Metadata RFC 9728 (catch-all: responde también con sufijo `/api/mcp`). Anuncia `authorization_servers` = issuer OAuth de Supabase |
 | `GET` | `/oauth/consent?authorization_id=` | Sesión (detrás del login) | Pantalla de consentimiento del OAuth Server de Supabase; server actions aprueban/deniegan (`auth.oauth.*`) y redirigen al cliente |
 
