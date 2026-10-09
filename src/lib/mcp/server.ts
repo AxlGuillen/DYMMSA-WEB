@@ -15,9 +15,9 @@ import { odooInvoiceDetail, odooSaleDetail } from './tools/odoo/documents'
 import { odooPaymentDetail, odooRepAudit } from './tools/odoo/payments'
 import { odooInvoiceLinkCheck } from './tools/odoo/links'
 import { odooReceivablesRanking } from './tools/odoo/receivables'
-import { listQuotations, getQuotation, getQuotationStats } from './tools/quotations'
-import { listOrders, getOrder, getOrderByQuotation } from './tools/orders'
-import { searchInventory, getInventoryStats, setInventoryLocation } from './tools/inventory'
+import { listQuotations, getQuotation } from './tools/quotations'
+import { listOrders, getOrder } from './tools/orders'
+import { searchInventory, setInventoryLocation } from './tools/inventory'
 import { searchProducts } from './tools/products'
 import { searchUrreaCatalog } from './tools/urrea'
 import { listTasks, getTask, createTask, updateTask } from './tools/tasks'
@@ -98,10 +98,10 @@ export function serverInstructions(role: McpRole): string {
 Las tools se dividen en DOS bloques que NO se cruzan:
 
 ## Bloque A — DYMMSA-WEB (la app de cotizaciones e inventario)
-- Panorama: get_business_summary (úsala primero para contexto global).
-- Cotizaciones: list_quotations, get_quotation, get_quotation_stats.
-- Órdenes: list_orders, get_order, get_order_by_quotation; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
-- Inventario de la TIENDA: search_inventory, get_inventory_stats; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
+- Panorama: get_business_summary (úsala primero para contexto global; trae los conteos por estado y la salud del inventario).
+- Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió).
+- Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
+- Inventario de la TIENDA: search_inventory; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte).
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
@@ -117,7 +117,7 @@ La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Ventas y cobranza: odoo_sales_summary, odoo_customer_profile (incluye la cartera del cliente: deuda total, vencido y días promedio de pago), odoo_sale_detail, odoo_receivables_ranking ("¿a quién le cobro primero?" / "¿quién paga más lento?").
 - Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
 
-Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las del bloque A listadas arriba (set_inventory_location, create_task, update_task, mark_payable_paid, create_payable${admin ? ', save_time_entries, save_excused_day, record_payroll_hours' : ''}); todo lo demás es lectura.
+Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las que el bloque A marca como escritura; todo lo demás es lectura.
 
 Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
 
@@ -166,22 +166,11 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
     {
       title: 'Detalle de cotización',
       description:
-        'Cotización completa con sus ítems (en orden), totales calculados (total y total de aprobados) y estado de aprobación por ítem. Obtén el id con list_quotations.',
+        'Cotización completa con sus ítems (en orden), totales calculados (total y total de aprobados), estado de aprobación por ítem y la orden en que se convirtió (orden: null si no tiene). Obtén el id con list_quotations.',
       inputSchema: { id: z.string().describe('UUID de la cotización') },
       annotations: readOnly,
     },
     ({ id }, extra) => run(extra, (db) => getQuotation(db, id)),
-  )
-
-  server.registerTool(
-    'get_quotation_stats',
-    {
-      title: 'Métricas de cotizaciones',
-      description: 'Conteo de cotizaciones por estado (draft, sent_for_approval, approved, rejected, converted_to_order).',
-      inputSchema: {},
-      annotations: readOnly,
-    },
-    (_input, extra) => run(extra, (db) => getQuotationStats(db)),
   )
 
   server.registerTool(
@@ -210,17 +199,6 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       annotations: readOnly,
     },
     ({ id }, extra) => run(extra, (db) => getOrder(db, id)),
-  )
-
-  server.registerTool(
-    'get_order_by_quotation',
-    {
-      title: 'Orden de una cotización',
-      description: 'Encuentra la orden vinculada a una cotización convertida (id, nombre y estado), o indica que no existe.',
-      inputSchema: { quotation_id: z.string().describe('UUID de la cotización') },
-      annotations: readOnly,
-    },
-    ({ quotation_id }, extra) => run(extra, (db) => getOrderByQuotation(db, quotation_id)),
   )
 
   server.registerTool(
@@ -261,17 +239,6 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, (db) => searchInventory(db, input)),
-  )
-
-  server.registerTool(
-    'get_inventory_stats',
-    {
-      title: 'Métricas de inventario',
-      description: 'Salud del inventario: total de SKUs, con stock (>5), stock bajo (1-5) y sin stock.',
-      inputSchema: {},
-      annotations: readOnly,
-    },
-    (_input, extra) => run(extra, (db) => getInventoryStats(db)),
   )
 
   server.registerTool(
