@@ -24,6 +24,8 @@ export function payrollPeriod(date: ISODate): { start: ISODate; end: ISODate } {
 
 export const isPeriodStart = (date: ISODate) => payrollPeriod(date).start === date
 
+export const isSaturday = (date: ISODate) => toUtc(date).getUTCDay() === 6
+
 export function shiftPeriod(start: ISODate, periods: number): ISODate {
   return toIso(new Date(toUtc(start).getTime() + periods * 7 * DAY_MS))
 }
@@ -65,7 +67,7 @@ const EMPTY: HoursBreakdown = { regular: 0, extra: 0, saturdayExtra: 0, sunday: 
 export function classifyDay(date: ISODate, workedMinutes: number, shift: ProfileShift, area: ProfileArea): HoursBreakdown {
   const worked = Math.max(0, workedMinutes)
   const weekday = toUtc(date).getUTCDay()
-  if (weekday === 6) {
+  if (isSaturday(date)) {
     // The office's Saturday cell already holds what is paid ("the larger one" is applied when it is prefilled).
     const regular = area === 'office' ? worked : Math.min(worked, WORKSHOP_SATURDAY_REGULAR_MINUTES)
     const extra = worked - regular
@@ -113,7 +115,7 @@ export function buildPayrollView(
   employees: readonly PayrollEmployee[],
   days: readonly PayrollDay[],
   period: PayrollPeriod | null,
-  areas: ReadonlyMap<string, ProfileArea> = new Map(),
+  areas: ReadonlyMap<string, ProfileArea>,
 ): PayrollView {
   const dates = periodDates(start)
   const byKey = new Map(days.map((d) => [`${d.employee_id}|${d.work_date}`, d]))

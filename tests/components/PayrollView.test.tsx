@@ -78,7 +78,7 @@ describe('PayrollView', () => {
     renderWithProviders(<PayrollView />)
     fireEvent.click(screen.getByRole('button', { name: /Ana Oficina, Sáb/ }))
     const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.getByText(/Sábado de oficina: todo normal/)).toBeTruthy()
+    expect(dialog.getByText(/Sábado de oficina: lo que escribas aquí es lo que se paga, todo normal\. Sin ir se le pagan 8 h/)).toBeTruthy()
     expect(dialog.queryByText(/al doble/)).toBeNull()
   })
 

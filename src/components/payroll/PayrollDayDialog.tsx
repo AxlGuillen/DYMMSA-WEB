@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSavePayrollDay } from '@/hooks/usePayroll'
 import { formatDayLong } from '@/lib/format'
-import { classifyDay, parseHoursInput } from '@/lib/payroll'
+import { classifyDay, isSaturday, officeSaturdayMinutes, parseHoursInput } from '@/lib/payroll'
 import { formatDuration } from '@/lib/timesheet'
 import type { PayrollDay, PayrollEmployee, ProfileArea } from '@/types/database'
 
@@ -48,7 +48,7 @@ function DayFields({ target, onClose }: { target: DayTarget; onClose: () => void
   const workedMinutes = parseHoursInput(worked)
   const missedMinutes = parseHoursInput(missed)
   const breakdown = workedMinutes ? classifyDay(date, workedMinutes, employee.shift, area) : null
-  const isSaturday = new Date(`${date}T00:00:00Z`).getUTCDay() === 6
+  const officeSaturday = area === 'office' && isSaturday(date)
 
   const submit = async (values: { worked: number; missed: number; note: string }) => {
     try {
@@ -88,9 +88,13 @@ function DayFields({ target, onClose }: { target: DayTarget; onClose: () => void
         <div className="space-y-2">
           <Label htmlFor="pd-worked">Horas trabajadas</Label>
           <Input id="pd-worked" value={worked} onChange={(e) => setWorked(e.target.value)} placeholder="8, 8.5 u 8:30" inputMode="decimal" autoFocus />
-          {breakdown && (
+          {officeSaturday && (
             <p className="text-xs text-muted-foreground">
-              {isSaturday && area === 'office' && 'Sábado de oficina: todo normal. Sin ir se pagan las horas de su jornada; si fue, lo mayor. '}
+              Sábado de oficina: lo que escribas aquí es lo que se paga, todo normal. Sin ir se le pagan {officeSaturdayMinutes(employee.shift) / 60} h.
+            </p>
+          )}
+          {breakdown && !officeSaturday && (
+            <p className="text-xs text-muted-foreground">
               {breakdown.sunday > 0 && `Domingo: cuenta triple (${formatDuration(breakdown.equivalent)}).`}
               {breakdown.regular > 0 && `${formatDuration(breakdown.regular)} normales`}
               {breakdown.extra > 0 && ` + ${formatDuration(breakdown.extra)} extra`}

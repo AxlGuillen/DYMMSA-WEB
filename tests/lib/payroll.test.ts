@@ -106,7 +106,7 @@ describe('buildPayrollView', () => {
       day('ana', '2026-09-21', 690),
       day('ana', '2026-09-22', 480, { status: 'draft', source: 'sheet' }),
       day('beto', '2026-09-20', 120, { missed_minutes: 60 }),
-    ], null)
+    ], null, new Map())
 
     expect(view).toMatchObject({ start: '2026-09-19', end: '2026-09-25', closed: false, drafts: 1 })
     const [a, b] = view.rows
@@ -130,9 +130,9 @@ describe('buildPayrollView', () => {
   test('un inactivo solo aparece donde tiene horas; el corte cerrado lo dice', () => {
     const gone = employee('gone', { active: false })
     const closed = { start_date: '2026-09-19', status: 'closed' as const, closed_at: '2026-09-25T20:00:00Z', closed_by_name: 'Axl', reopened_at: null, reopened_by_name: null }
-    expect(buildPayrollView('2026-09-19', [ana, gone], [], closed)).toMatchObject({ closed: true, rows: [{ employee: { id: 'ana' } }] })
-    expect(buildPayrollView('2026-09-19', [gone], [day('gone', '2026-09-22', 60)], null).rows).toHaveLength(1)
-    expect(buildPayrollView('2026-09-19', [ana], [], { ...closed, status: 'open' }).closed).toBe(false)
+    expect(buildPayrollView('2026-09-19', [ana, gone], [], closed, new Map())).toMatchObject({ closed: true, rows: [{ employee: { id: 'ana' } }] })
+    expect(buildPayrollView('2026-09-19', [gone], [day('gone', '2026-09-22', 60)], null, new Map()).rows).toHaveLength(1)
+    expect(buildPayrollView('2026-09-19', [ana], [], { ...closed, status: 'open' }, new Map()).closed).toBe(false)
   })
 })
 

@@ -310,5 +310,16 @@ describe('POST prefill', () => {
       'payroll_periods.select': { data: [], error: null },
     }, ADMIN, areas)
     expect(await readJson(await prefill())).toMatchObject({ saved: 0, officeSaturdays: 0, skipped: [{ work_date: SAT, reason: 'ya está confirmado' }] })
+
+    // A later prefill where the clock now wins (10 h) refreshes its own draft and drops the gift's note (review PR #140).
+    activeClient = client({
+      'payroll_employees.select': { data: [employee({ profile_id: PROFILE })], error: null },
+      'time_entries.select': { data: [entry(PROFILE, '08:00', '18:00')], error: null },
+      'payroll_days.select': { data: [dayRow(SAT, { source: 'hours', status: 'draft', note: 'Sábado de oficina: checó 03:00, se pagan 8 h' })], error: null },
+      'payroll_periods.select': { data: [], error: null },
+      'payroll_days.upsert': { data: null, error: null },
+    }, ADMIN, areas)
+    expect(await readJson(await prefill())).toMatchObject({ saved: 1, officeSaturdays: 0 })
+    expect(activeClient.upsertPayload('payroll_days')).toEqual([expect.objectContaining({ work_date: SAT, worked_minutes: 600, note: null })])
   })
 })

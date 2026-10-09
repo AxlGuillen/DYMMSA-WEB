@@ -147,7 +147,7 @@ export function PayrollView() {
                   ))}
                   <TableHead className="text-right">Normal</TableHead>
                   <TableHead className="text-right">Extra</TableHead>
-                  <TableHead className="text-right">Sáb ×2</TableHead>
+                  <TableHead className="text-right" title="Lo que el taller trabaja después de 5 h; el sábado de la oficina no lleva doble">Sáb ×2</TableHead>
                   <TableHead className="text-right">Dom</TableHead>
                   <TableHead className="text-right">Equivalente</TableHead>
                 </TableRow>

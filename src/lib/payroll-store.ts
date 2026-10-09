@@ -225,14 +225,16 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
   for (const employee of linked) {
     const byDate = minutesByDate(entries.filter((e) => e.user_id === employee.profile_id))
     // The office is paid its Saturday without working it; if it did, the larger of the two, never both (#135).
-    const saturday = byDate.get(dates[0])
-    const paid = officeSaturdayMinutes(employee.shift)
-    if (payrollArea(employee, areas) === 'office' && (saturday?.minutes ?? 0) < paid) {
+    if (payrollArea(employee, areas) === 'office') {
+      const saturday = byDate.get(dates[0])
+      const clocked = saturday?.minutes ?? 0
+      const paid = officeSaturdayMinutes(employee.shift)
       open += saturday?.open ?? 0
       byDate.delete(dates[0])
-      const clocked = saturday?.minutes ? `checó ${formatDuration(saturday.minutes)}, ` : ''
-      inputs.push({ employee_id: employee.id, work_date: dates[0], worked_minutes: paid, note: `Sábado de oficina: ${clocked}se pagan ${paid / 60} h` })
-      officeSaturdays.add(`${employee.id}|${dates[0]}`)
+      // The note is always sent: a later prefill where the clock wins must not keep "se pagan 8 h" (review PR #140).
+      const note = clocked < paid ? `Sábado de oficina: ${clocked ? `checó ${formatDuration(clocked)}, ` : ''}se pagan ${paid / 60} h` : null
+      inputs.push({ employee_id: employee.id, work_date: dates[0], worked_minutes: Math.max(clocked, paid), note })
+      if (clocked < paid) officeSaturdays.add(`${employee.id}|${dates[0]}`)
     }
     for (const [work_date, day] of byDate) {
       open += day.open
