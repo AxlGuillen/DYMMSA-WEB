@@ -20,10 +20,24 @@ corte listas, sin duplicar lo que la oficina ya checa.
    el papel y la hoja se reparte sola.
 2. **El multiplicador no se guarda: sale de la fecha** (`classifyDay()` en `src/lib/payroll.ts`).
    Lunes a viernes: normal hasta la jornada del empleado (8 h, 4 h en medio tiempo) y el resto
-   extra, **ambas ×1** (decisión 2026-09-30); sábado **×2** y domingo **×3** sobre todas las
-   horas del día. Si la regla de extras cambia, cambia una función y no los datos.
+   extra, **ambas ×1** (decisión 2026-09-30); domingo **×3** sobre todas las horas del día.
+   **Sábado según el área (#135, 2026-10-09):**
+   - **Taller:** las primeras **5 h** son normales y solo lo que pasa de ahí va **×2**, sin
+     importar la jornada (`WORKSHOP_SATURDAY_REGULAR_MINUTES`).
+   - **Oficina:** se le paga el sábado **sin trabajarlo**, con las horas diarias de su jornada (8 h, o 4 h a medio
+     tiempo). Si va, cuenta lo mayor entre lo regalado y lo trabajado, nunca las dos, y **todo
+     normal**. "Traer de Horas" lo crea como **borrador** (`source = hours`, nota "Sábado de
+     oficina: … se pagan 8 h") con las mismas reglas de siempre: no pisa lo confirmado, lo
+     capturado a mano ni un corte cerrado. La celda es lo que se paga: si el admin teclea menos a
+     mano, se paga lo que escribió.
+   - **Quién es oficina:** el empleado ligado a un perfil con `area = office` (Equipo); sin perfil
+     o con área de taller, es taller (`payrollArea()`).
+   - Si alguien del taller falta un sábado, no se manda nada.
+
+   Si la regla de extras cambia, cambia una función y no los datos.
 3. **Solo horas, nunca montos.** Sin tarifas ni salarios en la base. El total del corte es el
-   "equivalente" en horas (`normal + extra + sábado×2 + domingo×3`).
+   "equivalente" en horas (`normal + extra + sábado extra×2 + domingo×3`; la parte normal del
+   sábado suma en "normal").
 4. **Empleados propios (`payroll_employees`) con liga opcional a `profiles`.** Los del taller no
    tienen cuenta. La liga solo sirve para el prellenado desde Horas; `shift` se copia al ligar
    pero vive en nómina (el tope de horas normales es dato del corte, no del perfil).
@@ -69,6 +83,10 @@ corte listas, sin duplicar lo que la oficina ya checa.
 - **Bloquear el corte cerrado solo en la ruta.** El MCP y PostgREST no pasan por ella.
 
 ## Pendiente
+
+- ~~El sábado todo ×2~~: corregido en #135 (2026-10-09). Hasta entonces un sábado normal del
+  taller (5 h) sumaba 10 h equivalentes; no había cortes reales cargados, así que no hubo datos
+  que corregir (el multiplicador no se guarda).
 
 - Tarifa de las extras entre semana si deja de ser ×1; qué hacer con HRS NO TRABAJADAS (hoy
   solo se registran); el número de encima en HRS EXT (el asistente pregunta, no se guarda);

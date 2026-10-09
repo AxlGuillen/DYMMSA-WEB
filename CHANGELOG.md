@@ -3,6 +3,19 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-09
+
+### Corregido
+- [admin] **El sábado en Nómina ya no es todo al doble.** En el taller las
+  primeras 5 horas del sábado se pagan normal y solo lo que pase de ahí va al
+  doble. A la oficina se le paga su sábado aunque no vaya (8 horas, o 4 a medio
+  tiempo): "Traer de Horas" lo agrega como borrador para que lo confirmes.
+
+### Mejorado
+- [admin] **El asistente lee mejor la hoja del taller.** En sábado la marca de
+  asistencia cuenta 5 horas, y una hora escrita en la mañana (como 8:05) se
+  toma como llegada tarde, no como salida.
+
 ## 2026-10-08
 
 ### Nuevo
