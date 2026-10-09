@@ -107,7 +107,8 @@ describe('el corte, de la hoja al cierre', () => {
 
     expect(await readJson(await confirmRoute.POST(makeRequest(undefined, { method: 'POST' }), start))).toEqual({ confirmed: 2 })
     view = await readJson<PayrollView>(await periodRoute.GET(makeRequest(), start))
-    expect(view.rows[0].totals).toEqual({ regular: 480, extra: 210, saturday: 360, sunday: 0, equivalent: 480 + 210 + 720 })
+    // Juan has no account: workshop Saturday of 6 h = 5 normal + 1 at double (#135).
+    expect(view.rows[0].totals).toEqual({ regular: 480 + 300, extra: 210, saturdayExtra: 60, sunday: 0, equivalent: 480 + 300 + 210 + 120 })
     // The next cut's Saturday stayed a draft: confirming is per cut.
     expect((await dayRows()).map((d) => d.status)).toEqual(['confirmed', 'confirmed', 'draft'])
 
@@ -133,7 +134,7 @@ describe('el corte, de la hoja al cierre', () => {
     expect(reopened).toEqual({ status: 'open', reopened_by_name: 'test', closed_by_name: 'test' })
   })
 
-  test('Traer de Horas copia las checadas del ligado como borrador y no pisa lo confirmado', async () => {
+  test('Traer de Horas copia las checadas del ligado como borrador, le paga el sábado a la oficina y no pisa lo confirmado', async () => {
     const [{ id: memberId }] = await sql<{ id: string }>(`SELECT id FROM public.profiles WHERE role = 'member'`)
     const id = await seedEmployee('Member Oficina', memberId)
     await seedEmployee('Juan Taller')
@@ -149,8 +150,10 @@ describe('el corte, de la hoja al cierre', () => {
     expect((await putDay({ employee_id: id, work_date: '2026-09-22', worked_minutes: 420 })).status).toBe(200)
 
     const res = await prefillRoute.POST(makeRequest(undefined, { method: 'POST' }), start)
-    expect(await readJson(res)).toMatchObject({ saved: 1, open: 1, linked: 1, skipped: [{ work_date: '2026-09-22', reason: 'ya está confirmado' }] })
+    expect(await readJson(res)).toMatchObject({ saved: 2, open: 1, linked: 1, officeSaturdays: 1, skipped: [{ work_date: '2026-09-22', reason: 'ya está confirmado' }] })
+    // The seeded member is office: its Saturday is paid (8 h) without a punch, as a draft (#135).
     expect(await dayRows()).toEqual([
+      { work_date: '2026-09-19', worked_minutes: 480, status: 'draft', source: 'hours' },
       { work_date: '2026-09-21', worked_minutes: 510, status: 'draft', source: 'hours' },
       { work_date: '2026-09-22', worked_minutes: 420, status: 'confirmed', source: 'manual' },
     ])
@@ -160,12 +163,15 @@ describe('el corte, de la hoja al cierre', () => {
     // Running it twice is idempotent: the draft it wrote is its own to refresh.
     await sql(`UPDATE public.time_entries SET clock_out = '19:00' WHERE work_date = '2026-09-21' AND clock_in = '14:00'`)
     await prefillRoute.POST(makeRequest(undefined, { method: 'POST' }), start)
-    expect((await dayRows())[0]).toMatchObject({ worked_minutes: 540, status: 'draft' })
+    expect((await dayRows())[1]).toMatchObject({ work_date: '2026-09-21', worked_minutes: 540, status: 'draft' })
 
     // Clearing the clock-out leaves only open punches: the stale draft goes, the manual day stays.
     await sql(`UPDATE public.time_entries SET clock_out = NULL WHERE work_date = '2026-09-21'`)
     await prefillRoute.POST(makeRequest(undefined, { method: 'POST' }), start)
-    expect(await dayRows()).toEqual([{ work_date: '2026-09-22', worked_minutes: 420, status: 'confirmed', source: 'manual' }])
+    expect(await dayRows()).toEqual([
+      { work_date: '2026-09-19', worked_minutes: 480, status: 'draft', source: 'hours' },
+      { work_date: '2026-09-22', worked_minutes: 420, status: 'confirmed', source: 'manual' },
+    ])
   })
 
   test('constraints: un corte que no empieza en sábado, minutos fuera de rango y empleado duplicado', async () => {

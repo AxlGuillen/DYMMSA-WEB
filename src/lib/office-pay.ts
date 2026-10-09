@@ -4,7 +4,8 @@
  * (review PR #137). The workshop's Saturday/Sunday rules live in payroll, not here.
  */
 
-import { SHIFT_HOURS, type WeekView } from './timesheet'
+import { officeSaturdayMinutes } from './payroll'
+import { type WeekView } from './timesheet'
 import type { ProfileShift } from '@/types/database'
 
 export interface WeekPay {
@@ -29,7 +30,7 @@ export function officeWeekPay(week: WeekLike, shift: ProfileShift | null | undef
   if (rate == null || !(rate > 0)) return null
   const workedMinutes = week.days.reduce((sum, d, i) => (i === SATURDAY ? sum : sum + d.minutes), 0)
   const saturdayWorked = (week.days[SATURDAY]?.minutes ?? 0) / 60
-  const saturdayHours = Math.max(shift ? SHIFT_HOURS[shift].daily : 0, saturdayWorked)
+  const saturdayHours = Math.max(shift ? officeSaturdayMinutes(shift) / 60 : 0, saturdayWorked)
   const paidHours = workedMinutes / 60 + saturdayHours
   return { rate, workedMinutes, saturdayHours: round2(saturdayHours), paidHours: round2(paidHours), amount: round2(paidHours * rate) }
 }

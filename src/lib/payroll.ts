@@ -4,7 +4,7 @@
  */
 
 import { isRealDate, minutesBetween, SHIFT_HOURS, type ISODate } from '@/lib/timesheet'
-import type { PayrollDay, PayrollEmployee, PayrollPeriod, ProfileShift } from '@/types/database'
+import type { PayrollDay, PayrollEmployee, PayrollPeriod, ProfileArea, ProfileShift } from '@/types/database'
 
 const DAY_MS = 86_400_000
 const toUtc = (iso: ISODate) => new Date(`${iso}T00:00:00Z`)
@@ -24,6 +24,8 @@ export function payrollPeriod(date: ISODate): { start: ISODate; end: ISODate } {
 
 export const isPeriodStart = (date: ISODate) => payrollPeriod(date).start === date
 
+export const isSaturday = (date: ISODate) => toUtc(date).getUTCDay() === 6
+
 export function shiftPeriod(start: ISODate, periods: number): ISODate {
   return toIso(new Date(toUtc(start).getTime() + periods * 7 * DAY_MS))
 }
@@ -37,22 +39,40 @@ export function periodDates(start: ISODate): ISODate[] {
 export const SATURDAY_MULTIPLIER = 2
 export const SUNDAY_MULTIPLIER = 3
 
+/** The workshop's Saturday: its first 5 h are ordinary, only what goes past them is ×2 (#135). */
+export const WORKSHOP_SATURDAY_REGULAR_MINUTES = 5 * 60
+
+/** The Saturday the office is paid without working it: its shift's daily hours, 8 or 4 (#135). */
+export const officeSaturdayMinutes = (shift: ProfileShift) => SHIFT_HOURS[shift].daily * 60
+
+/** Office = linked to a profile whose area is office (Equipo); no account means the workshop (#135). */
+export function payrollArea(employee: Pick<PayrollEmployee, 'profile_id'>, areas: ReadonlyMap<string, ProfileArea>): ProfileArea {
+  return (employee.profile_id && areas.get(employee.profile_id)) || 'workshop'
+}
+
 export interface HoursBreakdown {
+  /** Weekday minutes up to the shift's daily hours plus the Saturday's ordinary part (#135). */
   regular: number
   /** Weekday minutes past the shift's daily hours; paid ×1 (decision 2026-09-30). */
   extra: number
-  saturday: number
+  /** Workshop Saturday minutes past the first 5 h; paid ×2 (#135). */
+  saturdayExtra: number
   sunday: number
-  /** Minutes as paid: regular + extra + saturday×2 + sunday×3. */
+  /** Minutes as paid: regular + extra + saturdayExtra×2 + sunday×3. */
   equivalent: number
 }
 
-const EMPTY: HoursBreakdown = { regular: 0, extra: 0, saturday: 0, sunday: 0, equivalent: 0 }
+const EMPTY: HoursBreakdown = { regular: 0, extra: 0, saturdayExtra: 0, sunday: 0, equivalent: 0 }
 
-export function classifyDay(date: ISODate, workedMinutes: number, shift: ProfileShift): HoursBreakdown {
+export function classifyDay(date: ISODate, workedMinutes: number, shift: ProfileShift, area: ProfileArea): HoursBreakdown {
   const worked = Math.max(0, workedMinutes)
   const weekday = toUtc(date).getUTCDay()
-  if (weekday === 6) return { ...EMPTY, saturday: worked, equivalent: worked * SATURDAY_MULTIPLIER }
+  if (isSaturday(date)) {
+    // The office's Saturday cell already holds what is paid ("the larger one" is applied when it is prefilled).
+    const regular = area === 'office' ? worked : Math.min(worked, WORKSHOP_SATURDAY_REGULAR_MINUTES)
+    const extra = worked - regular
+    return { ...EMPTY, regular, saturdayExtra: extra, equivalent: regular + extra * SATURDAY_MULTIPLIER }
+  }
   if (weekday === 0) return { ...EMPTY, sunday: worked, equivalent: worked * SUNDAY_MULTIPLIER }
   const regular = Math.min(worked, SHIFT_HOURS[shift].daily * 60)
   return { ...EMPTY, regular, extra: worked - regular, equivalent: worked }
@@ -62,7 +82,7 @@ function add(a: HoursBreakdown, b: HoursBreakdown): HoursBreakdown {
   return {
     regular: a.regular + b.regular,
     extra: a.extra + b.extra,
-    saturday: a.saturday + b.saturday,
+    saturdayExtra: a.saturdayExtra + b.saturdayExtra,
     sunday: a.sunday + b.sunday,
     equivalent: a.equivalent + b.equivalent,
   }
@@ -70,6 +90,7 @@ function add(a: HoursBreakdown, b: HoursBreakdown): HoursBreakdown {
 
 export interface PayrollRow {
   employee: PayrollEmployee
+  area: ProfileArea
   /** Saturday→Friday; null = nothing recorded that day. */
   days: (PayrollDay | null)[]
   totals: HoursBreakdown
@@ -94,6 +115,7 @@ export function buildPayrollView(
   employees: readonly PayrollEmployee[],
   days: readonly PayrollDay[],
   period: PayrollPeriod | null,
+  areas: ReadonlyMap<string, ProfileArea>,
 ): PayrollView {
   const dates = periodDates(start)
   const byKey = new Map(days.map((d) => [`${d.employee_id}|${d.work_date}`, d]))
@@ -103,10 +125,12 @@ export function buildPayrollView(
     // An inactive employee stays visible only where they have hours.
     if (!employee.active && cells.every((c) => c === null)) continue
     const confirmed = cells.filter((c): c is PayrollDay => c?.status === 'confirmed')
+    const area = payrollArea(employee, areas)
     rows.push({
       employee,
+      area,
       days: cells,
-      totals: confirmed.reduce((sum, c) => add(sum, classifyDay(c.work_date, c.worked_minutes, employee.shift)), EMPTY),
+      totals: confirmed.reduce((sum, c) => add(sum, classifyDay(c.work_date, c.worked_minutes, employee.shift, area)), EMPTY),
       missedMinutes: confirmed.reduce((sum, c) => sum + c.missed_minutes, 0),
       drafts: cells.filter((c) => c?.status === 'draft').length,
     })
