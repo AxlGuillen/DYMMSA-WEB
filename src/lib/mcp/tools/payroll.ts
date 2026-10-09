@@ -39,7 +39,7 @@ function totals(t: HoursBreakdown) {
   return {
     normal: formatDuration(t.regular),
     extra: formatDuration(t.extra),
-    sabado: formatDuration(t.saturday),
+    sabado_extra: formatDuration(t.saturdayExtra),
     domingo: formatDuration(t.sunday),
     equivalente: formatDuration(t.equivalent),
   }
@@ -57,13 +57,13 @@ export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
       cerrado: view.closed,
       cerrado_por: view.closed ? (view.period?.closed_by_name ?? null) : null,
     },
-    reglas: 'Lunes a viernes: normal hasta la jornada (8 h, o 4 h en medio tiempo) y el resto extra, ambas ×1. Sábado ×2, domingo ×3. Solo los días confirmados suman; los borradores no.',
+    reglas: 'Lunes a viernes: normal hasta la jornada (8 h, o 4 h en medio tiempo) y el resto extra, ambas ×1. Sábado del taller: las primeras 5 h normales y solo el resto ×2 (sabado_extra). Sábado de oficina: se paga normal (8 h, o 4 a medio tiempo, aunque no vaya; si va, lo mayor). Domingo ×3. Solo los días confirmados suman; los borradores no.',
     borradores: view.drafts,
     nota: view.rows.length === 0 ? NO_ACCESS : null,
     total: totals(view.totals),
     empleados: view.rows.map((row) => ({
       nombre: row.employee.name,
-      tipo: row.employee.profile_id ? 'oficina' : 'taller',
+      tipo: row.area === 'office' ? 'oficina' : 'taller',
       jornada: SHIFT_LABELS[row.employee.shift],
       ...totals(row.totals),
       no_trabajadas: formatDuration(row.missedMinutes),
@@ -174,6 +174,7 @@ async function prefillCut(db: Db, fecha?: string) {
     guardados: result.saved,
     omitidos: result.skipped.map((s) => ({ empleado: byId.get(s.employee_id) ?? s.employee_id, fecha: s.work_date, motivo: s.reason })),
     checadas_sin_salida: result.open,
+    sabados_oficina: result.officeSaturdays,
     nota:
       result.linked === 0
         ? 'Ningún empleado de nómina está ligado a un perfil de la app: se liga en Nómina → Empleados.'

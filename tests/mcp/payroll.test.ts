@@ -45,13 +45,14 @@ describe('get_payroll_period', () => {
     expect(result.borradores).toBe(1)
     expect(result.nota).toBeNull()
     expect(result.empleados.map((e) => e.nombre)).toEqual(['Juan Pérez', 'Juan Carlos Ruiz', 'José Núñez'])
-    expect(result.empleados[0]).toMatchObject({ normal: '08:00', extra: '03:30', sabado: '06:00', equivalente: '23:30', tipo: 'taller', jornada: 'Tiempo completo · 8 h' })
+    // Workshop Saturday of 6 h: 5 normal + 1 at double (#135).
+    expect(result.empleados[0]).toMatchObject({ normal: '13:00', extra: '03:30', sabado_extra: '01:00', equivalente: '18:30', tipo: 'taller', jornada: 'Tiempo completo · 8 h' })
     expect(result.empleados[0].dias).toEqual([
       { dia: 'Sáb', fecha: '2026-09-19', horas: '06:00', no_trabajadas: null, estado: 'confirmado', origen: 'hoja', nota: null },
       { dia: 'Lun', fecha: '2026-09-21', horas: '11:30', no_trabajadas: null, estado: 'confirmado', origen: 'hoja', nota: null },
     ])
     expect(result.empleados[2]).toMatchObject({ equivalente: '00:00', dias: [{ estado: 'borrador' }] })
-    expect(result.total.equivalente).toBe('23:30')
+    expect(result.total.equivalente).toBe('18:30')
   })
 
   test('a un member la RLS le devuelve vacío: lo dice en vez de fingir un corte sin gente', async () => {
@@ -143,11 +144,12 @@ describe('record_payroll_hours', () => {
 })
 
 describe('record_payroll_hours con traer_de_horas (#132)', () => {
-  test('copia las checadas de la oficina al corte de la fecha como borrador, igual que el botón', async () => {
+  test('copia las checadas de la oficina al corte de la fecha como borrador y paga su sábado, igual que el botón', async () => {
     const office = employee('e9', 'Tania', { profile_id: 'u-tania' })
     const client = createMockSupabase({
       responses: {
         'payroll_employees.select': { data: [...TEAM, office], error: null },
+        'profiles.select': { data: [{ id: 'u-tania', area: 'office' }], error: null },
         'time_entries.select': {
           data: [
             { user_id: 'u-tania', work_date: '2026-09-21', source_clock_in: '09:00', clock_in: '09:00', clock_out: '13:00' },
@@ -167,12 +169,15 @@ describe('record_payroll_hours con traer_de_horas (#132)', () => {
     expect(result).toMatchObject({
       corte: { inicio: '2026-09-19', fin: '2026-09-25' },
       empleados_ligados: 1,
-      guardados: 1,
+      guardados: 2,
       checadas_sin_salida: 1,
+      sabados_oficina: 1,
       omitidos: [{ empleado: 'Tania', fecha: '2026-09-23', motivo: 'se capturó a mano' }],
     })
-    expect(client.upsertPayload('payroll_days').map((r) => [r.work_date, r.worked_minutes, r.source, r.status])).toEqual([
-      ['2026-09-21', 240, 'hours', 'draft'],
+    // Her Saturday is paid without a punch (#135): 8 h as a draft, with a note that says why.
+    expect(client.upsertPayload('payroll_days').map((r) => [r.work_date, r.worked_minutes, r.source, r.status, r.note])).toEqual([
+      ['2026-09-19', 480, 'hours', 'draft', 'Sábado de oficina: se pagan 8 h'],
+      ['2026-09-21', 240, 'hours', 'draft', null],
     ])
   })
 

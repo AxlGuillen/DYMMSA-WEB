@@ -11,13 +11,24 @@ import {
   isIsoDate,
   isPeriodStart,
   minutesByDate,
+  officeSaturdayMinutes,
+  payrollArea,
   payrollDuplicateMessage,
   payrollPeriod,
   periodDates,
   type EmployeeInput,
   type PayrollView,
 } from '@/lib/payroll'
-import type { PayrollDay, PayrollDaySource, PayrollDayStatus, PayrollEmployee, PayrollPeriod, TimeEntry } from '@/types/database'
+import { formatDuration } from '@/lib/timesheet'
+import type {
+  PayrollDay,
+  PayrollDaySource,
+  PayrollDayStatus,
+  PayrollEmployee,
+  PayrollPeriod,
+  ProfileArea,
+  TimeEntry,
+} from '@/types/database'
 
 /** A rule the user broke (→ 400 / ToolError); anything else is a real failure. */
 export class PayrollError extends Error {
@@ -57,6 +68,15 @@ export async function updateEmployee(db: SupabaseClient, id: string, value: Empl
   return (data as PayrollEmployee | null) ?? null
 }
 
+/** Area of each linked profile: office or workshop decides how the Saturday counts (#135). */
+async function loadProfileAreas(db: SupabaseClient, ids?: readonly string[]): Promise<Map<string, ProfileArea>> {
+  let query = db.from('profiles').select('id, area')
+  if (ids) query = query.in('id', ids)
+  const { data, error } = await query
+  if (error) throw new Error(`profiles: ${error.message}`)
+  return new Map(((data ?? []) as { id: string; area: ProfileArea }[]).map((p) => [p.id, p.area]))
+}
+
 async function loadPeriodRow(db: SupabaseClient, start: ISODate): Promise<PayrollPeriod | null> {
   const { data, error } = await db.from('payroll_periods').select('*').eq('start_date', start).maybeSingle()
   if (error) throw new Error(`payroll_periods: ${error.message}`)
@@ -76,12 +96,13 @@ export function assertPeriodStart(start: unknown): asserts start is ISODate {
 export async function loadPayrollView(db: SupabaseClient, start: ISODate): Promise<PayrollView> {
   assertPeriodStart(start)
   const dates = periodDates(start)
-  const [employees, days, period] = await Promise.all([
+  const [employees, days, period, areas] = await Promise.all([
     loadEmployees(db),
     loadDays(db, dates[0], dates[6]),
     loadPeriodRow(db, start),
+    loadProfileAreas(db),
   ])
-  return buildPayrollView(start, employees, days, period)
+  return buildPayrollView(start, employees, days, period, areas)
 }
 
 export interface DayInput {
@@ -176,6 +197,8 @@ export interface PrefillResult extends SaveDaysResult {
   /** Punches without a clock-out: they add nothing, so the admin must know. */
   open: number
   linked: number
+  /** Office Saturdays filled with the hours paid without working them (#135). */
+  officeSaturdays: number
 }
 
 /** Copies the office's clocked hours into the cut as drafts (never over confirmed or manual days). */
@@ -183,7 +206,8 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
   assertPeriodStart(start)
   const dates = periodDates(start)
   const linked = (await loadEmployees(db)).filter((e) => e.active && e.profile_id)
-  if (linked.length === 0) return { saved: 0, skipped: [], open: 0, linked: 0 }
+  if (linked.length === 0) return { saved: 0, skipped: [], open: 0, linked: 0, officeSaturdays: 0 }
+  const areas = await loadProfileAreas(db, linked.map((e) => e.profile_id as string))
 
   const { data, error } = await db
     .from('time_entries')
@@ -197,8 +221,19 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
   const inputs: DayInput[] = []
   const stale: { employee_id: string; work_date: ISODate }[] = []
   let open = 0
+  const officeSaturdays = new Set<string>()
   for (const employee of linked) {
     const byDate = minutesByDate(entries.filter((e) => e.user_id === employee.profile_id))
+    // The office is paid its Saturday without working it; if it did, the larger of the two, never both (#135).
+    const saturday = byDate.get(dates[0])
+    const paid = officeSaturdayMinutes(employee.shift)
+    if (payrollArea(employee, areas) === 'office' && (saturday?.minutes ?? 0) < paid) {
+      open += saturday?.open ?? 0
+      byDate.delete(dates[0])
+      const clocked = saturday?.minutes ? `checó ${formatDuration(saturday.minutes)}, ` : ''
+      inputs.push({ employee_id: employee.id, work_date: dates[0], worked_minutes: paid, note: `Sábado de oficina: ${clocked}se pagan ${paid / 60} h` })
+      officeSaturdays.add(`${employee.id}|${dates[0]}`)
+    }
     for (const [work_date, day] of byDate) {
       open += day.open
       // Only an open punch: a gap, not a 0-hour draft that "confirm all" would freeze (review PR #127).
@@ -222,7 +257,8 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
     if (error) throw new Error(`payroll_days stale draft: ${error.message}`)
   }
   const result = await saveDays(db, inputs, { source: 'hours', status: 'draft', overwrite: false })
-  return { ...result, open, linked: linked.length }
+  for (const s of result.skipped) officeSaturdays.delete(`${s.employee_id}|${s.work_date}`)
+  return { ...result, open, linked: linked.length, officeSaturdays: officeSaturdays.size }
 }
 
 export async function confirmDrafts(db: SupabaseClient, start: ISODate): Promise<number> {

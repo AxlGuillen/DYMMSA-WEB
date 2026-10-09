@@ -48,6 +48,7 @@ export function PayrollView() {
       const notes = [
         result.skipped.length > 0 ? `No se tocaron (ya capturados): ${[...new Set(result.skipped.map((s) => formatDayMonth(s.work_date)))].join(', ')}` : null,
         result.open > 0 ? `${result.open} checadas sin salida no suman: corrígelas en Horas y vuelve a traer` : null,
+        result.officeSaturdays > 0 ? `${result.officeSaturdays} sábados de oficina pagados sin trabajar (8 h, o 4 a medio tiempo)` : null,
       ].filter(Boolean)
       toast.success(`${result.saved} días traídos de Horas como borrador`, { description: notes.join(' · ') || undefined })
     } catch (err) {
@@ -140,13 +141,13 @@ export function PayrollView() {
                     <TableHead key={date} className="text-center">
                       {PERIOD_DAY_LABELS[i]}
                       <span className="block text-[11px] font-normal text-muted-foreground">
-                        {formatDayMonth(date)}{i === 0 ? ' · ×2' : i === 1 ? ' · ×3' : ''}
+                        {formatDayMonth(date)}{i === 0 ? ' · ×2 tras 5 h' : i === 1 ? ' · ×3' : ''}
                       </span>
                     </TableHead>
                   ))}
                   <TableHead className="text-right">Normal</TableHead>
                   <TableHead className="text-right">Extra</TableHead>
-                  <TableHead className="text-right">Sáb</TableHead>
+                  <TableHead className="text-right">Sáb ×2</TableHead>
                   <TableHead className="text-right">Dom</TableHead>
                   <TableHead className="text-right">Equivalente</TableHead>
                 </TableRow>
@@ -163,7 +164,7 @@ export function PayrollView() {
                         <button
                           type="button"
                           disabled={view.closed}
-                          onClick={() => setTarget({ employee: row.employee, date: view.dates[i], day })}
+                          onClick={() => setTarget({ employee: row.employee, area: row.area, date: view.dates[i], day })}
                           aria-label={`${row.employee.name}, ${PERIOD_DAY_LABELS[i]} ${formatDayMonth(view.dates[i])}`}
                           className={`w-full rounded-md px-2 py-1.5 text-sm tabular-nums transition-colors enabled:hover:cursor-pointer enabled:hover:bg-muted ${
                             day?.status === 'draft' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : ''
@@ -176,7 +177,7 @@ export function PayrollView() {
                     ))}
                     <TableCell className="text-right tabular-nums">{hours(row.totals.regular)}</TableCell>
                     <TableCell className="text-right tabular-nums">{hours(row.totals.extra)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{hours(row.totals.saturday)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{hours(row.totals.saturdayExtra)}</TableCell>
                     <TableCell className="text-right tabular-nums">{hours(row.totals.sunday)}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">{hours(row.totals.equivalent)}</TableCell>
                   </TableRow>
@@ -187,7 +188,7 @@ export function PayrollView() {
                   <TableCell colSpan={8} className="text-right text-sm">Total del corte</TableCell>
                   <TableCell className="text-right tabular-nums">{hours(view.totals.regular)}</TableCell>
                   <TableCell className="text-right tabular-nums">{hours(view.totals.extra)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{hours(view.totals.saturday)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{hours(view.totals.saturdayExtra)}</TableCell>
                   <TableCell className="text-right tabular-nums">{hours(view.totals.sunday)}</TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">{hours(view.totals.equivalent)}</TableCell>
                 </TableRow>
@@ -199,7 +200,7 @@ export function PayrollView() {
 
       {view && view.rows.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Equivalente = normal + extra + sábado ×2 + domingo ×3. Los borradores (en ámbar) no suman hasta confirmarse.
+          Equivalente = normal + extra + sábado ×2 + domingo ×3. El sábado del taller: las primeras 5 h son normales y solo el resto va al doble; la oficina cobra su sábado normal. Los borradores (en ámbar) no suman hasta confirmarse.
         </p>
       )}
 

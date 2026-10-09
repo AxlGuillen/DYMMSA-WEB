@@ -31,8 +31,10 @@ const dayRow = (date: string, over: Record<string, unknown> = {}) => ({
   source: 'manual', status: 'confirmed', created_at: '', updated_at: '', ...over,
 })
 
-function client(responses: Record<string, unknown>, profile = ADMIN) {
-  return createMockSupabase({ user: AUTH, responses: { 'profiles.select': profile, ...responses } as never })
+/** profiles answers the admin check (.single) and, as a list, the area of each linked profile (#135). */
+function client(responses: Record<string, unknown>, profile = ADMIN, areas: { id: string; area: string }[] = []) {
+  const profiles = (rec: CallRecord) => (rec.single ? profile : { data: areas, error: null })
+  return createMockSupabase({ user: AUTH, responses: { 'profiles.select': profiles, ...responses } as never })
 }
 
 const startParams = (start = SAT) => makeParams({ start })
@@ -99,14 +101,16 @@ describe('corte', () => {
   test('GET arma la vista con totales; un inicio que no es sábado → 400', async () => {
     activeClient = client({
       'payroll_employees.select': { data: [employee()], error: null },
-      'payroll_days.select': { data: [dayRow(SAT, { worked_minutes: 300 }), dayRow('2026-09-21', { worked_minutes: 600 })], error: null },
+      'payroll_days.select': { data: [dayRow(SAT, { worked_minutes: 420 }), dayRow('2026-09-21', { worked_minutes: 600 })], error: null },
       'payroll_periods.select': { data: null, error: null },
     })
     const res = await periodRoute.GET(makeRequest(), startParams())
     expect(res.status).toBe(200)
-    const view = await readJson<{ end: string; closed: boolean; rows: { totals: Record<string, number> }[] }>(res)
+    const view = await readJson<{ end: string; closed: boolean; rows: { area: string; totals: Record<string, number> }[] }>(res)
     expect(view).toMatchObject({ end: '2026-09-25', closed: false })
-    expect(view.rows[0].totals).toEqual({ regular: 480, extra: 120, saturday: 300, sunday: 0, equivalent: 480 + 120 + 600 })
+    // Workshop Saturday of 7 h: 5 normal + 2 at double (#135).
+    expect(view.rows[0].area).toBe('workshop')
+    expect(view.rows[0].totals).toEqual({ regular: 480 + 300, extra: 120, saturdayExtra: 120, sunday: 0, equivalent: 480 + 300 + 120 + 240 })
 
     expect((await periodRoute.GET(makeRequest(), startParams('2026-09-21'))).status).toBe(400)
   })
@@ -270,7 +274,41 @@ describe('POST prefill', () => {
 
   test('sin nadie ligado no lee checadas', async () => {
     activeClient = client({ 'payroll_employees.select': { data: [employee()], error: null } })
-    expect(await readJson(await prefill())).toEqual({ saved: 0, skipped: [], open: 0, linked: 0 })
+    expect(await readJson(await prefill())).toEqual({ saved: 0, skipped: [], open: 0, linked: 0, officeSaturdays: 0 })
     expect(activeClient.callsTo('time_entries')).toEqual([])
+  })
+
+  test('REGLA #135: la oficina recibe su sábado pagado como borrador (8 h, 4 a medio tiempo); si checó más, lo mayor; el taller no', async () => {
+    const HALF = '33333333-3333-4333-8333-333333333333'
+    const SHOP = '44444444-4444-4444-8444-444444444444'
+    const entry = (user: string, clockIn: string, clockOut: string) => ({ user_id: user, work_date: SAT, source_clock_in: clockIn, clock_in: clockIn, clock_out: clockOut })
+    const team = [
+      employee({ profile_id: PROFILE }),
+      employee({ id: 'half', name: 'Medio', profile_id: HALF, shift: 'part_time' }),
+      employee({ id: 'shop', name: 'Taller', profile_id: SHOP }),
+    ]
+    const areas = [{ id: PROFILE, area: 'office' }, { id: HALF, area: 'office' }, { id: SHOP, area: 'workshop' }]
+    activeClient = client({
+      'payroll_employees.select': { data: team, error: null },
+      // Juan clocked 3 h on Saturday (less than his 8), Medio 6 h (more than her 4), the workshop nothing.
+      'time_entries.select': { data: [entry(PROFILE, '09:00', '12:00'), entry(HALF, '09:00', '15:00')], error: null },
+      'payroll_days.select': { data: [], error: null },
+      'payroll_periods.select': { data: [], error: null },
+      'payroll_days.upsert': { data: null, error: null },
+    }, ADMIN, areas)
+    expect(await readJson(await prefill())).toMatchObject({ saved: 2, officeSaturdays: 1 })
+    expect(activeClient.upsertPayload('payroll_days').map((r) => [r.employee_id, r.work_date, r.worked_minutes, r.note, r.status])).toEqual([
+      [EMP, SAT, 480, 'Sábado de oficina: checó 03:00, se pagan 8 h', 'draft'],
+      ['half', SAT, 360, null, 'draft'],
+    ])
+
+    // An office Saturday already confirmed is not touched, nor counted as filled.
+    activeClient = client({
+      'payroll_employees.select': { data: [employee({ profile_id: PROFILE })], error: null },
+      'time_entries.select': { data: [], error: null },
+      'payroll_days.select': { data: [dayRow(SAT, { source: 'manual', status: 'confirmed' })], error: null },
+      'payroll_periods.select': { data: [], error: null },
+    }, ADMIN, areas)
+    expect(await readJson(await prefill())).toMatchObject({ saved: 0, officeSaturdays: 0, skipped: [{ work_date: SAT, reason: 'ya está confirmado' }] })
   })
 })
