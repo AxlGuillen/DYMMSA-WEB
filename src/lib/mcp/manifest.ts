@@ -47,6 +47,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'get_payables_overview', block: 'app', module: 'Finanzas', kind: 'read', title: 'Resumen de facturas por pagar', example: '¿Que debo esta semana?' },
   { name: 'mark_payable_paid', block: 'app', module: 'Finanzas', kind: 'write', title: 'Marcar factura pagada', example: 'Ya pague la de Perfiles, marcala.', limits: 'Marca pagada con la fecha real o regresa a pendiente. No edita montos ni borra facturas.' },
   { name: 'create_payable', block: 'app', module: 'Finanzas', kind: 'write', title: 'Registrar factura por pagar', example: 'Registra una factura de Tornillos MX por $2,500 con fecha de hoy.', limits: 'Nace pendiente; el vencimiento sale del plazo del proveedor, como en la app.' },
+  { name: 'update_payable', block: 'app', module: 'Finanzas', kind: 'write', title: 'Corregir o cancelar factura por pagar', example: 'La factura de Perfiles era por $3,200, no $2,300.', limits: 'Corrige concepto, monto, fechas, proveedor o notas, o la cancela. No la paga, no la borra ni reactiva una cancelada.' },
   { name: 'get_month_closing', block: 'app', module: 'Finanzas', kind: 'read', title: 'Cierre del mes', example: '¿Como cierra el mes?' },
   { name: 'get_week_hours', block: 'app', module: 'Horas', kind: 'read', title: 'Horas de la semana', example: '¿Cuantas horas llevo esta semana?' },
   { name: 'get_hours_trend', block: 'app', module: 'Horas', kind: 'read', title: 'Tendencia de horas', example: '¿Como viene Tania en las ultimas semanas?' },
@@ -101,9 +102,10 @@ export const TOOL_BUDGET = {
   /** Characters of description per tool; the exceptions carry a guide the model needs in full. */
   description: 1000,
   descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
-  descriptionsTotal: 18_000,
-  /** Characters of the whole tools/list an admin receives (name + title + description + schema + _meta). Raised from 36,000 for the first MCP App's read twin (ADR-036). */
-  listTotal: 37_000,
+  /** Raised from 18,000 for the four #134 writes, after the second stage dropped three duplicated reads (ADR-037). */
+  descriptionsTotal: 18_500,
+  /** Characters of the whole tools/list an admin receives (name + title + description + schema + _meta). 37,000 → 40,000 for the #134 writes (ADR-037). */
+  listTotal: 40_000,
   /** Characters of the server instructions, per role. */
   instructions: 7500,
 } as const

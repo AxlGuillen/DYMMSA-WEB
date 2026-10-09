@@ -27,7 +27,7 @@ import { MCP_VIEWS } from './views/generated'
 import { getProfiles } from './tools/profiles'
 import { getPayrollPeriod, recordPayrollHours } from './tools/payroll'
 import { listSuppliers, saveSupplier } from './tools/suppliers'
-import { listPayables, getPayable, getPayablesOverview, markPayablePaid, createPayable } from './tools/payables'
+import { listPayables, getPayable, getPayablesOverview, markPayablePaid, createPayable, updatePayable } from './tools/payables'
 import { getMonthClosing } from './tools/finance'
 import { getCutPlan } from './tools/cutting'
 import { getPurchasePlan } from './tools/purchase'
@@ -104,7 +104,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Inventario de la TIENDA: search_inventory; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte); escritura save_supplier (alta o edición, nunca borra).
-- Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
+- Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente), create_payable (registrar una factura de gasto) y update_payable (corregirla o cancelarla).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
 - Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports, preview_time_report; escriben save_time_entries y save_excused_day' : ' (solo lectura)'}. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
 - Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona como en horas. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan y no lo repitas en resúmenes.
@@ -388,7 +388,7 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
     {
       title: 'Registrar factura por pagar',
       description:
-        'Registra una factura de GASTO como pendiente: proveedor (nombre parcial, debe existir en Proveedores), concepto, monto, fecha de factura y vencimiento opcional — sin él se calcula con los días de crédito del proveedor, como en la app. ESCRIBE: usa solo cuando el usuario pida registrar una factura; confirma los datos antes. Con varios proveedores coincidentes devuelve la lista para precisar.',
+        'Registra una factura de GASTO como pendiente: proveedor (nombre parcial; si no existe, dalo de alta con save_supplier), concepto, monto, fecha de factura y vencimiento opcional — sin él se calcula con los días de crédito del proveedor, como en la app. ESCRIBE: usa solo cuando el usuario pida registrar una factura; confirma los datos antes. Con varios proveedores coincidentes devuelve la lista para precisar.',
       inputSchema: {
         proveedor: z.string().min(1).describe('Nombre (o parte) del proveedor'),
         concepto: z.string().min(1).describe('Concepto de la factura'),
@@ -401,6 +401,28 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       annotations: { readOnlyHint: false, openWorldHint: false },
     },
     (input, extra) => run(extra, (db) => createPayable(db, input)),
+  )
+
+  server.registerTool(
+    'update_payable',
+    {
+      title: 'Corregir o cancelar factura por pagar',
+      description:
+        'Corrige una factura de gasto (concepto, monto, fechas, proveedor o notas) o la cancela con cancelar=true. Identifícala por id, concepto o proveedor; con varias coincidencias devuelve la lista. Pagarla o regresarla a pendiente es mark_payable_paid; borrarla o reactivar una cancelada, en la app. ESCRIBE: confirma antes qué factura y qué cambia.',
+      inputSchema: {
+        factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor'),
+        concepto: z.string().optional(),
+        monto: z.number().positive().optional().describe('MXN, mayor a 0'),
+        fecha_factura: z.string().optional().describe('YYYY-MM-DD'),
+        vencimiento: z.string().optional().describe('YYYY-MM-DD'),
+        proveedor: z.string().optional().describe('Otro proveedor (nombre o parte)'),
+        notas: z.string().optional().describe('Texto vacío las borra'),
+        cancelar: z.boolean().optional().describe('true = cancelarla'),
+      },
+      // Scoped write (#134, ADR-037): same rules as the edit popup; deleting stays in the app.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (db) => updatePayable(db, input)),
   )
 
   server.registerTool(

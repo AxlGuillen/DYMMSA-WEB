@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { nextMonth, resolvePayableFilter } from '@/lib/payables'
 import { createClient } from '@/lib/supabase/server'
 import { todayInMexico } from '@/lib/format'
+import { isRealDate } from '@/lib/timesheet'
 import { requireAuth, requireRole, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
 import type { PayableInsert, PayableWithSupplier } from '@/types/database'
 
@@ -12,7 +13,6 @@ type SortField = (typeof SORT_FIELDS)[number]
 /** Neutralizes PostgREST metacharacters before interpolating into .or()/.ilike(). */
 const sanitizeSearch = (raw: string) => raw.replace(/[,()%]/g, ' ').trim()
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_MONTH = /^\d{4}-\d{2}$/
 
 /** Optional non-negative amount from the query; `undefined` when absent, `null` when invalid. */
@@ -140,10 +140,10 @@ export async function POST(request: NextRequest) {
     const amount = typeof body.amount === 'number' ? body.amount : NaN
     if (!Number.isFinite(amount) || amount <= 0) return badRequest('El monto debe ser mayor a 0')
 
-    if (typeof body.invoice_date !== 'string' || !ISO_DATE.test(body.invoice_date)) {
+    if (!isRealDate(body.invoice_date)) {
       return badRequest('Fecha de factura inválida')
     }
-    if (typeof body.due_date !== 'string' || !ISO_DATE.test(body.due_date)) {
+    if (!isRealDate(body.due_date)) {
       return badRequest('Fecha de vencimiento inválida')
     }
 

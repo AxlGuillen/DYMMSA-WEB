@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
-import { ISO_DATE, resolvePaymentUpdate } from '@/lib/payables'
-import type { PayableUpdate } from '@/types/database'
+import { parsePayableUpdate } from '@/lib/payables'
 
 // PATCH /api/payables/[id] — sparse updates
 export async function PATCH(
@@ -16,53 +15,16 @@ export async function PATCH(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as PayableUpdate
-    const updates: Record<string, unknown> = {}
-
-    if (body.concept !== undefined) {
-      const concept = typeof body.concept === 'string' ? body.concept.trim() : ''
-      if (!concept) return badRequest('El concepto no puede quedar vacío')
-      updates.concept = concept
-    }
-    if (body.amount !== undefined) {
-      if (typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount <= 0) {
-        return badRequest('El monto debe ser mayor a 0')
-      }
-      updates.amount = body.amount
-    }
-    for (const field of ['invoice_date', 'due_date'] as const) {
-      if (body[field] !== undefined) {
-        if (typeof body[field] !== 'string' || !ISO_DATE.test(body[field])) {
-          return badRequest(`Fecha inválida en ${field}`)
-        }
-        updates[field] = body[field]
-      }
-    }
-    if (body.supplier_id !== undefined) {
-      if (typeof body.supplier_id !== 'string' || !body.supplier_id) {
-        return badRequest('Proveedor inválido')
-      }
-      const { data: supplier } = await supabase
-        .from('suppliers').select('id').eq('id', body.supplier_id).single()
-      if (!supplier) return notFound('El proveedor no existe')
-      updates.supplier_id = body.supplier_id
-    }
-    if (body.notes !== undefined) {
-      updates.notes = typeof body.notes === 'string' ? body.notes.trim() || null : null
-    }
-    if (body.status !== undefined) {
-      const payment = resolvePaymentUpdate(body.status, body.paid_at, todayInMexico())
-      if (!payment.ok) return badRequest(payment.error)
-      Object.assign(updates, payment.updates)
-    } else if (body.paid_at !== undefined) {
-      // Fix the payment date of an already-paid invoice without touching the status.
-      if (body.paid_at !== null && (typeof body.paid_at !== 'string' || !ISO_DATE.test(body.paid_at))) {
-        return badRequest('Fecha de pago inválida')
-      }
-      updates.paid_at = body.paid_at
-    }
-
+    const parsed = parsePayableUpdate(await request.json(), todayInMexico())
+    if (!parsed.ok) return badRequest(parsed.error)
+    const { updates } = parsed
     if (Object.keys(updates).length === 0) return badRequest('No hay cambios para guardar')
+
+    if (updates.supplier_id !== undefined) {
+      const { data: supplier } = await supabase
+        .from('suppliers').select('id').eq('id', updates.supplier_id).single()
+      if (!supplier) return notFound('El proveedor no existe')
+    }
 
     const { data, error } = await supabase
       .from('payables')

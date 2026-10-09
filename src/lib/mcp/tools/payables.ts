@@ -12,13 +12,14 @@ import {
   daysUntilDue,
   describeAuditEvent,
   dueDateFrom,
-  ISO_DATE,
   PAYABLE_STATUS_LABELS,
+  parsePayableUpdate,
   paymentTermsLabel,
   resolvePayableFilter,
   resolvePaymentUpdate,
   summarizeMonth,
 } from '@/lib/payables'
+import { isRealDate } from '@/lib/timesheet'
 import type { AuditEvent, PayableStatus, PayableWithSupplier } from '@/types/database'
 
 const SELECT = '*, supplier:suppliers(id, name, payment_terms_days)'
@@ -154,6 +155,71 @@ export async function getPayable(db: Db, callerId: string, ref: string) {
   }
 }
 
+export interface UpdatePayableInput {
+  /** UUID, or part of the concept / supplier name. */
+  factura: string
+  concepto?: string
+  monto?: number
+  fecha_factura?: string
+  vencimiento?: string
+  /** Reassign to another supplier (name or part of it). */
+  proveedor?: string
+  notas?: string
+  /** true = cancel it; reactivating a cancelled one stays in the app. */
+  cancelar?: boolean
+}
+
+const FIELD_NAMES: Record<string, string> = { invoice_date: 'fecha_factura', due_date: 'vencimiento' }
+
+/** Corrects a payable or cancels it with the PATCH rules (parsePayableUpdate); paying stays in mark_payable_paid (#134). */
+export async function updatePayable(db: Db, input: UpdatePayableInput) {
+  const cancel = input.cancelar === true
+  const target = await resolvePayable(db, input.factura, cancel ? 'pending' : undefined)
+  if (cancel && target.status === 'cancelled') throw new ToolError(`"${target.concept}" ya está cancelada.`)
+  // Cancelling clears paid_at: losing the real payment date takes a deliberate step back to pending first.
+  if (cancel && target.status === 'paid') {
+    throw new ToolError(`"${target.concept}" está pagada (el ${target.paid_at}); para cancelarla primero regrésala a pendiente con mark_payable_paid.`)
+  }
+  const supplier = input.proveedor !== undefined ? await resolveSupplier(db, input.proveedor) : null
+
+  const fields: Record<string, unknown> = {
+    concept: input.concepto,
+    amount: input.monto,
+    invoice_date: input.fecha_factura,
+    due_date: input.vencimiento,
+    supplier_id: supplier?.id,
+    notes: input.notas,
+    status: cancel ? 'cancelled' : undefined,
+  }
+  const today = todayInMexico()
+  const parsed = parsePayableUpdate(Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)), today)
+  if (!parsed.ok) throw new ToolError(parsed.error.replace(/invoice_date|due_date/, (f) => FIELD_NAMES[f]))
+  if (Object.keys(parsed.updates).length === 0) {
+    throw new ToolError('No hay cambios: indica qué corregir (concepto, monto, fechas, proveedor o notas) o cancelar=true.')
+  }
+
+  const { data, error } = await db.from('payables').update(parsed.updates).eq('id', target.id).select(SELECT).single()
+  if (error || !data) throw new ToolError(`Error al actualizar la factura: ${error?.message ?? 'sin datos'}`)
+  const before: Record<string, unknown> = digest(target, today)
+  const after = digest(data as PayableWithSupplier, today)
+  const cambios = Object.fromEntries(
+    Object.entries(after)
+      .filter(([key, value]) => key !== 'id' && key !== 'dias_para_vencer' && before[key] !== value)
+      .map(([key, value]) => [key, { antes: before[key], ahora: value }]),
+  )
+  const dueKept = input.fecha_factura !== undefined && input.vencimiento === undefined
+  return {
+    ...after,
+    cambios,
+    // No mention of the audit trail (ADR-028).
+    nota: cancel
+      ? 'Cancelada: ya no cuenta en pendientes ni en el cierre del mes.'
+      : dueKept
+        ? `Corregida. El vencimiento sigue en ${after.vencimiento}; si también cambia, indícalo en vencimiento.`
+        : 'Corregida.',
+  }
+}
+
 export async function getPayablesOverview(db: Db, input: { mes?: string } = {}) {
   const today = todayInMexico()
   const month = input.mes ?? today.slice(0, 7)
@@ -256,10 +322,10 @@ export async function createPayable(db: Db, input: CreatePayableInput) {
   if (typeof input.monto !== 'number' || !Number.isFinite(input.monto) || input.monto <= 0) {
     throw new ToolError('El monto debe ser mayor a 0')
   }
-  if (typeof input.fecha_factura !== 'string' || !ISO_DATE.test(input.fecha_factura)) {
+  if (!isRealDate(input.fecha_factura)) {
     throw new ToolError('Fecha de factura inválida — usa YYYY-MM-DD')
   }
-  if (input.vencimiento !== undefined && !ISO_DATE.test(input.vencimiento)) {
+  if (input.vencimiento !== undefined && !isRealDate(input.vencimiento)) {
     throw new ToolError('Fecha de vencimiento inválida — usa YYYY-MM-DD')
   }
   const supplier = await resolveSupplier(db, input.proveedor)
