@@ -58,6 +58,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'get_profiles', block: 'app', module: 'Perfil', kind: 'read', title: 'Perfiles del equipo', example: '¿Cual es mi NSS?' },
   { name: 'get_payroll_period', block: 'app', module: 'Nomina', kind: 'read', title: 'Corte de nomina', example: '¿Cuantas horas lleva cada quien en el corte de esta semana?', adminOnly: true },
   { name: 'record_payroll_hours', block: 'app', module: 'Nomina', kind: 'write', title: 'Cargar horas de nomina', example: 'Esta es la hoja de asistencia de la semana, cargala.', limits: 'Solo borradores: no confirma, no cierra cortes, no pisa lo ya confirmado ni crea empleados. Tambien trae las horas del checador de la oficina, como el boton Traer de Horas.', adminOnly: true },
+  { name: 'save_payroll_employee', block: 'app', module: 'Nomina', kind: 'write', title: 'Guardar empleado de nomina', example: 'Da de alta a un trabajador nuevo en el taller, medio tiempo.', limits: 'Alta, cambios y baja (desactivar, nunca borrar). No toca horas ni cortes.', adminOnly: true },
   { name: 'list_tasks', block: 'app', module: 'Tareas', kind: 'read', title: 'Listar tareas', example: '¿Que tareas siguen abiertas?' },
   { name: 'get_task', block: 'app', module: 'Tareas', kind: 'read', title: 'Detalle de tarea', example: '¿Que dice la tarea 45?' },
   { name: 'create_task', block: 'app', module: 'Tareas', kind: 'write', title: 'Crear tarea', example: 'Registra una tarea: revisar los precios de Truper.', limits: 'Queda reportada por el asistente.' },

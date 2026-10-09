@@ -11,8 +11,10 @@ import {
   isIsoDate,
   isPeriodStart,
   minutesByDate,
+  payrollDuplicateMessage,
   payrollPeriod,
   periodDates,
+  type EmployeeInput,
   type PayrollView,
 } from '@/lib/payroll'
 import type { PayrollDay, PayrollDaySource, PayrollDayStatus, PayrollEmployee, PayrollPeriod, TimeEntry } from '@/types/database'
@@ -31,6 +33,28 @@ export async function loadEmployees(db: SupabaseClient): Promise<PayrollEmployee
   const { data, error } = await db.from('payroll_employees').select('*').order('name', { ascending: true })
   if (error) throw new Error(`payroll_employees: ${error.message}`)
   return (data ?? []) as PayrollEmployee[]
+}
+
+/** The constraint errors an employee write can hit, in the user's words; null = a real failure. */
+function employeeWriteError(error: { code?: string; message: string }): PayrollError | null {
+  if (error.code === '23505') return new PayrollError(payrollDuplicateMessage(error.message))
+  if (error.code === '23503') return new PayrollError('El perfil ligado no existe')
+  if (error.code === '42501') return new PayrollError('Solo un administrador puede dar de alta o cambiar empleados de nómina')
+  return null
+}
+
+/** Shared by POST /api/payroll/employees and save_payroll_employee (#134); `value` comes from parseEmployeeInput. */
+export async function createEmployee(db: SupabaseClient, value: EmployeeInput): Promise<PayrollEmployee> {
+  const { data, error } = await db.from('payroll_employees').insert(value).select('*').single()
+  if (error || !data) throw (error && employeeWriteError(error)) ?? new Error(`payroll_employees insert: ${error?.message}`)
+  return data as PayrollEmployee
+}
+
+/** null = no such employee (or, for a member, none visible: RLS filters the update to 0 rows). */
+export async function updateEmployee(db: SupabaseClient, id: string, value: EmployeeInput): Promise<PayrollEmployee | null> {
+  const { data, error } = await db.from('payroll_employees').update(value).eq('id', id).select('*').maybeSingle()
+  if (error) throw employeeWriteError(error) ?? new Error(`payroll_employees update: ${error.message}`)
+  return (data as PayrollEmployee | null) ?? null
 }
 
 async function loadPeriodRow(db: SupabaseClient, start: ISODate): Promise<PayrollPeriod | null> {

@@ -25,7 +25,7 @@ import { getBusinessSummary } from './tools/summary'
 import { getWeekHours, getHoursTrend, listTimeImports, previewTimeReport, saveTimeEntries, saveExcusedDay } from './tools/hours'
 import { MCP_VIEWS } from './views/generated'
 import { getProfiles } from './tools/profiles'
-import { getPayrollPeriod, recordPayrollHours } from './tools/payroll'
+import { getPayrollPeriod, recordPayrollHours, savePayrollEmployee } from './tools/payroll'
 import { listSuppliers, saveSupplier } from './tools/suppliers'
 import { listPayables, getPayable, getPayablesOverview, markPayablePaid, createPayable, updatePayable } from './tools/payables'
 import { getMonthClosing } from './tools/finance'
@@ -88,7 +88,7 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 
 /** The guide travels with the tool, not with every conversation: only an admin registers it (#133). */
 const SHEET_GUIDE =
-  'CÓMO LEER LA HOJA (interprétala antes de guardar nada): 1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que el encabezado "Semana del … – …" se lea bien, y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; pasa cada día con su fecha real (una misma hoja cae en dos cortes: lunes a viernes en uno, sábado y domingo en el siguiente — la tool los reparte sola por fecha). 2. Una fila por trabajador. Lunes a viernes: la marca "°" con guion = asistió su jornada normal (8 h); una hora escrita (19:00, 21:00) = salió tarde, y las extras de ese día son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra. Día tachado o vacío = no trabajó: no lo mandes. Sábado y domingo: manda las horas que trabajó ese día. 3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras de junto al nombre; si no cuadra, o si aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar — no lo adivines ni lo guardes. 4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta). 5. Antes de llamar la tool, muestra una tabla con lo que leíste (empleado × día, horas) y marca lo dudoso; guarda solo tras la confirmación. Un número mal leído es dinero. Los nombres deben coincidir con los empleados dados de alta en Nómina; si uno no existe, la tool lo dice y se da de alta en la app.'
+  'CÓMO LEER LA HOJA (interprétala antes de guardar nada): 1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que el encabezado "Semana del … – …" se lea bien, y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; pasa cada día con su fecha real (una misma hoja cae en dos cortes: lunes a viernes en uno, sábado y domingo en el siguiente — la tool los reparte sola por fecha). 2. Una fila por trabajador. Lunes a viernes: la marca "°" con guion = asistió su jornada normal (8 h); una hora escrita (19:00, 21:00) = salió tarde, y las extras de ese día son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra. Día tachado o vacío = no trabajó: no lo mandes. Sábado y domingo: manda las horas que trabajó ese día. 3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras de junto al nombre; si no cuadra, o si aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar — no lo adivines ni lo guardes. 4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta). 5. Antes de llamar la tool, muestra una tabla con lo que leíste (empleado × día, horas) y marca lo dudoso; guarda solo tras la confirmación. Un número mal leído es dinero. Los nombres deben coincidir con los empleados dados de alta en Nómina; si uno no existe, la tool lo dice: dalo de alta con save_payroll_employee tras confirmarlo con el usuario.'
 
 /** Grouping lives here because the MCP tool listing itself is flat (#72); a member gets the map without the admin-only lines (#133). */
 export function serverInstructions(role: McpRole): string {
@@ -109,7 +109,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports, preview_time_report; escriben save_time_entries y save_excused_day' : ' (solo lectura)'}. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
 - Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona como en horas. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
-${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes: horas por empleado y día, total equivalente) y la escritura record_payroll_hours (BORRADOR; confirmar y cerrar es en la app; la guía de la hoja va en la tool). Son HORAS, nunca montos. Rutina de los viernes: preview_time_report → save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
+${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes: horas por empleado y día, total equivalente) y las escrituras record_payroll_hours (BORRADOR; confirmar y cerrar es en la app; la guía de la hoja va en la tool) y save_payroll_employee (alta, cambios y baja de empleados). Son HORAS, nunca montos. Rutina de los viernes: preview_time_report → save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
@@ -605,6 +605,25 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       annotations: { readOnlyHint: false, openWorldHint: false },
     },
     (input, extra) => run(extra, (db) => recordPayrollHours(db, input)),
+  )
+
+  if (forAdmin) server.registerTool(
+    'save_payroll_employee',
+    {
+      title: 'Guardar empleado de nómina',
+      description:
+        'Da de alta un empleado de nómina (la lista propia de Nómina: los del taller no tienen cuenta), o edita uno si mandas empleado (su nombre o parte): nombre, jornada, perfil de la app ligado (para traer sus horas del checador) y activo — la baja es activo=false, nunca se borra. ESCRIBE: úsala solo cuando un administrador lo pida y confirma los datos antes. No toca horas ni cortes.',
+      inputSchema: {
+        empleado: z.string().optional().describe('Empleado a editar (nombre o parte); omítelo para dar de alta'),
+        nombre: z.string().optional().describe('Nombre (obligatorio en un alta)'),
+        jornada: z.enum(['completa', 'media']).optional().describe('completa = 8 h, media = 4 h (default completa)'),
+        perfil: z.string().nullable().optional().describe('Persona de la app a ligar (nombre); null o "" la desliga'),
+        activo: z.boolean().optional().describe('false = darlo de baja'),
+      },
+      // Scoped write (#134, ADR-037): the employee list only; hours and cuts keep their own rules.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (db, ctx) => savePayrollEmployee(db, ctx.userId, input)),
   )
 
   server.registerTool(

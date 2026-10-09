@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, serverError } from '@/lib/api-helpers'
-import { loadEmployees } from '@/lib/payroll-store'
-import { parseEmployeeInput, payrollDuplicateMessage } from '@/lib/payroll'
+import { createEmployee, loadEmployees, PayrollError } from '@/lib/payroll-store'
+import { parseEmployeeInput } from '@/lib/payroll'
 
 // GET /api/payroll/employees — payroll's own list of people (admin)
 export async function GET() {
@@ -27,15 +27,9 @@ export async function POST(request: NextRequest) {
     const parsed = parseEmployeeInput(await request.json(), { requireName: true })
     if ('error' in parsed) return badRequest(parsed.error)
 
-    const { data, error } = await supabase.from('payroll_employees').insert(parsed.value).select('*').single()
-    if (error || !data) {
-      if (error?.code === '23505') return badRequest(payrollDuplicateMessage(error.message))
-      if (error?.code === '23503') return badRequest('El perfil ligado no existe')
-      console.error('Error creating payroll employee:', error)
-      return serverError('Error al crear el empleado')
-    }
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json(await createEmployee(supabase, parsed.value), { status: 201 })
   } catch (error) {
+    if (error instanceof PayrollError) return badRequest(error.message)
     console.error('Payroll employees POST error:', error)
     return serverError('Error al crear el empleado')
   }

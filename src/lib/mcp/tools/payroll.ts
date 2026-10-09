@@ -5,13 +5,23 @@
  */
 
 import { ToolError, requireSingleMatch, type Db } from '../shared'
+import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
 import { formatDuration, SHIFT_LABELS } from '@/lib/timesheet'
-import { PERIOD_DAY_LABELS, isIsoDate, payrollPeriod, type HoursBreakdown } from '@/lib/payroll'
-import { PayrollError, loadEmployees, loadPayrollView, prefillFromHours, saveDays, type DayInput } from '@/lib/payroll-store'
-import type { PayrollEmployee } from '@/types/database'
+import { PERIOD_DAY_LABELS, isIsoDate, parseEmployeeInput, payrollPeriod, type HoursBreakdown } from '@/lib/payroll'
+import {
+  PayrollError,
+  createEmployee,
+  loadEmployees,
+  loadPayrollView,
+  prefillFromHours,
+  saveDays,
+  updateEmployee,
+  type DayInput,
+} from '@/lib/payroll-store'
+import type { PayrollEmployee, Profile, ProfileShift } from '@/types/database'
 
-const NO_ACCESS = 'Sin empleados visibles: Nómina solo la ve un administrador, y los empleados se dan de alta en la app (Nómina → Empleados).'
+const NO_ACCESS = 'Sin empleados visibles: Nómina solo la ve un administrador, y los empleados se dan de alta con save_payroll_employee (o en la app, Nómina → Empleados).'
 
 const SOURCE_LABELS = { sheet: 'hoja', hours: 'checador', manual: 'manual' } as const
 
@@ -168,5 +178,60 @@ async function prefillCut(db: Db, fecha?: string) {
       result.linked === 0
         ? 'Ningún empleado de nómina está ligado a un perfil de la app: se liga en Nómina → Empleados.'
         : 'Quedaron como BORRADOR y todavía no suman: un administrador los revisa y confirma en la app. Una checada sin salida no suma: corrígela en Horas y vuelve a traer.',
+  }
+}
+
+export interface SavePayrollEmployeeInput {
+  /** The employee to edit (name or part of it); absent = a new one. */
+  empleado?: string
+  nombre?: string
+  jornada?: 'completa' | 'media'
+  /** App profile to link, by name; null or "" unlinks. */
+  perfil?: string | null
+  /** false = the leave (never a delete: the days keep their employee). */
+  activo?: boolean
+}
+
+const SHIFTS: Record<NonNullable<SavePayrollEmployeeInput['jornada']>, ProfileShift> = { completa: 'full_time', media: 'part_time' }
+
+/** Creates or edits a payroll employee with the routes' rules (#134); confirming and closing stay in the app (ADR-033). */
+export async function savePayrollEmployee(db: Db, callerId: string, input: SavePayrollEmployeeInput) {
+  const editing = Boolean(input.empleado?.trim())
+  const employees = editing ? await loadEmployees(db) : []
+  if (editing && employees.length === 0) throw new ToolError(NO_ACCESS)
+  const target = editing ? resolveEmployee(employees, input.empleado as string) : null
+
+  // "" must unlink, never fall into resolvePerson's "no name = the caller".
+  const unlink = input.perfil === null || (typeof input.perfil === 'string' && !input.perfil.trim())
+  const person = input.perfil && !unlink ? await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.perfil, 'id, display_name') : null
+
+  const fields: Record<string, unknown> = {
+    name: input.nombre,
+    shift: input.jornada ? SHIFTS[input.jornada] : undefined,
+    profile_id: unlink ? null : person?.id,
+    active: input.activo,
+  }
+  const parsed = parseEmployeeInput(Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)), { requireName: !editing })
+  if ('error' in parsed) throw new ToolError(parsed.error)
+  if (editing && Object.keys(parsed.value).length === 0) throw new ToolError('No hay cambios: indica nombre, jornada, perfil o activo.')
+
+  const saved = target
+    ? await asTool(() => updateEmployee(db, target.id, parsed.value))
+    : await asTool(() => createEmployee(db, parsed.value))
+  if (!saved) throw new ToolError(NO_ACCESS)
+
+  let linked = person?.display_name ?? null
+  if (!linked && saved.profile_id) {
+    const { data } = await db.from('profiles').select('display_name').eq('id', saved.profile_id).maybeSingle()
+    linked = (data as { display_name: string } | null)?.display_name ?? null
+  }
+  return {
+    accion: target ? 'actualizado' : 'creado',
+    empleado: { nombre: saved.name, jornada: SHIFT_LABELS[saved.shift], perfil_ligado: linked, activo: saved.active },
+    nota: !saved.active
+      ? 'Dado de baja: sus horas guardadas se conservan y ya no recibe horas nuevas de la hoja.'
+      : target
+        ? 'Guardado.'
+        : 'Dado de alta: ya puede recibir horas con record_payroll_hours.',
   }
 }

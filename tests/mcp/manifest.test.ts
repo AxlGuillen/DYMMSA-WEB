@@ -66,9 +66,9 @@ describe('manifiesto del MCP', () => {
     expect(new Set(listed).size).toBe(listed.length)
   })
 
-  test('las escrituras son exactamente las diez aprobadas y cada una declara sus limites', () => {
+  test('las escrituras son exactamente las once aprobadas y cada una declara sus limites', () => {
     const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write')
-    expect(writes.map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'record_payroll_hours', 'save_excused_day', 'save_supplier', 'save_time_entries', 'set_inventory_location', 'update_payable', 'update_task'])
+    expect(writes.map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'record_payroll_hours', 'save_excused_day', 'save_payroll_employee', 'save_supplier', 'save_time_entries', 'set_inventory_location', 'update_payable', 'update_task'])
     for (const w of writes) expect(w.limits, w.name).toBeTruthy()
     // Odoo is read-only by design (ADR-025): no write may ever live in that block.
     expect(manifestFor('odoo').every((t) => t.kind === 'read' && t.name.startsWith('odoo_'))).toBe(true)
@@ -76,7 +76,7 @@ describe('manifiesto del MCP', () => {
   })
 
   test('las tools de administrador existen pero no salen en la documentacion que lee todo el equipo (#123, #133)', () => {
-    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['get_payroll_period', 'list_time_imports', 'preview_time_report', 'record_payroll_hours', 'save_excused_day', 'save_time_entries'])
+    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['get_payroll_period', 'list_time_imports', 'preview_time_report', 'record_payroll_hours', 'save_excused_day', 'save_payroll_employee', 'save_time_entries'])
     expect(DOCS_MANIFEST.some((t) => t.adminOnly || t.module === 'Nomina' || t.name.includes('payroll'))).toBe(false)
     expect(DOCS_MANIFEST).toHaveLength(TOOL_MANIFEST.length - ADMIN_ONLY_TOOLS.size)
   })
