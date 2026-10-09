@@ -48,6 +48,18 @@ describe('excused_days', () => {
     const dup = await admin.from('excused_days').insert({ work_date: '2026-09-16', kind: 'early_release' })
     expect(dup.error?.code).toBe('23505')
   })
+
+  test('el admin cambia un día en su lugar (save_excused_day lo necesita); un member no (0 filas) — review PR #138', async () => {
+    await sql(`INSERT INTO public.excused_days (work_date, kind) VALUES ('2026-09-16', 'holiday')`)
+    const changed = await admin.from('excused_days').update({ kind: 'early_release', note: 'salida 2 pm' }).eq('work_date', '2026-09-16').select('kind, note')
+    expect(changed.error).toBeNull()
+    expect(changed.data).toEqual([{ kind: 'early_release', note: 'salida 2 pm' }])
+
+    const denied = await member.from('excused_days').update({ kind: 'holiday' }).eq('work_date', '2026-09-16').select()
+    expect(denied.error).toBeNull()
+    expect(denied.data).toHaveLength(0)
+    expect(await sql(`SELECT kind FROM public.excused_days WHERE work_date = '2026-09-16'`)).toEqual([{ kind: 'early_release' }])
+  })
 })
 
 describe('profiles.is_owner', () => {

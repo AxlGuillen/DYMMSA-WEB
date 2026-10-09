@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireRole, requireAdmin, badRequest, serverError, isUuid } from '@/lib/api-helpers'
+import { requireRole, requireAdmin, badRequest, forbidden, serverError, isUuid } from '@/lib/api-helpers'
+import { createManualEntry, TimeEntryError } from '@/lib/time-entries-store'
 import { todayInMexico } from '@/lib/format'
-import { buildWeekView, isRealDate, normalizeEntryTimes, normalizeTime, weekBounds } from '@/lib/timesheet'
+import { buildWeekView, isRealDate, normalizeEntryTimes, weekBounds } from '@/lib/timesheet'
 import type { ExcusedDay, TimeEntry } from '@/types/database'
 
 function isWholeWeek(from: string, to: string): boolean {
@@ -78,38 +79,10 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as Partial<TimeEntry>
     if (typeof body.user_id !== 'string' || !isUuid(body.user_id)) return badRequest('Usuario inválido')
-    if (!isRealDate(body.work_date)) return badRequest('Fecha inválida')
-    const clockIn = typeof body.clock_in === 'string' ? normalizeTime(body.clock_in) : null
-    if (!clockIn) return badRequest('Hora de entrada inválida')
-    let clockOut: string | null = null
-    if (body.clock_out != null && body.clock_out !== '') {
-      clockOut = typeof body.clock_out === 'string' ? normalizeTime(body.clock_out) : null
-      if (!clockOut) return badRequest('Hora de salida inválida')
-      if (clockOut < clockIn) return badRequest('La salida no puede ser antes de la entrada')
-    }
-
-    const { data, error } = await supabase
-      .from('time_entries')
-      .insert({
-        user_id: body.user_id,
-        work_date: body.work_date,
-        source_clock_in: clockIn,
-        clock_in: clockIn,
-        clock_out: clockOut,
-        note: typeof body.note === 'string' ? body.note.trim() || null : null,
-        source: 'manual',
-      })
-      .select('*')
-      .single()
-
-    if (error || !data) {
-      if (error?.code === '23505') return badRequest('Ya existe una checada con esa entrada ese día')
-      if (error?.code === '23503') return badRequest('El usuario no existe')
-      console.error('Error inserting time entry:', error)
-      return serverError('Error al registrar la checada')
-    }
-    return NextResponse.json(normalizeEntryTimes(data as TimeEntry), { status: 201 })
+    const entry = await createManualEntry(supabase, { ...body, user_id: body.user_id })
+    return NextResponse.json(entry, { status: 201 })
   } catch (error) {
+    if (error instanceof TimeEntryError) return error.kind === 'forbidden' ? forbidden() : badRequest(error.message)
     console.error('Time entries POST error:', error)
     return serverError('Error al registrar la checada')
   }

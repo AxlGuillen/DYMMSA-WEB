@@ -13,6 +13,8 @@ export interface ParsedPunch {
   clockIn: HHMM
   clockOut: HHMM | null
   note: string | null
+  /** "Tiempo de trabajo" as printed; the clock counts seconds, so it may be a minute off ours. */
+  reported: HHMM | null
 }
 
 export interface ParsedEmployee {
@@ -20,7 +22,7 @@ export interface ParsedEmployee {
   clockId: number | null
   name: string
   punches: ParsedPunch[]
-  /** "Horas totales" as printed by the clock; informative only, we recompute. */
+  /** "Horas totales" as printed by the clock; we recompute, the MCP checks it (reportMismatches). */
   reportedTotal: string | null
 }
 
@@ -158,6 +160,7 @@ export function parseNgtecoReport(rows: unknown[][]): ParsedReport {
       clockIn: inTime,
       clockOut: outTime,
       note: (cells[6] ?? '') === '' ? null : cells[6],
+      reported: normalizeTime(cells[4] ?? ''),
     })
   }
 
@@ -166,6 +169,33 @@ export function parseNgtecoReport(rows: unknown[][]): ParsedReport {
   }
   return report
 }
+
+/**
+ * Rows transcribed by the assistant must add up to the clock's own figures (#132, ADR-035):
+ * a pair may be a minute off (seconds), a block one minute per pair.
+ */
+export function employeeMismatches(employee: ParsedEmployee): string[] {
+  const problems: string[] = []
+  let total = 0
+  let pairs = 0
+  for (const p of employee.punches) {
+    const minutes = minutesBetween(p.clockIn, p.clockOut)
+    if (minutes === null) continue
+    total += minutes
+    pairs++
+    if (p.reported && Math.abs(minutes - toMinutes(p.reported)) > 1) {
+      problems.push(`${employee.name} ${p.date} ${p.clockIn}–${p.clockOut}: el reporte dice ${p.reported} de trabajo`)
+    }
+  }
+  if (employee.reportedTotal === null) {
+    if (pairs > 0) problems.push(`${employee.name}: falta su fila "Horas totales"`)
+  } else if (Math.abs(total - toMinutes(employee.reportedTotal)) > Math.max(1, pairs)) {
+    problems.push(`${employee.name}: las checadas suman ${formatDuration(total)} y el reporte dice ${employee.reportedTotal}`)
+  }
+  return problems
+}
+
+export const reportMismatches = (report: ParsedReport): string[] => report.employees.flatMap(employeeMismatches)
 
 // ─── Durations ───
 

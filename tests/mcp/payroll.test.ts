@@ -141,3 +141,53 @@ describe('record_payroll_hours', () => {
     await expect(recordPayrollHours(asDb(member), { dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/solo la ve un administrador/)
   })
 })
+
+describe('record_payroll_hours con traer_de_horas (#132)', () => {
+  test('copia las checadas de la oficina al corte de la fecha como borrador, igual que el botón', async () => {
+    const office = employee('e9', 'Tania', { profile_id: 'u-tania' })
+    const client = createMockSupabase({
+      responses: {
+        'payroll_employees.select': { data: [...TEAM, office], error: null },
+        'time_entries.select': {
+          data: [
+            { user_id: 'u-tania', work_date: '2026-09-21', source_clock_in: '09:00', clock_in: '09:00', clock_out: '13:00' },
+            { user_id: 'u-tania', work_date: '2026-09-22', source_clock_in: '09:00', clock_in: '09:00', clock_out: null },
+            { user_id: 'u-tania', work_date: '2026-09-23', source_clock_in: '09:00', clock_in: '09:00', clock_out: '13:00' },
+          ],
+          error: null,
+        },
+        'payroll_days.select': { data: [dayRow('e9', '2026-09-23', 240, { source: 'manual', status: 'draft' })], error: null },
+        'payroll_periods.select': { data: [], error: null },
+        'payroll_days.upsert': { data: null, error: null },
+        'payroll_days.delete': { data: null, error: null },
+      },
+    })
+    const result = await recordPayrollHours(asDb(client), { traer_de_horas: true, fecha: '2026-09-23' })
+
+    expect(result).toMatchObject({
+      corte: { inicio: '2026-09-19', fin: '2026-09-25' },
+      empleados_ligados: 1,
+      guardados: 1,
+      checadas_sin_salida: 1,
+      omitidos: [{ empleado: 'Tania', fecha: '2026-09-23', motivo: 'se capturó a mano' }],
+    })
+    expect(client.upsertPayload('payroll_days').map((r) => [r.work_date, r.worked_minutes, r.source, r.status])).toEqual([
+      ['2026-09-21', 240, 'hours', 'draft'],
+    ])
+  })
+
+  test('sin nadie ligado lo explica; dias y traer_de_horas juntos, o fecha sin traer, se rechazan', async () => {
+    const result = await recordPayrollHours(asDb(writeClient()), { traer_de_horas: true, fecha: '2026-09-23' })
+    expect(result).toMatchObject({ empleados_ligados: 0, guardados: 0, nota: expect.stringMatching(/ligado a un perfil/) })
+    // A member reads zero employees: no access, not "nobody linked" (review PR #138).
+    const member = createMockSupabase({ responses: { 'payroll_employees.select': { data: [], error: null } } })
+    await expect(recordPayrollHours(asDb(member), { traer_de_horas: true })).rejects.toThrow(/solo la ve un administrador/)
+    expect(member.callsTo('time_entries')).toEqual([])
+
+    const client = writeClient()
+    await expect(recordPayrollHours(asDb(client), { traer_de_horas: true, dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/no los dos/)
+    await expect(recordPayrollHours(asDb(client), { fecha: '2026-09-21', dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/solo aplica con/)
+    await expect(recordPayrollHours(asDb(client), { traer_de_horas: true, fecha: '2026-02-30' })).rejects.toThrow(/Fecha inválida/)
+    expect(client.callsTo('payroll_days', 'upsert')).toEqual([])
+  })
+})

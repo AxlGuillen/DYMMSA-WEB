@@ -1,11 +1,12 @@
 /**
- * Hours module, read-only (#101, ADR-029). No permission logic here on purpose: the db comes
- * from the caller's token, so RLS decides — a member sees only their own rows and profile.
+ * Hours module (#101, ADR-029) plus the clock report write (#132). No permission logic here on
+ * purpose: the db comes from the caller's token, so RLS decides — a member sees only their own rows.
  */
 
 import { ToolError, type Db } from '../shared'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
+import { correctTimeEntry, createManualEntry, importTimeReport, loadClockProfiles, TimeEntryError } from '@/lib/time-entries-store'
 import {
   buildWeekView,
   buildWeeklyTrend,
@@ -16,14 +17,21 @@ import {
   weekTargetMinutes,
   type DayStatus,
   formatDuration,
+  minutesBetween,
   normalizeEntryTimes,
+  normalizeTime,
+  employeeMismatches,
+  WEEKDAY_LABELS,
+  parseExcusedDay,
+  parseNgtecoReport,
+  reportMismatches,
   shiftProgress,
   SHIFT_HOURS,
   SHIFT_LABELS,
   weekBounds,
   shiftWeek,
 } from '@/lib/timesheet'
-import type { ExcusedDay, Profile, TimeEntry } from '@/types/database'
+import type { ExcusedDay, Profile, TimeEntry, TimeEntryUpdate } from '@/types/database'
 
 type Target = Pick<Profile, 'id' | 'display_name' | 'shift'>
 
@@ -179,5 +187,243 @@ export async function listTimeImports(db: Db, input: { limit?: number } = {}) {
       saltadas_por_edicion: r.skipped_edited,
       cargada_el: r.created_at,
     })),
+  }
+}
+
+export interface PunchInput {
+  persona?: string
+  fecha: string
+  /** The punch's clock-in as it is now; omitted = a new manual punch. */
+  entrada_actual?: string
+  entrada?: string
+  /** '' clears it. */
+  salida?: string
+  nota?: string
+}
+
+export interface SaveTimeEntriesInput {
+  /** The clock report's rows, cell by cell, as the sheet prints them. */
+  filas?: string[][]
+  nombre_archivo?: string
+  checada?: PunchInput
+}
+
+const ASSISTANT_FILE = 'Asistente (MCP)'
+
+/** One tool per entity (ADR-034): the weekly report (#132) or a single punch (#134). */
+export async function saveTimeEntries(db: Db, callerId: string, input: SaveTimeEntriesInput) {
+  if (input.filas?.length && input.checada) throw new ToolError('Manda `filas` o `checada`, no las dos en la misma llamada')
+  if (input.checada) return savePunch(db, callerId, input.checada)
+  return importReport(db, input)
+}
+
+/** The rows go through the app's own parser, and must add up to the clock's totals (ADR-035). */
+async function importReport(db: Db, input: SaveTimeEntriesInput) {
+  if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador, o una `checada` para corregir o registrar')
+  const report = parseNgtecoReport(input.filas)
+  const mismatches = reportMismatches(report)
+  if (mismatches.length > 0) {
+    throw new ToolError(
+      `No guardé nada: lo que mandaste no cuadra con los totales del propio reporte. Revisa esas filas contra el archivo y vuelve a mandarlo completo. ${mismatches.join(' · ')}`,
+    )
+  }
+  const name = input.nombre_archivo?.trim()
+  const { result, absent } = await asTool(() =>
+    importTimeReport(db, report, name ? `${ASSISTANT_FILE}: ${name.slice(0, 120)}` : ASSISTANT_FILE),
+  )
+  return {
+    periodo: { inicio: result.period.start, fin: result.period.end },
+    insertadas: result.inserted,
+    actualizadas: result.updated,
+    saltadas_por_edicion: result.skipped_edited,
+    personas: report.employees.map((e) => ({
+      nombre: e.name,
+      id_checador: e.clockId,
+      checadas: e.punches.length,
+      sin_salida: e.punches.filter((p) => !p.clockOut).length,
+    })),
+    sin_perfil: result.unmapped.map((u) => `${u.name} (${u.clockId})`),
+    no_vinieron_en_el_reporte: absent,
+    avisos: result.warnings,
+    nota: 'Re-subir la misma semana no duplica y nunca pisa una checada corregida por un administrador (sale en saltadas_por_edicion).',
+  }
+}
+
+const DAY_MS = 86_400_000
+const MAX_PREVIEW_DAYS = 14
+
+/** The first MAX_PREVIEW_DAYS of the period; `truncated` so the table never hides what save will write in silence. */
+function periodDays(start: string, end: string) {
+  const days: { fecha: string; dia: string }[] = []
+  let truncated = false
+  for (let t = Date.parse(`${start}T00:00:00Z`); t <= Date.parse(`${end}T00:00:00Z`); t += DAY_MS) {
+    if (days.length >= MAX_PREVIEW_DAYS) {
+      truncated = true
+      break
+    }
+    const d = new Date(t)
+    days.push({ fecha: d.toISOString().slice(0, 10), dia: WEEKDAY_LABELS[(d.getUTCDay() + 6) % 7] })
+  }
+  return { days, truncated }
+}
+
+/** Read-only twin of save_time_entries (ADR-034: never read and write in one tool); the MCP App view renders it (ADR-036). */
+export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>) {
+  if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador')
+  const report = parseNgtecoReport(input.filas)
+  if (!report.period) throw new ToolError('Las filas no traen "Período de pago": ¿es el reporte del checador?')
+  if (report.employees.length === 0) throw new ToolError('Las filas no traen bloques de empleado')
+
+  const profiles = await asTool(() => loadClockProfiles(db))
+  const byClockId = new Map(profiles.map((p) => [p.clock_employee_id, p.display_name]))
+  const reported = new Set(report.employees.map((e) => e.clockId))
+  const { days, truncated } = periodDays(report.period.start, report.period.end)
+  const problems: string[] = []
+
+  const personas = report.employees.map((e) => {
+    const mismatches = employeeMismatches(e)
+    problems.push(...mismatches)
+    const total = e.punches.reduce((sum, p) => sum + (minutesBetween(p.clockIn, p.clockOut) ?? 0), 0)
+    return {
+      nombre: e.name,
+      id_checador: e.clockId,
+      perfil: e.clockId == null ? null : (byClockId.get(e.clockId) ?? null),
+      por_dia: days.map(({ fecha }) => {
+        const punches = e.punches.filter((p) => p.date === fecha)
+        const minutes = punches.reduce((sum, p) => sum + (minutesBetween(p.clockIn, p.clockOut) ?? 0), 0)
+        return {
+          fecha,
+          horas: punches.length ? formatDuration(minutes) : null,
+          checadas: punches.map((p) => `${p.clockIn}–${p.clockOut ?? '?'}`),
+          sin_salida: punches.some((p) => !p.clockOut),
+        }
+      }),
+      total: formatDuration(total),
+      total_reporte: e.reportedTotal,
+      cuadra: mismatches.length === 0,
+    }
+  })
+
+  return {
+    periodo: { inicio: report.period.start, fin: report.period.end },
+    nombre_archivo: input.nombre_archivo ?? null,
+    cuadra: problems.length === 0,
+    problemas: problems,
+    dias: days,
+    personas,
+    sin_perfil: personas.filter((p) => !p.perfil).map((p) => `${p.nombre} (${p.id_checador ?? 'sin id'})`),
+    no_vinieron_en_el_reporte: profiles.filter((p) => !reported.has(p.clock_employee_id)).map((p) => p.display_name),
+    avisos: truncated
+      ? [...report.warnings, `La tabla muestra solo los primeros ${MAX_PREVIEW_DAYS} días del periodo; el total y "cuadra" sí consideran todas las checadas, y guardar las escribe todas.`]
+      : report.warnings,
+    siguiente_paso: problems.length
+      ? 'No cuadra con los totales del reporte: revisa esas filas contra el archivo antes de guardar.'
+      : 'Nada se ha guardado. Muestra el resumen y, si el administrador confirma, llama save_time_entries con las mismas filas.',
+  }
+}
+
+/** Same rules as the app's dialog: corrections keep the clock's original and survive the re-import. */
+async function savePunch(db: Db, callerId: string, input: PunchInput) {
+  if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
+  const person = await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.persona, 'id, display_name')
+  let entry: TimeEntry
+  let corrected = false
+  if (input.entrada_actual === undefined) {
+    if (input.entrada === undefined) throw new ToolError('Para registrar una checada nueva manda `entrada`; para corregir una, `entrada_actual`')
+    entry = await asTool(() =>
+      createManualEntry(db, { user_id: person.id, work_date: input.fecha, clock_in: input.entrada, clock_out: input.salida, note: input.nota }),
+    )
+  } else {
+    const day = await entriesBetween(db, person.id, input.fecha, input.fecha)
+    const wanted = normalizeTime(input.entrada_actual)
+    const target = day.find((e) => e.clock_in === wanted)
+    if (!target) {
+      const seen = day.map((e) => `${e.clock_in}–${e.clock_out ?? 'sin salida'}`).join(', ') || 'ninguna'
+      throw new ToolError(`${person.display_name} no tiene una checada con entrada ${input.entrada_actual} el ${input.fecha}. Checadas de ese día: ${seen}`)
+    }
+    const update: TimeEntryUpdate = {}
+    if (input.entrada !== undefined) update.clock_in = input.entrada
+    if (input.salida !== undefined) update.clock_out = input.salida
+    if (input.nota !== undefined) update.note = input.nota
+    entry = await asTool(() => correctTimeEntry(db, target.id, update, callerId))
+    corrected = true
+  }
+  const minutes = minutesBetween(entry.clock_in, entry.clock_out)
+  return {
+    accion: corrected ? 'corregida' : 'registrada a mano',
+    persona: person.display_name,
+    fecha: entry.work_date,
+    entrada: entry.clock_in,
+    salida: entry.clock_out,
+    horas: minutes === null ? null : formatDuration(minutes),
+    nota: entry.note,
+    lo_que_dijo_el_checador: entry.original ? { entrada: entry.original.clock_in, salida: entry.original.clock_out } : null,
+  }
+}
+
+async function asTool<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    if (error instanceof TimeEntryError) throw new ToolError(error.message)
+    throw error
+  }
+}
+
+const KIND_BY_INPUT = { feriado: 'holiday', salida_autorizada: 'early_release' } as const
+
+export interface SaveExcusedDayInput {
+  fecha: string
+  tipo?: keyof typeof KIND_BY_INPUT
+  /** Omitted = the whole team. */
+  persona?: string
+  nota?: string
+  quitar?: boolean
+}
+
+/** Marks, changes or removes a holiday / authorized early exit (#134); same parser as the route. */
+export async function saveExcusedDay(db: Db, callerId: string, input: SaveExcusedDayInput) {
+  const person = input.persona?.trim()
+    ? await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.persona, 'id, display_name')
+    : null
+  const who = person?.display_name ?? 'todo el equipo'
+  if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
+
+  let existing = db.from('excused_days').select('id, kind, note').eq('work_date', input.fecha)
+  existing = person ? existing.eq('user_id', person.id) : existing.is('user_id', null)
+  const { data: found, error: findError } = await existing.maybeSingle()
+  if (findError) throw new ToolError('No se pudieron leer los días justificados')
+  const current = found as Pick<ExcusedDay, 'id' | 'kind' | 'note'> | null
+
+  if (input.quitar) {
+    if (!current) throw new ToolError(`El ${input.fecha} no está justificado para ${who}`)
+    // RLS filters a non-admin's delete to 0 rows without an error: report only what really happened (review PR #138).
+    const { data: gone, error } = await db.from('excused_days').delete().eq('id', current.id).select('id')
+    if (error) throw new ToolError('No se pudo quitar el día justificado')
+    if (!gone?.length) throw new ToolError('Solo un administrador puede justificar días')
+    return { accion: 'quitado', fecha: input.fecha, para: who, era: EXCUSE_LABELS[current.kind] }
+  }
+
+  const kind = input.tipo ? KIND_BY_INPUT[input.tipo] : current?.kind
+  const parsed = parseExcusedDay({ work_date: input.fecha, kind, user_id: person?.id ?? null, note: input.nota ?? current?.note ?? '' })
+  if ('error' in parsed) throw new ToolError(parsed.error)
+  const { data: written, error } = current
+    ? await db.from('excused_days').update({ kind: parsed.value.kind, note: parsed.value.note }).eq('id', current.id).select('id')
+    : await db.from('excused_days').insert(parsed.value).select('id')
+  if (error) {
+    if (error.code === '42501') throw new ToolError('Solo un administrador puede justificar días')
+    throw new ToolError('No se pudo guardar el día justificado')
+  }
+  if (!written?.length) throw new ToolError('Solo un administrador puede justificar días')
+  return {
+    accion: current ? 'actualizado' : 'marcado',
+    fecha: input.fecha,
+    tipo: EXCUSE_LABELS[parsed.value.kind],
+    para: who,
+    nota: parsed.value.note,
+    efecto:
+      parsed.value.kind === 'holiday'
+        ? 'Ese día no pide horas: se descuenta del objetivo de la semana.'
+        : 'Ese día cuenta como cumplido con lo que se trabajó.',
   }
 }

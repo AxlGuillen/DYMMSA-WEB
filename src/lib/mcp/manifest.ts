@@ -53,9 +53,12 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'get_week_hours', block: 'app', module: 'Horas', kind: 'read', title: 'Horas de la semana', example: '¿Cuantas horas llevo esta semana?' },
   { name: 'get_hours_trend', block: 'app', module: 'Horas', kind: 'read', title: 'Tendencia de horas', example: '¿Como viene Tania en las ultimas semanas?' },
   { name: 'list_time_imports', block: 'app', module: 'Horas', kind: 'read', title: 'Cargas del checador', example: '¿Cuando se cargo el ultimo reporte del checador?', adminOnly: true },
+  { name: 'preview_time_report', block: 'app', module: 'Horas', kind: 'read', title: 'Revisar reporte del checador', example: 'Revisa el reporte del checador de esta semana antes de cargarlo.', adminOnly: true },
+  { name: 'save_time_entries', block: 'app', module: 'Horas', kind: 'write', title: 'Guardar checadas', example: 'Este es el reporte del checador de la semana, cargalo. / A Tania le falto la salida del miercoles, salio a las 6.', limits: 'Carga el reporte (no duplica, no pisa correcciones y no guarda nada si no cuadra con sus totales) o corrige/registra una checada, conservando lo que dijo el checador. No borra checadas.', adminOnly: true },
+  { name: 'save_excused_day', block: 'app', module: 'Horas', kind: 'write', title: 'Guardar dia justificado', example: 'El lunes fue feriado.', limits: 'Feriados y salidas autorizadas, para el equipo o una persona; marca, cambia o quita.', adminOnly: true },
   { name: 'get_profiles', block: 'app', module: 'Perfil', kind: 'read', title: 'Perfiles del equipo', example: '¿Cual es mi NSS?' },
   { name: 'get_payroll_period', block: 'app', module: 'Nomina', kind: 'read', title: 'Corte de nomina', example: '¿Cuantas horas lleva cada quien en el corte de esta semana?', adminOnly: true },
-  { name: 'record_payroll_hours', block: 'app', module: 'Nomina', kind: 'write', title: 'Cargar horas de nomina', example: 'Esta es la hoja de asistencia de la semana, cargala.', limits: 'Solo borradores: no confirma, no cierra cortes, no pisa lo ya confirmado ni crea empleados.', adminOnly: true },
+  { name: 'record_payroll_hours', block: 'app', module: 'Nomina', kind: 'write', title: 'Cargar horas de nomina', example: 'Esta es la hoja de asistencia de la semana, cargala.', limits: 'Solo borradores: no confirma, no cierra cortes, no pisa lo ya confirmado ni crea empleados. Tambien trae las horas del checador de la oficina, como el boton Traer de Horas.', adminOnly: true },
   { name: 'list_tasks', block: 'app', module: 'Tareas', kind: 'read', title: 'Listar tareas', example: '¿Que tareas siguen abiertas?' },
   { name: 'get_task', block: 'app', module: 'Tareas', kind: 'read', title: 'Detalle de tarea', example: '¿Que dice la tarea 45?' },
   { name: 'create_task', block: 'app', module: 'Tareas', kind: 'write', title: 'Crear tarea', example: 'Registra una tarea: revisar los precios de Truper.', limits: 'Queda reportada por el asistente.' },
@@ -101,8 +104,8 @@ export const TOOL_BUDGET = {
   description: 1000,
   descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
   descriptionsTotal: 18_000,
-  /** Characters of the whole tools/list an admin receives (name + title + description + JSON schema). */
-  listTotal: 36_000,
+  /** Characters of the whole tools/list an admin receives (name + title + description + schema + _meta). Raised from 36,000 for the first MCP App's read twin (ADR-036). */
+  listTotal: 37_000,
   /** Characters of the server instructions, per role. */
   instructions: 7500,
 } as const

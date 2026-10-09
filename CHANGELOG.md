@@ -3,6 +3,23 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-07
+
+### Nuevo
+- [admin] **El asistente carga el reporte del checador.** Pásale a Claude el
+  reporte semanal de la oficina y lo sube como Horas → Importar reporte; antes
+  de guardar revisa que cuadre con los totales del propio reporte. También
+  puede **traer las horas de la oficina a Nómina** como borrador, igual que el
+  botón "Traer de Horas". Confirmar y cerrar el corte sigue siendo en la app.
+- [admin] **Corregir checadas y justificar días desde el asistente.** Dile a
+  Claude "a Tania le faltó la salida del miércoles, salió a las 6" o "el lunes
+  fue feriado" y lo guarda como en Equipo y Mi semana, conservando lo que dijo
+  el checador.
+- [admin] **El reporte del checador se revisa en una tabla dentro de Claude.**
+  Antes de cargarlo, Claude muestra la semana por persona y día, marca lo que
+  no cuadra y tiene un botón **Guardar en Horas**. Se ve en Claude web,
+  escritorio y móvil.
+
 ## 2026-10-05
 
 ### Nuevo

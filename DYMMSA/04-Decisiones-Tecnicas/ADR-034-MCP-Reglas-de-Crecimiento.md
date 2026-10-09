@@ -50,6 +50,8 @@ que se parecen entre sí; conviene fijar las reglas antes de sumar las nuevas.
 | Instrucciones | ~7,250 | ~6,850 |
 | `tools/list` completa (nombre + título + descripción + esquema) | ~33,300 | ~29,300 |
 
+**2026-10-07:** `listTotal` sube a 37,000 por la tool de lectura gemela de la primera vista MCP Apps ([[ADR-036-Vistas-del-MCP-con-MCP-Apps]]); el test ahora suma también `_meta`.
+
 El recurso duplicado (~3,100) desapareció; la guía (~1,500) solo la paga un admin.
 
 ## Alternativas descartadas
