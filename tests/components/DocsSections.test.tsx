@@ -13,7 +13,7 @@ describe('AssistantSection', () => {
       expect(screen.getAllByText(tool.title).length, tool.name).toBeGreaterThan(0)
     }
     // Only the module blocks carry the badge; the actions list repeats the limits, not the badge.
-    expect(screen.getAllByText('escribe')).toHaveLength(7)
+    expect(screen.getAllByText('escribe')).toHaveLength(8)
     expect(screen.getByText(/Nunca toca cantidades/)).toBeTruthy()
     expect(screen.getByText(/Nunca escribe/)).toBeTruthy()
   })

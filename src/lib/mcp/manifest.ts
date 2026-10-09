@@ -35,6 +35,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'list_orders', block: 'app', module: 'Ordenes', kind: 'read', title: 'Listar ordenes', example: '¿Que ordenes siguen abiertas?' },
   { name: 'get_order', block: 'app', module: 'Ordenes', kind: 'read', title: 'Detalle de orden', example: '¿Que falta por recibir de URREA en la orden 12?' },
   { name: 'get_cut_plan', block: 'app', module: 'Ordenes', kind: 'read', title: 'Lista de corte de una orden', example: '¿Cuanto tubo necesito para la orden 12 y cuantas barras salen?' },
+  { name: 'save_material_presentation', block: 'app', module: 'Ordenes', kind: 'write', title: 'Registrar medida de material', example: 'Agrega barra de tubo de 1 pulgada de 6 metros.', limits: 'Solo registra barras de tubo u hojas de placa, en mm. No borra medidas ni toca la lista de corte.' },
   { name: 'get_purchase_plan', block: 'app', module: 'Ordenes', kind: 'read', title: 'Planificador de compra', example: '¿Que va a mayoreo y que a menudeo en la orden 12?' },
   { name: 'search_inventory', block: 'app', module: 'Inventario', kind: 'read', title: 'Buscar en inventario', example: '¿Tenemos el 6954 y en que gaveta esta?' },
   { name: 'set_inventory_location', block: 'app', module: 'Inventario', kind: 'write', title: 'Asignar ubicacion en tienda', example: 'El 6954 quedo en la gaveta B3.', limits: 'Solo la gaveta de un producto ya inventariado. Nunca toca cantidades.' },

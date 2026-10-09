@@ -29,7 +29,7 @@ import { getPayrollPeriod, recordPayrollHours, savePayrollEmployee } from './too
 import { listSuppliers, saveSupplier } from './tools/suppliers'
 import { listPayables, getPayable, getPayablesOverview, markPayablePaid, createPayable, updatePayable } from './tools/payables'
 import { getMonthClosing } from './tools/finance'
-import { getCutPlan } from './tools/cutting'
+import { getCutPlan, saveMaterialPresentation } from './tools/cutting'
 import { getPurchasePlan } from './tools/purchase'
 import { getAppSettings } from './tools/settings'
 import type { McpRole } from './manifest'
@@ -100,7 +100,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 ## Bloque A — DYMMSA-WEB (la app de cotizaciones e inventario)
 - Panorama: get_business_summary (úsala primero para contexto global; trae los conteos por estado y la salud del inventario).
 - Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió).
-- Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
+- Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escritura save_material_presentation para registrar una barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
 - Inventario de la TIENDA: search_inventory; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte); escritura save_supplier (alta o edición, nunca borra).
@@ -211,6 +211,25 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, (db) => getCutPlan(db, input)),
+  )
+
+  server.registerTool(
+    'save_material_presentation',
+    {
+      title: 'Registrar medida de material',
+      description:
+        'Registra una presentación del proveedor para el corte: barra de tubo (diámetro y largo) u hoja de placa (espesor, ancho y largo), SIEMPRE en mm — convierte pulgadas (×25.4) y metros y confirma la conversión con el usuario antes de guardar. Si ya existía, la marca como la más reciente. ESCRIBE. No borra medidas.',
+      inputSchema: {
+        tipo: z.enum(['tubo', 'placa']),
+        diametro_mm: z.number().positive().optional().describe('Tubo'),
+        espesor_mm: z.number().positive().optional().describe('Placa'),
+        ancho_mm: z.number().positive().optional().describe('Placa'),
+        largo_mm: z.number().positive().describe('Largo comercial de la barra u hoja'),
+      },
+      // Scoped write (#134, ADR-037): a catalog that already builds itself from captures.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (db) => saveMaterialPresentation(db, input)),
   )
 
   server.registerTool(
