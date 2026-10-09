@@ -7,7 +7,7 @@
 import { isUuid, requireSingleMatch, sanitizeSearch, ToolError, type Db } from '../shared'
 import { resolveSupplier } from './suppliers'
 import { todayInMexico } from '@/lib/format'
-import { ISO_MONTH, monthRange } from '@/lib/month'
+import { ISO_MONTH, isRealDate, monthRange } from '@/lib/month'
 import {
   daysUntilDue,
   describeAuditEvent,
@@ -19,7 +19,6 @@ import {
   resolvePaymentUpdate,
   summarizeMonth,
 } from '@/lib/payables'
-import { isRealDate } from '@/lib/timesheet'
 import type { AuditEvent, PayableStatus, PayableWithSupplier } from '@/types/database'
 
 const SELECT = '*, supplier:suppliers(id, name, payment_terms_days)'

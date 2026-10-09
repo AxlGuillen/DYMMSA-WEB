@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { nextMonth, resolvePayableFilter } from '@/lib/payables'
 import { createClient } from '@/lib/supabase/server'
 import { todayInMexico } from '@/lib/format'
-import { isRealDate } from '@/lib/timesheet'
+import { isRealDate } from '@/lib/month'
 import { requireAuth, requireRole, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
 import type { PayableInsert, PayableWithSupplier } from '@/types/database'
 

@@ -131,6 +131,9 @@ export async function saveSupplier(db: Db, input: SaveSupplierInput) {
   const editing = Boolean(input.proveedor?.trim())
   const parsed = parseSupplierInput(body, { requireName: !editing })
   if ('error' in parsed) throw new ToolError(parsed.error)
+  if (!editing && input.quitar_marcas?.length) {
+    throw new ToolError('Un proveedor nuevo no tiene marcas que quitar: en el alta manda solo agregar_marcas.')
+  }
   const [add, remove] = await brandIdsFor(db, input.agregar_marcas, input.quitar_marcas)
 
   try {

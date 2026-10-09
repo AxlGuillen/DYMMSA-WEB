@@ -4,6 +4,10 @@
  */
 
 import type { ExcusedDay, ExcusedDayInsert, ExcuseKind, ProfileShift } from '@/types/database'
+import { isRealDate } from './month'
+
+// Finance validates dates too: the helper lives in month.ts, re-exported for the hours callers (review PR #139).
+export { isRealDate }
 
 export type ISODate = string
 export type HHMM = string
@@ -33,13 +37,6 @@ export interface ParsedReport {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
-
-/** Shape AND existence: 2026-02-30 matches the regex and Postgres answers 22008 → a 500 (review PR #128). */
-export function isRealDate(value: unknown): value is ISODate {
-  if (typeof value !== 'string' || !ISO_DATE.test(value)) return false
-  const parsed = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
-}
 const PERIOD = /(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})/
 // [\s\S] instead of the `s` flag: the project targets below es2018.
 const EMPLOYEE = /^([\s\S]*?)\s*\((\d+)\)\s*$/

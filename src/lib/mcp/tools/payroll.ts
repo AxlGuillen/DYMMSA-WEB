@@ -218,7 +218,8 @@ export async function savePayrollEmployee(db: Db, callerId: string, input: SaveP
   const saved = target
     ? await asTool(() => updateEmployee(db, target.id, parsed.value))
     : await asTool(() => createEmployee(db, parsed.value))
-  if (!saved) throw new ToolError(NO_ACCESS)
+  // It was just read from a visible list, so 0 rows means it went away in between (review PR #139).
+  if (!saved) throw new ToolError('El empleado ya no existe: vuelve a consultar la lista de Nómina.')
 
   let linked = person?.display_name ?? null
   if (!linked && saved.profile_id) {

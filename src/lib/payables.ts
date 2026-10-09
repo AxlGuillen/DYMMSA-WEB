@@ -1,8 +1,7 @@
 /** Payables math (#84). As in format.ts the clock is ALWAYS injected — nothing here reads `new Date()`. */
 
 import type { AuditEvent, Payable, PayableStatus, PayableUpdate } from '@/types/database'
-import { monthOf, nextMonth, type ISODate } from './month'
-import { isRealDate } from './timesheet'
+import { isRealDate, monthOf, nextMonth, type ISODate } from './month'
 
 export { monthOf, nextMonth }
 export type { ISODate }

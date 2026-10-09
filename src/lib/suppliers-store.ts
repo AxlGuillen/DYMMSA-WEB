@@ -43,8 +43,9 @@ export function parseSupplierInput(body: unknown, opts: { requireName: boolean }
 
 /** Inserts the supplier and its brand links; if the links fail the parent is dropped (no half-created record). */
 export async function createSupplier(db: SupabaseClient, value: SupplierUpdate, brandIds: readonly string[] = []): Promise<Supplier> {
+  if (!value.name?.trim()) throw new SupplierError('El nombre del proveedor es obligatorio')
   const payload: SupplierInsert = {
-    name: value.name ?? '',
+    name: value.name,
     phone: null,
     whatsapp: null,
     email: null,

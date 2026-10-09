@@ -183,7 +183,7 @@ tests/
     └── helpers/ # render (QueryClientProvider), stores (resetStores), fixtures
 ```
 
-- **Comando:** `bun run test` (1502 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
+- **Comando:** `bun run test` (1503 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
 - **Verificación completa: `bun run check`** (tsc + eslint + vitest) — el mismo comando que corre el CI (`.github/workflows/ci.yml`) en cada PR. **El lint se mantiene en CERO findings**: si un warning es inevitable (ej. `react-hooks/incompatible-library` de react-hook-form), se suprime con `eslint-disable` + comentario del porqué; nunca se deja ruido permanente.
 - ⚠️ **Usar `bun run test`, NO `bun test`** — `bun test` invoca el runner integrado de Bun y falla al toparse con imports de `vitest`.
 - **Backend = unit con mock de Supabase** (sin BD real). El mock reproduce el query builder chainable y registra llamadas para assertions de auth, validación, rollback y side effects de inventario.

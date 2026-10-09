@@ -4,6 +4,7 @@ import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue, hasFilter, type CallRecord } from '../helpers/supabase-mock'
 import { type Db } from '@/lib/mcp/shared'
 import { listSuppliers, resolveSupplier, saveSupplier } from '@/lib/mcp/tools/suppliers'
+import { createSupplier } from '@/lib/suppliers-store'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
@@ -116,6 +117,17 @@ describe('saveSupplier (#134)', () => {
     await expect(saveSupplier(asDb(client), { telefono: '443' })).rejects.toThrow(/nombre del proveedor es obligatorio/)
     await expect(saveSupplier(asDb(client), { proveedor: 'tornillos' })).rejects.toThrow(/No hay cambios/)
     await expect(saveSupplier(asDb(client), { nombre: 'X', dias_credito: -1 })).rejects.toThrow(/plazo de pago/)
+    // A half-applied answer would read "creado" with the removal silently dropped (review PR #139).
+    await expect(saveSupplier(asDb(client), { nombre: 'Nuevo', quitar_marcas: ['FOY'] })).rejects.toThrow(/no tiene marcas que quitar/)
     await expect(saveSupplier(asDb(client), { nombre: 'Tornillos MX' })).rejects.toThrow(/Ya existe un proveedor/)
+  })
+})
+
+describe('createSupplier (store, #134)', () => {
+  test('REGLA: el store no inserta un proveedor sin nombre aunque el llamador no lo haya validado (review PR #139)', async () => {
+    const client = createMockSupabase()
+    await expect(createSupplier(asDb(client), { phone: '443' })).rejects.toThrow(/nombre del proveedor es obligatorio/)
+    await expect(createSupplier(asDb(client), { name: '   ' })).rejects.toThrow(/nombre del proveedor es obligatorio/)
+    expect(client.didCall('suppliers', 'insert')).toBe(false)
   })
 })

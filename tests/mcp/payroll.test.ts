@@ -215,6 +215,12 @@ describe('save_payroll_employee (#134)', () => {
     expect(filterValue(update, 'id')).toBe('e1')
     expect(client.didCall('payroll_employees', 'delete')).toBe(false)
     expect(result.nota).toMatch(/Dado de baja/)
+
+    // Read from a visible list, then 0 rows on the update: it went away, it is not "no access" (review PR #139).
+    const gone = createMockSupabase({
+      responses: { 'payroll_employees.select': { data: TEAM, error: null }, 'payroll_employees.update': { data: null, error: null } },
+    })
+    await expect(savePayrollEmployee(asDb(gone), 'u-admin', { empleado: 'juan perez', activo: false })).rejects.toThrow(/ya no existe/)
   })
 
   test('REGLA: perfil "" desliga — nunca cae en "sin nombre = quien pregunta"', async () => {
