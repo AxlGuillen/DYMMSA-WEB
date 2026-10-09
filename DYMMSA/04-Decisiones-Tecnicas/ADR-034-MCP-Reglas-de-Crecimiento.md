@@ -52,6 +52,8 @@ que se parecen entre sí; conviene fijar las reglas antes de sumar las nuevas.
 
 **2026-10-07:** `listTotal` sube a 37,000 por la tool de lectura gemela de la primera vista MCP Apps ([[ADR-036-Vistas-del-MCP-con-MCP-Apps]]); el test ahora suma también `_meta`.
 
+**2026-10-08:** el punto 5 (segunda etapa) se aplicó con la #134 ([[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]]): salen `get_quotation_stats` y `get_inventory_stats` (duplicados de `get_business_summary`) y `get_order_by_quotation` se fusiona en `get_quotation`. Con eso entran cuatro escrituras sin subir el tope de herramientas (la app queda en 36 de 36); suben `descriptionsTotal` a 18,500 y `listTotal` a 40,000. `update_payable` es la excepción nombrada a la regla 1: `create_payable` y `mark_payable_paid` no se renombran.
+
 El recurso duplicado (~3,100) desapareció; la guía (~1,500) solo la paga un admin.
 
 ## Alternativas descartadas

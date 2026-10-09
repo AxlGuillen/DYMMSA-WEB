@@ -2,6 +2,7 @@
 
 import { calculateLineTotal, calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
 import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'
+import { findOrderByQuotation } from './orders'
 import type { Quotation, QuotationStatus, QuotationWithItems } from '@/types/database'
 
 const STATUSES: QuotationStatus[] = [
@@ -56,13 +57,16 @@ export async function listQuotations(db: Db, input: ListQuotationsInput) {
 }
 
 export async function getQuotation(db: Db, id: string) {
-  const { data, error } = await db
-    .from('quotations')
-    .select('*, quotation_items(*)')
-    .eq('id', id)
-    .order('sort_order', { foreignTable: 'quotation_items', ascending: true })
-    .limit(5000, { foreignTable: 'quotation_items' })
-    .single()
+  const [{ data, error }, order] = await Promise.all([
+    db
+      .from('quotations')
+      .select('*, quotation_items(*)')
+      .eq('id', id)
+      .order('sort_order', { foreignTable: 'quotation_items', ascending: true })
+      .limit(5000, { foreignTable: 'quotation_items' })
+      .single(),
+    findOrderByQuotation(db, id),
+  ])
 
   if (error) {
     if (error.code === 'PGRST116') throw new ToolError('Cotización no encontrada')
@@ -100,6 +104,7 @@ export async function getQuotation(db: Db, id: string) {
     approved_at: q.approved_at,
     created_at: q.created_at,
     updated_at: q.updated_at,
+    orden: order ? { id: order.id, nombre: order.name, estado: order.status } : null,
     total: calculateQuotationTotal(q.quotation_items),
     total_approved: calculateQuotationTotal(q.quotation_items, { onlyApproved: true }),
     items_count: q.quotation_items.filter(isProductItem).length,

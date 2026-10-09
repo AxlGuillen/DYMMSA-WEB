@@ -1,9 +1,9 @@
 /** MCP payroll tools (#123): the cut read and the draft-only write. */
 
 import { describe, test, expect } from 'vitest'
-import { createMockSupabase } from '../helpers/supabase-mock'
+import { createMockSupabase, filterValue, type CallRecord } from '../helpers/supabase-mock'
 import { type Db } from '@/lib/mcp/shared'
-import { getPayrollPeriod, recordPayrollHours } from '@/lib/mcp/tools/payroll'
+import { getPayrollPeriod, recordPayrollHours, savePayrollEmployee } from '@/lib/mcp/tools/payroll'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
@@ -189,5 +189,63 @@ describe('record_payroll_hours con traer_de_horas (#132)', () => {
     await expect(recordPayrollHours(asDb(client), { fecha: '2026-09-21', dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/solo aplica con/)
     await expect(recordPayrollHours(asDb(client), { traer_de_horas: true, fecha: '2026-02-30' })).rejects.toThrow(/Fecha inválida/)
     expect(client.callsTo('payroll_days', 'upsert')).toEqual([])
+  })
+})
+
+describe('save_payroll_employee (#134)', () => {
+  const TANIA = { id: '6f1c2a3b-4d5e-4f60-8a71-92b3c4d5e6f7', display_name: 'Tania López' }
+  // resolvePerson reads a list by name; reading the linked name back is a .maybeSingle().
+  const profiles = (rec: CallRecord) => (rec.single ? { data: { display_name: TANIA.display_name }, error: null } : { data: [TANIA], error: null })
+  const echo = (rec: CallRecord) => ({ data: employee('new', 'x', rec.payload as Record<string, unknown>), error: null })
+
+  test('alta con jornada y perfil ligado por nombre: mismo parser que la ruta', async () => {
+    const client = createMockSupabase({ responses: { profiles, 'payroll_employees.insert': echo } })
+    const result = await savePayrollEmployee(asDb(client), 'u-admin', { nombre: '  Pedro   Gómez ', jornada: 'media', perfil: 'tania' })
+    expect(client.insertPayload('payroll_employees')).toEqual({ name: 'Pedro Gómez', shift: 'part_time', profile_id: TANIA.id })
+    expect(result).toMatchObject({ accion: 'creado', empleado: { nombre: 'Pedro Gómez', jornada: 'Medio tiempo · 4 h', perfil_ligado: 'Tania López', activo: true } })
+  })
+
+  test('baja = activo false sobre el empleado por nombre exacto; nunca un delete', async () => {
+    const client = createMockSupabase({
+      responses: { 'payroll_employees.select': { data: TEAM, error: null }, 'payroll_employees.update': { data: employee('e1', 'Juan Pérez', { active: false }), error: null } },
+    })
+    const result = await savePayrollEmployee(asDb(client), 'u-admin', { empleado: 'juan perez', activo: false })
+    const update = client.callsTo('payroll_employees', 'update')[0]
+    expect(update.payload).toEqual({ active: false })
+    expect(filterValue(update, 'id')).toBe('e1')
+    expect(client.didCall('payroll_employees', 'delete')).toBe(false)
+    expect(result.nota).toMatch(/Dado de baja/)
+
+    // Read from a visible list, then 0 rows on the update: it went away, it is not "no access" (review PR #139).
+    const gone = createMockSupabase({
+      responses: { 'payroll_employees.select': { data: TEAM, error: null }, 'payroll_employees.update': { data: null, error: null } },
+    })
+    await expect(savePayrollEmployee(asDb(gone), 'u-admin', { empleado: 'juan perez', activo: false })).rejects.toThrow(/ya no existe/)
+  })
+
+  test('REGLA: perfil "" desliga — nunca cae en "sin nombre = quien pregunta"', async () => {
+    const client = createMockSupabase({
+      responses: { 'payroll_employees.select': { data: TEAM, error: null }, 'payroll_employees.update': { data: employee('e3', 'José Núñez'), error: null } },
+    })
+    await savePayrollEmployee(asDb(client), 'u-admin', { empleado: 'josé', perfil: '' })
+    expect(client.updatePayload('payroll_employees')).toEqual({ profile_id: null })
+    expect(client.callsTo('profiles')).toEqual([])
+  })
+
+  test('sin nombre, sin cambios, sin acceso y duplicado: error claro sin escribir de más', async () => {
+    const admin = createMockSupabase({ responses: { 'payroll_employees.select': { data: TEAM, error: null } } })
+    await expect(savePayrollEmployee(asDb(admin), 'u-admin', { jornada: 'media' })).rejects.toThrow(/nombre es obligatorio/)
+    await expect(savePayrollEmployee(asDb(admin), 'u-admin', { empleado: 'José' })).rejects.toThrow(/No hay cambios/)
+    expect(admin.didCall('payroll_employees', 'insert')).toBe(false)
+
+    // A member reads no employees and the RLS rejects the insert (42501).
+    const member = createMockSupabase({
+      responses: { 'payroll_employees.select': { data: [], error: null }, 'payroll_employees.insert': { data: null, error: { code: '42501', message: 'rls' } } },
+    })
+    await expect(savePayrollEmployee(asDb(member), 'u-member', { empleado: 'Juan', activo: false })).rejects.toThrow(/solo la ve un administrador/)
+    await expect(savePayrollEmployee(asDb(member), 'u-member', { nombre: 'Intruso' })).rejects.toThrow(/Solo un administrador/)
+
+    const dup = createMockSupabase({ responses: { 'payroll_employees.insert': { data: null, error: { code: '23505', message: 'payroll_employees_name_key' } } } })
+    await expect(savePayrollEmployee(asDb(dup), 'u-admin', { nombre: 'Juan Pérez' })).rejects.toThrow(/ya existe un empleado con ese nombre/i)
   })
 })

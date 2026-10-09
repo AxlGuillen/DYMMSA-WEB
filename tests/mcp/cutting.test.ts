@@ -3,7 +3,7 @@
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue } from '../helpers/supabase-mock'
 import { type Db } from '@/lib/mcp/shared'
-import { getCutPlan } from '@/lib/mcp/tools/cutting'
+import { getCutPlan, saveMaterialPresentation } from '@/lib/mcp/tools/cutting'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
@@ -72,5 +72,40 @@ describe('getCutPlan', () => {
       },
     })
     await expect(getCutPlan(asDb(client), { orden: 'andritz' })).rejects.toThrow(/2 coincidencias \(ORD-12 \(Andritz\), ORD-13 \(Andritz\)\)/)
+  })
+})
+
+describe('save_material_presentation (#134)', () => {
+  test('tubo: mismas reglas y llave del upsert que la ruta; los campos de placa quedan null', async () => {
+    const client = createMockSupabase({
+      responses: { 'material_presentations.select': { data: null, error: null }, 'material_presentations.upsert': { data: null, error: null } },
+    })
+    const result = await saveMaterialPresentation(asDb(client), { tipo: 'tubo', diametro_mm: 25.4, espesor_mm: 3, largo_mm: 6000 })
+    const upsert = client.callsTo('material_presentations', 'upsert')[0]
+    expect(upsert.payload).toMatchObject({ material_type: 'tube', diameter_mm: 25.4, thickness_mm: null, width_mm: null, length_mm: 6000 })
+    expect(typeof (upsert.payload as Record<string, unknown>).last_used_at).toBe('string')
+    // The lookup mirrors the NULLS NOT DISTINCT identity: the other shape's columns are IS NULL.
+    const lookup = client.callsTo('material_presentations', 'select')[0]
+    expect(filterValue(lookup, 'diameter_mm')).toBe(25.4)
+    expect(filterValue(lookup, 'thickness_mm', 'is')).toBeNull()
+    expect(result).toEqual({
+      accion: 'registrada',
+      presentacion: 'Barra de tubo de 25.4 mm de diámetro, 6 m de largo',
+      nota: expect.stringMatching(/get_cut_plan/),
+    })
+  })
+
+  test('una placa que ya existía lo dice; sin las medidas de su tipo no escribe', async () => {
+    const client = createMockSupabase({
+      responses: { 'material_presentations.select': { data: { id: 'm1' }, error: null }, 'material_presentations.upsert': { data: null, error: null } },
+    })
+    const result = await saveMaterialPresentation(asDb(client), { tipo: 'placa', espesor_mm: 3, ancho_mm: 1220, largo_mm: 2440 })
+    expect(result).toMatchObject({ accion: 'ya_existia', presentacion: 'Hoja de placa de 3 mm de espesor, 1220 × 2440 mm' })
+
+    const empty = createMockSupabase()
+    await expect(saveMaterialPresentation(asDb(empty), { tipo: 'placa', espesor_mm: 3, largo_mm: 2440 })).rejects.toThrow(/espesor y ancho/)
+    await expect(saveMaterialPresentation(asDb(empty), { tipo: 'tubo', largo_mm: 6000 })).rejects.toThrow(/necesita diámetro/)
+    await expect(saveMaterialPresentation(asDb(empty), { tipo: 'tubo', diametro_mm: 25, largo_mm: 0 })).rejects.toThrow(/largo comercial/)
+    expect(empty.didCall('material_presentations', 'upsert')).toBe(false)
   })
 })

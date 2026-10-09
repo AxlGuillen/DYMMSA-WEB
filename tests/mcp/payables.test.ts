@@ -3,7 +3,7 @@
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue, hasFilter, type CallRecord } from '../helpers/supabase-mock'
 import { type Db } from '@/lib/mcp/shared'
-import { createPayable, getPayable, getPayablesOverview, listPayables, markPayablePaid, resolvePayable } from '@/lib/mcp/tools/payables'
+import { createPayable, getPayable, getPayablesOverview, listPayables, markPayablePaid, resolvePayable, updatePayable } from '@/lib/mcp/tools/payables'
 import { daysUntilDue, dueDateFrom } from '@/lib/payables'
 import { todayInMexico } from '@/lib/format'
 
@@ -215,8 +215,58 @@ describe('createPayable (escritura)', () => {
     await expect(createPayable(asDb(c), { proveedor: 'perfiles', concepto: ' ', monto: 1, fecha_factura: TODAY })).rejects.toThrow(/concepto es obligatorio/)
     await expect(createPayable(asDb(c), { proveedor: 'perfiles', concepto: 'x', monto: 0, fecha_factura: TODAY })).rejects.toThrow(/mayor a 0/)
     await expect(createPayable(asDb(c), { proveedor: 'perfiles', concepto: 'x', monto: 1, fecha_factura: '24/09/2026' })).rejects.toThrow(/Fecha de factura inválida/)
+    await expect(createPayable(asDb(c), { proveedor: 'perfiles', concepto: 'x', monto: 1, fecha_factura: '2026-02-30' })).rejects.toThrow(/Fecha de factura inválida/)
     await expect(createPayable(asDb(c), { proveedor: 'nadie', concepto: 'x', monto: 1, fecha_factura: TODAY })).rejects.toThrow(/No hay proveedor/)
     expect(c.callsTo('payables', 'insert')).toHaveLength(0)
+  })
+})
+
+describe('updatePayable (escritura, #134)', () => {
+  const rows = [
+    row('p2', PERFILES, 'Perfiles julio', 2300, IN_5),
+    row('p1', PERFILES, 'Perfiles junio', 1500, AGO_10, 'paid', AGO_10),
+    row('p9', TORNILLOS, 'Tornillos cancelada', 50, IN_5, 'cancelled'),
+  ]
+
+  test('corrige solo lo indicado y devuelve antes/ahora de cada campo que cambió', async () => {
+    const c = client(rows)
+    const result = await updatePayable(asDb(c), { factura: 'julio', monto: 3200, notas: 'corregida' })
+    const update = c.callsTo('payables', 'update')[0]
+    expect(update.payload).toEqual({ amount: 3200, notes: 'corregida' })
+    expect(filterValue(update, 'id')).toBe('p2')
+    expect(result.cambios).toEqual({ monto: { antes: 2300, ahora: 3200 }, notas: { antes: null, ahora: 'corregida' } })
+    expect(result.nota).toBe('Corregida.')
+  })
+
+  test('cambiar la fecha de factura no recalcula el vencimiento en silencio: lo avisa', async () => {
+    const c = client(rows)
+    const result = await updatePayable(asDb(c), { factura: 'julio', fecha_factura: TODAY })
+    expect(c.updatePayload('payables')).toEqual({ invoice_date: TODAY })
+    expect(result.nota).toMatch(new RegExp(`vencimiento sigue en ${IN_5}`))
+  })
+
+  test('reasigna proveedor por nombre y cancela una pendiente (limpia la fecha de pago)', async () => {
+    const moved = client(rows)
+    await updatePayable(asDb(moved), { factura: 'julio', proveedor: 'tornillos' })
+    expect(moved.updatePayload('payables')).toEqual({ supplier_id: 's-torn' })
+
+    const cancelled = client(rows)
+    const result = await updatePayable(asDb(cancelled), { factura: 'julio', cancelar: true })
+    expect(cancelled.updatePayload('payables')).toEqual({ status: 'cancelled', paid_at: null })
+    expect(result.nota).toMatch(/^Cancelada/)
+    // No mention of the audit trail: a member can run this (ADR-028).
+    expect(JSON.stringify(result)).not.toMatch(/bit[aá]cora|audit/i)
+  })
+
+  test('guardas: pagada no se cancela directo, cancelada no se re-cancela, fecha inexistente y sin cambios no escriben', async () => {
+    const c = client(rows)
+    await expect(updatePayable(asDb(c), { factura: 'junio', cancelar: true })).rejects.toThrow(/está pagada .* regrésala a pendiente/)
+    await expect(updatePayable(asDb(c), { factura: 'Tornillos cancelada', cancelar: true })).rejects.toThrow(/ya está cancelada/)
+    await expect(updatePayable(asDb(c), { factura: 'julio', vencimiento: '2026-02-30' })).rejects.toThrow('Fecha inválida en vencimiento')
+    await expect(updatePayable(asDb(c), { factura: 'julio', monto: 0 })).rejects.toThrow(/mayor a 0/)
+    await expect(updatePayable(asDb(c), { factura: 'julio' })).rejects.toThrow(/No hay cambios/)
+    await expect(updatePayable(asDb(c), { factura: 'julio', proveedor: 'nadie' })).rejects.toThrow(/No hay proveedor/)
+    expect(c.callsTo('payables', 'update')).toHaveLength(0)
   })
 })
 

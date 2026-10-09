@@ -1,7 +1,7 @@
 /** Payables math (#84). The clock is always injected; nothing reads new Date(). */
 
 import { describe, test, expect } from 'vitest'
-import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, paymentTermsLabel, resolvePayableFilter, resolvePaymentUpdate, summarizeMonth, weekOfMonth } from '@/lib/payables'
+import { daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, parsePayableUpdate, paymentTermsLabel, resolvePayableFilter, resolvePaymentUpdate, summarizeMonth, weekOfMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -182,6 +182,36 @@ describe('resolvePaymentUpdate (regla compartida ruta/MCP, #109)', () => {
     expect(resolvePaymentUpdate('cancelled', undefined, '2026-09-24')).toEqual({ ok: true, updates: { status: 'cancelled', paid_at: null } })
     expect(resolvePaymentUpdate('pagada', undefined, '2026-09-24')).toEqual({ ok: false, error: 'Estado inválido' })
     expect(resolvePaymentUpdate('paid', '10/09/2026', '2026-09-24')).toEqual({ ok: false, error: 'Fecha de pago inválida' })
+    // Shape is not enough: Postgres answers 22008 for a day that does not exist (review PR #128).
+    expect(resolvePaymentUpdate('paid', '2026-02-30', '2026-09-24')).toEqual({ ok: false, error: 'Fecha de pago inválida' })
+  })
+})
+
+describe('parsePayableUpdate (regla compartida PATCH / update_payable, #134)', () => {
+  const TODAY = '2026-09-24'
+
+  test('sparse: solo lo que viene, recortado; notas vacías → null; estado por resolvePaymentUpdate', () => {
+    expect(parsePayableUpdate({ concept: ' Perfiles ', notes: '  ' }, TODAY)).toEqual({ ok: true, updates: { concept: 'Perfiles', notes: null } })
+    expect(parsePayableUpdate({ status: 'cancelled' }, TODAY)).toEqual({ ok: true, updates: { status: 'cancelled', paid_at: null } })
+    expect(parsePayableUpdate({ status: 'paid' }, TODAY)).toEqual({ ok: true, updates: { status: 'paid', paid_at: TODAY } })
+    expect(parsePayableUpdate({ paid_at: '2026-09-10' }, TODAY)).toEqual({ ok: true, updates: { paid_at: '2026-09-10' } })
+    expect(parsePayableUpdate({}, TODAY)).toEqual({ ok: true, updates: {} })
+  })
+
+  test('REGLA: fechas que existen, no solo con forma de fecha', () => {
+    expect(parsePayableUpdate({ invoice_date: '2026-02-28', due_date: '2026-03-30' }, TODAY))
+      .toEqual({ ok: true, updates: { invoice_date: '2026-02-28', due_date: '2026-03-30' } })
+    expect(parsePayableUpdate({ due_date: '2026-02-30' }, TODAY)).toEqual({ ok: false, error: 'Fecha inválida en due_date' })
+    expect(parsePayableUpdate({ invoice_date: '2026-13-01' }, TODAY)).toEqual({ ok: false, error: 'Fecha inválida en invoice_date' })
+    expect(parsePayableUpdate({ paid_at: '2026-04-31' }, TODAY)).toEqual({ ok: false, error: 'Fecha de pago inválida' })
+  })
+
+  test('concepto vacío, monto no positivo, proveedor vacío y estado desconocido → error', () => {
+    expect(parsePayableUpdate({ concept: '  ' }, TODAY)).toEqual({ ok: false, error: 'El concepto no puede quedar vacío' })
+    expect(parsePayableUpdate({ amount: 0 }, TODAY)).toEqual({ ok: false, error: 'El monto debe ser mayor a 0' })
+    expect(parsePayableUpdate({ amount: '10' }, TODAY)).toEqual({ ok: false, error: 'El monto debe ser mayor a 0' })
+    expect(parsePayableUpdate({ supplier_id: '' }, TODAY)).toEqual({ ok: false, error: 'Proveedor inválido' })
+    expect(parsePayableUpdate({ status: 'pagada' }, TODAY)).toEqual({ ok: false, error: 'Estado inválido' })
   })
 })
 

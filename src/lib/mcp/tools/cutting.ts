@@ -1,15 +1,19 @@
-/** Cut module (ADR-022), read-only (#109): net needs per group and how many bars/sheets each captured presentation takes. */
+/** Cut module (ADR-022): net needs per group and bars/sheets per captured presentation (#109); save_material_presentation (#134). */
 
 import { ToolError, type Db } from '../shared'
 import { resolveOrder } from './orders'
 import {
+  formatMm,
   packBars,
   packSheets,
+  parsePresentationInput,
   plateNetNeeds,
+  PRESENTATION_KEY,
   resolveCutMargin,
   SETTING_CUT_MARGIN_MM,
   tubeNetNeeds,
   type PlatePieceInput,
+  type PresentationRow,
   type TubePieceInput,
 } from '@/lib/cut-plan'
 import type { CutPlanPiece, MaterialPresentation } from '@/types/database'
@@ -96,5 +100,51 @@ export async function getCutPlan(db: Db, input: { orden: string }) {
           }
         }),
     })),
+  }
+}
+
+export interface SaveMaterialPresentationInput {
+  tipo: 'tubo' | 'placa'
+  diametro_mm?: number
+  espesor_mm?: number
+  ancho_mm?: number
+  largo_mm: number
+}
+
+const describePresentation = (p: PresentationRow) =>
+  p.material_type === 'tube'
+    ? `Barra de tubo de ${formatMm(num(p.diameter_mm))} de diámetro, ${formatMm(num(p.length_mm))} de largo`
+    : `Hoja de placa de ${formatMm(num(p.thickness_mm))} de espesor, ${num(p.width_mm)} × ${num(p.length_mm)} mm`
+
+/** Registers a supplier presentation with the route's rules and upsert key; deleting a wrong one stays in the app (#134). */
+export async function saveMaterialPresentation(db: Db, input: SaveMaterialPresentationInput) {
+  const parsed = parsePresentationInput({
+    material_type: input.tipo === 'tubo' ? 'tube' : input.tipo === 'placa' ? 'plate' : input.tipo,
+    diameter_mm: input.diametro_mm,
+    thickness_mm: input.espesor_mm,
+    width_mm: input.ancho_mm,
+    length_mm: input.largo_mm,
+  })
+  if ('error' in parsed) throw new ToolError(parsed.error)
+  const row = parsed.value
+
+  // Same identity as the UNIQUE NULLS NOT DISTINCT, so the answer can say whether it already existed.
+  let lookup = db.from('material_presentations').select('id')
+  for (const column of PRESENTATION_KEY.split(',') as (keyof PresentationRow)[]) {
+    lookup = row[column] === null ? lookup.is(column, null) : lookup.eq(column, row[column])
+  }
+  const { data: existing, error: lookupError } = await lookup.limit(1).maybeSingle()
+  if (lookupError) throw new ToolError(`Error al leer las medidas: ${lookupError.message}`)
+
+  const { error } = await db
+    .from('material_presentations')
+    .upsert({ ...row, last_used_at: new Date().toISOString() }, { onConflict: PRESENTATION_KEY })
+  if (error) throw new ToolError(`Error al guardar la presentación: ${error.message}`)
+  return {
+    accion: existing ? 'ya_existia' : 'registrada',
+    presentacion: describePresentation(row),
+    nota: existing
+      ? 'Ya estaba registrada; quedó como la más reciente.'
+      : 'Registrada: get_cut_plan ya calcula con ella cuántas barras u hojas salen. Una medida errónea se borra en la app (Medidas de material).',
   }
 }

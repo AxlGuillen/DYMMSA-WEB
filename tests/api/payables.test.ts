@@ -176,6 +176,9 @@ describe('POST /api/payables', () => {
       { ...VALID_BODY, amount: -5 },
       { ...VALID_BODY, invoice_date: '01/09/2026' },
       { ...VALID_BODY, due_date: 'pronto' },
+      // A day that does not exist: Postgres would answer 22008 → a 500 (review PR #128).
+      { ...VALID_BODY, invoice_date: '2026-02-30' },
+      { ...VALID_BODY, due_date: '2026-04-31' },
     ]
     for (const body of cases) {
       expect((await payables.POST(makeRequest(body))).status, JSON.stringify(body)).toBe(400)
@@ -250,6 +253,7 @@ describe('PATCH /api/payables/[id]', () => {
     expect((await payableById.PATCH(makeRequest({ concept: 'x' }), makeParams({ id: 'nope' }))).status).toBe(404)
     expect((await payableById.PATCH(makeRequest({ status: 'weird' }), makeParams({ id: 'p1' }))).status).toBe(400)
     expect((await payableById.PATCH(makeRequest({}), makeParams({ id: 'p1' }))).status).toBe(400)
+    expect((await payableById.PATCH(makeRequest({ due_date: '2026-02-30' }), makeParams({ id: 'p1' }))).status).toBe(400)
   })
 })
 

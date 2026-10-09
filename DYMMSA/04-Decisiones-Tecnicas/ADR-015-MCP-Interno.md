@@ -69,9 +69,9 @@ Decisiones clave:
 | Tool | Módulo |
 |---|---|
 | `get_business_summary` | Transversal (KPIs de todos los módulos) |
-| `list_quotations` / `get_quotation` / `get_quotation_stats` | Cotizaciones |
-| `list_orders` / `get_order` / `get_order_by_quotation` | Órdenes |
-| `search_inventory` / `get_inventory_stats` | Inventario |
+| `list_quotations` / `get_quotation` (incluye la orden ligada desde #134) | Cotizaciones |
+| `list_orders` / `get_order` | Órdenes |
+| `search_inventory` | Inventario |
 | `search_products` | Catálogo ETM (descripción resuelta, ADR-013) |
 | `search_urrea_catalog` | Catálogo URREA (exacto normalizado → parcial) |
 | `list_tasks` / `get_task` | Tareas (GitHub Issues, ADR-014) |
@@ -81,6 +81,8 @@ Decisiones clave:
 | Tool | Módulo | Notas |
 |---|---|---|
 | `create_task` | Tareas (GitHub Issues) | Crea un issue. Espeja `POST /api/tasks` pero con reporter fijo `"Asistente (MCP)"` (el MCP no tiene sesión de usuario). `title` obligatorio; `description` y `priority` (`low\|medium\|high\|highest`) opcionales. Devuelve la task creada (#N + URL). |
+
+`get_quotation_stats`, `get_order_by_quotation` y `get_inventory_stats` salieron el 2026-10-08 (segunda etapa de ADR-034): repetían `get_business_summary` o caben en `get_quotation`. Las escrituras posteriores viven en [[ADR-030-MCP-Cobertura-y-Escrituras-Payables]], [[ADR-033-Nomina-Horas-por-Corte]], [[ADR-035-Reporte-del-Checador-por-el-MCP]] y [[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]].
 
 La confirmación humana previa a la escritura recae en el **cliente MCP** (Claude pide
 permiso antes de invocar la tool); el servidor solo valida y ejecuta. `create_task`
