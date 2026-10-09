@@ -41,6 +41,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'search_products', block: 'app', module: 'Catalogos', kind: 'read', title: 'Buscar productos ETM', example: 'Busca el ETM del rodillo de 9 pulgadas.' },
   { name: 'search_urrea_catalog', block: 'app', module: 'Catalogos', kind: 'read', title: 'Consultar catalogo URREA', example: '¿Cuantas piezas trae el paquete del 6954?' },
   { name: 'list_suppliers', block: 'app', module: 'Proveedores', kind: 'read', title: 'Proveedores de menudeo', example: '¿Quien me surte SURTEK y que plazo da?' },
+  { name: 'save_supplier', block: 'app', module: 'Proveedores', kind: 'write', title: 'Guardar proveedor', example: 'Da de alta a Tornillos MX, 30 dias de credito, surte SURTEK.', limits: 'Alta o edicion de contacto, dias de credito y marcas ya registradas. No borra proveedores ni crea marcas.' },
   { name: 'list_payables', block: 'app', module: 'Finanzas', kind: 'read', title: 'Facturas por pagar', example: '¿Que facturas vencen este mes?' },
   { name: 'get_payable', block: 'app', module: 'Finanzas', kind: 'read', title: 'Detalle de factura por pagar', example: 'Dame el detalle de la factura de Perfiles.' },
   { name: 'get_payables_overview', block: 'app', module: 'Finanzas', kind: 'read', title: 'Resumen de facturas por pagar', example: '¿Que debo esta semana?' },

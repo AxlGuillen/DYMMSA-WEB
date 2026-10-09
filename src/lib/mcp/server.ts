@@ -26,7 +26,7 @@ import { getWeekHours, getHoursTrend, listTimeImports, previewTimeReport, saveTi
 import { MCP_VIEWS } from './views/generated'
 import { getProfiles } from './tools/profiles'
 import { getPayrollPeriod, recordPayrollHours } from './tools/payroll'
-import { listSuppliers } from './tools/suppliers'
+import { listSuppliers, saveSupplier } from './tools/suppliers'
 import { listPayables, getPayable, getPayablesOverview, markPayablePaid, createPayable } from './tools/payables'
 import { getMonthClosing } from './tools/finance'
 import { getCutPlan } from './tools/cutting'
@@ -103,7 +103,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
 - Inventario de la TIENDA: search_inventory; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
-- Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte).
+- Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte); escritura save_supplier (alta o edición, nunca borra).
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente) y create_payable (registrar una factura de gasto).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
 - Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports, preview_time_report; escriben save_time_entries y save_excused_day' : ' (solo lectura)'}. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con odoo_employee_directory (Odoo tiene el directorio, no las checadas).
@@ -298,6 +298,30 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       annotations: readOnly,
     },
     (input, extra) => run(extra, (db) => listSuppliers(db, input)),
+  )
+
+  server.registerTool(
+    'save_supplier',
+    {
+      title: 'Guardar proveedor',
+      description:
+        'Da de alta un proveedor de menudeo, o edita uno existente si mandas proveedor (su nombre o parte): contacto, días de crédito (null = contado) y marcas que surte con agregar_marcas / quitar_marcas (deben existir en el catálogo de marcas). Un texto vacío borra ese dato. ESCRIBE: confirma los datos antes. No borra proveedores.',
+      inputSchema: {
+        proveedor: z.string().optional().describe('Proveedor a editar (nombre o parte); omítelo para dar de alta'),
+        nombre: z.string().optional().describe('Nombre (obligatorio en un alta)'),
+        telefono: z.string().optional(),
+        whatsapp: z.string().optional(),
+        email: z.string().optional(),
+        direccion: z.string().optional(),
+        notas: z.string().optional(),
+        dias_credito: z.number().int().min(0).nullable().optional().describe('Días de crédito; null = contado'),
+        agregar_marcas: z.array(z.string()).optional().describe('Marcas que surte, p. ej. ["SURTEK"]'),
+        quitar_marcas: z.array(z.string()).optional(),
+      },
+      // Scoped write (#134, ADR-037): contact data and brand links; deleting stays in the app.
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (db) => saveSupplier(db, input)),
   )
 
   server.registerTool(

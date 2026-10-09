@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
-import type { Brand, SupplierInsert, SupplierWithBrands } from '@/types/database'
+import { createSupplier, parseSupplierInput, SupplierError } from '@/lib/suppliers-store'
+import type { Brand, SupplierWithBrands } from '@/types/database'
 
 const SORT_FIELDS = ['name', 'updated_at'] as const
 type SortField = (typeof SORT_FIELDS)[number]
@@ -96,10 +97,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-interface CreateSupplierBody extends Partial<SupplierInsert> {
-  brandIds?: string[]
-}
-
 // POST /api/suppliers — create supplier (+ brand links)
 export async function POST(request: NextRequest) {
   try {
@@ -107,56 +104,19 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as CreateSupplierBody
-    const name = typeof body.name === 'string' ? body.name.trim() : ''
-    if (!name) return badRequest('El nombre del proveedor es obligatorio')
+    const body = (await request.json()) as { brandIds?: unknown }
+    const parsed = parseSupplierInput(body, { requireName: true })
+    if ('error' in parsed) return badRequest(parsed.error)
     if (body.brandIds !== undefined && !Array.isArray(body.brandIds)) {
       return badRequest('brandIds debe ser un arreglo')
     }
 
-    const terms = body.payment_terms_days
-    if (terms != null && (!Number.isInteger(terms) || terms < 0)) {
-      return badRequest('El plazo de pago debe ser un entero de días (o vacío = contado)')
-    }
-
-    const payload: SupplierInsert = {
-      name,
-      phone: body.phone?.trim() || null,
-      whatsapp: body.whatsapp?.trim() || null,
-      email: body.email?.trim() || null,
-      address: body.address?.trim() || null,
-      notes: body.notes?.trim() || null,
-      payment_terms_days: terms ?? null,
-    }
-
-    const { data: supplier, error } = await supabase
-      .from('suppliers')
-      .insert(payload)
-      .select()
-      .single()
-
-    if (error || !supplier) {
-      if (error?.code === '23505') return badRequest('Ya existe un proveedor con ese nombre')
-      console.error('Error creating supplier:', error)
-      return serverError('Error al crear el proveedor')
-    }
-
-    const brandIds = [...new Set(body.brandIds ?? [])]
-    if (brandIds.length > 0) {
-      const { error: linksError } = await supabase
-        .from('supplier_brands')
-        .insert(brandIds.map((brand_id) => ({ supplier_id: supplier.id, brand_id })))
-
-      if (linksError) {
-        // Rollback: without its brands the record is half-created — drop the parent.
-        await supabase.from('suppliers').delete().eq('id', supplier.id)
-        console.error('Error linking supplier brands (rolled back):', linksError)
-        return serverError('Error al asignar las marcas del proveedor')
-      }
-    }
-
+    const supplier = await createSupplier(supabase, parsed.value, (body.brandIds as string[] | undefined) ?? [])
     return NextResponse.json(supplier, { status: 201 })
   } catch (error) {
+    if (error instanceof SupplierError) {
+      return error.kind === 'failed' ? serverError(error.message) : badRequest(error.message)
+    }
     console.error('Supplier create error:', error)
     return serverError('Error al crear el proveedor')
   }
