@@ -73,6 +73,20 @@ describe('getQuotation', () => {
     expect(result.items_count).toBe(2) // products, no separator
     expect(result.items[0]).toEqual({ item_type: 'separator', section_label: 'Sección 1' })
     expect(result.items[1]).toMatchObject({ etm: 'E1', line_total: 20, description: 'Desc ES' })
+    expect(result.orden).toBeNull()
+  })
+
+  test('trae la orden en que se convirtió (absorbe get_order_by_quotation, #134)', async () => {
+    const client = createMockSupabase({
+      responses: {
+        quotations: {
+          data: { id: 'q1', name: 'Cot', customer_name: 'ACME', status: 'converted_to_order', notes: null, approved_at: null, created_at: '', updated_at: '', quotation_items: [] },
+        },
+        orders: { data: { id: 'o1', name: 'Orden ACME', status: 'ordered' } },
+      },
+    })
+    const result = await getQuotation(asDb(client), 'q1')
+    expect(result.orden).toEqual({ id: 'o1', nombre: 'Orden ACME', estado: 'ordered' })
   })
 
   test('PGRST116 → "Cotización no encontrada"', async () => {

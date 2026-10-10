@@ -1,9 +1,11 @@
 /** FinanceOverview (#94): income cards + month closing next to payables, and the Odoo-unavailable state. */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
+import { resetStores } from './helpers/stores'
+import { useCollapsedSectionsStore } from '@/stores/collapsedSectionsStore'
 import { FinanceOverview } from '@/components/finance/FinanceOverview'
 import type { IncomeOverviewResponse } from '@/lib/income'
 
@@ -182,5 +184,41 @@ describe('FinanceOverview — ingresos', () => {
     expect(within(header).getByText(/Actualizado hace/)).toBeInTheDocument()
     await user.click(within(header).getByRole('button', { name: 'Actualizar ingresos' }))
     expect(state.mutate).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}$/), expect.anything())
+  })
+})
+
+describe('FinanceOverview — apartados colapsables (2026-10-05)', () => {
+  beforeEach(() => {
+    resetStores()
+    state.income = INCOME_OK
+    state.isError = false
+    state.payablesError = false
+    state.payablesCached = false
+  })
+
+  test('contraer un apartado esconde su contenido y el estado se recuerda', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<FinanceOverview />)
+    const credit = screen.getByTestId('credit-notes')
+    expect(within(credit).getByText(/Saldo a favor de clientes/)).toBeInTheDocument()
+
+    await user.click(within(credit).getByRole('button', { name: /Notas de crédito sin aplicar/ }))
+    await waitFor(() => expect(within(credit).queryByText(/Saldo a favor de clientes/)).not.toBeInTheDocument())
+    expect(within(credit).getByRole('button', { name: /Notas de crédito sin aplicar/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(useCollapsedSectionsStore.getState().collapsed['fin-credit-notes']).toBe(true)
+    // The total stays in the header: collapsing hides the list, not the amount.
+    expect(credit).toHaveTextContent('$1,500.00')
+  })
+
+  test('"Contraer todo" deja solo los encabezados y "Expandir todo" los regresa', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<FinanceOverview />)
+    await user.click(screen.getByRole('button', { name: 'Contraer todo' }))
+    await waitFor(() => expect(screen.queryByText('Pendiente del mes')).not.toBeInTheDocument())
+    expect(screen.queryByText('Cobrado del mes')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Notas de crédito sin aplicar/ })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Expandir todo' }))
+    await waitFor(() => expect(screen.getByText('Pendiente del mes')).toBeInTheDocument())
   })
 })

@@ -1,5 +1,7 @@
 /** Pure mm math (ADR-022). Callers coerce supabase-js numeric strings first. */
 
+import type { MaterialPresentation } from '@/types/database'
+
 /** Margin consumed by every cut. */
 export const DEFAULT_CUT_MARGIN_MM = 20
 export const SETTING_CUT_MARGIN_MM = 'cut_margin_mm'
@@ -16,6 +18,34 @@ export function formatMm(mm: number): string {
   if (mm < 1000) return `${Math.round(mm * 10) / 10} mm`
   const meters = Math.round((mm / 1000) * 100) / 100
   return `${meters} m`
+}
+
+export type PresentationRow = Pick<MaterialPresentation, 'material_type' | 'diameter_mm' | 'thickness_mm' | 'width_mm' | 'length_mm'>
+
+/** The catalog's identity (UNIQUE NULLS NOT DISTINCT): the upsert key the route and save_material_presentation share (#134). */
+export const PRESENTATION_KEY = 'material_type,diameter_mm,thickness_mm,width_mm,length_mm'
+
+const isPositiveMm = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0
+
+/** A tube needs a diameter, a plate thickness and width; the other shape's fields come out null (the CHECK demands it). */
+export function parsePresentationInput(body: unknown): { value: PresentationRow } | { error: string } {
+  const raw = (body ?? {}) as Record<string, unknown>
+  if (raw.material_type !== 'tube' && raw.material_type !== 'plate') return { error: 'Tipo de material inválido' }
+  if (!isPositiveMm(raw.length_mm)) return { error: 'El largo comercial debe ser mayor a 0' }
+  if (raw.material_type === 'tube' && !isPositiveMm(raw.diameter_mm)) return { error: 'Una presentación de tubo necesita diámetro' }
+  if (raw.material_type === 'plate' && (!isPositiveMm(raw.thickness_mm) || !isPositiveMm(raw.width_mm))) {
+    return { error: 'Una presentación de placa necesita espesor y ancho' }
+  }
+  const tube = raw.material_type === 'tube'
+  return {
+    value: {
+      material_type: raw.material_type,
+      diameter_mm: tube ? (raw.diameter_mm as number) : null,
+      thickness_mm: tube ? null : (raw.thickness_mm as number),
+      width_mm: tube ? null : (raw.width_mm as number),
+      length_mm: raw.length_mm,
+    },
+  }
 }
 
 /** Readable mm²: below 1 m² uses cm². */

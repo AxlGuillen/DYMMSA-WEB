@@ -10,6 +10,7 @@ src/
 │   │   ├── payables/[id]/events/ # GET admin: bitácora de una factura desde audit_events (issue #100, ADR-028)
 │   │   ├── profile/avatar/       # POST/DELETE: foto propia validada por sus bytes (issue #122, ADR-032)
 │   │   ├── excused-days/         # GET/POST + [id] DELETE: días feriados y salidas autorizadas (2026-10-01)
+│   │   ├── hours/overview/       # GET admin: resumen semanal oficina + taller (2026-10-05)
 │   │   ├── orders/
 │   │   │   ├── [id]/
 │   │   │   │   ├── cancel/       # POST: cancelar orden + restaurar inventario
@@ -59,6 +60,7 @@ src/
 │   │   ├── hours/
 │   │   │   ├── page.tsx          # Mi semana: stepper + WeekGrid (issue #93)
 │   │   │   ├── import/page.tsx   # Importar reporte NGTeco (admin)
+│   │   │   ├── overview/page.tsx # Resumen del equipo: oficina + taller (admin, 2026-10-05)
 │   │   │   └── team/page.tsx     # Roles e ids de checador (admin)
 │   │   ├── profile/page.tsx      # Mi perfil: foto, nombre y NSS (issue #122)
 │   │   ├── orders/
@@ -86,7 +88,7 @@ src/
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
 │   ├── profile/                  # ProfileView, UserAvatar (issue #122)
-│   ├── hours/                    # ExcusedDaysPanel (2026-10-01); HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93); WeekChart/WeekBars, TrendChart/TrendBars (gráficas con referencias de jornada, issue #101)
+│   ├── hours/                    # TeamHoursOverview, WeekPayCard (2026-10-05); ExcusedDaysPanel (2026-10-01); HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93); WeekChart/WeekBars, TrendChart/TrendBars (gráficas con referencias de jornada, issue #101)
 │   ├── payroll/                  # PayrollView (corte sábado→viernes), PayrollDayDialog, PayrollEmployeesDialog (issue #123, solo admin)
 │   ├── inventory/                # InventoryForm, InventoryImporter, InventoryTable
 │   ├── layout/                   # Footer, Navbar, Sidebar
@@ -137,7 +139,12 @@ src/
 │   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); describeAuditEvent (#100); re-exporta month.ts
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94)
+│   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
+│   ├── mcp/views/generated.ts    # HTML de las vistas MCP Apps, generado por scripts/build-mcp-views.ts (ADR-036)
 │   └── utils.ts                  # cn() — class merging
+│
+├── mcp-views/                    # Vistas MCP Apps (ADR-036): main.ts + styles.css por vista; bun run build:mcp-views
+│   └── time-report/              # Revisión del reporte del checador con botón Guardar
 │
 ├── stores/
 │   ├── cutDraftStore.ts          # Zustand store: borrador del corte rápido (persist 'dymmsa-cut-draft', issue #71)

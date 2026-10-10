@@ -9,7 +9,7 @@ vi.mock('@/lib/mcp/supabase', () => ({
   clientForToken: vi.fn(),
 }))
 
-import { verifierClient } from '@/lib/mcp/supabase'
+import { clientForToken, verifierClient } from '@/lib/mcp/supabase'
 import { verifyToken, resetIdentityCache } from '@/lib/mcp/oauth'
 
 const b64 = (obj: unknown) => Buffer.from(JSON.stringify(obj)).toString('base64url')
@@ -27,12 +27,23 @@ function mockGoTrue(user: { id: string; email?: string } | null, error: string |
   )
 }
 
+/** The own-profile read that decides the tool list (#133); `null` = no row, `'fail'` = the read throws. */
+function mockProfile(role: 'admin' | 'member' | null | 'fail') {
+  const maybeSingle = role === 'fail'
+    ? () => Promise.reject(new Error('network'))
+    : () => Promise.resolve({ data: role ? { role } : null, error: null })
+  vi.mocked(clientForToken).mockReturnValue({
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }),
+  } as unknown as ReturnType<typeof clientForToken>)
+}
+
 beforeEach(() => {
   resetIdentityCache()
   getUser.mockReset()
   vi.mocked(verifierClient).mockReturnValue({
     auth: { getUser },
   } as unknown as ReturnType<typeof verifierClient>)
+  mockProfile('member')
   delete process.env.MCP_OAUTH_CLIENT_IDS
 })
 
@@ -82,9 +93,35 @@ describe('verifyToken — puertas', () => {
       clientId: 'claude-1',
       scopes: [],
       expiresAt: 1234,
-      extra: { userId: 'u1', email: 'a@dymmsa.com', clientId: 'claude-1' },
+      extra: { userId: 'u1', email: 'a@dymmsa.com', clientId: 'claude-1', role: 'member' },
     })
     expect(info).not.toHaveProperty('resource')
+  })
+})
+
+describe('verifyToken — rol (#133)', () => {
+  test('el rol sale de la fila propia de profiles leida con el token del usuario', async () => {
+    mockGoTrue({ id: 'u1' })
+    mockProfile('admin')
+    const info = await verifyToken(req, makeToken({ client_id: 'c1' }))
+    expect(info?.extra).toMatchObject({ role: 'admin' })
+    expect(clientForToken).toHaveBeenCalledWith(expect.any(String))
+  })
+
+  test('REGLA: sin fila o con la lectura caida se registra como member, nunca con la lista ancha', async () => {
+    mockGoTrue({ id: 'u1' })
+    mockProfile(null)
+    expect((await verifyToken(req, makeToken({ client_id: 'c1', sub: 'a' })))?.extra).toMatchObject({ role: 'member' })
+    mockProfile('fail')
+    expect((await verifyToken(req, makeToken({ client_id: 'c1', sub: 'b' })))?.extra).toMatchObject({ role: 'member' })
+  })
+
+  test('el rol se cachea con la identidad: una promocion tarda hasta el TTL en verse', async () => {
+    mockGoTrue({ id: 'u1' })
+    const token = makeToken({ client_id: 'c1' })
+    await verifyToken(req, token)
+    mockProfile('admin')
+    expect((await verifyToken(req, token))?.extra).toMatchObject({ role: 'member' })
   })
 })
 

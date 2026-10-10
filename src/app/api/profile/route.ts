@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import { parseDisplayName, parseNss, withAvatarUrl } from '@/lib/profile'
+import { parseDisplayName, parseNss, presentProfile } from '@/lib/profile'
 import type { OwnProfile, OwnProfileUpdate, Profile } from '@/types/database'
 
-const OWN_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner'
+// No hourly_rate: pay amounts are never shown to the person (2026-10-05).
+const OWN_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, area'
 const EDITABLE = new Set<keyof OwnProfileUpdate>(['display_name', 'nss'])
 
 type OwnRow = Omit<Profile, 'created_at' | 'updated_at'>
@@ -23,7 +24,7 @@ export async function GET() {
       console.error('Error fetching profile:', error)
       return serverError('Error al obtener el perfil')
     }
-    const profile: OwnProfile = { ...withAvatarUrl(data as OwnRow), email: auth.user.email ?? null }
+    const profile: OwnProfile = { ...presentProfile(data as OwnRow), email: auth.user.email ?? null }
     return NextResponse.json(profile)
   } catch (error) {
     console.error('Profile GET error:', error)
@@ -68,7 +69,7 @@ export async function PATCH(request: NextRequest) {
       console.error('Error updating own profile:', error)
       return serverError('Error al actualizar tu perfil')
     }
-    const profile: OwnProfile = { ...withAvatarUrl(data as OwnRow), email: auth.user.email ?? null }
+    const profile: OwnProfile = { ...presentProfile(data as OwnRow), email: auth.user.email ?? null }
     return NextResponse.json(profile)
   } catch (error) {
     console.error('Profile PATCH error:', error)

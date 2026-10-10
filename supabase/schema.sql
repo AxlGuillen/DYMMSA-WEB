@@ -510,6 +510,7 @@ CREATE TABLE public.profiles (
   nss text CHECK (nss ~ '^[0-9]{11}$'),
   avatar_path text,
   is_owner boolean NOT NULL DEFAULT false,
+  area text NOT NULL DEFAULT 'office' CHECK (area IN ('office', 'workshop')),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT profiles_avatar_own_folder CHECK (avatar_path IS NULL OR avatar_path LIKE id::text || '/%'),
@@ -531,8 +532,9 @@ BEGIN
     OR NEW.clock_employee_id IS DISTINCT FROM OLD.clock_employee_id
     OR NEW.shift IS DISTINCT FROM OLD.shift
     OR NEW.is_owner IS DISTINCT FROM OLD.is_owner
+    OR NEW.area IS DISTINCT FROM OLD.area
   ) THEN
-    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada o el id del checador'
+    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada, el área, el id del checador o el dueño'
       USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
@@ -756,7 +758,10 @@ CREATE POLICY "Admins add excused days" ON public.excused_days
   FOR INSERT TO authenticated WITH CHECK (public.is_admin());
 CREATE POLICY "Admins delete excused days" ON public.excused_days
   FOR DELETE TO authenticated USING (public.is_admin());
-GRANT SELECT, INSERT, DELETE ON public.excused_days TO authenticated;
+-- UPDATE llegó con save_excused_day (review PR #138): cambiar feriado ↔ salida autorizada en su lugar.
+CREATE POLICY "Admins update excused days" ON public.excused_days
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.excused_days TO authenticated;
 GRANT ALL ON public.excused_days TO service_role;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.import_time_entries(jsonb, date, date, text) TO authenticated, service_role;
@@ -937,3 +942,23 @@ CREATE POLICY "Admins manage payroll periods" ON public.payroll_periods
 REVOKE ALL ON public.payroll_employees, public.payroll_days, public.payroll_periods FROM anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.payroll_employees, public.payroll_days, public.payroll_periods TO authenticated;
 GRANT ALL ON public.payroll_employees, public.payroll_days, public.payroll_periods TO service_role;
+
+-- ============================================================================
+-- Tarifa por hora (review PR #137): la policy de fila propia de profiles dejaba a un member leer
+-- su hourly_rate por PostgREST. Vive aparte, solo admin — mismo precedente que audit_events (ADR-028).
+-- Sin fila = sin tarifa (sin pago estimado).
+-- ============================================================================
+CREATE TABLE public.profile_pay (
+  profile_id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  hourly_rate numeric(10,2) NOT NULL CHECK (hourly_rate > 0),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TRIGGER profile_pay_set_updated_at BEFORE UPDATE ON public.profile_pay
+  FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
+
+ALTER TABLE public.profile_pay ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins manage profile pay" ON public.profile_pay
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+REVOKE ALL ON public.profile_pay FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.profile_pay TO authenticated;
+GRANT ALL ON public.profile_pay TO service_role;

@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CollapseToggle, useCollapsed } from '@/components/CollapseToggle'
+import { useCollapsedSectionsStore } from '@/stores/collapsedSectionsStore'
 import { MetricCard } from '@/components/dashboard/MetricCard'
 import { Badge } from '@/components/ui/badge'
 import { ChevronLeft, ChevronRight, DollarSign, AlertTriangle, Clock, Check, Receipt, RefreshCw, RotateCcw } from '@/components/icons'
@@ -33,12 +35,21 @@ const monthLabel = (month: string) => {
   return `${MONTH_LABELS[m - 1]} ${y}`
 }
 
+const FINANCE_SECTIONS = ['fin-expenses', 'fin-income', 'fin-due-weeks', 'fin-collections', 'fin-credit-notes']
+
 export function FinanceOverview() {
   const [month, setMonth] = useState(() => todayInMexico().slice(0, 7))
   const { data, isLoading, isError: payablesError } = usePayablesOverview(month)
   const incomeQuery = useIncomeOverview(month)
   const refreshIncome = useRefreshIncome()
   const fmt = useCurrency()
+  const expensesCollapsed = useCollapsed('fin-expenses')
+  const incomeCollapsed = useCollapsed('fin-income')
+  const dueWeeksCollapsed = useCollapsed('fin-due-weeks')
+  const collectionsCollapsed = useCollapsed('fin-collections')
+  const creditNotesCollapsed = useCollapsed('fin-credit-notes')
+  const allCollapsed = expensesCollapsed && incomeCollapsed && dueWeeksCollapsed && collectionsCollapsed && creditNotesCollapsed
+  const setAllSections = useCollapsedSectionsStore((st) => st.setAll)
   const fmtDay = useDateFormat()
 
   const summary = data?.summary
@@ -94,10 +105,16 @@ export function FinanceOverview() {
             Hoy
           </Button>
         )}
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setAllSections(FINANCE_SECTIONS, !allCollapsed)}>
+          {allCollapsed ? 'Expandir todo' : 'Contraer todo'}
+        </Button>
       </div>
 
       <section className="space-y-6" data-tour="fin-expenses">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Egresos</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <CollapseToggle id="fin-expenses">Egresos</CollapseToggle>
+        </h2>
+        {!expensesCollapsed && (<>
         {payablesUnavailable ? (
           <Card>
             <CardHeader>
@@ -161,12 +178,14 @@ export function FinanceOverview() {
             Egresos pagados: la lectura del mes llegó a su límite; el cierre real puede quedar corto.
           </p>
         )}
-
+        </>)}
       </section>
 
       <section className="space-y-6" data-tour="fin-income">
         <div className="flex flex-wrap items-center justify-between gap-2" data-testid="income-header">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingresos (Odoo)</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <CollapseToggle id="fin-income">Ingresos (Odoo)</CollapseToggle>
+          </h2>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {currencies.length > 0 && (
               <Badge variant="outline">Incluye {currencies.join(', ')} sin convertir</Badge>
@@ -179,6 +198,7 @@ export function FinanceOverview() {
           </div>
         </div>
 
+        {!incomeCollapsed && (<>
         {incomeUnavailable ? (
           <Card>
             <CardHeader>
@@ -243,20 +263,22 @@ export function FinanceOverview() {
             Facturas abiertas: la lectura llegó a su límite; por cobrar, vencido y notas de crédito pueden quedar cortos.
           </p>
         )}
-
+        </>)}
       </section>
 
       <Card data-tour="fin-due-weeks">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Receipt className="size-4" />
-            Vencimientos de {monthLabel(month).toLowerCase()}
+          <CardTitle className="text-base">
+            <CollapseToggle id="fin-due-weeks">
+              <Receipt className="size-4" />
+              Vencimientos de {monthLabel(month).toLowerCase()}
+            </CollapseToggle>
           </CardTitle>
           <Button asChild variant="outline" size="sm">
             <Link href="/dashboard/finance/payables">Ver todas</Link>
           </Button>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {!dueWeeksCollapsed && <CardContent className="space-y-4">
           {payablesUnavailable && (
             <p className="text-sm text-muted-foreground">
               No se pudieron cargar las facturas; esta lista puede estar incompleta.
@@ -292,18 +314,20 @@ export function FinanceOverview() {
               </div>
             </div>
           ))}
-        </CardContent>
+        </CardContent>}
       </Card>
 
       {income && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Check className="size-4" />
-              Cobros de {monthLabel(month).toLowerCase()}
+            <CardTitle className="text-base">
+              <CollapseToggle id="fin-collections">
+                <Check className="size-4" />
+                Cobros de {monthLabel(month).toLowerCase()}
+              </CollapseToggle>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1">
+          {!collectionsCollapsed && <CardContent className="space-y-1">
             {incomeData?.collections.length === 0 && (
               <p className="text-sm text-muted-foreground">Sin cobros registrados en Odoo este mes.</p>
             )}
@@ -322,7 +346,7 @@ export function FinanceOverview() {
             {income.collectionsTruncated && (
               <p className="pt-1 text-xs text-muted-foreground">La lista de cobros llegó al límite de la lectura; el total puede quedar corto.</p>
             )}
-          </CardContent>
+          </CardContent>}
         </Card>
       )}
 
@@ -330,15 +354,17 @@ export function FinanceOverview() {
       {income && (
         <Card data-testid="credit-notes" data-tour="fin-credit-notes">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <RotateCcw className="size-4" />
-              Notas de crédito sin aplicar
+            <CardTitle className="text-base">
+              <CollapseToggle id="fin-credit-notes">
+                <RotateCcw className="size-4" />
+                Notas de crédito sin aplicar
+              </CollapseToggle>
             </CardTitle>
             <span className="text-sm tabular-nums text-muted-foreground">
               {fmt(income.creditNotesTotal)} · {income.creditNotesCount} nota{income.creditNotesCount !== 1 ? 's' : ''}{currencyNote(income.creditNoteCurrencies)}
             </span>
           </CardHeader>
-          <CardContent className="space-y-1">
+          {!creditNotesCollapsed && <CardContent className="space-y-1">
             {incomeData?.creditNotes.length === 0 && (
               <p className="text-sm text-muted-foreground">Sin notas de crédito sin aplicar en Odoo.</p>
             )}
@@ -357,7 +383,7 @@ export function FinanceOverview() {
             <p className="pt-1 text-xs text-muted-foreground">
               Saldo a favor de clientes. No se resta del por cobrar: no sabemos si el cliente lo usará o si se aplicará a una factura.
             </p>
-          </CardContent>
+          </CardContent>}
         </Card>
       )}
 

@@ -8,12 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSavePayrollDay } from '@/hooks/usePayroll'
 import { formatDayLong } from '@/lib/format'
-import { classifyDay, parseHoursInput } from '@/lib/payroll'
+import { classifyDay, isSaturday, officeSaturdayMinutes, parseHoursInput } from '@/lib/payroll'
 import { formatDuration } from '@/lib/timesheet'
-import type { PayrollDay, PayrollEmployee } from '@/types/database'
+import type { PayrollDay, PayrollEmployee, ProfileArea } from '@/types/database'
 
 export interface DayTarget {
   employee: PayrollEmployee
+  /** Office or workshop: decides how a Saturday counts (#135). */
+  area: ProfileArea
   date: string
   day: PayrollDay | null
 }
@@ -37,7 +39,7 @@ export function PayrollDayDialog({ target, onClose }: { target: DayTarget | null
 }
 
 function DayFields({ target, onClose }: { target: DayTarget; onClose: () => void }) {
-  const { employee, date, day } = target
+  const { employee, area, date, day } = target
   const [worked, setWorked] = useState(asInput(day?.worked_minutes))
   const [missed, setMissed] = useState(asInput(day?.missed_minutes))
   const [note, setNote] = useState(day?.note ?? '')
@@ -45,7 +47,8 @@ function DayFields({ target, onClose }: { target: DayTarget; onClose: () => void
 
   const workedMinutes = parseHoursInput(worked)
   const missedMinutes = parseHoursInput(missed)
-  const breakdown = workedMinutes ? classifyDay(date, workedMinutes, employee.shift) : null
+  const breakdown = workedMinutes ? classifyDay(date, workedMinutes, employee.shift, area) : null
+  const officeSaturday = area === 'office' && isSaturday(date)
 
   const submit = async (values: { worked: number; missed: number; note: string }) => {
     try {
@@ -85,12 +88,17 @@ function DayFields({ target, onClose }: { target: DayTarget; onClose: () => void
         <div className="space-y-2">
           <Label htmlFor="pd-worked">Horas trabajadas</Label>
           <Input id="pd-worked" value={worked} onChange={(e) => setWorked(e.target.value)} placeholder="8, 8.5 u 8:30" inputMode="decimal" autoFocus />
-          {breakdown && (
+          {officeSaturday && (
             <p className="text-xs text-muted-foreground">
-              {breakdown.saturday > 0 && `Sábado: cuenta doble (${formatDuration(breakdown.equivalent)}).`}
+              Sábado de oficina: lo que escribas aquí es lo que se paga, todo normal. Sin ir se le pagan {officeSaturdayMinutes(employee.shift) / 60} h.
+            </p>
+          )}
+          {breakdown && !officeSaturday && (
+            <p className="text-xs text-muted-foreground">
               {breakdown.sunday > 0 && `Domingo: cuenta triple (${formatDuration(breakdown.equivalent)}).`}
               {breakdown.regular > 0 && `${formatDuration(breakdown.regular)} normales`}
               {breakdown.extra > 0 && ` + ${formatDuration(breakdown.extra)} extra`}
+              {breakdown.saturdayExtra > 0 && ` + ${formatDuration(breakdown.saturdayExtra)} al doble (${formatDuration(breakdown.equivalent)} equivalentes)`}
             </p>
           )}
         </div>

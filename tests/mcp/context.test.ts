@@ -10,7 +10,7 @@ vi.mock('@/lib/mcp/supabase', () => ({
 
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { clientForToken } from '@/lib/mcp/supabase'
-import { contextFrom } from '@/lib/mcp/context'
+import { contextFrom, roleFrom } from '@/lib/mcp/context'
 import { ToolError } from '@/lib/mcp/shared'
 
 const FAKE_DB = { from: vi.fn() }
@@ -43,5 +43,15 @@ describe('contextFrom', () => {
     expect(clientForToken).toHaveBeenCalledWith('token-abc')
     expect(ctx.db).toBe(FAKE_DB)
     expect(ctx).toMatchObject({ userId: 'u1', email: 'a@dymmsa.com', clientId: 'c1' })
+  })
+})
+
+describe('roleFrom (#133)', () => {
+  test('solo un admin verificado recibe el handler de admin; lo demas es member', () => {
+    expect(roleFrom(authInfo({ userId: 'u1', role: 'admin' }))).toBe('admin')
+    expect(roleFrom(authInfo({ userId: 'u1', role: 'member' }))).toBe('member')
+    expect(roleFrom(authInfo({ userId: 'u1' }))).toBe('member')
+    expect(roleFrom(authInfo(undefined))).toBe('member')
+    expect(roleFrom(undefined)).toBe('member')
   })
 })

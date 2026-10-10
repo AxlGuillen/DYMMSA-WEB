@@ -1,7 +1,8 @@
 /** HoursView (#93): a member sees only their own week, with no selector and no edit controls. */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
 import { HoursView } from '@/components/hours/HoursView'
 import { buildWeekView } from '@/lib/timesheet'
@@ -20,8 +21,8 @@ vi.mock('@/hooks/useProfile', () => ({
   useProfiles: (enabled: boolean) => ({
     data: enabled
       ? [
-          { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5, shift: 'part_time' },
-          { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null },
+          { id: 'me', display_name: 'Tania', role: state.role, clock_employee_id: 5, shift: 'part_time', hourly_rate: 52, area: 'office' },
+          { id: 'u-diego', display_name: 'Diego', role: 'admin', clock_employee_id: 1, shift: null, hourly_rate: 52, area: 'workshop' },
         ]
       : undefined,
   }),
@@ -93,5 +94,32 @@ describe('HoursView', () => {
     expect(screen.getByRole('button', { name: 'Esta semana' })).toBeInTheDocument()
     const params = state.lastParams as { from: string; to: string }
     expect(params.from < params.to).toBe(true)
+  })
+})
+
+describe('HoursView — área y pago (2026-10-05)', () => {
+  beforeEach(() => { state.role = 'member'; state.lastParams = null })
+
+  test('el pago estimado nunca se le muestra a la persona', () => {
+    renderWithProviders(<HoursView />)
+    expect(screen.queryByTestId('week-pay')).not.toBeInTheDocument()
+  })
+
+  test('el admin ve el pago de alguien de oficina', () => {
+    state.role = 'admin'
+    renderWithProviders(<HoursView />)
+    // 8:05 h + 4 h del sábado (medio tiempo) × $52.
+    expect(screen.getByTestId('week-pay-amount')).toHaveTextContent('$628.33')
+  })
+
+  test('el selector del admin separa Oficina y Taller', async () => {
+    state.role = 'admin'
+    const user = userEvent.setup()
+    renderWithProviders(<HoursView />)
+    await user.click(screen.getByLabelText('Empleado'))
+    const list = await screen.findByRole('listbox')
+    const groups = within(list).getAllByRole('group')
+    expect(groups.map((g) => g.textContent)).toEqual([expect.stringMatching(/^Oficina.*Tania/), expect.stringMatching(/^Taller.*Diego/)])
+    expect(list.querySelector('[data-slot="select-separator"]')).not.toBeNull()
   })
 })

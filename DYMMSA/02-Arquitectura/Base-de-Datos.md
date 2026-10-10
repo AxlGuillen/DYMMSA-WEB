@@ -378,12 +378,28 @@ RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRAN
 | `shift` | text | Sí | — | CHECK `full_time·part_time` | Jornada (#101, ADR-029): referencia de las gráficas de Horas (8 h/4 h al día, 40 h/20 h a la semana); NULL = sin asignar |
 | `nss` | text | Sí | — | CHECK `^[0-9]{11}$` | Número de Seguridad Social (Mi perfil, #122). Lo editan la persona y el admin; el dígito verificador se valida en la API |
 | `avatar_path` | text | Sí | — | CHECK `profiles_avatar_own_folder` (empieza con `<id>/`) | Ruta de la foto en el bucket `avatars`; NULL = avatar de iniciales |
+| `area` | text | No | `'office'` | CHECK `office·workshop` | Oficina o taller (2026-10-05): agrupa el selector de Mi semana y el Resumen del equipo. Solo el admin |
 | `is_owner` | boolean | No | `false` | índice único parcial `profiles_single_owner` (a lo más uno) | Dueño del negocio: corona en Equipo (2026-10-01). Lo protege el trigger de campos de admin |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
 RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **o fila propia** (#122). Como la RLS no restringe columnas, el trigger `profiles_guard_admin_fields` → `guard_profile_admin_fields()` rechaza con 42501 los cambios a `role`, `clock_employee_id` y `shift` si quien edita no es admin (sin `auth.uid()` —service role, SQL directo— pasa). Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
 
 **Storage `avatars`** (#122): bucket público, 2 MB, JPEG/PNG/WebP. Policies en `storage.objects`: SELECT/INSERT/DELETE solo cuando la primera carpeta de la ruta es el `auth.uid()` de quien llama. La de SELECT existe porque borrar (`remove`) la necesita, **no** porque las fotos sean privadas: el bucket es público y la app pinta la foto de los demás por URL. Lo que se protege es la ruta (`avatar_path` solo la leen su dueño y el admin) y que nadie suba ni borre en carpeta ajena.
+
+---
+
+## Tabla: `profile_pay`
+
+**Propósito:** Tarifa por hora del pago estimado de la oficina, **separada de `profiles`** porque la policy de fila propia dejaría a cada persona leer la suya por PostgREST (review PR #137; mismo precedente que `audit_events`, ADR-028).
+**Módulo:** Horas / Equipo (2026-10-05)
+
+| Columna | Tipo | Nullable | Default | Constraint | Descripción |
+|---------|------|----------|---------|-----------|-------------|
+| `profile_id` | uuid | No | — | PK, FK → `profiles` CASCADE | Una fila por persona con tarifa; **sin fila = sin estimado** |
+| `hourly_rate` | numeric(10,2) | No | — | CHECK > 0 | Pesos por hora |
+| `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
+
+RLS: `FOR ALL` con `is_admin()`; GRANTs sin `anon`. La ruta `PATCH /api/profiles/[id]` hace upsert (o delete con `null`); `GET /api/profiles` la embebe (`profile_pay(hourly_rate)`); `GET /api/profile` nunca la devuelve.
 
 ---
 
@@ -516,6 +532,7 @@ RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll
 | `20260929225740` | `add_profile_self_service` | Mi perfil (issue #122): columnas `nss` y `avatar_path` en `profiles`, policy "cada quien actualiza su fila", trigger `profiles_guard_admin_fields` (rol/jornada/checador solo admin), bucket `avatars` + 3 policies por carpeta |
 | `20260930234735` | `profiles_display_name_length` | CHECK de 1–80 caracteres en `display_name` (mismo límite que la ruta) + `handle_new_user` recorta y topa a 80. Review PR #126 |
 | `20261001224650` | `owner_and_excused_days` | `profiles.is_owner` (único parcial) protegido por el trigger de campos de admin + tabla `excused_days` con RLS (lee el equipo/la persona, escribe el admin) + Diego marcado como dueño. Ajustes del 2026-10-01 |
+| `20261005165214` | `profile_hourly_rate` | `profiles.hourly_rate` (default 52, CHECK > 0) y `profiles.area` (office·workshop, default office), protegidas por el trigger de campos de admin, cuyo mensaje ahora nombra área, dueño y tarifa. Ajustes del 2026-10-05 |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |
@@ -527,3 +544,4 @@ RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll
 | `add_separator_color` | (2026-08-21) | Columna `separator_color` (text, nullable) en `quotation_items` y `order_items`, CHECK solo-separadores. Override manual del color de sección; NULL = automático. Issue #73 |
 | `add_finance_payables` | (2026-09-02) | Columna `payment_terms_days` en `suppliers` y tabla `payables` (facturas por pagar: FK a suppliers sin cascade, concept/amount/fechas, status pending·paid·cancelled, `paid_at` fecha real). Índice (status, due_date), RLS + policy. Issue #84 |
 | `20261001052530` | `add_payroll` | Nómina (#123): `payroll_employees`, `payroll_days`, `payroll_periods`, trigger del corte cerrado y RLS solo admin |
+| `20261007035652` | `profile_pay_admin_only` | `profiles.hourly_rate` → tabla `profile_pay` (solo admin); el trigger de campos de admin deja de nombrar la tarifa (review PR #137) |

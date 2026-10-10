@@ -12,6 +12,8 @@ import {
   payrollPeriod,
   periodDates,
   shiftPeriod,
+  officeSaturdayMinutes,
+  payrollArea,
 } from '@/lib/payroll'
 import type { PayrollDay, PayrollEmployee } from '@/types/database'
 
@@ -58,15 +60,39 @@ describe('corte sábado → viernes', () => {
 })
 
 describe('classifyDay', () => {
-  test('entre semana: normal hasta la jornada, el resto extra, ambas ×1', () => {
-    expect(classifyDay('2026-09-21', 690, 'full_time')).toEqual({ regular: 480, extra: 210, saturday: 0, sunday: 0, equivalent: 690 })
-    expect(classifyDay('2026-09-21', 300, 'full_time')).toMatchObject({ regular: 300, extra: 0, equivalent: 300 })
-    expect(classifyDay('2026-09-21', 300, 'part_time')).toMatchObject({ regular: 240, extra: 60, equivalent: 300 })
+  test('entre semana: normal hasta la jornada, el resto extra, ambas ×1 (igual en oficina y taller)', () => {
+    expect(classifyDay('2026-09-21', 690, 'full_time', 'workshop')).toEqual({ regular: 480, extra: 210, saturdayExtra: 0, sunday: 0, equivalent: 690 })
+    expect(classifyDay('2026-09-21', 300, 'full_time', 'office')).toMatchObject({ regular: 300, extra: 0, equivalent: 300 })
+    expect(classifyDay('2026-09-21', 300, 'part_time', 'workshop')).toMatchObject({ regular: 240, extra: 60, equivalent: 300 })
   })
 
-  test('sábado doble y domingo triple, sobre TODAS las horas del día', () => {
-    expect(classifyDay('2026-09-19', 360, 'full_time')).toEqual({ regular: 0, extra: 0, saturday: 360, sunday: 0, equivalent: 720 })
-    expect(classifyDay('2026-09-20', 240, 'full_time')).toEqual({ regular: 0, extra: 0, saturday: 0, sunday: 240, equivalent: 720 })
+  test('REGLA #135: el sábado del taller paga normales las primeras 5 h y solo el resto al doble, sin importar la jornada', () => {
+    expect(classifyDay('2026-09-19', 300, 'full_time', 'workshop')).toEqual({ regular: 300, extra: 0, saturdayExtra: 0, sunday: 0, equivalent: 300 })
+    // 7 h → 5 + 2×2 = 9 equivalentes.
+    expect(classifyDay('2026-09-19', 420, 'full_time', 'workshop')).toEqual({ regular: 300, extra: 0, saturdayExtra: 120, sunday: 0, equivalent: 540 })
+    expect(classifyDay('2026-09-19', 420, 'part_time', 'workshop')).toEqual(classifyDay('2026-09-19', 420, 'full_time', 'workshop'))
+    expect(classifyDay('2026-09-19', 180, 'full_time', 'workshop')).toMatchObject({ regular: 180, saturdayExtra: 0, equivalent: 180 })
+  })
+
+  test('REGLA #135: el sábado de la oficina se paga todo normal, sin recargo', () => {
+    expect(classifyDay('2026-09-19', 480, 'full_time', 'office')).toEqual({ regular: 480, extra: 0, saturdayExtra: 0, sunday: 0, equivalent: 480 })
+    expect(classifyDay('2026-09-19', 600, 'full_time', 'office')).toMatchObject({ regular: 600, saturdayExtra: 0, equivalent: 600 })
+  })
+
+  test('el domingo sigue triple sobre TODAS las horas, en oficina y taller', () => {
+    expect(classifyDay('2026-09-20', 240, 'full_time', 'workshop')).toEqual({ regular: 0, extra: 0, saturdayExtra: 0, sunday: 240, equivalent: 720 })
+    expect(classifyDay('2026-09-20', 240, 'full_time', 'office')).toMatchObject({ sunday: 240, equivalent: 720 })
+  })
+
+  test('sábado de oficina regalado = horas diarias de su jornada; oficina = perfil ligado con área oficina', () => {
+    expect(officeSaturdayMinutes('full_time')).toBe(480)
+    expect(officeSaturdayMinutes('part_time')).toBe(240)
+    const areas = new Map([['p-office', 'office' as const], ['p-shop', 'workshop' as const]])
+    expect(payrollArea({ profile_id: 'p-office' }, areas)).toBe('office')
+    expect(payrollArea({ profile_id: 'p-shop' }, areas)).toBe('workshop')
+    // No account, or a profile the caller cannot read: the workshop.
+    expect(payrollArea({ profile_id: null }, areas)).toBe('workshop')
+    expect(payrollArea({ profile_id: 'p-unknown' }, areas)).toBe('workshop')
   })
 })
 
@@ -80,11 +106,13 @@ describe('buildPayrollView', () => {
       day('ana', '2026-09-21', 690),
       day('ana', '2026-09-22', 480, { status: 'draft', source: 'sheet' }),
       day('beto', '2026-09-20', 120, { missed_minutes: 60 }),
-    ], null)
+    ], null, new Map())
 
     expect(view).toMatchObject({ start: '2026-09-19', end: '2026-09-25', closed: false, drafts: 1 })
     const [a, b] = view.rows
-    expect(a.totals).toEqual({ regular: 480, extra: 210, saturday: 360, sunday: 0, equivalent: 480 + 210 + 720 })
+    // Saturday 6 h in the workshop: 5 normal + 1 at double (#135).
+    expect(a.totals).toEqual({ regular: 480 + 300, extra: 210, saturdayExtra: 60, sunday: 0, equivalent: 480 + 300 + 210 + 120 })
+    expect(a.area).toBe('workshop')
     expect(a.drafts).toBe(1)
     expect(a.days[3]?.status).toBe('draft')
     expect(a.days[1]).toBeNull()
@@ -93,12 +121,18 @@ describe('buildPayrollView', () => {
     expect(view.totals.equivalent).toBe(a.totals.equivalent + 360)
   })
 
+  test('el área sale del perfil ligado: el sábado de la oficina no lleva doble', () => {
+    const office = employee('ofi', { profile_id: 'p-ofi' })
+    const view = buildPayrollView('2026-09-19', [office], [day('ofi', '2026-09-19', 480)], null, new Map([['p-ofi', 'office']]))
+    expect(view.rows[0]).toMatchObject({ area: 'office', totals: { regular: 480, saturdayExtra: 0, equivalent: 480 } })
+  })
+
   test('un inactivo solo aparece donde tiene horas; el corte cerrado lo dice', () => {
     const gone = employee('gone', { active: false })
     const closed = { start_date: '2026-09-19', status: 'closed' as const, closed_at: '2026-09-25T20:00:00Z', closed_by_name: 'Axl', reopened_at: null, reopened_by_name: null }
-    expect(buildPayrollView('2026-09-19', [ana, gone], [], closed)).toMatchObject({ closed: true, rows: [{ employee: { id: 'ana' } }] })
-    expect(buildPayrollView('2026-09-19', [gone], [day('gone', '2026-09-22', 60)], null).rows).toHaveLength(1)
-    expect(buildPayrollView('2026-09-19', [ana], [], { ...closed, status: 'open' }).closed).toBe(false)
+    expect(buildPayrollView('2026-09-19', [ana, gone], [], closed, new Map())).toMatchObject({ closed: true, rows: [{ employee: { id: 'ana' } }] })
+    expect(buildPayrollView('2026-09-19', [gone], [day('gone', '2026-09-22', 60)], null, new Map()).rows).toHaveLength(1)
+    expect(buildPayrollView('2026-09-19', [ana], [], { ...closed, status: 'open' }, new Map()).closed).toBe(false)
   })
 })
 

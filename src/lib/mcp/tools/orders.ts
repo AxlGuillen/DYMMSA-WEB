@@ -123,13 +123,16 @@ export async function getOrder(db: Db, id: string) {
   }
 }
 
-export async function getOrderByQuotation(db: Db, quotationId: string) {
+/** The order a quotation was converted into, or null; get_quotation carries it since #134 (ADR-034, second stage). */
+export async function findOrderByQuotation(db: Db, quotationId: string): Promise<Pick<Order, 'id' | 'name' | 'status'> | null> {
   const { data, error } = await db
     .from('orders')
     .select('id, name, status')
     .eq('quotation_id', quotationId)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
 
   if (error) throw new ToolError(`Error al buscar la orden: ${error.message}`)
-  return data ?? { message: 'Esta cotización no tiene una orden vinculada' }
+  return (data as Pick<Order, 'id' | 'name' | 'status'> | null) ?? null
 }

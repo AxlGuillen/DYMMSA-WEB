@@ -51,3 +51,7 @@ Es la regla del PR #99 aplicada al revés: como la policy ya dice lo mismo que l
 - `GET /api/time-entries` no cambió: la tendencia pide 56 días y agrupa en el cliente con `buildWeeklyTrend` (`week` viene `null` fuera de una semana exacta, como siempre).
 - `SERVER_INSTRUCTIONS` gana la línea de Horas y la aclaración de que no tiene relación con `odoo_employee_directory`.
 - Fuera de alcance: horas extra, descansos, festivos (la referencia es lineal por día); el tour de Horas.
+
+## Adenda 2026-10-05 (ADR-034)
+
+`list_time_imports` es `adminOnly` en el manifiesto: desde #133 un member no la recibe en su lista de herramientas. La respuesta de 0 filas con `nota` sigue ahí como segunda red (la RLS), pero ya no es el camino normal.

@@ -95,7 +95,11 @@ INSERT INTO public.store_inventory (model_code, quantity, location) VALUES
 -- Roles para RLS (#93). Idempotente: resetDb() lo re-ejecuta en cada test, así un
 -- test que degrade o remapee no contamina al siguiente. a1 admin ⊇ member: los tests
 -- previos siguen válidos.
-UPDATE public.profiles SET role = 'admin',  clock_employee_id = NULL, display_name = 'test',   nss = NULL, avatar_path = NULL, is_owner = false
+UPDATE public.profiles SET role = 'admin',  clock_employee_id = NULL, display_name = 'test',   nss = NULL, avatar_path = NULL, is_owner = false, area = 'office'
   WHERE id = '00000000-0000-0000-0000-0000000000a1';
-UPDATE public.profiles SET role = 'member', clock_employee_id = 5,    display_name = 'Member', nss = NULL, avatar_path = NULL, is_owner = false
+UPDATE public.profiles SET role = 'member', clock_employee_id = 5,    display_name = 'Member', nss = NULL, avatar_path = NULL, is_owner = false, area = 'office'
   WHERE id = '00000000-0000-0000-0000-0000000000a2';
+-- Tarifa por hora en su tabla admin-only (review PR #137); idempotente como el resto.
+INSERT INTO public.profile_pay (profile_id, hourly_rate) VALUES
+  ('00000000-0000-0000-0000-0000000000a1', 52), ('00000000-0000-0000-0000-0000000000a2', 52)
+  ON CONFLICT (profile_id) DO UPDATE SET hourly_rate = EXCLUDED.hourly_rate;

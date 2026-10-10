@@ -37,6 +37,7 @@ import * as payableEvents from '@/app/api/payables/[id]/events/route'
 import * as profileRoute from '@/app/api/profile/route'
 import * as profileAvatar from '@/app/api/profile/avatar/route'
 import * as excusedDays from '@/app/api/excused-days/route'
+import * as hoursOverview from '@/app/api/hours/overview/route'
 import * as excusedDayById from '@/app/api/excused-days/[id]/route'
 import * as profilesRoute from '@/app/api/profiles/route'
 import * as profileById from '@/app/api/profiles/[id]/route'
@@ -60,6 +61,7 @@ injectSupabaseAdmin(() => adminClient)
 
 // Admin-only routes (#93): 401 with no user, 403 for a member.
 const adminRoutes: Array<{ name: string; call: () => Promise<Response> }> = [
+  { name: 'GET    /hours/overview',                   call: () => hoursOverview.GET(makeRequest(undefined, { url: 'http://x/api/hours/overview' })) },
   { name: 'GET    /profiles',                         call: () => profilesRoute.GET() },
   { name: 'GET    /time-entries/imports',             call: () => timeImports.GET() },
   { name: 'GET    /payables/[id]/events',            call: () => payableEvents.GET(makeRequest(undefined), makeParams({ id: 'p1' })) },

@@ -3,6 +3,95 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-09
+
+### Corregido
+- [admin] **El sábado en Nómina ya no es todo al doble.** En el taller las
+  primeras 5 horas del sábado se pagan normal y solo lo que pase de ahí va al
+  doble. A la oficina se le paga su sábado aunque no vaya (8 horas, o 4 a medio
+  tiempo): "Traer de Horas" lo agrega como borrador para que lo confirmes.
+
+### Mejorado
+- [admin] **El asistente lee mejor la hoja del taller.** En sábado la marca de
+  asistencia cuenta 5 horas, y una hora escrita en la mañana (como 8:05) se
+  toma como llegada tarde, no como salida.
+
+## 2026-10-08
+
+### Nuevo
+- **El asistente da de alta y edita proveedores.** Dile a Claude "da de alta a
+  Tornillos MX, 30 días de crédito, surte SURTEK" y queda registrado; si al
+  registrar una factura el proveedor no existía, ya no hay que abrir la app.
+  Las marcas deben existir: una nueva se crea en Proveedores → Marcas.
+- **Corregir o cancelar facturas por pagar desde el asistente.** "La factura de
+  Perfiles era por $3,200, no $2,300" o "cancélala". Pagarla sigue igual;
+  borrarla o reactivar una cancelada, en la app.
+- **Registrar medidas de material desde el asistente.** "Agrega barra de tubo
+  de 1 pulgada de 6 metros": Claude la convierte a milímetros, te la confirma y
+  la registra para la lista de corte.
+- [admin] **Empleados de Nómina desde el asistente.** Alta, cambio de jornada,
+  liga con su perfil y baja (sin borrar sus horas).
+
+### Corregido
+- **Fechas que no existen en facturas por pagar.** Un 30 de febrero ahora da un
+  aviso claro en vez de un error del servidor.
+
+## 2026-10-07
+
+### Nuevo
+- [admin] **El asistente carga el reporte del checador.** Pásale a Claude el
+  reporte semanal de la oficina y lo sube como Horas → Importar reporte; antes
+  de guardar revisa que cuadre con los totales del propio reporte. También
+  puede **traer las horas de la oficina a Nómina** como borrador, igual que el
+  botón "Traer de Horas". Confirmar y cerrar el corte sigue siendo en la app.
+- [admin] **Corregir checadas y justificar días desde el asistente.** Dile a
+  Claude "a Tania le faltó la salida del miércoles, salió a las 6" o "el lunes
+  fue feriado" y lo guarda como en Equipo y Mi semana, conservando lo que dijo
+  el checador.
+- [admin] **El reporte del checador se revisa en una tabla dentro de Claude.**
+  Antes de cargarlo, Claude muestra la semana por persona y día, marca lo que
+  no cuadra y tiene un botón **Guardar en Horas**. Se ve en Claude web,
+  escritorio y móvil.
+
+## 2026-10-05
+
+### Nuevo
+- [admin] **Pago estimado en Mi semana.** Al ver la semana de alguien de la
+  oficina aparece cuánto le tocaría: todas sus horas a su tarifa, más el sábado
+  pagado. Solo lo ven los administradores.
+- [admin] **Tarifa por hora y área en Equipo.** Cada persona tiene su tarifa
+  ($52 por default; vacía = sin pago estimado) y su área: oficina o taller.
+- [admin] **Resumen del equipo.** Nueva página en Horas con la semana de la
+  oficina (con pago estimado) y del taller (horas de la hoja de Nómina o del
+  checador), de todos o por persona.
+
+### Corregido
+- [admin] **El sábado ya no se paga dos veces en el estimado.** Si alguien de
+  oficina trabaja un sábado, cuenta lo mayor entre las horas que se le regalan
+  y las que trabajó, no la suma de las dos.
+
+### Mejorado
+- [admin] **Mi semana separa Oficina y Taller** en el selector de persona.
+- [admin] **Novedades** ya no muestra a los miembros lo que solo usan los
+  administradores, y la pestaña **Actividad** es solo para administradores.
+- [admin] **Quién lleva más horas.** El Resumen del equipo muestra los tres con
+  más horas registradas en la semana y en el mes, de oficina y taller.
+- **Apartados colapsables en Finanzas.** Egresos, Ingresos, Vencimientos, Cobros
+  y Notas de crédito se pueden contraer con la flecha de su título, o todos a la
+  vez con **Contraer todo**; la app recuerda cómo los dejaste.
+- **Formato de entrega más completo.** Los precios, totales, subtotal e IVA
+  llevan signo de pesos; la columna **Comments** trae la marca de cada
+  producto, y **Descripcion** usa la descripción en español guardada en la BD
+  de ETM (si no hay, repite la de Translate).
+- **El asistente le muestra a cada quien solo lo que puede usar.** Al conectar
+  el asistente, un miembro ya no ve las funciones que son solo de administrador,
+  y la pantalla de autorización dice exactamente qué consulta y qué acciones
+  puede hacer, generada de la lista real de capacidades. Si ya tenías el
+  asistente conectado, reconéctalo para ver la lista nueva.
+
+### Corregido
+- Las gráficas de **Mi semana** ya no cortan los números del eje de horas.
+
 ## 2026-10-02
 
 ### Corregido
@@ -17,11 +106,11 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 - **Días cumplidos en verde y en rojo.** En Mi semana cada día de lunes a
   viernes se pinta en verde si se cumplió la jornada (4 u 8 horas) y en rojo si
   no.
-- **Días feriados y salidas autorizadas.** En Equipo, un administrador marca
+- [admin] **Días feriados y salidas autorizadas.** En Equipo, un administrador marca
   los días feriados o los días que dejó salir antes a alguien (o a todo el
   equipo). Esos días no cuentan como horas faltantes y se descuentan del
   objetivo de la semana.
-- **Corona del dueño** junto a su nombre en Equipo.
+- [admin] **Corona del dueño** junto a su nombre en Equipo.
 
 ### Mejorado
 - **Por cobrar ahora cuadra con Odoo**: el total incluye lo vencido, y la
@@ -41,7 +130,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   "¿qué jornada tiene Tania?" (un miembro solo consulta lo suyo).
 
 ### Mejorado
-- En **Equipo** los administradores ven y capturan el NSS de cada persona
+- [admin] En **Equipo** los administradores ven y capturan el NSS de cada persona
   (oculto salvo los últimos 4 dígitos).
 
 ## 2026-09-25
@@ -85,7 +174,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   la que corresponde a la jornada de la persona, con un aviso de si cumple o
   cuántas horas le faltan. Un día con una checada sin salida se pinta aparte:
   no suma horas y no debe leerse como un día corto.
-- **Jornada por persona en Equipo.** Cada perfil puede tener jornada de
+- [admin] **Jornada por persona en Equipo.** Cada perfil puede tener jornada de
   tiempo completo o de medio tiempo (o ninguna); es la referencia que usan
   las gráficas.
 - **El asistente ya responde sobre horas.** Puede decir cuántas horas lleva
@@ -128,7 +217,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   es la que alimenta el cierre del mes en Finanzas.
 
 ### Mejorado
-- Los administradores ven quién marcó cada factura como pagada (columna
+- [admin] Los administradores ven quién marcó cada factura como pagada (columna
   "Pagada por") y el historial de cambios de estado dentro del popup.
 
 ## 2026-09-21
@@ -163,14 +252,14 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   sus checadas de entrada y salida por día, con el total diario y el de la
   semana; las salidas que faltaron se marcan en ámbar y no suman. Se puede
   navegar semana por semana.
-- **Importar el reporte del checador.** Los administradores suben el Excel
+- [admin] **Importar el reporte del checador.** Los administradores suben el Excel
   semanal del NGTeco tal cual sale del aparato. Se ve cuántas checadas entraron,
   cuántas se actualizaron y si algún empleado del reporte aún no tiene usuario
   asignado. Volver a subir la misma semana no duplica nada.
-- **Correcciones con rastro.** Un administrador puede corregir una checada o
+- [admin] **Correcciones con rastro.** Un administrador puede corregir una checada o
   registrar una a mano; queda marcada con quién la editó y cuándo, y el dato
   original del checador se conserva. Un reporte posterior no pisa lo corregido.
-- **Equipo.** Los administradores asignan el rol de cada persona y el número con
+- [admin] **Equipo.** Los administradores asignan el rol de cada persona y el número con
   el que aparece en el reporte del checador.
 
 ## 2026-09-07

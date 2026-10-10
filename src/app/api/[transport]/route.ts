@@ -2,7 +2,11 @@
 // No requiredScopes: Supabase tokens carry no scope claim (it would 403).
 
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
-import { registerDymmsaTools, SERVER_INSTRUCTIONS } from '@/lib/mcp/server'
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
+import type { Implementation } from '@modelcontextprotocol/sdk/types.js'
+import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
+import { roleFrom } from '@/lib/mcp/context'
+import type { McpRole } from '@/lib/mcp/manifest'
 import { verifyToken } from '@/lib/mcp/oauth'
 import { appUrl } from '@/lib/mcp/env'
 import { PROTECTED_RESOURCE_PATH } from '@/lib/mcp/routes'
@@ -13,20 +17,47 @@ export const runtime = 'nodejs'
 // breaks it. Must match the createMcpHandler maxDuration below.
 export const maxDuration = 60
 
-const handler = createMcpHandler(
-  registerDymmsaTools,
-  {
-    serverInfo: { name: 'dymmsa', version: '2.0.0' },
-    // Block map (app vs Odoo, #72) + business rules as server instructions, so clients
-    // that never read resources still get them.
-    instructions: SERVER_INSTRUCTIONS,
-  },
-  {
-    basePath: '/api',
-    disableSse: true,
-    maxDuration: 60,
-  },
-)
+// mcp-handler types serverInfo as { name, version } but hands it to McpServer as is. Claude does not
+// draw a custom connector's icon yet (claude-ai-mcp#152): declared so it shows once it does.
+const SERVER_INFO: Implementation = {
+  name: 'dymmsa',
+  title: 'DYMMSA',
+  version: '2.2.0',
+  websiteUrl: appUrl(),
+  icons: [{ src: `${appUrl()}/dymmsa-logo.webp`, mimeType: 'image/webp' }],
+}
+
+// One handler per role (#133): a member's tools/list never carries the admin-only tools.
+// Trimming the list is noise reduction; the RLS behind every tool is still the barrier.
+function handlerFor(role: McpRole) {
+  return createMcpHandler(
+    (server) => registerDymmsaTools(server, role),
+    {
+      serverInfo: SERVER_INFO,
+      // Block map (app vs Odoo, #72) + business rules as server instructions, so clients
+      // that never read resources still get them.
+      instructions: serverInstructions(role),
+    },
+    {
+      basePath: '/api',
+      disableSse: true,
+      maxDuration: 60,
+    },
+  )
+}
+
+const handlers: Record<McpRole, ReturnType<typeof handlerFor>> = {
+  admin: handlerFor('admin'),
+  member: handlerFor('member'),
+}
+
+// withMcpAuth hangs the verified AuthInfo on req.auth (same instance) before calling us. Typed
+// here to not lean on the package's global augmentation; with `required: true` a missing auth is
+// unreachable, so if it ever happens it is logged instead of every admin silently going member.
+const handler = (req: Request & { auth?: AuthInfo }) => {
+  if (!req.auth) console.warn('[mcp] request sin AuthInfo tras withMcpAuth; se sirve la lista de member')
+  return handlers[roleFrom(req.auth)](req)
+}
 
 const authedHandler = withMcpAuth(handler, verifyToken, {
   required: true,

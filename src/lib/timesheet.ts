@@ -4,6 +4,10 @@
  */
 
 import type { ExcusedDay, ExcusedDayInsert, ExcuseKind, ProfileShift } from '@/types/database'
+import { isRealDate } from './month'
+
+// Finance validates dates too: the helper lives in month.ts, re-exported for the hours callers (review PR #139).
+export { isRealDate }
 
 export type ISODate = string
 export type HHMM = string
@@ -13,6 +17,8 @@ export interface ParsedPunch {
   clockIn: HHMM
   clockOut: HHMM | null
   note: string | null
+  /** "Tiempo de trabajo" as printed; the clock counts seconds, so it may be a minute off ours. */
+  reported: HHMM | null
 }
 
 export interface ParsedEmployee {
@@ -20,7 +26,7 @@ export interface ParsedEmployee {
   clockId: number | null
   name: string
   punches: ParsedPunch[]
-  /** "Horas totales" as printed by the clock; informative only, we recompute. */
+  /** "Horas totales" as printed by the clock; we recompute, the MCP checks it (reportMismatches). */
   reportedTotal: string | null
 }
 
@@ -31,13 +37,6 @@ export interface ParsedReport {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
-
-/** Shape AND existence: 2026-02-30 matches the regex and Postgres answers 22008 → a 500 (review PR #128). */
-export function isRealDate(value: unknown): value is ISODate {
-  if (typeof value !== 'string' || !ISO_DATE.test(value)) return false
-  const parsed = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
-}
 const PERIOD = /(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})/
 // [\s\S] instead of the `s` flag: the project targets below es2018.
 const EMPLOYEE = /^([\s\S]*?)\s*\((\d+)\)\s*$/
@@ -158,6 +157,7 @@ export function parseNgtecoReport(rows: unknown[][]): ParsedReport {
       clockIn: inTime,
       clockOut: outTime,
       note: (cells[6] ?? '') === '' ? null : cells[6],
+      reported: normalizeTime(cells[4] ?? ''),
     })
   }
 
@@ -166,6 +166,33 @@ export function parseNgtecoReport(rows: unknown[][]): ParsedReport {
   }
   return report
 }
+
+/**
+ * Rows transcribed by the assistant must add up to the clock's own figures (#132, ADR-035):
+ * a pair may be a minute off (seconds), a block one minute per pair.
+ */
+export function employeeMismatches(employee: ParsedEmployee): string[] {
+  const problems: string[] = []
+  let total = 0
+  let pairs = 0
+  for (const p of employee.punches) {
+    const minutes = minutesBetween(p.clockIn, p.clockOut)
+    if (minutes === null) continue
+    total += minutes
+    pairs++
+    if (p.reported && Math.abs(minutes - toMinutes(p.reported)) > 1) {
+      problems.push(`${employee.name} ${p.date} ${p.clockIn}–${p.clockOut}: el reporte dice ${p.reported} de trabajo`)
+    }
+  }
+  if (employee.reportedTotal === null) {
+    if (pairs > 0) problems.push(`${employee.name}: falta su fila "Horas totales"`)
+  } else if (Math.abs(total - toMinutes(employee.reportedTotal)) > Math.max(1, pairs)) {
+    problems.push(`${employee.name}: las checadas suman ${formatDuration(total)} y el reporte dice ${employee.reportedTotal}`)
+  }
+  return problems
+}
+
+export const reportMismatches = (report: ParsedReport): string[] => report.employees.flatMap(employeeMismatches)
 
 // ─── Durations ───
 

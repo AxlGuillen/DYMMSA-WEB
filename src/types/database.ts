@@ -195,6 +195,8 @@ export type PayableUpdate = Partial<PayableInsert>
 export type ProfileRole = 'admin' | 'member'
 /** Daily/weekly reference for the hours charts (#101); null = not assigned. */
 export type ProfileShift = 'full_time' | 'part_time'
+/** Where the person works (2026-10-05): splits Mi semana's selector and the team overview. */
+export type ProfileArea = 'office' | 'workshop'
 
 /** 1:1 with auth.users; the first per-person permission in the app (ADR-026, #93). */
 export interface Profile {
@@ -209,15 +211,19 @@ export interface Profile {
   avatar_path: string | null
   /** The business owner: a crown in Equipo (one at most, meeting 2026-10-01). */
   is_owner: boolean
+  area: ProfileArea
   created_at: string
   updated_at: string
 }
 
-export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss'>>
+/** Pesos per hour (`profile_pay`, admin-only table — review PR #137); null = no estimate. */
+export type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'role' | 'clock_employee_id' | 'shift' | 'nss' | 'area'> & { hourly_rate: number | null }>
 /** What a person may change on their own profile (#122); the rest stays with the admin. */
 export type OwnProfileUpdate = Partial<Pick<Profile, 'display_name' | 'nss'>>
-export type ProfileWithAvatar = Profile & { avatar_url: string | null }
-export type OwnProfile = Omit<ProfileWithAvatar, 'created_at' | 'updated_at'> & { email: string | null }
+/** The admin's view (`GET /api/profiles`): the rate rides along from `profile_pay`. */
+export type ProfileWithAvatar = Profile & { avatar_url: string | null; hourly_rate: number | null }
+/** The own view (`GET /api/profile`): never the rate — the amount is not shown to the person. */
+export type OwnProfile = Omit<Profile, 'created_at' | 'updated_at'> & { avatar_url: string | null; email: string | null }
 
 /** A day that does not count as unworked: a holiday, or an early exit the owner authorized. */
 export type ExcuseKind = 'holiday' | 'early_release'

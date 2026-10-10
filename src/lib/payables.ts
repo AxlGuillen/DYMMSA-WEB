@@ -1,14 +1,12 @@
 /** Payables math (#84). As in format.ts the clock is ALWAYS injected — nothing here reads `new Date()`. */
 
-import type { AuditEvent, Payable, PayableStatus } from '@/types/database'
-import { monthOf, nextMonth, type ISODate } from './month'
+import type { AuditEvent, Payable, PayableStatus, PayableUpdate } from '@/types/database'
+import { isRealDate, monthOf, nextMonth, type ISODate } from './month'
 
 export { monthOf, nextMonth }
 export type { ISODate }
 
 export const PAYABLE_STATUSES: readonly PayableStatus[] = ['pending', 'paid', 'cancelled']
-
-export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 export type PaymentUpdate =
   | { ok: true; updates: { status: PayableStatus; paid_at: string | null } }
@@ -25,10 +23,56 @@ export function resolvePaymentUpdate(
 ): PaymentUpdate {
   if (!PAYABLE_STATUSES.includes(status as PayableStatus)) return { ok: false, error: 'Estado inválido' }
   if (status !== 'paid') return { ok: true, updates: { status: status as PayableStatus, paid_at: null } }
-  if (paidAt !== undefined && paidAt !== null && (typeof paidAt !== 'string' || !ISO_DATE.test(paidAt))) {
+  if (paidAt !== undefined && paidAt !== null && !isRealDate(paidAt)) {
     return { ok: false, error: 'Fecha de pago inválida' }
   }
   return { ok: true, updates: { status: 'paid', paid_at: (paidAt as string | null | undefined) ?? today } }
+}
+
+export type PayableUpdateResult = { ok: true; updates: PayableUpdate } | { ok: false; error: string }
+
+/**
+ * The PATCH rules, shared with the MCP's update_payable (#134): sparse, dates that exist
+ * (2026-02-30 is a 22008 in Postgres), and status/paid_at through resolvePaymentUpdate.
+ * Whether supplier_id exists is the caller's check: it needs the database.
+ */
+export function parsePayableUpdate(body: unknown, today: ISODate): PayableUpdateResult {
+  const raw = (body ?? {}) as Record<string, unknown>
+  const updates: PayableUpdate = {}
+  if (raw.concept !== undefined) {
+    const concept = typeof raw.concept === 'string' ? raw.concept.trim() : ''
+    if (!concept) return { ok: false, error: 'El concepto no puede quedar vacío' }
+    updates.concept = concept
+  }
+  if (raw.amount !== undefined) {
+    if (typeof raw.amount !== 'number' || !Number.isFinite(raw.amount) || raw.amount <= 0) {
+      return { ok: false, error: 'El monto debe ser mayor a 0' }
+    }
+    updates.amount = raw.amount
+  }
+  for (const field of ['invoice_date', 'due_date'] as const) {
+    if (raw[field] !== undefined) {
+      if (!isRealDate(raw[field])) return { ok: false, error: `Fecha inválida en ${field}` }
+      updates[field] = raw[field]
+    }
+  }
+  if (raw.supplier_id !== undefined) {
+    if (typeof raw.supplier_id !== 'string' || !raw.supplier_id) return { ok: false, error: 'Proveedor inválido' }
+    updates.supplier_id = raw.supplier_id
+  }
+  if (raw.notes !== undefined) {
+    updates.notes = typeof raw.notes === 'string' ? raw.notes.trim() || null : null
+  }
+  if (raw.status !== undefined) {
+    const payment = resolvePaymentUpdate(raw.status, raw.paid_at, today)
+    if (!payment.ok) return payment
+    Object.assign(updates, payment.updates)
+  } else if (raw.paid_at !== undefined) {
+    // Fix the payment date of an already-paid invoice without touching the status.
+    if (raw.paid_at !== null && !isRealDate(raw.paid_at)) return { ok: false, error: 'Fecha de pago inválida' }
+    updates.paid_at = raw.paid_at as string | null
+  }
+  return { ok: true, updates }
 }
 
 export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {

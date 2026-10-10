@@ -11,6 +11,7 @@ import { useColumnStore } from '@/stores/columnStore'
 import { useColumnWidthStore } from '@/stores/columnWidthStore'
 import { useCutDraftStore } from '@/stores/cutDraftStore'
 import { useDateFormatStore } from '@/stores/dateFormatStore'
+import { useCollapsedSectionsStore } from '@/stores/collapsedSectionsStore'
 import type { QuotationItemRow } from '@/types/database'
 
 export function resetStores() {
@@ -22,6 +23,7 @@ export function resetStores() {
   useColumnWidthStore.setState({ widths: {} })
   useCutDraftStore.setState({ drafts: [], candidates: [], seededFrom: null })
   useDateFormatStore.setState({ dateFormat: 'long' })
+  useCollapsedSectionsStore.setState({ collapsed: {} })
   localStorage.clear()
 }
 

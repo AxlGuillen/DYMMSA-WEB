@@ -2,7 +2,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue } from '../helpers/supabase-mock'
-import { listOrders, getOrder, getOrderByQuotation } from '@/lib/mcp/tools/orders'
+import { listOrders, getOrder, findOrderByQuotation } from '@/lib/mcp/tools/orders'
 import { type Db } from '@/lib/mcp/shared'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
@@ -59,18 +59,17 @@ describe('getOrder', () => {
   })
 })
 
-describe('getOrderByQuotation', () => {
+describe('findOrderByQuotation', () => {
   test('devuelve la orden vinculada', async () => {
     const client = createMockSupabase({
       responses: { orders: { data: { id: 'o1', name: 'Orden', status: 'ordered' } } },
     })
-    const result = await getOrderByQuotation(asDb(client), 'q1')
+    const result = await findOrderByQuotation(asDb(client), 'q1')
     expect(result).toMatchObject({ id: 'o1' })
   })
 
-  test('sin orden vinculada devuelve mensaje explícito (no null crudo)', async () => {
+  test('sin orden vinculada devuelve null', async () => {
     const client = createMockSupabase({ responses: { orders: { data: null } } })
-    const result = await getOrderByQuotation(asDb(client), 'q1')
-    expect(result).toEqual({ message: 'Esta cotización no tiene una orden vinculada' })
+    expect(await findOrderByQuotation(asDb(client), 'q1')).toBeNull()
   })
 })

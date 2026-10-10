@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import type { SupplierUpdate } from '@/types/database'
-
-interface UpdateSupplierBody extends SupplierUpdate {
-  brandIds?: string[]
-}
+import { parseSupplierInput, SupplierError, updateSupplier } from '@/lib/suppliers-store'
 
 // PATCH /api/suppliers/[id] — sparse updates + brandIds (replace by diff)
 export async function PATCH(
@@ -18,108 +14,20 @@ export async function PATCH(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as UpdateSupplierBody
+    const body = (await request.json()) as { brandIds?: unknown }
     if (body.brandIds !== undefined && !Array.isArray(body.brandIds)) {
       return badRequest('brandIds debe ser un arreglo')
     }
+    const parsed = parseSupplierInput(body, { requireName: false })
+    if ('error' in parsed) return badRequest(parsed.error)
 
-    const updates: SupplierUpdate = {}
-    if (body.name !== undefined) {
-      const name = typeof body.name === 'string' ? body.name.trim() : ''
-      if (!name) return badRequest('El nombre del proveedor no puede quedar vacío')
-      updates.name = name
-    }
-    for (const field of ['phone', 'whatsapp', 'email', 'address', 'notes'] as const) {
-      if (body[field] !== undefined) {
-        updates[field] = typeof body[field] === 'string' ? body[field].trim() || null : null
-      }
-    }
-    if (body.payment_terms_days !== undefined) {
-      const terms = body.payment_terms_days
-      if (terms != null && (!Number.isInteger(terms) || terms < 0)) {
-        return badRequest('El plazo de pago debe ser un entero de días (o vacío = contado)')
-      }
-      updates.payment_terms_days = terms ?? null
-    }
-
-    if (Object.keys(updates).length === 0 && body.brandIds === undefined) {
-      return badRequest('No hay cambios para guardar')
-    }
-
-    // The row update doubles as the existence check (PGRST116 → 404);
-    // with only brandIds in the body it never runs.
-    let existenceConfirmed = false
-
-    if (Object.keys(updates).length > 0) {
-      const { error } = await supabase
-        .from('suppliers')
-        .update(updates)
-        .eq('id', id)
-        .select('id')
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') return notFound('Proveedor no encontrado')
-        if (error.code === '23505') return badRequest('Ya existe un proveedor con ese nombre')
-        console.error('Error updating supplier:', error)
-        return serverError('Error al actualizar el proveedor')
-      }
-      existenceConfirmed = true
-    }
-
-    // Brands: replace by DIFF (non-destructive — never a window without links).
-    if (body.brandIds !== undefined) {
-      // Confirm the supplier exists → precise 404 instead of the generic 23503
-      // the links insert would raise.
-      if (!existenceConfirmed) {
-        const { data: exists, error } = await supabase
-          .from('suppliers')
-          .select('id')
-          .eq('id', id)
-          .single()
-        if (error || !exists) return notFound('Proveedor no encontrado')
-      }
-
-      const desired = [...new Set(body.brandIds)]
-
-      const { data: existing, error: linksError } = await supabase
-        .from('supplier_brands')
-        .select('brand_id')
-        .eq('supplier_id', id)
-
-      if (linksError) {
-        console.error('Error reading supplier brands:', linksError)
-        return serverError('Error al actualizar las marcas del proveedor')
-      }
-
-      const current = new Set((existing ?? []).map((l) => l.brand_id))
-      const toInsert = desired.filter((brandId) => !current.has(brandId))
-      const toDelete = [...current].filter((brandId) => !desired.includes(brandId))
-
-      if (toInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from('supplier_brands')
-          .insert(toInsert.map((brand_id) => ({ supplier_id: id, brand_id })))
-        if (insertError) {
-          console.error('Error inserting supplier brands:', insertError)
-          return serverError('Error al asignar marcas')
-        }
-      }
-      if (toDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('supplier_brands')
-          .delete()
-          .eq('supplier_id', id)
-          .in('brand_id', toDelete)
-        if (deleteError) {
-          console.error('Error removing supplier brands:', deleteError)
-          return serverError('Error al quitar marcas')
-        }
-      }
-    }
-
+    await updateSupplier(supabase, id, parsed.value, body.brandIds as string[] | undefined)
     return NextResponse.json({ ok: true })
   } catch (error) {
+    if (error instanceof SupplierError) {
+      if (error.kind === 'not_found') return notFound(error.message)
+      return error.kind === 'failed' ? serverError(error.message) : badRequest(error.message)
+    }
     console.error('Supplier update error:', error)
     return serverError('Error al actualizar el proveedor')
   }

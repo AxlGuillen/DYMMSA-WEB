@@ -62,16 +62,16 @@ Decisiones clave:
 6. **Respuestas resueltas y compactas**: los tools devuelven valores finales
    (Descripción DYMMSA ya resuelta con jerarquía, totales de `business-rules.ts`,
    ubicación oculta sin stock) para que el LLM no re-derive reglas de negocio.
-   Además se expone el resource `dymmsa://reglas-negocio` con las reglas críticas.
+   ~~Además se expone el resource `dymmsa://reglas-negocio` con las reglas críticas.~~ Eliminado el 2026-10-05 (ADR-034): era el mismo texto dos veces y muchos clientes nunca leen recursos; las reglas viajan solo en las instrucciones.
 
 ### Tools (Fase 1 — lectura)
 
 | Tool | Módulo |
 |---|---|
 | `get_business_summary` | Transversal (KPIs de todos los módulos) |
-| `list_quotations` / `get_quotation` / `get_quotation_stats` | Cotizaciones |
-| `list_orders` / `get_order` / `get_order_by_quotation` | Órdenes |
-| `search_inventory` / `get_inventory_stats` | Inventario |
+| `list_quotations` / `get_quotation` (incluye la orden ligada desde #134) | Cotizaciones |
+| `list_orders` / `get_order` | Órdenes |
+| `search_inventory` | Inventario |
 | `search_products` | Catálogo ETM (descripción resuelta, ADR-013) |
 | `search_urrea_catalog` | Catálogo URREA (exacto normalizado → parcial) |
 | `list_tasks` / `get_task` | Tareas (GitHub Issues, ADR-014) |
@@ -81,6 +81,8 @@ Decisiones clave:
 | Tool | Módulo | Notas |
 |---|---|---|
 | `create_task` | Tareas (GitHub Issues) | Crea un issue. Espeja `POST /api/tasks` pero con reporter fijo `"Asistente (MCP)"` (el MCP no tiene sesión de usuario). `title` obligatorio; `description` y `priority` (`low\|medium\|high\|highest`) opcionales. Devuelve la task creada (#N + URL). |
+
+`get_quotation_stats`, `get_order_by_quotation` y `get_inventory_stats` salieron el 2026-10-08 (segunda etapa de ADR-034): repetían `get_business_summary` o caben en `get_quotation`. Las escrituras posteriores viven en [[ADR-030-MCP-Cobertura-y-Escrituras-Payables]], [[ADR-033-Nomina-Horas-por-Corte]], [[ADR-035-Reporte-del-Checador-por-el-MCP]] y [[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]].
 
 La confirmación humana previa a la escritura recae en el **cliente MCP** (Claude pide
 permiso antes de invocar la tool); el servidor solo valida y ejecuta. `create_task`
@@ -148,7 +150,7 @@ Decisión explícita del usuario (2026-08-20): el **núcleo transaccional se que
 
 El listado MCP es plano — la agrupación se logra con cuatro mecanismos, no con carpetas:
 
-1. **`instructions` del server** (el más fuerte): `SERVER_INSTRUCTIONS` = mapa de los dos bloques (qué tool para qué, las 3 escrituras señaladas, la advertencia de mundos separados) + las reglas de negocio. Es lo primero que el cliente entrega al modelo al conectar.
+1. **`instructions` del server** (el más fuerte): `serverInstructions(role)` (hasta ADR-034, `SERVER_INSTRUCTIONS`) = mapa de los dos bloques (qué tool para qué, las 3 escrituras señaladas, la advertencia de mundos separados) + las reglas de negocio. Es lo primero que el cliente entrega al modelo al conectar.
 2. **Prefijo y título**: Odoo lleva `odoo_*` + título "(Odoo)"; la app va sin sufijo (el default es la app, lo marcado es lo externo). Decisión: **NO se renombran** las tools de la app con prefijo — cosmética que rompe el hábito.
 3. **Orden de registro** por bloques: A (app: resumen → cotizaciones → órdenes → inventario → catálogos → tareas) y B (Odoo: primitivas → contabilidad → ventas → documentos/pagos → operación).
 4. **Descripciones**: las de Odoo dicen "externo"; las stale se alinearon (p. ej. `odoo_query` ya lista todos los módulos del catálogo).

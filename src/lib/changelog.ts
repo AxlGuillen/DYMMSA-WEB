@@ -5,6 +5,8 @@ export type ChangelogCategory = 'nuevo' | 'mejorado' | 'corregido'
 export interface ChangelogEntry {
   category: ChangelogCategory
   text: string
+  /** `- [admin] …` in CHANGELOG.md: shown only to administrators. */
+  adminOnly: boolean
 }
 
 export interface ChangelogRelease {
@@ -27,6 +29,7 @@ const CATEGORY_MAP: Record<string, ChangelogCategory> = {
 
 const DATE_RE = /(\d{4}-\d{2}-\d{2})/
 const VERSION_RE = /v\d+(?:\.\d+)*/i
+const ADMIN_TAG = /^\[admin\]\s*/i
 
 function normalizeCategory(heading: string): ChangelogCategory | null {
   const key = heading.trim().toLowerCase()
@@ -74,7 +77,9 @@ export function parseChangelog(raw: string): ChangelogRelease[] {
     if (!current || !category) continue
 
     if (trimmed.startsWith('- ')) {
-      current.entries.push({ category, text: trimmed.slice(2).trim() })
+      const body = trimmed.slice(2).trim()
+      const adminOnly = ADMIN_TAG.test(body)
+      current.entries.push({ category, text: body.replace(ADMIN_TAG, '').trim(), adminOnly })
       continue
     }
 
@@ -86,4 +91,12 @@ export function parseChangelog(raw: string): ChangelogRelease[] {
   }
 
   return releases
+}
+
+/** What a person may read: members never see admin-only entries, and a release left empty disappears. */
+export function visibleReleases(releases: readonly ChangelogRelease[], isAdmin: boolean): ChangelogRelease[] {
+  if (isAdmin) return [...releases]
+  return releases
+    .map((r) => ({ ...r, entries: r.entries.filter((e) => !e.adminOnly) }))
+    .filter((r) => r.entries.length > 0)
 }

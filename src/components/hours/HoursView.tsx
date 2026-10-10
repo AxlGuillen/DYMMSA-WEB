@@ -2,16 +2,18 @@
 
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChevronLeft, ChevronRight } from '@/components/icons'
 import { DateFormatPicker } from '@/components/finance/DateFormatPicker'
 import { WeekGrid } from '@/components/hours/WeekGrid'
 import { WeekChart } from '@/components/hours/WeekChart'
 import { TrendChart } from '@/components/hours/TrendChart'
+import { WeekPayCard } from '@/components/hours/WeekPayCard'
 import { TimeEntryForm } from '@/components/hours/TimeEntryForm'
 import { useProfile, useProfiles } from '@/hooks/useProfile'
 import { UserAvatar } from '@/components/profile/UserAvatar'
 import { useTimeEntries } from '@/hooks/useTimeEntries'
+import { AREA_LABELS, AREAS } from '@/lib/profile'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { todayInMexico } from '@/lib/format'
 import { buildWeeklyTrend, excusesFor, shiftWeek, weekBounds } from '@/lib/timesheet'
@@ -37,6 +39,8 @@ export function HoursView() {
   // The reference lines follow whoever is on screen; a person without a shift must not inherit mine.
   const shown = isAdmin ? profiles?.find((p) => p.id === targetUser) : profile
   const targetShift = (shown ?? profile)?.shift ?? null
+  // The rate only exists on the admin list (profile_pay is admin-only): the own profile never carries it.
+  const adminShown = isAdmin ? profiles?.find((p) => p.id === targetUser) : undefined
 
   const TREND_WEEKS = 8
   const trendQuery = useTimeEntries({ user: targetUser, from: shiftWeek(start, -(TREND_WEEKS - 1)), to: end })
@@ -79,13 +83,19 @@ export function HoursView() {
                 <SelectValue placeholder="Empleado" />
               </SelectTrigger>
               <SelectContent>
-                {profiles.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="flex items-center gap-2">
-                      <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} size="sm" />
-                      {p.display_name}
-                    </span>
-                  </SelectItem>
+                {AREAS.filter((a) => profiles.some((p) => p.area === a)).map((area, i) => (
+                  <SelectGroup key={area}>
+                    {i > 0 && <SelectSeparator />}
+                    <SelectLabel>{AREA_LABELS[area]}</SelectLabel>
+                    {profiles.filter((p) => p.area === area).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="flex items-center gap-2">
+                          <UserAvatar id={p.id} name={p.display_name} url={p.avatar_url} size="sm" />
+                          {p.display_name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
@@ -105,6 +115,11 @@ export function HoursView() {
         />
         <TrendChart trend={trend} shift={targetShift} currentStart={start} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
       </div>
+
+      {/* Pay is admin-only (2026-10-05) and only for the office. */}
+      {isAdmin && shown?.area !== 'workshop' && (
+        <WeekPayCard week={data?.week ?? undefined} shift={targetShift} rate={adminShown?.hourly_rate} />
+      )}
 
       <div data-tour="hrs-grid">
         <WeekGrid
