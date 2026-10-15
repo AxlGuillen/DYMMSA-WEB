@@ -348,7 +348,7 @@ export function PurchasePlanner({ data }: PurchasePlannerProps) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <TourButton tour="purchase-planner" />
           {brandOptions.length > 1 && (
             <Select value={brandFilter} onValueChange={setBrandFilter}>

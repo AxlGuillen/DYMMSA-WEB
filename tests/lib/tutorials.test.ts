@@ -21,16 +21,17 @@ const docsFiles = [
   ...readdirSync(join(DOCS_DIR, 'sections')).map((f) => readFileSync(join(DOCS_DIR, 'sections', f), 'utf8')),
 ]
 
-/** The source of the section whose element carries `id="<anchor>"`: up to the next section id in the same file. */
+/**
+ * The source of the ONE section whose element carries `id="<anchor>"`, up to the next `id=` in the file.
+ * Assumes the button comes before any nested `id=` (true in the three sections today).
+ */
 function sectionSource(anchor: string): string | null {
-  for (const file of docsFiles) {
-    const start = file.search(new RegExp(`id=["']${anchor}["']`))
-    if (start < 0) continue
-    const rest = file.slice(start + 1)
-    const next = rest.search(/\bid=["'][a-z-]+["']/)
-    return next < 0 ? rest : rest.slice(0, next)
-  }
-  return null
+  const pattern = new RegExp(`id=["']${anchor}["']`, 'g')
+  const hits = docsFiles.flatMap((file) => [...file.matchAll(pattern)].map((m) => ({ file, start: m.index ?? 0 })))
+  if (hits.length !== 1) return null
+  const rest = hits[0].file.slice(hits[0].start + 1)
+  const next = rest.search(/\bid=["'][a-z-]+["']/)
+  return next < 0 ? rest : rest.slice(0, next)
 }
 
 const video = (over: Partial<Tutorial>): Tutorial => ({
@@ -47,9 +48,13 @@ describe('catálogo de tutoriales', () => {
   test('ANTI-DRIFT: la sección de documentación de cada video existe y muestra su botón dentro de ella', () => {
     for (const t of TUTORIALS) {
       const section = sectionSource(t.docs)
-      expect(section, `${t.slug} → #${t.docs} no existe`).not.toBeNull()
+      expect(section, `${t.slug} → #${t.docs} no existe o está repetida`).not.toBeNull()
       expect(section, `${t.slug}: el botón no está en la sección #${t.docs}`).toContain(`tutorialsForDocs('${t.docs}')`)
     }
+  })
+
+  test('REGLA: ningún video en la página pública de aprobación (sin sesión; su liga a docs mandaría al login)', () => {
+    expect(TUTORIALS.filter((t) => t.tours.includes('approval')).map((t) => t.slug)).toEqual([])
   })
 
   test('cada video aparece en al menos una pantalla y los tres de Órdenes van donde se decidió', () => {

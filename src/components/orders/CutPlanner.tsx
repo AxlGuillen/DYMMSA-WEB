@@ -482,7 +482,7 @@ export function CutPlanner({ data, standalone }: CutPlannerProps) {
               : `${order.name || order.customer_name} · tubos y placas de cobre (DYMMSA)`}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           {isStandalone && (
             <AlertDialog>
               <AlertDialogTrigger asChild>

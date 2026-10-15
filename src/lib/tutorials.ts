@@ -21,7 +21,7 @@ export interface Tutorial {
   /** Screens whose "Vista guiada" gets a "Ver tutorial" next to it. */
   tours: readonly TourId[]
   docs: DocsAnchor
-  /** Hidden from members in the Tutoriales tab; on a screen it follows that screen's own access. */
+  /** Tutoriales tab: admins only. Documentación: never. A screen: that screen's own access. */
   adminOnly?: true
 }
 

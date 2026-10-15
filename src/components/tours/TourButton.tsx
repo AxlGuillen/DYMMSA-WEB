@@ -7,8 +7,6 @@ import { TOURS, type TourId } from '@/lib/tours/registry'
 import { tutorialsForTour } from '@/lib/tutorials'
 import { TutorialButton } from '@/components/tutorials/TutorialButton'
 
-export type { TourId }
-
 /** The ONLY entry point to tours (ADR-024): always optional, never auto-started.
  *  Steps resolve client-side so server pages can place it without passing functions.
  *  A screen with a video tutorial gets "Ver tutorial" next to it, from the catalog (ADR-038). */
