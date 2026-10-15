@@ -2,63 +2,22 @@
 
 import { Button } from '@/components/ui/button'
 import { CircleHelp } from '@/components/icons'
-import { startOverview, type OverviewStep } from '@/lib/tours'
-import { CUT_PLANNER_TOUR } from '@/lib/tours/cut-planner'
-import { DASHBOARD_TOUR } from '@/lib/tours/dashboard'
-import { APPROVAL_TOUR } from '@/lib/tours/approval'
-import { PURCHASE_PLANNER_TOUR } from '@/lib/tours/purchase-planner'
-import { QUOTER_TOUR } from '@/lib/tours/quoter'
-import { QUOTATIONS_LIST_TOUR } from '@/lib/tours/quotations-list'
-import { QUOTATION_DETAIL_TOUR } from '@/lib/tours/quotation-detail'
-import { ORDERS_LIST_TOUR } from '@/lib/tours/orders-list'
-import { ORDER_DETAIL_TOUR } from '@/lib/tours/order-detail'
-import { INVENTORY_TOUR } from '@/lib/tours/inventory'
-import { ETM_DB_TOUR } from '@/lib/tours/etm-db'
-import { URREA_CATALOG_TOUR } from '@/lib/tours/urrea-catalog'
-import { SUPPLIERS_TOUR } from '@/lib/tours/suppliers'
-import { TASKS_TOUR } from '@/lib/tours/tasks'
-import { FINANCE_OVERVIEW_TOUR } from '@/lib/tours/finance-overview'
-import { PAYABLES_TOUR } from '@/lib/tours/payables'
-import { HOURS_TOUR } from '@/lib/tours/hours'
-import { TEAM_TOUR } from '@/lib/tours/team'
-import { PROFILE_TOUR } from '@/lib/tours/profile'
+import { startOverview } from '@/lib/tours'
+import { TOURS, type TourId } from '@/lib/tours/registry'
 import { tutorialsForTour } from '@/lib/tutorials'
 import { TutorialButton } from '@/components/tutorials/TutorialButton'
 
-const TOURS = {
-  dashboard: DASHBOARD_TOUR,
-  'cut-planner': CUT_PLANNER_TOUR,
-  approval: APPROVAL_TOUR,
-  'purchase-planner': PURCHASE_PLANNER_TOUR,
-  quoter: QUOTER_TOUR,
-  'quotations-list': QUOTATIONS_LIST_TOUR,
-  'quotation-detail': QUOTATION_DETAIL_TOUR,
-  'orders-list': ORDERS_LIST_TOUR,
-  'order-detail': ORDER_DETAIL_TOUR,
-  inventory: INVENTORY_TOUR,
-  'etm-db': ETM_DB_TOUR,
-  'urrea-catalog': URREA_CATALOG_TOUR,
-  suppliers: SUPPLIERS_TOUR,
-  tasks: TASKS_TOUR,
-  'finance-overview': FINANCE_OVERVIEW_TOUR,
-  payables: PAYABLES_TOUR,
-  hours: HOURS_TOUR,
-  team: TEAM_TOUR,
-  profile: PROFILE_TOUR,
-} satisfies Record<string, OverviewStep[]>
-
-export type TourId = keyof typeof TOURS
+export type { TourId }
 
 /** The ONLY entry point to tours (ADR-024): always optional, never auto-started.
  *  Steps resolve client-side so server pages can place it without passing functions.
  *  A screen with a video tutorial gets "Ver tutorial" next to it, from the catalog (ADR-038). */
-export function TourButton({ tour, className }: { tour: TourId; className?: string }) {
+export function TourButton({ tour }: { tour: TourId }) {
   return (
     <>
       <Button
         variant="ghost"
         size="sm"
-        className={className}
         aria-label="Vista guiada"
         onClick={() => startOverview(TOURS[tour])}
       >

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { VideoFacade } from './VideoFacade'
-import type { Tutorial } from '@/lib/tutorials'
+import { isPublished, type Tutorial } from '@/lib/tutorials'
 
 /**
  * The shared player: a trigger opens a dialog with the video; with two or more, buttons pick one.
@@ -22,12 +22,14 @@ export function TutorialDialog({
   /** Off inside Documentación itself: the link would point to the page you are on. */
   showDocsLink?: boolean
 }) {
-  if (tutorials.length === 0) return null
+  // embedUrl/coverUrl throw on a pending id: a catalog slip hides the video instead of breaking the screen.
+  const playable = tutorials.filter(isPublished)
+  if (playable.length === 0) return null
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-3xl">
-        <TutorialPanel tutorials={tutorials} showDocsLink={showDocsLink} />
+        <TutorialPanel tutorials={playable} showDocsLink={showDocsLink} />
       </DialogContent>
     </Dialog>
   )

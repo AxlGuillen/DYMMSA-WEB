@@ -47,6 +47,8 @@ En Minuto Dulce (v0.4.0) ya resolvimos lo mismo para celular con Shorts 9:16. Se
 
    No se muestra la duración, porque YouTube no la expone sin la API.
 
+**Review del PR #142:** Documentación no filtra por rol, así que `tutorialsForDocs` excluye siempre los `adminOnly` (un video de admin solo sale en su pantalla y en la pestaña para admins). El mapa `TOURS`/`TourId` se mudó a `src/lib/tours/registry.ts` para que `lib/tutorials` no dependa de un componente; `TutorialDialog`/`TutorialList` filtran con `isPublished` (un error del catálogo esconde el video en vez de tumbar la pantalla).
+
 ## Alternativas descartadas
 
 - **La IFrame API de YouTube:** sería una dependencia y un script de terceros desde que carga la pantalla.

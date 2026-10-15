@@ -198,13 +198,13 @@ export default function DocsPage() {
       <div className="space-y-4">
         <DocsTabs active="documentacion" />
         <div>
-        <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
-          <BookOpen className="size-8" />
-          Documentacion
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Formatos de Excel, cada modulo del sistema, el asistente de IA y el flujo completo de una venta.
-        </p>
+          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
+            <BookOpen className="size-8" />
+            Documentacion
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            Formatos de Excel, cada modulo del sistema, el asistente de IA y el flujo completo de una venta.
+          </p>
         </div>
       </div>
 

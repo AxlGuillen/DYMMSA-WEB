@@ -3,7 +3,7 @@
  * screens in `tours`, and in the Documentación section `docs`; the Tutoriales tab lists them all.
  */
 
-import type { TourId } from '@/components/tours/TourButton'
+import type { TourId } from '@/lib/tours/registry'
 
 /** Documentación sections a tutorial can belong to (their `id` anchors in /dashboard/docs). */
 export type DocsAnchor = 'ordenes' | 'compra' | 'corte'
@@ -72,8 +72,9 @@ export function publishedTutorials(list: readonly Tutorial[], isAdmin: boolean):
 export const tutorialsForTour = (tour: TourId, list: readonly Tutorial[] = TUTORIALS) =>
   publishedTutorials(list, true).filter((t) => t.tours.includes(tour))
 
+/** Documentación is read by everyone and filters nothing by role: an admin-only video never shows there (review PR #142). */
 export const tutorialsForDocs = (anchor: DocsAnchor, list: readonly Tutorial[] = TUTORIALS) =>
-  publishedTutorials(list, true).filter((t) => t.docs === anchor)
+  publishedTutorials(list, false).filter((t) => t.docs === anchor)
 
 function assertYoutubeId(youtubeId: string) {
   if (youtubeId === PENDING_ID || !YOUTUBE_ID_PATTERN.test(youtubeId)) throw new Error(`Invalid YouTube id: ${youtubeId}`)

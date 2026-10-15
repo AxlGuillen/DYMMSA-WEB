@@ -16,10 +16,22 @@ import {
 } from '@/lib/tutorials'
 
 const DOCS_DIR = join(process.cwd(), 'src/app/dashboard/docs')
-const docsSource = [
+const docsFiles = [
   readFileSync(join(DOCS_DIR, 'page.tsx'), 'utf8'),
   ...readdirSync(join(DOCS_DIR, 'sections')).map((f) => readFileSync(join(DOCS_DIR, 'sections', f), 'utf8')),
-].join('\n')
+]
+
+/** The source of the section whose element carries `id="<anchor>"`: up to the next section id in the same file. */
+function sectionSource(anchor: string): string | null {
+  for (const file of docsFiles) {
+    const start = file.search(new RegExp(`id=["']${anchor}["']`))
+    if (start < 0) continue
+    const rest = file.slice(start + 1)
+    const next = rest.search(/\bid=["'][a-z-]+["']/)
+    return next < 0 ? rest : rest.slice(0, next)
+  }
+  return null
+}
 
 const video = (over: Partial<Tutorial>): Tutorial => ({
   slug: 'x', order: 1, youtubeId: 'abcdefghijk', title: 'X', description: 'x', tours: [], docs: 'ordenes', ...over,
@@ -32,10 +44,11 @@ describe('catálogo de tutoriales', () => {
     expect(new Set(TUTORIALS.map((t) => t.order)).size).toBe(TUTORIALS.length)
   })
 
-  test('ANTI-DRIFT: la sección de documentación de cada video existe y muestra su botón', () => {
+  test('ANTI-DRIFT: la sección de documentación de cada video existe y muestra su botón dentro de ella', () => {
     for (const t of TUTORIALS) {
-      expect(docsSource, `${t.slug} → #${t.docs}`).toMatch(new RegExp(`id(=|: )["']${t.docs}["']`))
-      expect(docsSource, `${t.slug} sin botón en su sección`).toContain(`tutorialsForDocs('${t.docs}')`)
+      const section = sectionSource(t.docs)
+      expect(section, `${t.slug} → #${t.docs} no existe`).not.toBeNull()
+      expect(section, `${t.slug}: el botón no está en la sección #${t.docs}`).toContain(`tutorialsForDocs('${t.docs}')`)
     }
   })
 
@@ -62,6 +75,11 @@ describe('publicados', () => {
     expect(publishedTutorials(list, true).map((t) => t.slug)).toEqual(['a', 'b', 'adm'])
     expect(publishedTutorials(list, false).map((t) => t.slug)).toEqual(['a', 'b'])
     expect(tutorialsForTour('inventory', [video({ tours: ['inventory'], youtubeId: PENDING_ID })])).toEqual([])
+  })
+
+  test('REGLA: un video de admin nunca sale en Documentación, que lee todo el equipo (review PR #142)', () => {
+    const list = [video({ slug: 'todos', docs: 'compra' }), video({ slug: 'adm', order: 2, docs: 'compra', adminOnly: true })]
+    expect(tutorialsForDocs('compra', list).map((t) => t.slug)).toEqual(['todos'])
   })
 
   test('el reproductor usa youtube-nocookie y la portada la miniatura de YouTube; un id pendiente revienta', () => {

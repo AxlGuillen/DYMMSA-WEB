@@ -4,13 +4,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Play } from '@/components/icons'
 import { TutorialDialog } from './TutorialDialog'
-import { coverUrl, type Tutorial } from '@/lib/tutorials'
+import { coverUrl, isPublished, type Tutorial } from '@/lib/tutorials'
 
 /** The Tutoriales tab: every video in order; a card opens the shared player, its link goes to the docs section. */
 export function TutorialList({ tutorials }: { tutorials: readonly Tutorial[] }) {
   return (
     <ol aria-label="Tutoriales" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {tutorials.map((tutorial) => (
+      {tutorials.filter(isPublished).map((tutorial) => (
         <li key={tutorial.slug} className="flex flex-col overflow-hidden rounded-xl border bg-card">
           <TutorialDialog tutorials={[tutorial]}>
             <button
@@ -18,7 +18,7 @@ export function TutorialList({ tutorials }: { tutorials: readonly Tutorial[] }) 
               aria-haspopup="dialog"
               className="group relative aspect-video w-full cursor-pointer overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Image src={coverUrl(tutorial.youtubeId)} alt="" fill unoptimized sizes="(min-width: 640px) 50vw, 100vw" className="object-cover" />
+              <Image src={coverUrl(tutorial.youtubeId)} alt="" fill unoptimized className="object-cover" />
               <span className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/30" aria-hidden="true" />
               <span
                 className="absolute top-1/2 left-1/2 flex size-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
@@ -31,7 +31,7 @@ export function TutorialList({ tutorials }: { tutorials: readonly Tutorial[] }) 
           </TutorialDialog>
           <div className="flex flex-1 flex-col gap-1.5 p-4">
             <p className="font-medium leading-snug">{tutorial.title}</p>
-            {tutorial.duration && <p className="text-xs text-muted-foreground tabular-nums">{tutorial.duration} min</p>}
+            {tutorial.duration && <p className="text-xs text-muted-foreground tabular-nums">{tutorial.duration}</p>}
             <p className="text-sm text-muted-foreground">{tutorial.description}</p>
             <Link
               href={`/dashboard/docs#${tutorial.docs}`}

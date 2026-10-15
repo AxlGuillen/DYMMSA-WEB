@@ -61,8 +61,10 @@ describe('reproductor', () => {
     expect(within(dialog).queryByRole('link', { name: /Leer en la documentación/ })).not.toBeInTheDocument()
   })
 
-  test('sin videos no hay botón', () => {
-    const { container } = render(<TutorialButton tutorials={[]} />)
+  test('sin videos, o solo con uno pendiente, no hay botón (un error del catálogo no tumba la pantalla)', () => {
+    const { container, rerender } = render(<TutorialButton tutorials={[]} />)
+    expect(container).toBeEmptyDOMElement()
+    rerender(<TutorialButton tutorials={[video({ youtubeId: 'PENDIENTE' })]} />)
     expect(container).toBeEmptyDOMElement()
   })
 })
