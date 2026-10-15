@@ -1,9 +1,11 @@
 import { ShoppingCart } from '@/components/icons'
+import { TutorialButton } from '@/components/tutorials/TutorialButton'
+import { tutorialsForDocs } from '@/lib/tutorials'
 import { DocSection, List, Note, Sub } from './shared'
 
 export function PurchasePlannerSection() {
   return (
-    <DocSection id="compra" icon={ShoppingCart} title="Planificar compra (mayoreo vs menudeo)" description="Dentro de cada orden: decide que se pide a URREA por paquetes y que se compra al menudeo. De aqui salen los dos Excel de compra.">
+    <DocSection id="compra" icon={ShoppingCart} title="Planificar compra (mayoreo vs menudeo)" description="Dentro de cada orden: decide que se pide a URREA por paquetes y que se compra al menudeo. De aqui salen los dos Excel de compra." action={<TutorialButton tutorials={tutorialsForDocs('compra')} showDocsLink={false} />}>
       <p className="text-muted-foreground">
         Boton <strong>Planificar compra</strong> en el detalle de la orden. El sistema junta lo que hay que pedir
         <strong> por codigo y marca</strong> (si el mismo producto aparece en dos secciones, se suma antes de decidir) y
