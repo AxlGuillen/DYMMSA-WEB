@@ -37,6 +37,9 @@ import {
   ShortcutsSection,
   SuppliersSection,
 } from './sections'
+import { DocsTabs } from '@/components/docs/DocsTabs'
+import { TutorialButton } from '@/components/tutorials/TutorialButton'
+import { tutorialsForDocs } from '@/lib/tutorials'
 import {
   Card,
   CardContent,
@@ -192,7 +195,9 @@ export default function DocsPage() {
   return (
     <div className="docs-page-bg -mx-4 -my-8 px-4 py-8">
     <div className="mx-auto max-w-3xl space-y-8">
-      <div>
+      <div className="space-y-4">
+        <DocsTabs active="documentacion" />
+        <div>
         <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
           <BookOpen className="size-8" />
           Documentacion
@@ -200,6 +205,7 @@ export default function DocsPage() {
         <p className="mt-2 text-muted-foreground">
           Formatos de Excel, cada modulo del sistema, el asistente de IA y el flujo completo de una venta.
         </p>
+        </div>
       </div>
 
       <div className="login-card-border">
@@ -923,9 +929,12 @@ export default function DocsPage() {
       <div id="ordenes" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2">
             <Package className="size-5" />
             Detalle de Orden
+            <span className="ml-auto">
+              <TutorialButton tutorials={tutorialsForDocs('ordenes')} showDocsLink={false} />
+            </span>
           </CardTitle>
           <CardDescription>
             Todo lo que puedes ver y hacer desde la pagina de detalle de una orden de venta.

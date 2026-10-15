@@ -3,20 +3,23 @@
 import type { ComponentType, ReactNode } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-export function DocSection({ id, icon: Icon, title, description, children }: {
+export function DocSection({ id, icon: Icon, title, description, action, children }: {
   id: string
   icon: ComponentType<{ className?: string }>
   title: string
   description: string
+  /** Next to the title, e.g. the section's "Ver tutorial" (ADR-038). */
+  action?: ReactNode
   children: ReactNode
 }) {
   return (
     <div id={id} className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2">
             <Icon className="size-5" />
             {title}
+            {action && <span className="ml-auto">{action}</span>}
           </CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>

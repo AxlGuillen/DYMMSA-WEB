@@ -22,6 +22,8 @@ import { PAYABLES_TOUR } from '@/lib/tours/payables'
 import { HOURS_TOUR } from '@/lib/tours/hours'
 import { TEAM_TOUR } from '@/lib/tours/team'
 import { PROFILE_TOUR } from '@/lib/tours/profile'
+import { tutorialsForTour } from '@/lib/tutorials'
+import { TutorialButton } from '@/components/tutorials/TutorialButton'
 
 const TOURS = {
   dashboard: DASHBOARD_TOUR,
@@ -48,18 +50,22 @@ const TOURS = {
 export type TourId = keyof typeof TOURS
 
 /** The ONLY entry point to tours (ADR-024): always optional, never auto-started.
- *  Steps resolve client-side so server pages can place it without passing functions. */
+ *  Steps resolve client-side so server pages can place it without passing functions.
+ *  A screen with a video tutorial gets "Ver tutorial" next to it, from the catalog (ADR-038). */
 export function TourButton({ tour, className }: { tour: TourId; className?: string }) {
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className={className}
-      aria-label="Vista guiada"
-      onClick={() => startOverview(TOURS[tour])}
-    >
-      <CircleHelp className="mr-2 size-4" />
-      Vista guiada
-    </Button>
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        className={className}
+        aria-label="Vista guiada"
+        onClick={() => startOverview(TOURS[tour])}
+      >
+        <CircleHelp className="mr-2 size-4" />
+        Vista guiada
+      </Button>
+      <TutorialButton tutorials={tutorialsForTour(tour)} />
+    </>
   )
 }
