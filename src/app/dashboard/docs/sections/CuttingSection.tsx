@@ -1,9 +1,11 @@
 import { Scissors } from '@/components/icons'
 import { DocSection, List, Note, Sub } from './shared'
+import { TutorialButton } from '@/components/tutorials/TutorialButton'
+import { tutorialsForDocs } from '@/lib/tutorials'
 
 export function CuttingSection() {
   return (
-    <DocSection id="corte" icon={Scissors} title="Planificar corte y medidas de material" description="Para los productos DYMMSA que se mandan a hacer (tubo y placa de cobre): cuanto material pedir y como se acomoda.">
+    <DocSection id="corte" icon={Scissors} title="Planificar corte y medidas de material" description="Para los productos DYMMSA que se mandan a hacer (tubo y placa de cobre): cuanto material pedir y como se acomoda." action={<TutorialButton tutorials={tutorialsForDocs('corte')} showDocsLink={false} />}>
       <p className="text-muted-foreground">
         Dos entradas: <strong>Planificar corte</strong> desde una orden (guarda la lista de piezas) o desde el menu como
         <strong> corte rapido</strong> (efimero: las piezas viven solo en tu navegador, sirve para cotizar material sin orden).

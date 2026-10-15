@@ -47,6 +47,7 @@ import {
   ChevronsRightIcon as _ChevronsRight,
   HouseIcon as _House,
   PackageOpenIcon as _PackageOpen,
+  PlayIcon as _Play,
   PlusIcon as _Plus,
   SearchIcon as _Search,
   SendIcon as _Send,
@@ -160,6 +161,7 @@ export const HeadphonesOff = wrap(_HeadphonesOff)
 export const Info = wrap(_Info)
 export const Menu = wrap(_Menu)
 export const Moon = wrap(_Moon)
+export const Play = wrap(_Play)
 export const Plus = wrap(_Plus)
 export const Search = wrap(_Search)
 export const Send = wrap(_Send)

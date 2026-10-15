@@ -3,6 +3,16 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-14
+
+### Nuevo
+- **Tutoriales en video.** Junto a "Vista guiada" aparece **Ver tutorial** en las
+  pantallas que tienen video: lista y detalle de órdenes, planificar compra y
+  planificar corte. El video se abre en la misma pantalla.
+- **Pestaña Tutoriales en Documentación**, con todos los videos en orden. Cada
+  uno lleva a su sección de la documentación, y esas secciones también tienen
+  su botón para ver el video.
+
 ## 2026-10-09
 
 ### Corregido
