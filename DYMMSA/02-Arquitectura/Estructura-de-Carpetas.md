@@ -7,6 +7,7 @@ src/
 │   │   ├── approve/[token]/      # GET: cotización por token | POST: enviar decisiones
 │   │   ├── inventory/import/     # POST: importar inventario desde Excel
 │   │   ├── finance/income/       # GET: ingresos del mes leídos de Odoo · refresh/ POST: purga el caché (issue #94)
+│   │   ├── clients/              # GET cartera · [id]/ GET estado de cuenta · refresh/ POST purga (issue #145, ADR-039)
 │   │   ├── payables/[id]/events/ # GET admin: bitácora de una factura desde audit_events (issue #100, ADR-028)
 │   │   ├── profile/avatar/       # POST/DELETE: foto propia validada por sus bytes (issue #122, ADR-032)
 │   │   ├── excused-days/         # GET/POST + [id] DELETE: días feriados y salidas autorizadas (2026-10-01)
@@ -57,6 +58,7 @@ src/
 │   │   ├── cutting/page.tsx      # Corte rápido standalone — efímero, borrador localStorage (issue #71)
 │   │   ├── materials/page.tsx    # Control de medidas de material del proveedor (issue #71)
 │   │   ├── proveedores/page.tsx  # Proveedores de menudeo + marcas (issue #21)
+│   │   ├── clientes/             # Cartera de Odoo (page.tsx) + estado de cuenta por cliente ([id]/page.tsx) (issue #145)
 │   │   ├── hours/
 │   │   │   ├── page.tsx          # Mi semana: stepper + WeekGrid (issue #93)
 │   │   │   ├── import/page.tsx   # Importar reporte NGTeco (admin)
@@ -87,6 +89,7 @@ src/
 │   ├── ColumnPicker.tsx          # Selector "Columnas" por tabla (checkbox + restablecer, issue #18)
 │   ├── discrete-mode-toggle.tsx  # Toggle Eye/EyeOff para modo discreto (global)
 │   ├── finance/                  # PayableForm, PayablesTable, FinanceOverview (issue #84)
+│   ├── customers/                # CustomersList, CustomerDetail, StatementRangeFilter (+ useStatementRange), OdooUnavailable (issue #145)
 │   ├── profile/                  # ProfileView, UserAvatar (issue #122)
 │   ├── hours/                    # TeamHoursOverview, WeekPayCard (2026-10-05); ExcusedDaysPanel (2026-10-01); HoursView, WeekGrid, TimeEntryForm, TimeImportPanel, TeamTable, AdminOnly (issue #93); WeekChart/WeekBars, TrendChart/TrendBars (gráficas con referencias de jornada, issue #101)
 │   ├── payroll/                  # PayrollView (corte sábado→viernes), PayrollDayDialog, PayrollEmployeesDialog (issue #123, solo admin)
@@ -109,6 +112,8 @@ src/
 │   ├── useProducts.ts            # CRUD catálogo ETM
 │   ├── useProfile.ts             # Perfil propio (isAdmin) + perfiles del equipo (issue #93)
 │   ├── useIncome.ts              # Ingresos del mes desde Odoo + refresh del caché (issue #94)
+│   ├── useCustomers.ts           # Cartera y estado de cuenta de Odoo + refresh (issue #145)
+│   ├── odoo-query-keys.ts        # Llaves compartidas Finanzas/Clientes: un refresh deja viejo al otro (#145)
 │   ├── useTimeEntries.ts         # Checadas por semana, import multipart, mutaciones admin (issue #93)
 │   ├── useQuotations.ts          # CRUD + acciones de cotizaciones
 │   ├── usePurchasePlan.ts        # Plan de compra + guardado de decisiones (ADR-018)
@@ -122,6 +127,7 @@ src/
 │   ├── excel/
 │   │   ├── parser.ts             # extractProductRowsFromExcel, extractEtmCodesFromExcel
 │   │   ├── generator.ts          # Generar Excel URREA output
+│   │   ├── statement.ts          # Estado de cuenta del cliente, sin RFC ni contacto (issue #145)
 │   │   └── detect-approved.ts    # Detectar filas verdes (legacy)
 │   ├── supabase/
 │   │   ├── client.ts             # createBrowserClient (browser)
@@ -138,7 +144,8 @@ src/
 │   ├── month.ts                  # ISODate, ISO_MONTH, monthOf, nextMonth, monthRange — sin imports de la app (#94)
 │   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); describeAuditEvent (#100); re-exporta month.ts
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
-│   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94)
+│   ├── customers.ts              # Cartera y estado de cuenta: rango por vencimiento, líneas, totales (issue #145, ADR-039)
+│   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
 │   ├── mcp/views/generated.ts    # HTML de las vistas MCP Apps, generado por scripts/build-mcp-views.ts (ADR-036)
 │   └── utils.ts                  # cn() — class merging
