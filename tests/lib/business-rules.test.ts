@@ -362,25 +362,33 @@ describe('receptionExcess', () => {
 })
 
 describe('statusAfterReceived (#146)', () => {
+  const capture = (status: 'pending' | 'supplied' | 'not_supplied', autoFrom: 'pending' | 'supplied' | 'not_supplied' | null = null, manual = false) =>
+    ({ status, autoFrom, manual })
+
   test('recibido ≥ pedido marca Surtido y recuerda lo que tenía', () => {
-    expect(statusAfterReceived(3, 3, 'pending', null)).toEqual({ status: 'supplied', autoFrom: 'pending' })
-    expect(statusAfterReceived(10, 3, 'not_supplied', null)).toEqual({ status: 'supplied', autoFrom: 'not_supplied' })
+    expect(statusAfterReceived(3, 3, capture('pending'))).toEqual(capture('supplied', 'pending'))
+    // A status saved by an earlier reception is not a choice of this capture: it gets promoted too.
+    expect(statusAfterReceived(10, 3, capture('not_supplied'))).toEqual(capture('supplied', 'not_supplied'))
   })
 
   test('REGLA: bajar lo recibido deshace SOLO el cambio automático', () => {
-    expect(statusAfterReceived(2, 3, 'supplied', 'pending')).toEqual({ status: 'pending', autoFrom: null })
-    // Picked by hand (no autoFrom): the app never downgrades it.
-    expect(statusAfterReceived(2, 3, 'supplied', null)).toEqual({ status: 'supplied', autoFrom: null })
+    expect(statusAfterReceived(2, 3, capture('supplied', 'pending'))).toEqual(capture('pending'))
+    expect(statusAfterReceived(2, 3, capture('supplied'))).toEqual(capture('supplied'))
+  })
+
+  test('REGLA: un estado elegido a mano en la captura ya no lo cambia la cantidad, ni para subir ni para bajar (review PR #147)', () => {
+    expect(statusAfterReceived(50, 5, capture('not_supplied', null, true))).toEqual(capture('not_supplied', null, true))
+    expect(statusAfterReceived(1, 5, capture('supplied', null, true))).toEqual(capture('supplied', null, true))
   })
 
   test('una recepción parcial no cambia el estado', () => {
-    expect(statusAfterReceived(1, 3, 'pending', null)).toEqual({ status: 'pending', autoFrom: null })
-    expect(statusAfterReceived(1, 3, 'not_supplied', null)).toEqual({ status: 'not_supplied', autoFrom: null })
+    expect(statusAfterReceived(1, 3, capture('pending'))).toEqual(capture('pending'))
+    expect(statusAfterReceived(1, 3, capture('not_supplied'))).toEqual(capture('not_supplied'))
   })
 
   test('ya en Surtido se queda igual, y sin pedido a URREA no hay nada que surtir', () => {
-    expect(statusAfterReceived(5, 3, 'supplied', 'pending')).toEqual({ status: 'supplied', autoFrom: 'pending' })
-    expect(statusAfterReceived(4, 0, 'pending', null)).toEqual({ status: 'pending', autoFrom: null })
+    expect(statusAfterReceived(5, 3, capture('supplied', 'pending'))).toEqual(capture('supplied', 'pending'))
+    expect(statusAfterReceived(4, 0, capture('pending'))).toEqual(capture('pending'))
   })
 })
 

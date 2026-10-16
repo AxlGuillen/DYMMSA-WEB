@@ -158,8 +158,9 @@ interface ItemEdit {
   id: string
   quantity_received: number
   urrea_status: UrreaStatus
-  /** The status the app replaced with "supplied" in this capture; null = the current one is the user's (#146). */
+  /** Capture-only state of statusAfterReceived (#146); never sent to the API. */
   autoFrom: UrreaStatus | null
+  manual: boolean
 }
 
 // oxlint-disable-next-line react-doctor/no-giant-component, react-doctor/prefer-useReducer -- intentional pattern; structural refactor tracked separately
@@ -249,21 +250,29 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
-  const handleItemEdit = (itemId: string, field: 'quantity_received' | 'urrea_status', value: number | UrreaStatus) => {
+  /** The edit in progress or, the first time, what the line has saved. */
+  const captureOf = (prev: Record<string, ItemEdit>, itemId: string): ItemEdit => {
+    const item = order.order_items.find((i) => i.id === itemId)
+    return prev[itemId] ?? {
+      id: itemId,
+      quantity_received: item?.quantity_received ?? 0,
+      urrea_status: item?.urrea_status ?? 'pending',
+      autoFrom: null,
+      manual: false,
+    }
+  }
+
+  const setReceived = (itemId: string, received: number) => {
     setItemEdits((prev) => {
-      const item = order.order_items.find((i) => i.id === itemId)
-      const base: ItemEdit = prev[itemId] ?? {
-        id: itemId,
-        quantity_received: item?.quantity_received ?? 0,
-        urrea_status: item?.urrea_status ?? 'pending',
-        autoFrom: null,
-      }
-      // A status picked by hand is the user's: later quantity changes never touch it.
-      if (field === 'urrea_status') return { ...prev, [itemId]: { ...base, urrea_status: value as UrreaStatus, autoFrom: null } }
-      const received = value as number
-      const next = statusAfterReceived(received, item?.quantity_to_order ?? 0, base.urrea_status, base.autoFrom)
+      const base = captureOf(prev, itemId)
+      const ordered = order.order_items.find((i) => i.id === itemId)?.quantity_to_order ?? 0
+      const next = statusAfterReceived(received, ordered, { status: base.urrea_status, autoFrom: base.autoFrom, manual: base.manual })
       return { ...prev, [itemId]: { ...base, quantity_received: received, urrea_status: next.status, autoFrom: next.autoFrom } }
     })
+  }
+
+  const setStatus = (itemId: string, status: UrreaStatus) => {
+    setItemEdits((prev) => ({ ...prev, [itemId]: { ...captureOf(prev, itemId), urrea_status: status, autoFrom: null, manual: true } }))
   }
 
   // Reception runs only after the summary (ADR-019): a typo would otherwise push
@@ -280,8 +289,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
     })
     return [{
       id: item.id,
-      // Whoever receives the goods knows URREA's code and the description, not the customer's ETM (#146).
-      code: item.model_code,
+      // Whoever receives knows URREA's code (#146); the ETM only when a line has none (review PR #147).
+      code: item.model_code || item.etm,
       description: item.description,
       ordered: item.quantity_to_order,
       received: edit.quantity_received,
@@ -865,13 +874,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                                 min="0"
                                 className="w-20 h-8 text-right"
                                 value={effectiveReceived}
-                                onChange={(e) =>
-                                  handleItemEdit(
-                                    item.id,
-                                    'quantity_received',
-                                    parseInt(e.target.value) || 0
-                                  )
-                                }
+                                onChange={(e) => setReceived(item.id, parseInt(e.target.value) || 0)}
                               />
                               {excess > 0 && (
                                 <span className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
@@ -898,7 +901,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                           <Select
                             value={edit?.urrea_status ?? item.urrea_status}
                             onValueChange={(value) =>
-                              handleItemEdit(item.id, 'urrea_status', value as UrreaStatus)
+                              setStatus(item.id, value as UrreaStatus)
                             }
                           >
                             <SelectTrigger className="w-32 h-8">
