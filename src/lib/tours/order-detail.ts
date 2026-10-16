@@ -31,6 +31,6 @@ export const ORDER_DETAIL_TOUR: OverviewStep[] = [
     selector: '[data-tour="od-items"]',
     title: 'Los productos y la recepción',
     description:
-      'Por producto: cantidades, la <b>gaveta</b> donde está su stock y el estado con URREA (pendiente → surtido / no surtido). Al confirmar la recepción, si llega <b>de más</b>, el excedente entra solo al inventario; recibir de menos deja el faltante visible. El excedente nunca se factura ni se entrega.',
+      'Por producto: cantidades, la <b>gaveta</b> donde está su stock y el estado con URREA (pendiente → surtido / no surtido): al capturar lo recibido completo pasa solo a <b>surtido</b>. Al confirmar la recepción, si llega <b>de más</b>, el excedente entra solo al inventario; recibir de menos deja el faltante visible. El excedente nunca se factura ni se entrega.',
   },
 ]

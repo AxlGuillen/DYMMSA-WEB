@@ -93,6 +93,7 @@ import {
   filterProductItems,
   receivedForCustomer,
   receptionExcess,
+  statusAfterReceived,
 } from '@/lib/business-rules'
 import { separatorRowClass } from '@/lib/separator-palette'
 import { fetchJson } from '@/lib/fetch-json'
@@ -157,6 +158,8 @@ interface ItemEdit {
   id: string
   quantity_received: number
   urrea_status: UrreaStatus
+  /** The status the app replaced with "supplied" in this capture; null = the current one is the user's (#146). */
+  autoFrom: UrreaStatus | null
 }
 
 // oxlint-disable-next-line react-doctor/no-giant-component, react-doctor/prefer-useReducer -- intentional pattern; structural refactor tracked separately
@@ -246,22 +249,21 @@ export function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
-  const handleItemEdit = (itemId: string, field: keyof ItemEdit, value: number | UrreaStatus) => {
-    setItemEdits((prev) => ({
-      ...prev,
-      [itemId]: {
+  const handleItemEdit = (itemId: string, field: 'quantity_received' | 'urrea_status', value: number | UrreaStatus) => {
+    setItemEdits((prev) => {
+      const item = order.order_items.find((i) => i.id === itemId)
+      const base: ItemEdit = prev[itemId] ?? {
         id: itemId,
-        quantity_received:
-          prev[itemId]?.quantity_received ??
-          order.order_items.find((i) => i.id === itemId)?.quantity_received ??
-          0,
-        urrea_status:
-          prev[itemId]?.urrea_status ??
-          order.order_items.find((i) => i.id === itemId)?.urrea_status ??
-          'pending',
-        [field]: value,
-      },
-    }))
+        quantity_received: item?.quantity_received ?? 0,
+        urrea_status: item?.urrea_status ?? 'pending',
+        autoFrom: null,
+      }
+      // A status picked by hand is the user's: later quantity changes never touch it.
+      if (field === 'urrea_status') return { ...prev, [itemId]: { ...base, urrea_status: value as UrreaStatus, autoFrom: null } }
+      const received = value as number
+      const next = statusAfterReceived(received, item?.quantity_to_order ?? 0, base.urrea_status, base.autoFrom)
+      return { ...prev, [itemId]: { ...base, quantity_received: received, urrea_status: next.status, autoFrom: next.autoFrom } }
+    })
   }
 
   // Reception runs only after the summary (ADR-019): a typo would otherwise push
@@ -278,7 +280,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
     })
     return [{
       id: item.id,
-      etm: item.etm || item.model_code,
+      // Whoever receives the goods knows URREA's code and the description, not the customer's ETM (#146).
+      code: item.model_code,
+      description: item.description,
       ordered: item.quantity_to_order,
       received: edit.quantity_received,
       excess,
@@ -301,7 +305,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
     try {
       const result: ConfirmReceptionResult = await confirmReception.mutateAsync({
         orderId: order.id,
-        input: { items: Object.values(itemEdits) },
+        input: {
+          items: Object.values(itemEdits).map(({ id, quantity_received, urrea_status }) => ({ id, quantity_received, urrea_status })),
+        },
       })
       toast.success('Recepción confirmada')
       result.warnings?.forEach((warning) => toast.warning(warning))
@@ -1161,7 +1167,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
       {/* Reception summary before confirming (typo guard, ADR-019) */}
       <AlertDialog open={receptionDialogOpen} onOpenChange={setReceptionDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar recepción</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1175,7 +1181,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ETM</TableHead>
+                  <TableHead>Código URREA</TableHead>
+                  <TableHead>Descripción</TableHead>
                   <TableHead className="text-right">Pedido</TableHead>
                   <TableHead className="text-right">Recibido</TableHead>
                   <TableHead className="text-right">Inventario</TableHead>
@@ -1187,7 +1194,12 @@ export function OrderDetail({ order }: OrderDetailProps) {
                     key={row.id}
                     className={row.excess > 0 ? 'bg-amber-500/10' : undefined}
                   >
-                    <TableCell className="font-mono text-sm">{row.etm}</TableCell>
+                    <TableCell className="font-mono text-sm">{row.code || '—'}</TableCell>
+                    <TableCell className="text-sm">
+                      <span className="block max-w-56 truncate" title={row.description ?? undefined}>
+                        {row.description || '—'}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-right">{row.ordered}</TableCell>
                     <TableCell className="text-right font-medium">
                       {row.received}

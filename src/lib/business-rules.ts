@@ -1,5 +1,7 @@
 /** Executable source of truth for the critical business rules; the narrative lives in CLAUDE.md. */
 
+import type { UrreaStatus } from '@/types/database'
+
 export function isSeparator(item: { item_type?: string | null }): boolean {
   return item.item_type === 'separator'
 }
@@ -166,6 +168,21 @@ export function receivedForCustomer<T extends ReceptionLike>(item: T): number {
 /** Excess = max(0, received − ordered): the ONLY thing that enters inventory, by delta. */
 export function receptionExcess<T extends ReceptionLike>(item: T): number {
   return Math.max(0, item.quantity_received - item.quantity_to_order)
+}
+
+/**
+ * URREA status while capturing a reception (#146): reaching what was ordered marks the line supplied, and
+ * dropping back undoes ONLY that automatic change (`autoFrom`); a partial reception and manual choices stay.
+ */
+export function statusAfterReceived(
+  received: number,
+  ordered: number,
+  status: UrreaStatus,
+  autoFrom: UrreaStatus | null,
+): { status: UrreaStatus; autoFrom: UrreaStatus | null } {
+  if (ordered <= 0) return { status, autoFrom }
+  if (received >= ordered) return status === 'supplied' ? { status, autoFrom } : { status: 'supplied', autoFrom: status }
+  return autoFrom !== null ? { status: autoFrom, autoFrom: null } : { status, autoFrom: null }
 }
 
 /** Splits approved between stock and to-order. Invariant: inStock + toOrder === needed. */

@@ -13,6 +13,7 @@ import {
   validateAllocationInvariant,
   receivedForCustomer,
   receptionExcess,
+  statusAfterReceived,
   normalizeCatalogCode,
   catalogKey,
   resolveDymmsaDescription,
@@ -357,6 +358,29 @@ describe('receptionExcess', () => {
     expect(receptionExcess({ quantity_received: 2, quantity_to_order: 5 })).toBe(0)
     expect(receptionExcess({ quantity_received: 5, quantity_to_order: 5 })).toBe(0)
     expect(receptionExcess({ quantity_received: 0, quantity_to_order: 0 })).toBe(0)
+  })
+})
+
+describe('statusAfterReceived (#146)', () => {
+  test('recibido ≥ pedido marca Surtido y recuerda lo que tenía', () => {
+    expect(statusAfterReceived(3, 3, 'pending', null)).toEqual({ status: 'supplied', autoFrom: 'pending' })
+    expect(statusAfterReceived(10, 3, 'not_supplied', null)).toEqual({ status: 'supplied', autoFrom: 'not_supplied' })
+  })
+
+  test('REGLA: bajar lo recibido deshace SOLO el cambio automático', () => {
+    expect(statusAfterReceived(2, 3, 'supplied', 'pending')).toEqual({ status: 'pending', autoFrom: null })
+    // Picked by hand (no autoFrom): the app never downgrades it.
+    expect(statusAfterReceived(2, 3, 'supplied', null)).toEqual({ status: 'supplied', autoFrom: null })
+  })
+
+  test('una recepción parcial no cambia el estado', () => {
+    expect(statusAfterReceived(1, 3, 'pending', null)).toEqual({ status: 'pending', autoFrom: null })
+    expect(statusAfterReceived(1, 3, 'not_supplied', null)).toEqual({ status: 'not_supplied', autoFrom: null })
+  })
+
+  test('ya en Surtido se queda igual, y sin pedido a URREA no hay nada que surtir', () => {
+    expect(statusAfterReceived(5, 3, 'supplied', 'pending')).toEqual({ status: 'supplied', autoFrom: 'pending' })
+    expect(statusAfterReceived(4, 0, 'pending', null)).toEqual({ status: 'pending', autoFrom: null })
   })
 })
 
