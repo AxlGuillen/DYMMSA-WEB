@@ -12,7 +12,7 @@ import {
   type OdooOpenInvoice,
   type OdooRows,
 } from './income'
-import { fetchCustomerActivity, fetchCustomers, type OdooCustomer, type OdooCustomerActivity } from './customers'
+import { fetchCustomer, fetchCustomerActivity, fetchCustomers, type OdooCustomer, type OdooCustomerActivity } from './customers'
 
 export const INCOME_CACHE_TAG = 'finance-income'
 export const CUSTOMERS_CACHE_TAG = 'odoo-customers'
@@ -55,10 +55,11 @@ export const cachedCustomers = unstable_cache(
 
 /** `partnerId` is part of the key: one entry per customer. */
 export const cachedCustomerActivity = unstable_cache(
-  async (partnerId: number): Promise<OdooCustomerActivity & { fetchedAt: string }> => ({
+  async (partnerId: number): Promise<OdooCustomerActivity & { customer: OdooCustomer | null; fetchedAt: string }> => ({
+    customer: await fetchCustomer(callOdoo, partnerId),
     ...(await fetchCustomerActivity(callOdoo, partnerId)),
     fetchedAt: new Date().toISOString(),
   }),
-  ['odoo-customers', 'activity'],
+  ['odoo-customers', 'activity-v2'],
   { revalidate: INCOME_REVALIDATE_SECONDS, tags: [CUSTOMERS_CACHE_TAG] },
 )

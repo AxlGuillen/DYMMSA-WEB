@@ -47,6 +47,13 @@ Decisiones del usuario (2026-10-15):
   - `formatMoney()` en `format.ts` es el formato único de pesos, y `useCurrency` lo enmascara.
 - **Refutado:** agrupar por el `partner_id` crudo no parte a ningún cliente en la instancia real.
 
+**Review del PR #148 (sin bloqueantes):**
+
+- `GET /api/clients/[id]` ya no carga la lista entera de clientes para resolver uno. `fetchCustomer` lee un solo partner por id, con `customer_rank > 0`, en el mismo caché que su actividad (`activity-v2`). En frío, la lista costaba hasta 5 páginas con `days_sales_outstanding` calculado por registro.
+- En el MCP, `incluir` vale `ambas` por defecto. Con solo `cliente`, la ventana es la misma que en la pantalla (todo lo vencido + este mes), así que "el estado de cuenta de X" responde igual por el chat que en la app. Con cliente, `limit` no recorta y se lista todo; ahora la descripción lo dice.
+- Las líneas sin fecha se ordenan al final, en `statementLines` y en `primeras`.
+- JSDoc de `sanitizeFilename`/`formatMoney` en su lugar.
+
 ## Alternativas descartadas
 
 - **Copiar clientes y facturas a una tabla:** dos verdades y una sincronización que mantener. ADR-027 ya eligió leer.

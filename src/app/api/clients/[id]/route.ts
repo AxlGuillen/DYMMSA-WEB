@@ -12,7 +12,7 @@ import {
 } from '@/lib/customers'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
-import { cachedCustomerActivity, cachedCustomers, cachedOpenCustomerMoves } from '@/lib/odoo/income-cache'
+import { cachedCustomerActivity, cachedOpenCustomerMoves } from '@/lib/odoo/income-cache'
 
 export const maxDuration = 60
 
@@ -40,27 +40,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!isOdooConfigured()) return NextResponse.json(unavailable(today, range, 'not_configured'))
 
     try {
-      const [customers, moves] = await Promise.all([cachedCustomers(), cachedOpenCustomerMoves()])
-      // A partner invoiced but outside the customer list still has a statement (same rule as the list).
-      const listed = customers.rows.find((c) => c.id === id)
+      const [detail, moves] = await Promise.all([cachedCustomerActivity(id), cachedOpenCustomerMoves()])
+      // A partner Odoo no longer returns but still invoiced keeps its statement (same rule as the list).
       const invoiced = moves.rows.find((m) => m.customerId === id)
-      const customer = listed ?? (invoiced
+      const customer = detail.customer ?? (invoiced
         ? { id, name: invoiced.customer ?? 'Sin nombre', city: null, phone: null, email: null, vat: null, daysToPay: null }
         : null)
       if (!customer) return notFound('Cliente no encontrado')
 
-      const activity = await cachedCustomerActivity(id)
       const body: CustomerDetailResponse = {
         today,
         range,
         customer,
         statement: customerStatement(moves.rows, id, range, today),
         creditNotes: customerCreditNotes(moves.rows, id),
-        sales: activity.sales,
-        payments: activity.payments,
+        sales: detail.sales,
+        payments: detail.payments,
         reason: null,
-        truncated: customers.truncated || moves.truncated,
-        fetchedAt: [customers.fetchedAt, moves.fetchedAt, activity.fetchedAt].sort()[0],
+        truncated: moves.truncated,
+        fetchedAt: [moves.fetchedAt, detail.fetchedAt].sort()[0],
       }
       return NextResponse.json(body)
     } catch (error) {

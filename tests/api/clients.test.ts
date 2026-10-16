@@ -45,8 +45,12 @@ const SALE = { id: 9, name: 'S00041', date_order: '2026-10-03 01:30:00', amount_
 const PAYMENT = { id: 71, name: 'PAY00068', date: '2026-10-01', amount: 580, memo: 'F00387', currency_id: [33, 'MXN'] }
 
 function scriptOdoo() {
-  vi.mocked(callOdoo).mockImplementation(async (model) => {
-    if (model === 'res.partner') return [ANDRITZ, BOSCH]
+  vi.mocked(callOdoo).mockImplementation(async (model, _method, payload) => {
+    if (model === 'res.partner') {
+      // The detail reads one partner by id; the list reads them all.
+      const byId = (payload.domain as unknown[][]).find(([f]) => f === 'id')
+      return [ANDRITZ, BOSCH].filter((p) => !byId || p.id === byId[2])
+    }
     if (model === 'account.move') return MOVES
     if (model === 'sale.order') return [SALE]
     if (model === 'account.payment') return [PAYMENT]
@@ -148,6 +152,10 @@ describe('GET /api/clients/[id]', () => {
     // The activity reads are scoped to this partner only.
     const saleCall = vi.mocked(callOdoo).mock.calls.find((c) => c[0] === 'sale.order')!
     expect(saleCall[2].domain).toContainEqual(['partner_id', '=', 24])
+    // One partner by id, never the whole customer list (review PR #148).
+    const partnerCalls = vi.mocked(callOdoo).mock.calls.filter((c) => c[0] === 'res.partner')
+    expect(partnerCalls).toHaveLength(1)
+    expect(partnerCalls[0][2].domain).toContainEqual(['id', '=', 24])
   })
 
   test('facturado pero fuera de la lista → igual tiene estado de cuenta; desconocido → 404', async () => {

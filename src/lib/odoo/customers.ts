@@ -64,10 +64,25 @@ const saleDate = (v: string | null) => (v ? todayInMexico(new Date(`${v.replace(
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
 
 /** Every customer (customer_rank > 0), by name. */
+function toCustomer(r: Record<string, unknown>): OdooCustomer {
+  const dso = r.days_sales_outstanding
+  return {
+    id: num(r.id),
+    name: str(r.name) ?? 'Sin nombre',
+    city: str(r.city),
+    phone: str(r.phone),
+    email: str(r.email),
+    vat: str(r.vat),
+    daysToPay: typeof dso === 'number' && Number.isFinite(dso) ? Math.round(dso) : null,
+  }
+}
+
+const customerFields = () => allowedFields('res.partner', [...CUSTOMER_FIELDS, 'days_sales_outstanding'])
+
 export async function fetchCustomers(odoo: OdooCaller): Promise<OdooRows<OdooCustomer>> {
   const domain: DomainTriple[] = [['customer_rank', '>', 0]]
   assertDomainAllowed('res.partner', domain)
-  const fields = allowedFields('res.partner', [...CUSTOMER_FIELDS, 'days_sales_outstanding'])
+  const fields = customerFields()
   const rows: OdooCustomer[] = []
   let pages = 0
   for (;;) {
@@ -75,21 +90,18 @@ export async function fetchCustomers(odoo: OdooCaller): Promise<OdooRows<OdooCus
       await odoo('res.partner', 'search_read', { domain, fields, limit: PAGE, offset: pages * PAGE, order: 'name asc, id asc' }),
     )
     pages += 1
-    for (const r of page) {
-      const dso = r.days_sales_outstanding
-      rows.push({
-        id: num(r.id),
-        name: str(r.name) ?? 'Sin nombre',
-        city: str(r.city),
-        phone: str(r.phone),
-        email: str(r.email),
-        vat: str(r.vat),
-        daysToPay: typeof dso === 'number' && Number.isFinite(dso) ? Math.round(dso) : null,
-      })
-    }
+    for (const r of page) rows.push(toCustomer(r))
     if (page.length < PAGE) return { rows, truncated: false }
     if (pages >= MAX_PAGES) return { rows, truncated: true }
   }
+}
+
+/** One partner by id: the detail must not pay for the whole list on a cold cache (review PR #148). */
+export async function fetchCustomer(odoo: OdooCaller, partnerId: number): Promise<OdooCustomer | null> {
+  const domain: DomainTriple[] = [['id', '=', partnerId], ['customer_rank', '>', 0]]
+  assertDomainAllowed('res.partner', domain)
+  const [row] = normalizeRecords(await odoo('res.partner', 'search_read', { domain, fields: customerFields(), limit: 1 }))
+  return row ? toCustomer(row) : null
 }
 
 /** The customer's latest sales (cancelled ones out) and payments: two reads, newest first. */

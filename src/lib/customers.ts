@@ -109,6 +109,9 @@ function toLine(move: OdooOpenInvoice, today: ISODate): StatementLine {
   }
 }
 
+/** Undated lines go last: an empty key would put them ahead of the most overdue. */
+const sortDate = (l: StatementLine) => l.dueDate ?? l.invoiceDate ?? '9999-12-31'
+
 /** A customer's open invoices in the window, oldest due first. Credit notes never enter (#102). */
 export function statementLines(
   moves: readonly OdooOpenInvoice[],
@@ -120,7 +123,7 @@ export function statementLines(
     .filter((m) => m.moveType === 'out_invoice' && m.customerId === customerId && inRange(m, range))
     .map((m) => toLine(m, today))
     .filter((l) => range.filter === 'all' || l.status === range.filter)
-    .sort((a, b) => (a.dueDate ?? a.invoiceDate ?? '').localeCompare(b.dueDate ?? b.invoiceDate ?? '') || a.folio.localeCompare(b.folio))
+    .sort((a, b) => sortDate(a).localeCompare(sortDate(b)) || a.folio.localeCompare(b.folio))
 }
 
 /** "vencida hace 12 días" / "vence en 5 días" / "vence hoy": the screen, the print and the Excel say it alike. */

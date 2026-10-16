@@ -108,6 +108,11 @@ describe('statementLines', () => {
   })
 })
 
+test('las líneas sin fecha van al final, no delante de las más vencidas', () => {
+  const lines = statementLines([inv({ id: 9, folio: 'SINFECHA', dueDate: null, invoiceDate: null }), inv({ id: 1, folio: 'F1' })], 24, ALL, TODAY)
+  expect(lines.map((l) => l.folio)).toEqual(['F1', 'SINFECHA'])
+})
+
 describe('textos del estado de cuenta', () => {
   test('daysLabel habla igual en pantalla, impresión y Excel', () => {
     expect(daysLabel({ status: 'overdue', days: 1 })).toBe('vencida hace 1 día')

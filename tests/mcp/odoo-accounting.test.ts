@@ -199,10 +199,11 @@ describe('odoo_overdue_invoices — estado de cuenta (#145)', () => {
     expect('monedas_sin_convertir' in result && result.monedas_sin_convertir).toBeFalsy()
   })
 
-  test('sin fechas el default es solo vencidas; con fechas, ambas (una ventana futura no da un cero falso)', async () => {
+  test('solo cliente = el default de la pantalla (vencido + este mes, ambas); con fechas, ambas', async () => {
     const { odoo } = fakeOdoo({ 'account.move.search_read': [STATEMENT_MOVES, STATEMENT_MOVES, STATEMENT_MOVES] })
-    const overdue = await odooOverdueInvoices(odoo, { cliente: 'andritz' })
-    expect(overdue).toMatchObject({ incluye: 'vencidas', total_por_cobrar: 100, facturas: 1 })
+    // The 2099 invoice falls after this month's end, so only the overdue one is in the default window.
+    const screen = await odooOverdueInvoices(odoo, { cliente: 'andritz' })
+    expect(screen).toMatchObject({ incluye: 'ambas', rango: expect.stringMatching(/^Vence hasta el \d{4}-\d{2}-\d{2}$/), total_por_cobrar: 100, facturas: 1 })
 
     const windowed = await odooOverdueInvoices(odoo, { cliente: 'andritz', vence_desde: '2099-01-01', vence_hasta: '2099-12-31' })
     expect(windowed).toMatchObject({ incluye: 'ambas', rango: 'Vence del 2099-01-01 al 2099-12-31', total_por_cobrar: 40, facturas: 1 })

@@ -10,6 +10,7 @@ import {
   customersTotals,
   customerStatement,
   daysLabel,
+  defaultStatementRange,
   rangeLabel,
   statementLines,
   summarizeCustomers,
@@ -136,6 +137,9 @@ export interface OverdueInvoicesInput {
   incluir?: 'vencidas' | 'por_vencer' | 'ambas'
 }
 
+// Undated lines sort last: they must not take the `limit` slots of the most overdue ones.
+const NO_DATE = '9999-12-31'
+
 const INCLUDE_FILTER: Record<NonNullable<OverdueInvoicesInput['incluir']>, StatementFilter> = {
   vencidas: 'overdue',
   por_vencer: 'upcoming',
@@ -153,11 +157,12 @@ async function accountStatement(odoo: OdooCaller, input: OverdueInvoicesInput) {
     if (date && !isRealDate(date)) throw new ToolError(`Fecha inexistente "${date}"`)
   }
   const today = todayIso()
-  // A date window asks about what falls due in it: with only "vencidas" a future window would be a confident zero.
-  const incluir = input.incluir ?? (input.vence_desde || input.vence_hasta ? 'ambas' : 'vencidas')
+  // Same default as the screen (review PR #148): only `cliente` = everything overdue + this month, both kinds.
+  const incluir = input.incluir ?? 'ambas'
+  const screenDefault = !input.incluir && !input.vence_desde && !input.vence_hasta
   const range: StatementRange = {
     from: input.vence_desde ?? null,
-    to: input.vence_hasta ?? null,
+    to: input.vence_hasta ?? (screenDefault ? defaultStatementRange(today).to : null),
     filter: INCLUDE_FILTER[incluir],
   }
   const moves = await fetchOpenCustomerMoves(odoo)
@@ -228,7 +233,7 @@ async function accountStatement(odoo: OdooCaller, input: OverdueInvoicesInput) {
       documentos: everyone.reduce((n, r) => n + r.creditNoteCount, 0),
     },
     // Oldest due first across customers; `limit` caps the list, the totals above cover everything.
-    primeras: all.sort((a, b) => (a.vence ?? '').localeCompare(b.vence ?? '') || a.folio.localeCompare(b.folio)).slice(0, limit),
+    primeras: all.sort((a, b) => (a.vence ?? NO_DATE).localeCompare(b.vence ?? NO_DATE) || a.folio.localeCompare(b.folio)).slice(0, limit),
   }
 }
 
