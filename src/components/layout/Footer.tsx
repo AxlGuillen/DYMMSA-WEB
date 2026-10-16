@@ -4,7 +4,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 
 export function Footer() {
   return (
-    <footer className="border-t py-4 text-center text-xs text-muted-foreground">
+    <footer className="border-t py-4 text-center text-xs text-muted-foreground print:hidden">
       <p>
         DYMMSA &copy; {CURRENT_YEAR} &mdash; Desarrollado por{' '}
         <a

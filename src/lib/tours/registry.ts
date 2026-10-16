@@ -20,6 +20,7 @@ import { PAYABLES_TOUR } from './payables'
 import { HOURS_TOUR } from './hours'
 import { TEAM_TOUR } from './team'
 import { PROFILE_TOUR } from './profile'
+import { CUSTOMER_DETAIL_TOUR, CUSTOMERS_LIST_TOUR } from './customers'
 
 export const TOURS = {
   dashboard: DASHBOARD_TOUR,
@@ -41,6 +42,8 @@ export const TOURS = {
   hours: HOURS_TOUR,
   team: TEAM_TOUR,
   profile: PROFILE_TOUR,
+  customers: CUSTOMERS_LIST_TOUR,
+  'customer-detail': CUSTOMER_DETAIL_TOUR,
 } satisfies Record<string, OverviewStep[]>
 
 export type TourId = keyof typeof TOURS

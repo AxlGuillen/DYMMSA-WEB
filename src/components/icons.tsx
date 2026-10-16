@@ -17,6 +17,7 @@ import {
   CircleCheckBigIcon as _CircleCheckBig,
   CirclePlusIcon as _CirclePlus,
   ClipboardIcon as _Clipboard,
+  ContactIcon as _Contact,
   CopyIcon as _Copy,
   CornerUpLeftIcon as _CornerUpLeft,
   DollarSignIcon as _DollarSign,
@@ -27,12 +28,14 @@ import {
   EyeIcon as _Eye,
   EyeOffIcon as _EyeOff,
   GitCompareIcon as _GitCompare,
+  HandCoinsIcon as _HandCoins,
   HeadphonesIcon as _Headphones,
   HeadphonesOffIcon as _HeadphonesOff,
   InfoIcon as _Info,
   LayoutGridIcon as _LayoutGrid,
   LoaderCircleIcon as _LoaderCircle,
   LogoutIcon as _Logout,
+  MailIcon as _Mail,
   MenuIcon as _Menu,
   MinusIcon as _Minus,
   MoonIcon as _Moon,
@@ -47,6 +50,7 @@ import {
   ChevronsRightIcon as _ChevronsRight,
   HouseIcon as _House,
   PackageOpenIcon as _PackageOpen,
+  PhoneIcon as _Phone,
   PlayIcon as _Play,
   PlusIcon as _Plus,
   SearchIcon as _Search,
@@ -149,6 +153,7 @@ export const ChevronLeft = wrap(_ChevronLeft)
 export const ChevronRight = wrap(_ChevronRight)
 export const ChevronUp = wrap(_ChevronUp)
 export const CircleCheck = wrap(_CircleCheck)
+export const Contact = wrap(_Contact)
 export const Copy = wrap(_Copy)
 export const DollarSign = wrap(_DollarSign)
 export const Download = wrap(_Download)
@@ -156,11 +161,14 @@ export const ExternalLink = wrap(_ExternalLink)
 export const Eye = wrap(_Eye)
 export const EyeOff = wrap(_EyeOff)
 export const GitCompare = wrap(_GitCompare)
+export const HandCoins = wrap(_HandCoins)
 export const Headphones = wrap(_Headphones)
 export const HeadphonesOff = wrap(_HeadphonesOff)
 export const Info = wrap(_Info)
+export const Mail = wrap(_Mail)
 export const Menu = wrap(_Menu)
 export const Moon = wrap(_Moon)
+export const Phone = wrap(_Phone)
 export const Play = wrap(_Play)
 export const Plus = wrap(_Plus)
 export const Search = wrap(_Search)

@@ -1,6 +1,7 @@
 export { PurchasePlannerSection } from './PurchasePlannerSection'
 export { CuttingSection } from './CuttingSection'
 export { SuppliersSection } from './SuppliersSection'
+export { CustomersSection } from './CustomersSection'
 export { FinanceSection } from './FinanceSection'
 export { HoursSection } from './HoursSection'
 export { ProfileSection } from './ProfileSection'
