@@ -1,7 +1,7 @@
 /** OrderDetail reception with excess (ADR-019, #19). The math lives in business-rules. */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
 import { resetStores } from './helpers/stores'
@@ -145,10 +145,38 @@ describe('OrderDetail — recepción con excedente', () => {
     expect(screen.getByLabelText('Cantidad inusual')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /sí, confirmar recepción/i }))
+    // 10 ≥ 2 marked it supplied (#146); the API never gets the capture-only autoFrom.
     expect(confirmAsync).toHaveBeenCalledWith({
       orderId: 'o1',
-      input: { items: [{ id: 'it1', quantity_received: 10, urrea_status: 'pending' }] },
+      input: { items: [{ id: 'it1', quantity_received: 10, urrea_status: 'supplied' }] },
     })
+  })
+
+  test('el resumen muestra código URREA y descripción, no el ETM del cliente (#146)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<OrderDetail order={order([orderItem()])} />)
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '2')
+    await user.click(screen.getByRole('button', { name: /confirmar recepción/i }))
+
+    const dialog = within(await screen.findByRole('alertdialog'))
+    expect(dialog.getByRole('columnheader', { name: 'Código URREA' })).toBeInTheDocument()
+    expect(dialog.getByRole('columnheader', { name: 'Descripción' })).toBeInTheDocument()
+    expect(dialog.queryByRole('columnheader', { name: 'ETM' })).not.toBeInTheDocument()
+    expect(dialog.getByText('MC1')).toBeInTheDocument()
+    expect(dialog.getByText('Martillo')).toHaveAttribute('title', 'Martillo')
+    expect(dialog.queryByText('ETM-1')).not.toBeInTheDocument()
+  })
+
+  test('una línea sin código URREA conserva su ETM como identificador en el resumen (review PR #147)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<OrderDetail order={order([orderItem({ model_code: '', description: '' })])} />)
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '2')
+    await user.click(screen.getByRole('button', { name: /confirmar recepción/i }))
+    expect(within(await screen.findByRole('alertdialog')).getByText('ETM-1')).toBeInTheDocument()
   })
 
   test('"Revisar de nuevo" cierra el diálogo sin mutar', async () => {
@@ -163,6 +191,66 @@ describe('OrderDetail — recepción con excedente', () => {
 
     await user.click(screen.getByRole('button', { name: /revisar de nuevo/i }))
     expect(confirmAsync).not.toHaveBeenCalled()
+  })
+})
+
+describe('OrderDetail — Surtido automático al recibir (#146)', () => {
+  beforeEach(() => {
+    resetStores()
+    vi.clearAllMocks()
+    confirmAsync.mockResolvedValue({ success: true, inventory_updated: 0, warnings: [] })
+  })
+
+  /** The URREA status trigger of the only row (the other combobox is the delivery time). */
+  const statusBox = () =>
+    screen.getAllByRole('combobox').find((c) => /Pendiente|Surtido|No surtido/.test(c.textContent ?? '')) as HTMLElement
+
+  test('recibido ≥ pedido lo pone en Surtido; corregir por debajo lo regresa a Pendiente', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<OrderDetail order={order([orderItem({ quantity_to_order: 3 })])} />)
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '3')
+    expect(statusBox()).toHaveTextContent('Surtido')
+
+    await user.clear(input)
+    await user.type(input, '2')
+    expect(statusBox()).toHaveTextContent('Pendiente')
+  })
+
+  test('una recepción parcial no cambia el estado', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<OrderDetail order={order([orderItem({ quantity_to_order: 3 })])} />)
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '1')
+    expect(statusBox()).toHaveTextContent('Pendiente')
+  })
+
+  test('REGLA: un estado elegido a mano tampoco se pisa al subir la cantidad (review PR #147)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<OrderDetail order={order([orderItem({ quantity_to_order: 5 })])} />)
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '5')
+    expect(statusBox()).toHaveTextContent('Surtido')
+    await user.click(statusBox())
+    await user.click(screen.getByRole('option', { name: 'No surtido' }))
+
+    await user.clear(input)
+    await user.type(input, '50')
+    expect(statusBox()).toHaveTextContent('No surtido')
+  })
+
+  test('REGLA: un Surtido elegido a mano no se toca al bajar la cantidad', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<OrderDetail order={order([orderItem({ quantity_to_order: 3 })])} />)
+    await user.click(statusBox())
+    await user.click(screen.getByRole('option', { name: 'Surtido' }))
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '1')
+    expect(statusBox()).toHaveTextContent('Surtido')
   })
 })
 

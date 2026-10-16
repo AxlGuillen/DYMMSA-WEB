@@ -169,7 +169,7 @@ const flowSteps: FlowStep[] = [
     title: 'Recepcion de productos',
     description: 'Cuando llegan los productos, registra la cantidad recibida y el estado por cada item en el detalle de la orden. Puedes registrar mas piezas de las pedidas.',
     variants: [
-      { label: 'Surte todo', description: 'Marca cada item como surtido con la cantidad completa y confirma la recepcion.', color: 'green' },
+      { label: 'Surte todo', description: 'Captura la cantidad completa de cada item: el estado pasa solo a Surtido. Despues confirma la recepcion.', color: 'green' },
       { label: 'Surte parcial', description: 'Registra la cantidad recibida por item. Los no surtidos se marcan como No surtido para gestionarlos con el cliente.', color: 'amber' },
       { label: 'No surte', description: 'Items marcados como No surtido. Gestionar con el cliente si se consiguen de otra fuente o se cancela esa parte.', color: 'red' },
     ],
@@ -177,7 +177,7 @@ const flowSteps: FlowStep[] = [
   {
     number: 9,
     title: 'Confirmar recepcion',
-    description: 'Aparece un resumen antes de confirmar. El stock ya se desconto al crear la orden, asi que al confirmar solo el EXCEDENTE (lo recibido por encima de lo pedido) entra al inventario de tienda; recibir menos de lo pedido no mueve inventario. El total de la orden y el Formato de Entrega excluyen los No surtidos y nunca incluyen el excedente.',
+    description: 'Aparece un resumen (codigo URREA, descripcion, pedido, recibido e inventario) antes de confirmar. El stock ya se desconto al crear la orden, asi que al confirmar solo el EXCEDENTE (lo recibido por encima de lo pedido) entra al inventario de tienda; recibir menos de lo pedido no mueve inventario. El total de la orden y el Formato de Entrega excluyen los No surtidos y nunca incluyen el excedente.',
   },
   {
     number: 10,
@@ -1030,7 +1030,7 @@ export default function DocsPage() {
                     { col: 'Ubicacion', editable: 'No', note: 'Gaveta del inventario de donde se toma el producto (foto al crear la orden). Se muestra solo en items con stock apartado.' },
                     { col: 'A Pedir (naranja)', editable: 'No', note: 'Unidades a solicitar a URREA. En Stock + A Pedir = Aprobados.' },
                     { col: 'Recibidos', editable: 'Si*', note: 'Editable solo si el item tiene A Pedir > 0 y la orden esta abierta. Se ingresa cuanto llego de URREA.' },
-                    { col: 'Estado URREA', editable: 'Si*', note: 'Editable en las mismas condiciones que Recibidos. Opciones: Pendiente / Surtido / No surtido. Si A Pedir = 0, muestra "En stock" (fijo).' },
+                    { col: 'Estado URREA', editable: 'Si*', note: 'Editable en las mismas condiciones que Recibidos. Opciones: Pendiente / Surtido / No surtido. Pasa solo a Surtido cuando Recibidos llega a A Pedir; si lo corriges por debajo, regresa al que tenia (si lo elegiste a mano, no se toca). Si A Pedir = 0, muestra "En stock" (fijo).' },
                     { col: 'Tiempo de Entrega', editable: 'Si**', note: 'Editable en cualquier item mientras la orden este abierta. Opciones: Inmediato / 2-3 dias / 3-5 dias / 1 semana / 2 semanas / Indefinido.' },
                     { col: 'Precio', editable: 'Si**', note: 'Editable inline con el icono lapiz. Guardar con Enter o con el boton de confirmacion. Recalcula el total de la orden.' },
                     { col: 'Total fila', editable: 'No', note: 'Calculado: (En Stock + Recibidos si no es No surtido) × Precio.' },
