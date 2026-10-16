@@ -47,6 +47,11 @@ export function normalizeGroups(groups: unknown): OdooRecord[] {
   return out
 }
 
+/** Raw many2one [id, name] → the id; the app links by it (#145), the model only ever sees the name. */
+export function many2oneId(value: unknown): number | null {
+  return Array.isArray(value) && typeof value[0] === 'number' ? value[0] : null
+}
+
 /** Raw x2many (id array) → number[]; anything else is dropped so it never reaches a domain. */
 export function idsOf(value: unknown): number[] {
   return Array.isArray(value) ? value.filter((v): v is number => typeof v === 'number') : []
