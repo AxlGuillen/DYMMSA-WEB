@@ -1,6 +1,7 @@
 'use client'
 
 import { useDiscreteModeStore } from '@/stores/discreteModeStore'
+import { formatMoney } from '@/lib/format'
 
 const MASKED = '$•,•••.••'
 
@@ -9,6 +10,6 @@ export function useCurrency() {
   return (value: number | null | undefined): string => {
     if (value == null) return '—'
     if (isDiscreteMode) return MASKED
-    return `$${value.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+    return formatMoney(value)
   }
 }

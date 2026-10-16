@@ -83,6 +83,11 @@ export function normalizeString(value: string): string {
 }
 
 /** Non-alphanumerics → `_`, lowercased; for download filenames. */
+/** Pesos with cents; useCurrency masks it on screen, a printed document always shows it (#145). */
+export function formatMoney(value: number): string {
+  return `$${value.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+}
+
 export function sanitizeFilename(name: string): string {
   return name.replace(/[^a-z0-9]/gi, '_').toLowerCase()
 }

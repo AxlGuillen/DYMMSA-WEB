@@ -27,6 +27,8 @@ const COVERAGE: Record<string, string> = {
   '[transport]': 'fuera: es el propio endpoint MCP',
   'approve/[token]': 'fuera: página pública sin sesión',
   brands: 'list_suppliers (marcas por proveedor)',
+  clients: 'odoo_overdue_invoices (sin cliente: cartera por cliente)',
+  'clients/[id]': 'odoo_overdue_invoices (con cliente: su estado de cuenta)',
   'finance/income': 'get_month_closing',
   'excused-days': 'get_week_hours (días justificados de la semana)',
   health: 'fuera: diagnóstico del servidor',
