@@ -3,6 +3,15 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-15
+
+### Mejorado
+- **Recepción más rápida.** Al capturar lo recibido completo (o de más), la
+  línea pasa sola a **Surtido**. Si corriges la cantidad por debajo, regresa a
+  como estaba; si elegiste el estado a mano, no se toca.
+- **El resumen de "Confirmar recepción" muestra el código URREA y la
+  descripción** en vez del ETM del cliente.
+
 ## 2026-10-14
 
 ### Nuevo
