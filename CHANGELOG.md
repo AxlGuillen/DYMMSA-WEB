@@ -3,6 +3,12 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-17
+
+### Corregido
+- **«Planificar corte» desde una cotización vuelve a funcionar.** Ya no sale
+  "Error al cargar la cotización": abre el corte rápido con sus piezas DYMMSA.
+
 ## 2026-10-15
 
 ### Nuevo

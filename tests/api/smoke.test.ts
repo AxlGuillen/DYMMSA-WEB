@@ -2,7 +2,7 @@
  *  resolves the real handlers, and NextRequest/NextResponse work under Vitest. */
 
 import { describe, test, expect, vi } from 'vitest'
-import { createMockSupabase, type MockSupabaseClient } from '../helpers/supabase-mock'
+import { createMockSupabase, selectedColumns, type MockSupabaseClient } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
 import { AUTH, quotationItem } from '../helpers/factories'
 import { makeRequest } from '../helpers/request'
@@ -53,5 +53,30 @@ describe('smoke: infraestructura de testing de backend', () => {
     expect(body.quotation_id).toBe('quote-1')
     expect(activeClient.didCall('quotations', 'insert')).toBe(true)
     expect(activeClient.didCall('quotation_items', 'insert')).toBe(true)
+  })
+})
+
+describe('smoke: el mock valida las columnas de quotations contra schema.sql', () => {
+  test('una columna que no existe responde 42703, como PostgREST', async () => {
+    const db = createMockSupabase({
+      responses: { 'quotations.select': { data: { id: 'q1' }, error: null } },
+    })
+    const { data, error } = await db.from('quotations').select('id, quotation_number').eq('id', 'q1').single()
+    expect(data).toBeNull()
+    expect(error).toMatchObject({ code: '42703', message: expect.stringContaining('quotation_number') })
+  })
+
+  test('acepta *, embeds, conteos, alias y casts de columnas reales', async () => {
+    const db = createMockSupabase({ responses: { quotations: { data: [], error: null } } })
+    for (const columns of ['*, quotation_items(*)', '*, quotation_items(count)', 'id, label:name, total_amount::text']) {
+      expect((await db.from('quotations').select(columns)).error).toBeNull()
+    }
+    expect((await db.from('quotations').insert({ name: 'Q' }).select('id').single()).error).toBeNull()
+  })
+
+  test('selectedColumns ignora embeds y quita alias y casts', () => {
+    expect(selectedColumns('id, label:name, total_amount::text, quotation_items(id, etm), *')).toEqual([
+      'id', 'name', 'total_amount',
+    ])
   })
 })
