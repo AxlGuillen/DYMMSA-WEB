@@ -63,7 +63,6 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? 
 const saleDate = (v: string | null) => (v ? todayInMexico(new Date(`${v.replace(' ', 'T')}Z`)) : null)
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
 
-/** Every customer (customer_rank > 0), by name. */
 function toCustomer(r: Record<string, unknown>): OdooCustomer {
   const dso = r.days_sales_outstanding
   return {
@@ -79,6 +78,7 @@ function toCustomer(r: Record<string, unknown>): OdooCustomer {
 
 const customerFields = () => allowedFields('res.partner', [...CUSTOMER_FIELDS, 'days_sales_outstanding'])
 
+/** Every customer (customer_rank > 0), by name. */
 export async function fetchCustomers(odoo: OdooCaller): Promise<OdooRows<OdooCustomer>> {
   const domain: DomainTriple[] = [['customer_rank', '>', 0]]
   assertDomainAllowed('res.partner', domain)
