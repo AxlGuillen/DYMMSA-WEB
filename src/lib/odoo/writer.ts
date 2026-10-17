@@ -21,6 +21,7 @@ import {
   type SaleLineVals,
   type WriteOperationName,
 } from './write-catalog'
+import { assertPreviewGrant, type PreviewGrant } from './preview-token'
 import { assertAdminProof, type AdminProof } from './write-guard'
 
 export type TrailAction = 'Creada' | 'Editada' | 'Confirmada' | 'Factura en borrador creada'
@@ -82,17 +83,19 @@ export interface MarkerKeys {
 /** sale.order.internal_note as read: Odoo returns an empty html field as false. */
 export type OdooNote = string | false
 
+/** create/update/confirm demand a PreviewGrant: an expired or skipped preview can't reach them (ADR-040). */
 export interface OdooWriter {
-  createQuotation(proof: AdminProof, vals: SaleOrderCreateVals, keys: MarkerKeys, dl: Deadline): Promise<number>
+  createQuotation(proof: AdminProof, grant: PreviewGrant, vals: SaleOrderCreateVals, dl: Deadline): Promise<number>
   updateQuotation(
     proof: AdminProof,
+    grant: PreviewGrant,
     saleId: number,
     vals: SaleOrderWriteVals,
     ownedLines: OwnedSaleLines,
     currentNote: OdooNote,
     dl: Deadline,
   ): Promise<void>
-  confirmSale(proof: AdminProof, saleId: number, dl: Deadline): Promise<void>
+  confirmSale(proof: AdminProof, grant: PreviewGrant, saleId: number, dl: Deadline): Promise<void>
   appendSaleTrail(
     proof: AdminProof,
     saleId: number,
@@ -126,8 +129,6 @@ const HTML_ESCAPES: Readonly<Record<string, string>> = {
 }
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char])
-
-const MARKER_PART = /^[0-9a-f]{10}$/
 
 function mexicoDateTime(at: Date): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -173,9 +174,10 @@ export function createOdooWriter(raw: OdooRawWriter, deps: WriterDeps = {}): Odo
   const log = deps.log ?? ((entry: WriteLogEntry) => console.info('[odoo-write]', entry))
 
   return Object.freeze({
-    async createQuotation(proof, vals, keys, dl) {
+    async createQuotation(proof, grant, vals, dl) {
       assertAdminProof(proof, now())
-      if (!MARKER_PART.test(keys.h10)) throw new OdooError('Clave de vista previa mal formada: no escribí nada.')
+      assertPreviewGrant(grant, { kind: 'crear', userId: proof.userId, saleId: null, partnerId: vals.partner_id }, now())
+      const keys = grant.markers
       const result = await raw(
         'sale.order',
         'create',
@@ -199,8 +201,9 @@ export function createOdooWriter(raw: OdooRawWriter, deps: WriterDeps = {}): Odo
       return ids[0]
     },
 
-    async updateQuotation(proof, saleId, vals, ownedLines, currentNote, dl) {
+    async updateQuotation(proof, grant, saleId, vals, ownedLines, currentNote, dl) {
       assertAdminProof(proof, now())
+      assertPreviewGrant(grant, { kind: 'editar', userId: proof.userId, saleId }, now())
       if (vals.order_line === undefined && vals.validity_date === undefined) {
         throw new OdooError('No hay cambios que guardar en la cotización: no escribí nada.')
       }
@@ -229,8 +232,9 @@ export function createOdooWriter(raw: OdooRawWriter, deps: WriterDeps = {}): Odo
       log({ op: 'sale.order.write', ids: [saleId], actor: proof.userId })
     },
 
-    async confirmSale(proof, saleId, dl) {
+    async confirmSale(proof, grant, saleId, dl) {
       assertAdminProof(proof, now())
+      assertPreviewGrant(grant, { kind: 'confirmar', userId: proof.userId, saleId }, now())
       // No context ever: send_email would mail the customer the confirmation (ADR-040).
       await raw('sale.order', 'action_confirm', { ids: [saleId] }, dl)
       log({ op: 'sale.order.action_confirm', ids: [saleId], actor: proof.userId })

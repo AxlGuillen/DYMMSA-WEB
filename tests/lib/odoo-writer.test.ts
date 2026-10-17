@@ -23,7 +23,16 @@ import { isOdooWriteConfigured, odooWriteEnv } from '@/lib/odoo/env'
 import type { ProductCreateVals, SaleLineCommand } from '@/lib/odoo/write-catalog'
 import { createOdooWriter, odooWriter, ownedSaleLines, trailNote, type OdooWriter } from '@/lib/odoo/writer'
 import { ADMIN_ONLY_MESSAGE, ADMIN_PROOF_TTL_MS, issueAdminProof, type AdminProof } from '@/lib/odoo/write-guard'
-import { fakeRawWriter, fakeWriter, testAdminProof, throwingWriter } from '../helpers/fake-odoo'
+import {
+  PREVIEW_CHANGED_MESSAGE,
+  PREVIEW_EXPIRED_MESSAGE,
+  PREVIEW_GRANT_MISSING_MESSAGE,
+  PREVIEW_KEY_OTHER_ADMIN_MESSAGE,
+  PREVIEW_TTL_MS,
+  type PreviewGrant,
+  type QuotationKeyKind,
+} from '@/lib/odoo/preview-token'
+import { fakeRawWriter, fakeWriter, testAdminProof, testPreviewGrant, throwingWriter } from '../helpers/fake-odoo'
 
 const WRITE_KEY = 'write-key-0123456789abcdef'
 const ENV = { url: 'https://odoo.test', apiKey: WRITE_KEY, db: null }
@@ -84,12 +93,19 @@ const recordTimeout = (seen: number[]) => (ms: number) => {
   return new AbortController().signal
 }
 
+type GrantFor = (kind: QuotationKeyKind) => PreviewGrant
+
 /** Every facade operation with valid arguments, to prove a rule holds for all six. */
-function everyOperation(writer: OdooWriter, proof: AdminProof, dl: Deadline): [string, () => Promise<unknown>][] {
+function everyOperation(
+  writer: OdooWriter,
+  proof: AdminProof,
+  dl: Deadline,
+  grantFor: GrantFor = (kind) => testPreviewGrant({ kind }),
+): [string, () => Promise<unknown>][] {
   return [
-    ['createQuotation', () => writer.createQuotation(proof, { partner_id: 1, lines: [PRODUCT_LINE] }, KEYS, dl)],
-    ['updateQuotation', () => writer.updateQuotation(proof, 912, { validity_date: '2026-11-16' }, OWNED(), '', dl)],
-    ['confirmSale', () => writer.confirmSale(proof, 912, dl)],
+    ['createQuotation', () => writer.createQuotation(proof, grantFor('crear'), { partner_id: 1, lines: [PRODUCT_LINE] }, dl)],
+    ['updateQuotation', () => writer.updateQuotation(proof, grantFor('editar'), 912, { validity_date: '2026-11-16' }, OWNED(), '', dl)],
+    ['confirmSale', () => writer.confirmSale(proof, grantFor('confirmar'), 912, dl)],
     ['appendSaleTrail', () => writer.appendSaleTrail(proof, 912, '', 'Confirmada', dl)],
     ['createProducts', () => writer.createProducts(proof, [{ name: 'ZZTEST144 X PRUEBA', list_price: 1, type: 'consu', sale_ok: true }], dl)],
     ['createDraftInvoice', () => writer.createDraftInvoice(proof, 912, dl)],
@@ -119,25 +135,27 @@ describe('fachada del escritor (#144)', () => {
     const forged = { userId: 'admin-1', displayName: 'Ana Admin', issuedAt: NOW } as unknown as AdminProof
     const copied = { ...real } as AdminProof
 
+    const grantFor: GrantFor = (kind) => testPreviewGrant({ kind, now: NOW })
+
     for (const proof of [forged, copied, null as unknown as AdminProof]) {
-      for (const [name, run] of everyOperation(writer, proof, fixedDeadline())) {
+      for (const [name, run] of everyOperation(writer, proof, fixedDeadline(), grantFor)) {
         await expect(run(), name).rejects.toThrow(ADMIN_ONLY_MESSAGE)
       }
     }
 
     clock = NOW + ADMIN_PROOF_TTL_MS + 1
-    for (const [name, run] of everyOperation(writer, real, fixedDeadline())) {
+    for (const [name, run] of everyOperation(writer, real, fixedDeadline(), grantFor)) {
       await expect(run(), name).rejects.toThrow(/verificación de administrador venció/)
     }
     // A proof dated in the future is not "fresh" either.
     clock = NOW
     const future = testAdminProof({ now: NOW + 5_000 })
-    await expect(writer.confirmSale(future, 912, fixedDeadline())).rejects.toThrow(/venció/)
+    await expect(writer.confirmSale(future, grantFor('confirmar'), 912, fixedDeadline())).rejects.toThrow(/venció/)
     expect(calls).toHaveLength(0)
 
     // Within its 90 s it works.
     clock = NOW + ADMIN_PROOF_TTL_MS
-    await writer.confirmSale(real, 912, fixedDeadline())
+    await writer.confirmSale(real, grantFor('confirmar'), 912, fixedDeadline())
     expect(calls).toHaveLength(1)
 
     // A proof is never issued without who asked.
@@ -145,13 +163,50 @@ describe('fachada del escritor (#144)', () => {
     expect(() => issueAdminProof({ userId: '', displayName: 'Ana' })).toThrow(ADMIN_ONLY_MESSAGE)
   })
 
+  test('sin permiso de vista previa vigente no crea, edita ni confirma', async () => {
+    let clock = NOW
+    const { writer, calls } = fakeWriter({ 'sale.order.create': [[912]] }, { now: () => clock })
+    const proof = testAdminProof({ now: NOW })
+    const create = { partner_id: 1, lines: [PRODUCT_LINE] }
+    const edit = { validity_date: '2026-11-16' }
+    const grant = (kind: QuotationKeyKind, extra: { saleId?: number | null; partnerId?: number; userId?: string } = {}) =>
+      testPreviewGrant({ kind, now: NOW, ...extra })
+
+    const refused: [string, () => Promise<unknown>, string | RegExp][] = [
+      // Forged or copied: only a grant minted by grantPreviewWrite() counts.
+      ['copia', () => writer.confirmSale(proof, { ...grant('confirmar') }, 912, fixedDeadline()), PREVIEW_GRANT_MISSING_MESSAGE],
+      ['nulo', () => writer.createQuotation(proof, null as unknown as PreviewGrant, create, fixedDeadline()), PREVIEW_GRANT_MISSING_MESSAGE],
+      // A review key confirms; it never creates nor edits.
+      ['revisar edita', () => writer.updateQuotation(proof, grant('confirmar'), 912, edit, OWNED(), '', fixedDeadline()), /para confirmar la venta, no para editar/],
+      ['editar crea', () => writer.createQuotation(proof, grant('editar'), create, fixedDeadline()), /para editar la cotización, no para crear/],
+      ['otra venta', () => writer.confirmSale(proof, grant('confirmar', { saleId: 913 }), 912, fixedDeadline()), PREVIEW_CHANGED_MESSAGE],
+      ['otro cliente', () => writer.createQuotation(proof, grant('crear', { partnerId: 17 }), create, fixedDeadline()), PREVIEW_CHANGED_MESSAGE],
+      ['otro admin', () => writer.confirmSale(proof, grant('confirmar', { userId: 'admin-2' }), 912, fixedDeadline()), PREVIEW_KEY_OTHER_ADMIN_MESSAGE],
+    ]
+    for (const [label, attempt, message] of refused) await expect(attempt(), label).rejects.toThrow(message)
+    expect(calls).toHaveLength(0)
+
+    // Checked again when the write leaves: a grant that crossed its 30 min no longer writes.
+    const live = grant('editar')
+    clock = NOW + PREVIEW_TTL_MS
+    const late = testAdminProof({ now: clock })
+    await expect(writer.updateQuotation(late, live, 912, edit, OWNED(), '', fixedDeadline())).rejects.toThrow(PREVIEW_EXPIRED_MESSAGE)
+    expect(calls).toHaveLength(0)
+
+    clock = NOW
+    await expect(writer.createQuotation(proof, grant('crear'), create, fixedDeadline())).resolves.toBe(912)
+    expect(calls).toHaveLength(1)
+  })
+
   test('createQuotation pone el marcador, la nota de rastro y envuelve las líneas en [0, 0, v]', async () => {
     const { writer, calls, logs } = fakeWriter({ 'sale.order.create': [[912]] }, { now: () => NOW })
     const proof = testAdminProof({ now: NOW })
+    const grant = testPreviewGrant({ now: NOW })
+    const { k10, h10 } = grant.markers
     const id = await writer.createQuotation(
       proof,
+      grant,
       { partner_id: 1, validity_date: '2026-11-16', lines: [NOTE_LINE, PRODUCT_LINE] },
-      KEYS,
       fixedDeadline(),
     )
     expect(id).toBe(912)
@@ -161,8 +216,8 @@ describe('fachada del escritor (#144)', () => {
       vals_list: [
         {
           partner_id: 1,
-          origin: 'Asistente DYMMSA · 0123456789',
-          internal_note: `<p>Creada por el asistente (MCP) a petición de Ana Admin · ${STAMP} · clave 0123456789 · contenido abcdef0123</p>`,
+          origin: `Asistente DYMMSA · ${k10}`,
+          internal_note: `<p>Creada por el asistente (MCP) a petición de Ana Admin · ${STAMP} · clave ${k10} · contenido ${h10}</p>`,
           validity_date: '2026-11-16',
           order_line: [
             [0, 0, NOTE_LINE],
@@ -175,18 +230,14 @@ describe('fachada del escritor (#144)', () => {
     expect(logs).toEqual([{ op: 'sale.order.create', ids: [912], actor: 'admin-1' }])
   })
 
-  test('createQuotation: claves mal formadas no salen; un resultado raro es incierto', async () => {
+  test('createQuotation: un resultado raro es incierto', async () => {
     const proof = testAdminProof()
-    const { writer, calls } = fakeWriter({ 'sale.order.create': [[], [912, 913]] })
+    const { writer } = fakeWriter({ 'sale.order.create': [[], [912, 913]] })
     const vals = { partner_id: 1, lines: [PRODUCT_LINE] }
-    for (const keys of [{ k10: 'nope', h10: KEYS.h10 }, { k10: KEYS.k10, h10: 'ABCDEF0123' }]) {
-      await expect(writer.createQuotation(proof, vals, keys, fixedDeadline())).rejects.toThrow(/mal formada/)
-    }
-    expect(calls).toHaveLength(0)
 
     // The order may exist already: the caller repeats with the same key, never a new preview.
     for (let i = 0; i < 2; i++) {
-      const error = await writer.createQuotation(proof, vals, KEYS, fixedDeadline()).catch((e) => e)
+      const error = await writer.createQuotation(proof, testPreviewGrant(), vals, fixedDeadline()).catch((e) => e)
       expect(error).toBeInstanceOf(OdooUncertainWriteError)
       expect(error.operation).toBe('sale.order.create')
       expect(error.retry).toBe('quotation')
@@ -220,7 +271,7 @@ describe('fachada del escritor (#144)', () => {
 
   test('confirmSale nunca manda context', async () => {
     const { writer, calls } = fakeWriter()
-    await writer.confirmSale(testAdminProof(), 912, fixedDeadline())
+    await writer.confirmSale(testAdminProof(), testPreviewGrant({ kind: 'confirmar' }), 912, fixedDeadline())
     expect(calls).toHaveLength(1)
     expect(calls[0]).toMatchObject({ model: 'sale.order', method: 'action_confirm' })
     expect(calls[0].payload).toEqual({ ids: [912] })
@@ -228,7 +279,12 @@ describe('fachada del escritor (#144)', () => {
 
     // On the wire too: the body is exactly the id.
     const { write, requests } = rawWriter()
-    await createOdooWriter(write, { log: () => undefined }).confirmSale(testAdminProof(), 912, fixedDeadline())
+    await createOdooWriter(write, { log: () => undefined }).confirmSale(
+      testAdminProof(),
+      testPreviewGrant({ kind: 'confirmar' }),
+      912,
+      fixedDeadline(),
+    )
     expect(requests[0].url).toBe('https://odoo.test/json/2/sale.order/action_confirm')
     expect(await requests[0].text()).toBe('{"ids":[912]}')
   })
@@ -236,13 +292,14 @@ describe('fachada del escritor (#144)', () => {
   test('updateQuotation rechaza comandos sobre líneas de otra venta', async () => {
     const { writer, calls } = fakeWriter({}, { now: () => NOW })
     const proof = testAdminProof({ now: NOW })
+    const grant = testPreviewGrant({ kind: 'editar', now: NOW })
     const update = [1, 999, { product_uom_qty: 2, price_unit: 1, discount: 0 }] as const
     for (const command of [update, [2, 999, 0] as const]) {
       await expect(
-        writer.updateQuotation(proof, 912, { order_line: [command] }, OWNED(), '<p>previa</p>', fixedDeadline()),
+        writer.updateQuotation(proof, grant, 912, { order_line: [command] }, OWNED(), '<p>previa</p>', fixedDeadline()),
       ).rejects.toThrow('La línea 999 no es de esta cotización: no escribí nada.')
     }
-    await expect(writer.updateQuotation(proof, 912, {}, OWNED(), '', fixedDeadline())).rejects.toThrow(/No hay cambios/)
+    await expect(writer.updateQuotation(proof, grant, 912, {}, OWNED(), '', fixedDeadline())).rejects.toThrow(/No hay cambios/)
     expect(calls).toHaveLength(0)
 
     // Its own lines and new ones go out in ONE write with the trail.
@@ -252,7 +309,7 @@ describe('fachada del escritor (#144)', () => {
       [2, 4712, 0],
       [1, 4713, { name: 'Tiempo de entrega: 3 a 5 días hábiles' }],
     ] as const
-    await writer.updateQuotation(proof, 912, { order_line: commands }, OWNED(), '<p>previa</p>', fixedDeadline())
+    await writer.updateQuotation(proof, grant, 912, { order_line: commands }, OWNED(), '<p>previa</p>', fixedDeadline())
     expect(calls).toHaveLength(1)
     expect(calls[0].payload).toEqual({
       ids: [912],
@@ -266,6 +323,7 @@ describe('fachada del escritor (#144)', () => {
   test('un [1] se valida contra el tipo de la línea: a una de producto no se le cambia solo el texto ni la secuencia', async () => {
     const { writer, calls } = fakeWriter()
     const proof = testAdminProof()
+    const grant = testPreviewGrant({ kind: 'editar' })
     const refused: [SaleLineCommand, RegExp][] = [
       // The catalog alone would let these through: only the line's kind tells them apart.
       [[1, 4711, { name: 'texto libre' }], /La línea 4711 es de producto: un cambio lleva cantidad, precio y descuento/],
@@ -274,7 +332,7 @@ describe('fachada del escritor (#144)', () => {
     ]
     for (const [command, message] of refused) {
       await expect(
-        writer.updateQuotation(proof, 912, { order_line: [command] }, OWNED(), '', fixedDeadline()),
+        writer.updateQuotation(proof, grant, 912, { order_line: [command] }, OWNED(), '', fixedDeadline()),
         JSON.stringify(command),
       ).rejects.toThrow(message)
     }
@@ -285,7 +343,7 @@ describe('fachada del escritor (#144)', () => {
       [1, 4713, { sequence: 5 }],
       [2, 4713, 0],
     ] satisfies SaleLineCommand[]) {
-      await writer.updateQuotation(proof, 912, { order_line: [command] }, OWNED(), '', fixedDeadline())
+      await writer.updateQuotation(proof, grant, 912, { order_line: [command] }, OWNED(), '', fixedDeadline())
     }
     expect(calls).toHaveLength(3)
 
@@ -298,10 +356,11 @@ describe('fachada del escritor (#144)', () => {
   test('una nota que no se leyó nunca borra la del dueño', async () => {
     const { writer, calls } = fakeWriter({}, { now: () => NOW })
     const proof = testAdminProof({ now: NOW })
+    const grant = testPreviewGrant({ kind: 'editar', now: NOW })
     for (const note of [undefined, null, 0, {}]) {
       const unread = note as unknown as string
       await expect(
-        writer.updateQuotation(proof, 912, { validity_date: '2026-11-16' }, OWNED(), unread, fixedDeadline()),
+        writer.updateQuotation(proof, grant, 912, { validity_date: '2026-11-16' }, OWNED(), unread, fixedDeadline()),
       ).rejects.toThrow('No pude leer la nota interna de la venta: no escribí nada.')
       await expect(writer.appendSaleTrail(proof, 912, unread, 'Confirmada', fixedDeadline())).rejects.toThrow(
         'No pude leer la nota interna',
@@ -311,7 +370,7 @@ describe('fachada del escritor (#144)', () => {
 
     // A long owner note (pasted mail, inline styles) still takes the edit and its trail.
     const longNote = `<p style="color:#333">${'x'.repeat(25_000)}</p>`
-    await writer.updateQuotation(proof, 912, { validity_date: '2026-11-16' }, OWNED(), longNote, fixedDeadline())
+    await writer.updateQuotation(proof, grant, 912, { validity_date: '2026-11-16' }, OWNED(), longNote, fixedDeadline())
     expect(calls).toHaveLength(1)
     expect((calls[0].payload.vals as { internal_note: string }).internal_note.startsWith(longNote)).toBe(true)
   })
@@ -341,12 +400,14 @@ describe('fachada del escritor (#144)', () => {
   test('el rastro se agrega al final de la nota, nunca la reemplaza, y escapa el nombre', async () => {
     const { writer, calls } = fakeWriter({ 'sale.order.create': [[912]] }, { now: () => NOW })
     const proof = testAdminProof({ displayName: `Ana <b>"O'Neil"</b> & Co`, now: NOW })
+    const grant = testPreviewGrant({ now: NOW })
+    const { k10, h10 } = grant.markers
     const escaped = 'Ana &lt;b&gt;&quot;O&#39;Neil&quot;&lt;/b&gt; &amp; Co'
 
     await writer.appendSaleTrail(proof, 912, '<p>Nota del dueño</p>', 'Confirmada', fixedDeadline())
     // Odoo answers an empty html field with false: the trail alone, never "false<p>".
     await writer.appendSaleTrail(proof, 912, false, 'Factura en borrador creada', fixedDeadline())
-    await writer.createQuotation(proof, { partner_id: 1, lines: [PRODUCT_LINE] }, KEYS, fixedDeadline())
+    await writer.createQuotation(proof, grant, { partner_id: 1, lines: [PRODUCT_LINE] }, fixedDeadline())
 
     expect(calls.map((c) => c.payload)).toEqual([
       {
@@ -360,7 +421,7 @@ describe('fachada del escritor (#144)', () => {
       expect.objectContaining({
         vals_list: [
           expect.objectContaining({
-            internal_note: `<p>Creada por el asistente (MCP) a petición de ${escaped} · ${STAMP} · clave 0123456789 · contenido abcdef0123</p>`,
+            internal_note: `<p>Creada por el asistente (MCP) a petición de ${escaped} · ${STAMP} · clave ${k10} · contenido ${h10}</p>`,
           }),
         ],
       }),
@@ -715,17 +776,20 @@ describe('llave de escritura (#144)', () => {
     vi.resetModules()
     const writerModule = await import('@/lib/odoo/writer')
     const guard = await import('@/lib/odoo/write-guard')
+    const tokens = await import('@/lib/odoo/preview-token')
     const deadline = await import('@/lib/odoo/deadline')
     const proof = guard.issueAdminProof({ userId: 'admin-1', displayName: 'Ana Admin' })
+    // Grants from the fresh module graph: the writer only knows the ones its own module minted.
+    const grantFor: GrantFor = (kind) => testPreviewGrant({ kind }, { tokens, guard })
 
-    for (const [name, run] of everyOperation(writerModule.odooWriter, proof, deadline.startDeadline())) {
+    for (const [name, run] of everyOperation(writerModule.odooWriter, proof, deadline.startDeadline(), grantFor)) {
       await expect(run(), name).rejects.toThrow('La escritura en Odoo está deshabilitada en este servidor (falta ODOO_WRITE_API_KEY).')
     }
     expect(fetchSpy).not.toHaveBeenCalled()
 
     // Switched on, it signs with the WRITE key, never the read one.
     vi.stubEnv('ODOO_WRITE_API_KEY', WRITE_KEY)
-    await writerModule.odooWriter.confirmSale(proof, 912, deadline.startDeadline())
+    await writerModule.odooWriter.confirmSale(proof, grantFor('confirmar'), 912, deadline.startDeadline())
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     const sent = fetchSpy.mock.calls[0][0] as Request
     expect(sent.url).toBe('https://odoo.test/json/2/sale.order/action_confirm')
@@ -742,6 +806,7 @@ describe('llave de escritura (#144)', () => {
     const client = await import('@/lib/odoo/client')
     const writerModule = await import('@/lib/odoo/writer')
     const guard = await import('@/lib/odoo/write-guard')
+    const tokens = await import('@/lib/odoo/preview-token')
     const deadline = await import('@/lib/odoo/deadline')
 
     vi.useFakeTimers({ now: NOW })
@@ -757,7 +822,7 @@ describe('llave de escritura (#144)', () => {
     const proof = guard.issueAdminProof({ userId: 'admin-1', displayName: 'Ana Admin' })
     const outcome = Promise.all([
       client.callOdoo('sale.order', 'search_count', { domain: [] }),
-      writerModule.odooWriter.confirmSale(proof, 912, deadline.startDeadline()),
+      writerModule.odooWriter.confirmSale(proof, testPreviewGrant({ kind: 'confirmar' }, { tokens, guard }), 912, deadline.startDeadline()),
     ]).then(
       () => 'ok',
       (error: unknown) => error,

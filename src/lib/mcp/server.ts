@@ -6,7 +6,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { GitHubError } from '@/lib/github'
 import { OdooError, callOdoo } from '@/lib/odoo/client'
-import { ToolError, type Db } from './shared'
+import { splitResultMeta, ToolError, type Db, type ResultMeta } from './shared'
 import { contextFrom, type McpContext } from './context'
 import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } from './tools/odoo/accounting'
 import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
@@ -34,18 +34,19 @@ import { getPurchasePlan } from './tools/purchase'
 import { getAppSettings } from './tools/settings'
 import type { McpRole } from './manifest'
 
-type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
+export type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean; _meta?: ResultMeta }
 
 /** The SDK hands the AuthInfo validated by withMcpAuth in each call's extra. */
 type ToolExtra = { authInfo?: AuthInfo }
 
 /** Runs the tool with the token's db (RLS applies); expected errors surface their message, the rest go generic.
  *  The context carries the caller's identity for tools that mean "me" (hours, #101). */
-async function run(extra: ToolExtra, fn: (db: Db, ctx: McpContext) => Promise<unknown>): Promise<ToolResult> {
+export async function run(extra: ToolExtra, fn: (db: Db, ctx: McpContext) => Promise<unknown>): Promise<ToolResult> {
   try {
     const ctx = contextFrom(extra.authInfo)
-    const data = await fn(ctx.db, ctx)
-    return { content: [{ type: 'text', text: JSON.stringify(data) }] }
+    // Only a withResultMeta() result fills _meta: the view reads it, the text never carries it (#144).
+    const { data, meta } = splitResultMeta(await fn(ctx.db, ctx))
+    return { content: [{ type: 'text', text: JSON.stringify(data) }], ...(meta ? { _meta: meta } : {}) }
   } catch (e) {
     if (e instanceof ToolError || e instanceof GitHubError || e instanceof OdooError) {
       return { content: [{ type: 'text', text: e.message }], isError: true }

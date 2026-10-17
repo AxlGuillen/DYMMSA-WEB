@@ -283,6 +283,8 @@ describe('errores JSON-2 (#144)', () => {
     expect(error.message).toContain('(sale.order.create)')
     expect(error.message).toContain('Repite exactamente la misma llamada')
     expect(error.message).toContain('No pidas otra vista previa')
+    // Odoo keeps running an aborted request: repeating at once could race its commit.
+    expect(error.message).toContain('espera 2 minutos antes de repetir')
   })
 
   test('la factura y el alta de productos no hablan de una clave ni de una vista previa que no tienen', () => {
@@ -294,6 +296,7 @@ describe('errores JSON-2 (#144)', () => {
     for (const error of [invoice, products]) {
       expect(error.message).toContain(`(${error.operation})`)
       expect(error.message).not.toMatch(/clave|vista previa/)
+      expect(error.message).toContain('espera 2 minutos antes de repetir')
     }
   })
 })

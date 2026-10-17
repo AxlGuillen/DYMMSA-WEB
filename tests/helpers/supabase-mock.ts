@@ -78,6 +78,7 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   order(...a: unknown[]) { return this.filter('order', a) }
   limit(...a: unknown[]) { return this.filter('limit', a) }
   range(...a: unknown[]) { return this.filter('range', a) }
+  abortSignal(...a: unknown[]) { return this.filter('abortSignal', a) }
 
   single(): Promise<R>      { this.record.single = true; return this.resolve() }
   maybeSingle(): Promise<R> { this.record.single = true; return this.resolve() }
