@@ -287,3 +287,29 @@ describe('OrderDetail — vista guiada (issue #74)', () => {
     expect(document.querySelector('[data-tour="od-items"]')).not.toBeNull()
   })
 })
+
+describe('OrderDetail — eliminar orden según su estado (ADR-010)', () => {
+  beforeEach(() => resetStores())
+
+  const openDeleteDialog = async (status: OrderWithItems['status']) => {
+    renderWithProviders(<OrderDetail order={order([orderItem()], { status })} />)
+    await userEvent.click(screen.getByTitle('Eliminar orden'))
+    return screen.getByRole('alertdialog')
+  }
+
+  test('activa: avisa que el stock apartado se restaura', async () => {
+    const dialog = await openDeleteDialog('received')
+    expect(within(dialog).getByText(/será restaurado automáticamente/)).toBeInTheDocument()
+  })
+
+  test('cancelada: avisa que el inventario ya se restauró y no se vuelve a sumar', async () => {
+    const dialog = await openDeleteDialog('cancelled')
+    expect(within(dialog).getByText(/ya se restauró al cancelarla/)).toBeInTheDocument()
+    expect(within(dialog).queryByText(/será restaurado automáticamente/)).not.toBeInTheDocument()
+  })
+
+  test('entregada o completada: avisa que el inventario no cambia', async () => {
+    const dialog = await openDeleteDialog('completed')
+    expect(within(dialog).getByText(/el inventario no cambia/)).toBeInTheDocument()
+  })
+})

@@ -156,6 +156,7 @@ export async function POST(
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
+        quotation_id:  id,
         name:          quotation.name,
         customer_name: quotation.customer_name,
         status:        'ordered',
@@ -167,7 +168,11 @@ export async function POST(
 
     if (orderError || !order) {
       console.error(`[create-order] order insert error quotationId=${id}`, orderError)
-      return NextResponse.json({ message: 'Error al crear la orden' }, { status: 500 })
+      // A concurrent second click loses on orders_quotation_id_unique before touching stock (ADR-010).
+      const info = explainPgError(orderError)
+      return info.isConstraintViolation
+        ? NextResponse.json({ message: info.userMessage }, { status: 400 })
+        : NextResponse.json({ message: 'Error al crear la orden' }, { status: 500 })
     }
 
     console.log(`[create-order] order inserted orderId=${order.id} total=${totalAmount}`)
@@ -187,6 +192,18 @@ export async function POST(
       )
     }
 
+    // Before the stock moves: a linked order behind an 'approved' quotation would be a dead end (ADR-010).
+    const { error: statusError } = await supabase
+      .from('quotations')
+      .update({ status: 'converted_to_order' })
+      .eq('id', id)
+
+    if (statusError) {
+      await supabase.from('orders').delete().eq('id', order.id)
+      console.error(`[create-order] status update error rolling back orderId=${order.id}`, statusError)
+      return NextResponse.json({ message: 'Error al crear la orden' }, { status: 500 })
+    }
+
     // Stock is deducted when the order is created, not on reception; writes are independent per model_code.
     await Promise.all(
       inventoryUpdates.map(async (upd) => {
@@ -197,11 +214,6 @@ export async function POST(
         console.log(`[create-order] inventory deducted model=${upd.model_code} newQty=${upd.newQty}`)
       })
     )
-
-    await supabase
-      .from('quotations')
-      .update({ status: 'converted_to_order' })
-      .eq('id', id)
 
     console.log(`[create-order] DONE orderId=${order.id} items=${approvedProducts.length} total=${totalAmount}`)
 

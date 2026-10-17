@@ -1,9 +1,10 @@
 import { describe, test, expect, vi } from 'vitest'
-import { createMockSupabase, MockSupabaseClient } from '../helpers/supabase-mock'
+import { createMockSupabase, MockSupabaseClient, filterValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
 import { AUTH, quotationItem as product, separator } from '../helpers/factories'
 import { makeRequest, makeParams } from '../helpers/request'
 import * as save from '@/app/api/quotations/save/route'
+import * as quotationRoute from '@/app/api/quotations/[id]/route'
 import * as update from '@/app/api/quotations/[id]/update/route'
 import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
 import * as status from '@/app/api/quotations/[id]/status/route'
@@ -523,6 +524,11 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(body.items_count).toBe(1)       // 1 approved product
     expect(body.total_amount).toBe(300)    // 100*3 (rejected p2 excluded)
 
+    // The link is what "Ver orden" and the reopen/delete guards look up (ADR-010).
+    expect(activeClient.insertPayload<Record<string, unknown>>('orders')).toMatchObject({
+      quotation_id: 'q1', name: 'Q', customer_name: 'ACME', status: 'ordered',
+    })
+
     const items = activeClient.insertPayload('order_items')
     expect(items).toHaveLength(2)          // separator + approved p1
     expect(items.map((i) => i.item_type)).toEqual(['separator', 'product'])
@@ -649,6 +655,182 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(body.message).toMatch(/cantidad/i)
     expect(activeClient.didCall('orders', 'delete')).toBe(true) // rollback anyway
   })
+
+  test('REGLA: segunda orden de la misma cotización (índice único) → 400 sin tocar stock ni estado', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': {
+          data: {
+            id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
+            quotation_items: [
+              { id: 'p1', item_type: 'product', is_approved: true, sort_order: 0, model_code: 'MC1', quantity: 2, unit_price: 10, etm: 'E1', brand: 'URREA' },
+            ],
+          },
+          error: null,
+        },
+        'store_inventory.select': { data: { quantity: 10 }, error: null },
+        'orders.insert': {
+          data: null,
+          error: {
+            code: '23505',
+            message: 'duplicate key value violates unique constraint "orders_quotation_id_unique"',
+          },
+        },
+      },
+    })
+    const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toMatch(/ya tiene una orden/i)
+    expect(activeClient.didCall('order_items', 'insert')).toBe(false)
+    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
+    expect(activeClient.didCall('quotations', 'update')).toBe(false)
+  })
+
+  test('falla del insert de la orden sin violar una regla → 500 genérico', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': {
+          data: {
+            id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
+            quotation_items: [
+              { id: 'p1', item_type: 'product', is_approved: true, sort_order: 0, model_code: '', quantity: 1, unit_price: 10, etm: 'E1', brand: 'URREA' },
+            ],
+          },
+          error: null,
+        },
+        'orders.insert': { data: null, error: { message: 'connection reset' } },
+      },
+    })
+    const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(500)
+    expect((await res.json()).message).toBe('Error al crear la orden')
+  })
+
+  test('REGLA: si falla marcar la cotización como convertida → rollback de la orden antes de tocar stock', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': {
+          data: {
+            id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
+            quotation_items: [
+              { id: 'p1', item_type: 'product', is_approved: true, sort_order: 0, model_code: 'MC1', quantity: 2, unit_price: 10, etm: 'E1', brand: 'URREA' },
+            ],
+          },
+          error: null,
+        },
+        'store_inventory.select': { data: { quantity: 10 }, error: null },
+        'orders.insert': { data: { id: 'o1' }, error: null },
+        'order_items.insert': { data: null, error: null },
+        'quotations.update': { data: null, error: { message: 'connection reset' } },
+      },
+    })
+    const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(500)
+    const rollback = activeClient.callsTo('orders', 'delete')
+    expect(rollback).toHaveLength(1)
+    expect(filterValue(rollback[0], 'id')).toBe('o1')
+    // A linked order behind an 'approved' quotation would be a dead end (ADR-010).
+    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
+  })
+})
+
+describe('DELETE /quotations/[id]', () => {
+  const del = () => quotationRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'q1' }))
+
+  test('401 sin usuario autenticado', async () => {
+    activeClient = createMockSupabase({ user: null })
+    expect((await del()).status).toBe(401)
+  })
+
+  test('404 si la cotización no existe', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'quotations.select': { data: null, error: { code: 'PGRST116', message: 'nf' } } },
+    })
+    expect((await del()).status).toBe(404)
+    expect(activeClient.didCall('quotations', 'delete')).toBe(false)
+  })
+
+  test('GUARDA: con orden vinculada → 400 y no borra nada (ADR-010)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1' }, error: null },
+        'orders.select': { data: [{ id: 'o1' }], error: null },
+      },
+    })
+    const res = await del()
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toBe('Elimina la orden vinculada antes de eliminar esta cotización.')
+    const lookup = activeClient.callsTo('orders', 'select')[0]
+    expect(filterValue(lookup, 'quotation_id')).toBe('q1')
+    expect(activeClient.didCall('quotations', 'delete')).toBe(false)
+    expect(activeClient.didCall('quotation_items', 'delete')).toBe(false)
+  })
+
+  test('sin orden vinculada → 200 con un solo delete de la cotización (los ítems caen en cascada)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1' }, error: null },
+        'orders.select': { data: [], error: null },
+        'quotations.delete': { data: null, error: null },
+      },
+    })
+    const res = await del()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ success: true })
+    const deletes = activeClient.callsTo('quotations', 'delete')
+    expect(deletes).toHaveLength(1)
+    expect(filterValue(deletes[0], 'id')).toBe('q1')
+    expect(activeClient.didCall('quotation_items', 'delete')).toBe(false)
+  })
+
+  test('si el delete falla → 500, no { success: true }', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1' }, error: null },
+        'orders.select': { data: [], error: null },
+        'quotations.delete': { data: null, error: { code: 'XX000', message: 'boom' } },
+      },
+    })
+    const res = await del()
+    expect(res.status).toBe(500)
+    expect((await res.json()).message).toBe('Error al eliminar la cotización')
+  })
+
+  test('si una orden se liga entre la revisión y el delete (FK 23503) → 400 con el mismo mensaje', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1' }, error: null },
+        'orders.select': { data: [], error: null },
+        'quotations.delete': {
+          data: null,
+          error: { code: '23503', message: 'update or delete on table "quotations" violates foreign key constraint "orders_quotation_id_fkey"' },
+        },
+      },
+    })
+    const res = await del()
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toMatch(/elimina la orden vinculada/i)
+  })
+
+  test('si falla la búsqueda de la orden vinculada → 500 sin borrar', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1' }, error: null },
+        'orders.select': { data: null, error: { message: 'boom' } },
+      },
+    })
+    expect((await del()).status).toBe(500)
+    expect(activeClient.didCall('quotations', 'delete')).toBe(false)
+  })
 })
 
 describe('PATCH /quotations/[id]/status', () => {
@@ -768,5 +950,18 @@ describe('PATCH /quotations/[id]/status', () => {
     const res = await status.PATCH(makeRequest({ status: 'draft' }), makeParams({ id: 'q1' }))
     expect(res.status).toBe(200)
     expect(activeClient.updatePayload('quotations')).toMatchObject({ status: 'draft' })
+  })
+
+  test('GUARDA: si falla la búsqueda de la orden vinculada → 500 sin reabrir', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'converted_to_order' }, error: null },
+        'orders.select': { data: null, error: { message: 'boom' } },
+      },
+    })
+    const res = await status.PATCH(makeRequest({ status: 'approved' }), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(500)
+    expect(activeClient.didCall('quotations', 'update')).toBe(false)
   })
 })

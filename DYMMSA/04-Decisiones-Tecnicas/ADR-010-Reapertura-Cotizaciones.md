@@ -34,7 +34,15 @@ Si el estado actual es `converted_to_order`, la guarda consulta `orders` por
 ("Elimina la orden vinculada…"). Se eligió exigir **eliminación** (no solo
 cancelación) por dos razones:
 - Eliminar la orden ya restaura el inventario (`restoreOrderInventory`), igual que
-  cancelar → sin doble manejo de stock.
+  cancelar → sin doble manejo de stock. **Corrección 2026-10-17** (`fix/quotation-bugs`):
+  eso solo era cierto para órdenes activas. Al ligar las órdenes (`quotation_id`), la
+  guarda manda a eliminar también las canceladas, y `DELETE /api/orders/[id]` volvía a
+  restaurar lo que `/cancel` ya había devuelto. Ahora eliminar restaura **solo** si la
+  orden sigue en tienda (`ordered`/`received`, `deleteRestoresStock()` en
+  `src/lib/inventory.ts`): una cancelada ya lo devolvió y una entregada/completada ya
+  salió con el cliente. Para que "cancelada = stock devuelto" sea invariante,
+  `PATCH /api/orders/[id]/status` ya no acepta `cancelled` (solo `/cancel`) ni saca a una
+  orden de `cancelled`.
 - Garantiza **≤1 orden por cotización** en todo momento → evita órdenes huérfanas y
   mantiene `by-quotation` (`maybeSingle`) sin ambigüedad.
 

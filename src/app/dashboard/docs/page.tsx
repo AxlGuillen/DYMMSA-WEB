@@ -1122,6 +1122,8 @@ export default function DocsPage() {
               Desde cualquier estado activo (excepto Completado) tambien se puede pasar a{' '}
               <span className="rounded-full border px-2 py-0.5 bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-medium text-xs">Cancelado</span>{' '}
               usando el boton de cancelar, lo que restaura el inventario apartado.
+              Eliminar la orden solo devuelve el stock si sigue en tienda (Pedido o Recibido): una
+              cancelada ya lo devolvio, y una entregada o completada ya salio con el cliente.
             </p>
             <Table>
               <TableHeader>
