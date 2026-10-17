@@ -31,6 +31,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** Tools accept "a UUID or a name": this decides which lookup runs. */
 export const isUuid = (value: string) => UUID_RE.test(value)
 
+/** Accent- and case-insensitive name matching for the name lookups. */
+export const fold = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+
 /** Exactly one match or a ToolError that lists the candidates — the guard every name lookup shares (#109). */
 export function requireSingleMatch<T>(matches: T[], label: (m: T) => string, what: string, query: string): T {
   if (matches.length === 0) throw new ToolError(`No hay ${what} que coincida con "${query}".`)

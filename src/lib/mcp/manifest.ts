@@ -69,7 +69,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   // Block B — Odoo (the company's official invoicing, read-only)
   { name: 'odoo_query', block: 'odoo', module: 'Consultas libres', kind: 'read', title: 'Consulta generica en Odoo', example: 'Facturas de GE de agosto con su estado de pago.' },
   { name: 'odoo_aggregate', block: 'odoo', module: 'Consultas libres', kind: 'read', title: 'Agregados en Odoo', example: 'Total facturado por cliente este año.' },
-  { name: 'odoo_overdue_invoices', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Cartera vencida', example: '¿Quien nos debe y desde cuando?' },
+  { name: 'odoo_overdue_invoices', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Cartera y estado de cuenta', example: 'Estado de cuenta de Andritz: lo vencido y lo que vence este mes.' },
   { name: 'odoo_invoices_summary', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Resumen de facturacion', example: '¿Como cerro julio en facturacion?' },
   { name: 'odoo_invoice_detail', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Detalle de factura', example: 'El detalle de la factura F00167, con su timbrado.' },
   { name: 'odoo_payment_detail', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Detalle de pago con su REP', example: '¿El pago PAY00068 ya tiene su complemento?' },

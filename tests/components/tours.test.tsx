@@ -56,7 +56,7 @@ describe('Vista guiada — dashboard y sidebar', () => {
     for (const anchor of anchors) expect(covered.has(anchor!), `sección sin paso: ${anchor}`).toBe(true)
   })
 
-  test('el botón Vista guiada arranca driver.js con los 9 bloques resueltos', async () => {
+  test('el botón Vista guiada arranca driver.js con los 10 bloques resueltos', async () => {
     const user = userEvent.setup()
     renderDashboard()
 

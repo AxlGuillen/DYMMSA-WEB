@@ -4,7 +4,7 @@
  * `is_admin()` — a member reads nothing and writes nothing.
  */
 
-import { ToolError, requireSingleMatch, type Db } from '../shared'
+import { ToolError, fold, requireSingleMatch, type Db } from '../shared'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
 import { formatDuration, SHIFT_LABELS } from '@/lib/timesheet'
@@ -83,8 +83,6 @@ export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
     })),
   }
 }
-
-const fold = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 
 function resolveEmployee(employees: readonly PayrollEmployee[], name: string): PayrollEmployee {
   const query = fold(name)

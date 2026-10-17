@@ -5,6 +5,17 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-10-15
 
+### Nuevo
+- **Clientes.** Nueva sección en el menú con la **cartera** de los clientes de
+  Odoo: lo vencido y lo por vencer en el rango de fechas que elijas, cliente por
+  cliente.
+- **Estado de cuenta por cliente**, listo para mandar en **Excel** o
+  **impreso** (también como PDF). Solo lleva nombre, folios, fechas y montos;
+  el RFC y el contacto se quedan en la pantalla. Abajo se ven sus últimas
+  ventas y pagos.
+- **El asistente también lo da:** pídele el estado de cuenta de un cliente con
+  el periodo que necesites.
+
 ### Mejorado
 - **Recepción más rápida.** Al capturar lo recibido completo (o de más), la
   línea pasa sola a **Surtido**. Si corriges la cantidad por debajo, regresa a

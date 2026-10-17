@@ -26,10 +26,12 @@ import {
   CalendarClock,
   Sparkles,
   Users,
+  Contact,
 } from '@/components/icons'
 import {
   AssistantSection,
   CuttingSection,
+  CustomersSection,
   FinanceSection,
   HoursSection,
   ProfileSection,
@@ -66,6 +68,7 @@ const sections = [
   { id: 'compra', label: 'Planificar compra', icon: ShoppingCart },
   { id: 'corte', label: 'Corte y medidas de material', icon: Scissors },
   { id: 'proveedores', label: 'Proveedores', icon: Truck },
+  { id: 'clientes', label: 'Clientes', icon: Contact },
   { id: 'finanzas', label: 'Finanzas', icon: DollarSign },
   { id: 'horas', label: 'Horas y Equipo', icon: CalendarClock },
   { id: 'perfil', label: 'Mi perfil', icon: Users },
@@ -1206,6 +1209,7 @@ export default function DocsPage() {
       <PurchasePlannerSection />
       <CuttingSection />
       <SuppliersSection />
+      <CustomersSection />
       <FinanceSection />
       <HoursSection />
       <ProfileSection />

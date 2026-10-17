@@ -2,7 +2,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { AssistantSection, FinanceSection, ProfileSection } from '@/app/dashboard/docs/sections'
+import { AssistantSection, CustomersSection, FinanceSection, ProfileSection } from '@/app/dashboard/docs/sections'
 import { DOCS_MANIFEST, manifestFor } from '@/lib/mcp/manifest'
 
 describe('AssistantSection', () => {
@@ -24,6 +24,15 @@ describe('FinanceSection', () => {
     render(<FinanceSection />)
     expect(screen.getByText(/facturacion oficial/)).toBeTruthy()
     expect(screen.getByText(/nunca se restan/)).toBeTruthy()
+  })
+})
+
+describe('CustomersSection', () => {
+  test('dice que lo exportado no lleva RFC ni contacto y que la nota de crédito no se resta (#145)', () => {
+    render(<CustomersSection />)
+    expect(screen.getByText(/ni RFC ni datos de contacto/)).toBeTruthy()
+    expect(screen.getByText(/no se restan/)).toBeTruthy()
+    expect(screen.getByText(/fecha de vencimiento/)).toBeTruthy()
   })
 })
 

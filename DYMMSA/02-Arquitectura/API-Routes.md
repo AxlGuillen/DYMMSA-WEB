@@ -166,6 +166,18 @@
 
 ---
 
+## Clientes (Odoo)
+
+> Módulo: Clientes (issue #145, ADR-039) · Lee Odoo, nunca lo espeja. Loaders en `src/lib/odoo/customers.ts` (+ las facturas abiertas de `src/lib/odoo/income.ts`), matemática en `src/lib/customers.ts`, caché en `src/lib/odoo/income-cache.ts`. Todo el equipo con sesión.
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/clients` | ✅ | Query: `from`, `to` (YYYY-MM-DD, fecha de **vencimiento**; ausente = default, vacío = sin límite) y `filter` (`all` \| `overdue` \| `upcoming`). Default: todo lo vencido hasta el fin del mes en curso. Devuelve `{ today, range, customers, totals, reason, truncated, fetchedAt }`; cada cliente: `{ id (partner de Odoo), name, city, overdue, upcoming, total, openInvoices, creditNotes, creditNoteCount, daysToPay, currencies }`, la mayor deuda primero. `currencies` = monedas distintas de MXN sumadas **sin convertir** (también en `totals`). Notas de crédito aparte, **no restadas** (#102). Un partner facturado fuera de la lista igual sale. Rango inválido → 400. **Odoo ausente o caído → 200 con `customers: null`** y `reason` (`not_configured` \| `odoo_error`). `maxDuration = 60` |
+| `GET` | `/api/clients/[id]` | ✅ | Mismo query. `[id]` = partner de Odoo (entero positivo; si no, 404). Devuelve `{ today, range, customer (id, name, city, phone, email, vat, daysToPay), statement: { lines, totals, currencies }, creditNotes: { total, count, lines, currencies }, sales, payments, reason, truncated, fetchedAt }`. `lines` = facturas abiertas del rango (`folio, invoiceDate, dueDate, total, residual, currency, status, days`), la más vieja primero; ventas y pagos = los 10 más recientes (la fecha de venta, convertida de UTC a México). Cliente sin lista ni facturas → 404 |
+| `POST` | `/api/clients/refresh` | ✅ | Purga los tags `odoo-customers` **y** `finance-income` (comparten las facturas abiertas) con `{ expire: 0 }`; las pantallas releen después |
+
+---
+
 ## Horas (checador)
 
 > Módulo: Horas (issue #93, ADR-026) · Parser y matemática en `src/lib/timesheet.ts`. **Admin** = `requireAdmin()` (401 sin sesión, 403 para member); la BD repite la regla con RLS + `is_admin()`.

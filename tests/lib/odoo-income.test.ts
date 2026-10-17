@@ -115,6 +115,8 @@ describe('fetchOpenCustomerMoves', () => {
       moveType: 'out_invoice',
       folio: 'F00387',
       customer: 'Andritz',
+      // The raw many2one id survives normalization: Clientes links by it (#145).
+      customerId: 24,
       invoiceDate: '2026-08-11',
       dueDate: '2026-05-10',
       total: 18781.1,

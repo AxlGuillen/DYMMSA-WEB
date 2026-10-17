@@ -4,7 +4,22 @@ import type { OdooCaller } from '@/lib/odoo/client'
 import { allowedFields, assertDomainAllowed, catalogEntry, type DomainTriple } from '@/lib/odoo/catalog'
 import { daysSince, htmlToText, normalizeGroups, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
 import { OPEN_CREDIT_NOTES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
-import { ToolError } from '../../shared'
+import { fetchOpenCustomerMoves } from '@/lib/odoo/income'
+import {
+  customerCreditNotes,
+  customersTotals,
+  customerStatement,
+  daysLabel,
+  defaultStatementRange,
+  rangeLabel,
+  statementLines,
+  summarizeCustomers,
+  type StatementFilter,
+  type StatementLine,
+  type StatementRange,
+} from '@/lib/customers'
+import { isRealDate } from '@/lib/month'
+import { fold, requireSingleMatch, ToolError } from '../../shared'
 import { assertDateRange } from './dates'
 
 const MAX_LIMIT = 50
@@ -114,7 +129,116 @@ export async function creditNotesByCustomer(odoo: OdooCaller, extra: DomainTripl
   }
 }
 
-export async function odooOverdueInvoices(odoo: OdooCaller, input: { limit?: number } = {}) {
+export interface OverdueInvoicesInput {
+  limit?: number
+  cliente?: string
+  vence_desde?: string
+  vence_hasta?: string
+  incluir?: 'vencidas' | 'por_vencer' | 'ambas'
+}
+
+// Undated lines sort last: they must not take the `limit` slots of the most overdue ones.
+const NO_DATE = '9999-12-31'
+
+const INCLUDE_FILTER: Record<NonNullable<OverdueInvoicesInput['incluir']>, StatementFilter> = {
+  vencidas: 'overdue',
+  por_vencer: 'upcoming',
+  ambas: 'all',
+}
+
+/**
+ * Account statement mode (#145): same rules and lib as the Clientes screens — one read of the open moves,
+ * window on the DUE date, credit notes apart and never subtracted (#102). Absent dates = no bound.
+ */
+async function accountStatement(odoo: OdooCaller, input: OverdueInvoicesInput) {
+  assertDateRange(input.vence_desde, input.vence_hasta)
+  for (const date of [input.vence_desde, input.vence_hasta]) {
+    // Shape AND existence: 2026-02-30 passes the regex (review PR #128).
+    if (date && !isRealDate(date)) throw new ToolError(`Fecha inexistente "${date}"`)
+  }
+  const today = todayIso()
+  // Same default as the screen (review PR #148): only `cliente` = everything overdue + this month, both kinds.
+  const incluir = input.incluir ?? 'ambas'
+  const screenDefault = !input.incluir && !input.vence_desde && !input.vence_hasta
+  const range: StatementRange = {
+    from: input.vence_desde ?? null,
+    to: input.vence_hasta ?? (screenDefault ? defaultStatementRange(today).to : null),
+    filter: INCLUDE_FILTER[incluir],
+  }
+  const moves = await fetchOpenCustomerMoves(odoo)
+  const header = {
+    corte: today,
+    rango: rangeLabel(range, (iso) => iso),
+    incluye: incluir,
+    // undefined disappears on serialize: warn only when the read filled its limit.
+    nota: moves.truncated ? 'Odoo devolvió el máximo de facturas abiertas: puede faltar alguna.' : undefined,
+  }
+  const line = (l: StatementLine) => ({
+    folio: l.folio,
+    emitida: l.invoiceDate,
+    vence: l.dueDate,
+    estado: l.status === 'overdue' ? 'vencida' : 'por vencer',
+    dias: daysLabel(l),
+    saldo: l.residual,
+    total: l.total,
+    moneda: l.currency,
+  })
+  // undefined disappears on serialize: only mention currencies when something was summed unconverted.
+  const unconverted = (currencies: string[]) => (currencies.length ? currencies : undefined)
+
+  if (input.cliente) {
+    // Only partners with open moves: a customer who owes nothing has no statement to give.
+    const people = new Map<number, string>()
+    for (const m of moves.rows) if (m.customerId !== null) people.set(m.customerId, m.customer ?? 'Sin nombre')
+    const query = fold(input.cliente)
+    if (!query) throw new ToolError('Indica el nombre del cliente')
+    const exact = [...people].filter(([, n]) => fold(n) === query)
+    const [id, name] = requireSingleMatch(
+      exact.length > 0 ? exact : [...people].filter(([, n]) => fold(n).includes(query)),
+      ([pid, n]) => `${n} (#${pid})`,
+      'cliente con facturas abiertas',
+      input.cliente,
+    )
+    const { lines, totals, currencies } = customerStatement(moves.rows, id, range, today)
+    const credit = customerCreditNotes(moves.rows, id)
+    return {
+      ...header,
+      cliente: name,
+      total_por_cobrar: totals.total,
+      total_vencido: totals.overdue,
+      total_por_vencer: totals.upcoming,
+      facturas: totals.count,
+      monedas_sin_convertir: unconverted(currencies),
+      detalle: lines.map(line),
+      notas_credito_sin_aplicar: { total: credit.total, documentos: credit.count },
+    }
+  }
+
+  const everyone = summarizeCustomers([], moves.rows, range, today)
+  const totals = customersTotals(everyone)
+  const rows = everyone.filter((r) => r.openInvoices > 0)
+  const limit = Math.min(MAX_LIMIT, Math.max(1, input.limit ?? 10))
+  const all = rows.flatMap((r) => statementLines(moves.rows, r.id, range, today).map((l) => ({ ...line(l), cliente: r.name })))
+  return {
+    ...header,
+    total_por_cobrar: totals.total,
+    total_vencido: totals.overdue,
+    total_por_vencer: totals.upcoming,
+    facturas: totals.openInvoices,
+    monedas_sin_convertir: unconverted(totals.currencies),
+    por_cliente: rows.map((r) => ({ cliente: r.name, facturas: r.openInvoices, vencido: r.overdue, por_vencer: r.upcoming, total: r.total })),
+    // Every unapplied credit note, customers with only credit included: reported apart, never subtracted (#102).
+    notas_credito_sin_aplicar: {
+      total: totals.creditNotes,
+      documentos: everyone.reduce((n, r) => n + r.creditNoteCount, 0),
+    },
+    // Oldest due first across customers; `limit` caps the list, the totals above cover everything.
+    primeras: all.sort((a, b) => (a.vence ?? NO_DATE).localeCompare(b.vence ?? NO_DATE) || a.folio.localeCompare(b.folio)).slice(0, limit),
+  }
+}
+
+export async function odooOverdueInvoices(odoo: OdooCaller, input: OverdueInvoicesInput = {}) {
+  if (input.cliente || input.vence_desde || input.vence_hasta || input.incluir) return accountStatement(odoo, input)
   const today = todayIso()
   const domain = overdueDomain(today)
 
