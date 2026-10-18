@@ -14,6 +14,14 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   cotizaciones siguen mostrando la descripción oficial igual que antes, y
   guardar una cotización vieja ya no reemplaza la «Desc. DYMMSA» que se haya
   corregido después en la BD ETM.
+- **La ayuda y las vistas guiadas de Cotizaciones ya cuentan lo que hace la
+  app.** En «En aprobación» sí puedes editar, agregar y quitar productos (si el
+  cliente ya abrió el link, avísale que recargue la página después de que
+  guardes: lo que tenga marcado sin guardar se pierde); lo que agregas en
+  «Aprobada» entra como pendiente y lo apruebas o rechazas tú con ✓/✗. La vista guiada del detalle ya no promete un correo cuando el cliente
+  aprueba (ese aviso está apagado: revisa el estado en la cotización), y la del
+  cotizador explica que cada producto se edita con el lápiz y que para guardar
+  necesita ETM y cantidad mayor a 0 (el precio puede quedar vacío).
 
 ## 2026-10-15
 

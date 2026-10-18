@@ -13,29 +13,42 @@ Permitir que el cliente externo apruebe o rechace ítems de una cotización sin 
 ```
 DYMMSA                               Cliente
 ──────                               ───────
-Cotización en estado "approved"
+Cotización en estado "draft"
 → Click "Enviar a aprobación"
+  (si hay cambios sin guardar, primero PATCH /update)
 → POST /api/quotations/[id]/send-for-approval
-  Genera approval_token UUID
+  Exige status = draft (si no → 400)
   Status → sent_for_approval
-  
+  El approval_token ya existe: default de la BD
+  (gen_random_uuid) y se regenera en cada cambio
+  manual de estado (PATCH /status)
+
 Comparte link:
 /approve/[approval_token]
                                      Recibe link
                                      Abre /approve/[token]
                                      Ve preview de cotización
-                                     Aprueba ✅ / Rechaza ❌ cada ítem
-                                     (o usa "Aprobar todo")
-                                     Click Submit
+                                     Aprueba ✅ cada ítem
+                                     (o "Aprobar todos" / "Aprobar N visibles")
                                      POST /api/approve/[token]
-                                     
-Sistema actualiza:
-- quotation_items.is_approved por ítem
-- quotations.status → approved (si alguno ✅)
-                     → rejected (si todos ❌)
-                                     
-DYMMSA ve resultado en dashboard
+                                     { approvedIds, finalize }
+
+finalize=false → "Guardar avance":
+- aprobados → is_approved = true, resto → null
+- status NO cambia → el link sigue vivo y el cliente retoma después
+
+finalize=true → "Enviar" (con popup de confirmación):
+- aprobados → true, resto → false
+- quotations.status → approved (si approvedIds trae alguno) + sella approved_at
+                     → rejected (si no aprobó ninguno)
+- Solo procede si status = sent_for_approval (si no → 400; dos envíos a la vez → 409)
+
+DYMMSA ve el resultado al abrir o recargar la cotización
+(lista y detalle). El aviso por correo de ADR-012 está APAGADO
+(EMAIL_NOTIFICATIONS_ENABLED = false): no llega ningún correo.
 ```
+
+Los ítems `is_sold = false` ("No disponible") nunca se tocan: quedan fuera del reset y no son aprobables.
 
 ## Seguridad y acceso
 
@@ -43,7 +56,7 @@ DYMMSA ve resultado en dashboard
 - La página `/approve/[token]` es pública (sin login) pero no indexable (sin metadatos de SEO).
 - Si el token no existe en BD → 404.
 - Si `status !== 'sent_for_approval'` → banner informativo con el estado actual (ya aprobada, rechazada, etc.) — no permite re-aprobar.
-- Solo se exponen campos necesarios al cliente (nombre, descripción, precio, cantidad) — no se expone `created_by`, `approval_token` interno, etc.
+- **Ojo, la página manda la fila completa:** `page.tsx` lee `select('*, quotation_items(*)')` y se la pasa a `ApprovalClient`, así que viaja al navegador del cliente todo lo de `quotations` y `quotation_items` (incluidos `created_by`, `notes` y `original_file_url`), aunque la pantalla solo pinte nombre, descripción, precio y cantidad. Pendiente acotar el `select` (revisión de bugs de Cotizaciones, 2026-10-17).
 - **Reapertura / cambio de estado** (Fase 6, [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]]): cada cambio manual de estado (`PATCH /api/quotations/[id]/status`) **regenera `approval_token`**. El link compartido antes deja de matchear → 404. Así, si se reabre una cotización a `draft`/`sent_for_approval` para retrabajarla, el cliente no puede aprobar con un link viejo.
 
 ## Reapertura y aprobaciones preservadas
@@ -89,5 +102,5 @@ Lógica de negocio **intacta**: separadores como filas de sección, ítems `is_s
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `GET` | `/api/approve/[token]` | Obtener cotización por token |
-| `POST` | `/api/approve/[token]` | Enviar decisiones `{ decisions: [{ id, is_approved }] }` |
+| `GET` | `/api/approve/[token]` | Obtener cotización por token (la página la lee directo en su Server Component) |
+| `POST` | `/api/approve/[token]` | Guardar avance o enviar: `{ approvedIds?: string[], finalize?: boolean }` (`finalize` default `false`) |

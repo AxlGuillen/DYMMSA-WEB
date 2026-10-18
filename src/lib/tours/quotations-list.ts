@@ -12,13 +12,13 @@ export const QUOTATIONS_LIST_TOUR: OverviewStep[] = [
     selector: '[data-tour="ql-filters"]',
     title: 'Buscar y acotar',
     description:
-      'Busca por cliente o por nombre de la cotización, filtra por estado con el selector, y elige qué columnas ver con el engrane — tu selección de columnas se recuerda.',
+      'Busca por cliente o por nombre de la cotización, filtra por estado con el selector, y elige qué columnas ver con el botón <b>Columnas</b> — tu selección se recuerda.',
   },
   {
     selector: '[data-tour="ql-table"]',
     title: 'Las cotizaciones',
     description:
-      'Cada fila abre su detalle. Ojo con el total: es el monto <b>sellado al guardar</b> — en cotizaciones aprobadas que se siguieron editando, el total vivo está en el detalle.',
+      'Cada fila abre su detalle. El total es el de la última vez que se guardó: suma los productos con precio y cantidad, <b>aprobados o no</b> (sin separadores ni "no lo vendemos"); a la orden solo pasan los aprobados.',
   },
   {
     selector: '[data-tour="ql-new"]',

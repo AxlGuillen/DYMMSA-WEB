@@ -23,7 +23,6 @@ export default defineConfig({
         'src/components/orders/OrderStatusBadge.tsx',
         'src/components/dashboard/MetricCard.tsx',
         'src/components/discrete-mode-toggle.tsx',
-        'src/components/quoter/QuotePreview.tsx',
         'src/components/quoter/ProductModal.tsx',
         'src/components/quoter/QuotationEditor.tsx',
       ],
