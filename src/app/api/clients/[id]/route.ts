@@ -10,6 +10,7 @@ import {
   type CustomersUnavailableReason,
   type StatementRange,
 } from '@/lib/customers'
+import { withinBudget } from '@/lib/odoo/budget'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
 import { cachedCustomerActivity, cachedOpenCustomerMoves } from '@/lib/odoo/income-cache'
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!isOdooConfigured()) return NextResponse.json(unavailable(today, range, 'not_configured'))
 
     try {
-      const [detail, moves] = await Promise.all([cachedCustomerActivity(id), cachedOpenCustomerMoves()])
+      const [detail, moves] = await withinBudget(Promise.all([cachedCustomerActivity(id), cachedOpenCustomerMoves()]))
       // A partner Odoo no longer returns but still invoiced keeps its statement (same rule as the list).
       const invoiced = moves.rows.find((m) => m.customerId === id)
       const customer = detail.customer ?? (invoiced

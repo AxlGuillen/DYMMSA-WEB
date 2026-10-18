@@ -10,6 +10,7 @@ import {
   type CustomersUnavailableReason,
   type StatementRange,
 } from '@/lib/customers'
+import { withinBudget } from '@/lib/odoo/budget'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
 import { cachedCustomers, cachedOpenCustomerMoves } from '@/lib/odoo/income-cache'
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     try {
       // The Odoo queue serializes these; Promise.all only overlaps the cache lookups.
-      const [customers, moves] = await Promise.all([cachedCustomers(), cachedOpenCustomerMoves()])
+      const [customers, moves] = await withinBudget(Promise.all([cachedCustomers(), cachedOpenCustomerMoves()]))
       const rows = summarizeCustomers(customers.rows, moves.rows, range, today)
       const body: CustomersResponse = {
         today,

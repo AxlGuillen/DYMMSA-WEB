@@ -108,16 +108,15 @@ export async function fetchOpenCustomerMoves(odoo: OdooCaller): Promise<OdooRows
     limit: INCOME_FETCH_LIMIT,
     order: 'invoice_date_due asc',
   })
-  // The partner id lives only in the raw many2one: normalizing keeps the name.
   const rawRows = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
-  const records = normalizeRecords(rawRows)
   return {
-    rows: records.map((r, i) => ({
+    // Normalized and raw from the same row: the partner id lives only in the raw many2one.
+    rows: rawRows.map((rawRow) => [normalizeRecords([rawRow])[0], rawRow] as const).map(([r, rawRow]) => ({
       id: num(r.id),
       moveType: r.move_type === 'out_refund' ? 'out_refund' : 'out_invoice',
       folio: str(r.name) ?? '',
       customer: str(r.partner_id),
-      customerId: many2oneId(rawRows[i]?.partner_id),
+      customerId: many2oneId(rawRow.partner_id),
       invoiceDate: str(r.invoice_date),
       dueDate: str(r.invoice_date_due),
       // Unsigned in Odoo 17+, also on refunds; abs guards a signed instance from netting by accident.
@@ -126,6 +125,6 @@ export async function fetchOpenCustomerMoves(odoo: OdooCaller): Promise<OdooRows
       currency: str(r.currency_id),
       paymentState: str(r.payment_state) ?? '',
     })),
-    truncated: records.length >= INCOME_FETCH_LIMIT,
+    truncated: rawRows.length >= INCOME_FETCH_LIMIT,
   }
 }

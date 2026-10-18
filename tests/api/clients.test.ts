@@ -127,6 +127,28 @@ describe('GET /api/clients', () => {
   })
 })
 
+describe('presupuesto de Odoo (review PR #150)', () => {
+  test('si Odoo no contesta a tiempo, la lista y el detalle degradan a 200 en vez de 504', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(callOdoo).mockImplementation(() => new Promise(() => {}))
+      const listing = list()
+      await vi.advanceTimersByTimeAsync(45_000)
+      const listRes = await listing
+      expect(listRes.status).toBe(200)
+      expect(await readJson<CustomersResponse>(listRes)).toMatchObject({ customers: null, reason: 'odoo_error' })
+
+      const one = detail('24')
+      await vi.advanceTimersByTimeAsync(45_000)
+      const detailRes = await one
+      expect(detailRes.status).toBe(200)
+      expect(await readJson<CustomerDetailResponse>(detailRes)).toMatchObject({ customer: null, reason: 'odoo_error' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('GET /api/clients/[id]', () => {
   test('sin usuario → 401; id que no es número → 404 sin tocar Odoo', async () => {
     activeClient = createMockSupabase({ user: null })
