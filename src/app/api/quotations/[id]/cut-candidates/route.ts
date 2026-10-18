@@ -25,7 +25,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     const { data: quotation, error: quotationError } = await supabase
       .from('quotations')
-      .select('id, quotation_number, customer_name')
+      .select('id, name, customer_name')
       .eq('id', id)
       .single()
     // PGRST116 = zero rows (the legit 404); any other error is infrastructure
@@ -65,7 +65,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({
       quotation: {
         id: quotation.id,
-        quotation_number: quotation.quotation_number,
+        name: quotation.name,
         customer_name: quotation.customer_name,
       },
       candidates: candidateItems.map((item) => {

@@ -4,7 +4,7 @@
  * write to the token's user, so nothing here touches audit_events.
  */
 
-import { isUuid, requireSingleMatch, sanitizeSearch, ToolError, type Db } from '../shared'
+import { isAdminNow, isUuid, requireSingleMatch, sanitizeSearch, ToolError, type Db } from '../shared'
 import { resolveSupplier } from './suppliers'
 import { todayInMexico } from '@/lib/format'
 import { ISO_MONTH, isRealDate, monthRange } from '@/lib/month'
@@ -120,12 +120,6 @@ export async function listPayables(db: Db, input: ListPayablesInput = {}) {
   }
 }
 
-/** The caller's role, read with their own token (each profile row is visible to its owner). */
-async function isAdmin(db: Db, callerId: string): Promise<boolean> {
-  const { data } = await db.from('profiles').select('role').eq('id', callerId).single()
-  return (data as { role?: string } | null)?.role === 'admin'
-}
-
 export async function getPayable(db: Db, callerId: string, ref: string) {
   const payable = await resolvePayable(db, ref)
   const detail = {
@@ -133,7 +127,7 @@ export async function getPayable(db: Db, callerId: string, ref: string) {
     plazo_proveedor_dias: payable.supplier?.payment_terms_days ?? null,
   }
   // A member's answer must not even carry the key: the trail's existence is admin-only (ADR-028).
-  if (!(await isAdmin(db, callerId))) return detail
+  if (!(await isAdminNow(db, callerId))) return detail
 
   const { data, error } = await db
     .from('audit_events')

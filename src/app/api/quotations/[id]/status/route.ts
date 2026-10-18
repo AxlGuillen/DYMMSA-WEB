@@ -35,12 +35,17 @@ export async function PATCH(
     // Reopening a converted quotation requires its linked order to be deleted (that restores
     // inventory) and keeps at most one order per quotation.
     if (quotation.status === 'converted_to_order') {
-      const { data: linkedOrders } = await supabase
+      const { data: linkedOrders, error: ordersError } = await supabase
         .from('orders')
         .select('id')
         .eq('quotation_id', id)
         .limit(1)
 
+      // Fail closed: reopening with the order alive would strand it behind an editable quotation.
+      if (ordersError) {
+        console.error('Quotation status: linked order lookup error:', ordersError)
+        return serverError('Error al actualizar el estado')
+      }
       if (linkedOrders && linkedOrders.length > 0) {
         return badRequest(
           'Elimina la orden vinculada antes de reabrir esta cotización.'

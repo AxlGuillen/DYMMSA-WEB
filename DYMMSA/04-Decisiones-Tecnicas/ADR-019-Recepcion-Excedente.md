@@ -43,7 +43,11 @@ porción del cliente  = min(recibido, pedido)          → receivedForCustomer()
 3. **Cancelar/eliminar orden** (`computeRestoration`): restaura
    `in_stock + min(recibido, pedido)` — la mercancía del cliente que ya llegó
    se queda en tienda; el excedente **no se re-suma** (ya entró en la
-   recepción). Fin del doble conteo.
+   recepción). Fin del doble conteo. Cancelar (`/cancel`) restaura siempre
+   que procede; desde 2026-10-17 eliminar restaura **solo** si la orden sigue
+   en tienda (`ordered`/`received`, `deleteRestoresStock()`): una cancelada
+   ya lo devolvió y una entregada/completada ya salió con el cliente
+   ([[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]]).
 4. **UI anti-dedazo**: sin tope en el input (el punto es permitir excedente),
    pero "Confirmar Recepción" abre un **resumen** (pedido/recibido/efecto en
    inventario por ítem, filas ámbar con excedente, ⚠️ cuando recibido > 2×

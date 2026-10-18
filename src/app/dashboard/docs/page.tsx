@@ -239,9 +239,12 @@ export default function DocsPage() {
       <div id="cotizar" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2">
             <FileSpreadsheet className="size-5" />
             Formato Excel para Cotizar (Matcher)
+            <span className="ml-auto">
+              <TutorialButton tutorials={tutorialsForDocs('cotizar')} showDocsLink={false} />
+            </span>
           </CardTitle>
           <CardDescription>
             Formato del archivo Excel que sube el cliente para generar una
@@ -378,9 +381,12 @@ export default function DocsPage() {
       <div id="cotizaciones" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2">
             <ClipboardList className="size-5" />
             Cotizaciones y Flujo
+            <span className="ml-auto">
+              <TutorialButton tutorials={tutorialsForDocs('cotizaciones')} showDocsLink={false} />
+            </span>
           </CardTitle>
           <CardDescription>
             Como crear, gestionar y aprobar cotizaciones, y que puedes hacer en cada etapa.
@@ -417,7 +423,7 @@ export default function DocsPage() {
               Guardar y auto-aprendizaje
             </p>
             <p className="text-muted-foreground">
-              Al hacer clic en <strong>&ldquo;Guardar cotizacion&rdquo;</strong> ocurren dos cosas en paralelo:
+              Al hacer clic en <strong>&ldquo;Guardar cotizacion&rdquo;</strong> ocurren dos cosas, una tras otra:
             </p>
             <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
               <li>
@@ -499,17 +505,17 @@ export default function DocsPage() {
                     {
                       action: 'Editar campos de un producto',
                       icon: <Pencil className="size-3.5 inline mr-1" />,
-                      draft: true, approval: false, approved: true, rejected: false, converted: false,
+                      draft: true, approval: true, approved: true, rejected: false, converted: false,
                     },
                     {
                       action: 'Agregar producto',
                       icon: <Plus className="size-3.5 inline mr-1" />,
-                      draft: true, approval: false, approved: true, rejected: false, converted: false,
+                      draft: true, approval: true, approved: true, rejected: false, converted: false,
                     },
                     {
                       action: 'Eliminar producto',
                       icon: <Trash2 className="size-3.5 inline mr-1" />,
-                      draft: true, approval: false, approved: true, rejected: false, converted: false,
+                      draft: true, approval: true, approved: true, rejected: false, converted: false,
                     },
                     {
                       action: 'Enviar a aprobacion',
@@ -550,10 +556,22 @@ export default function DocsPage() {
                 </TableBody>
               </Table>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Los productos agregados en estado <strong>Aprobada</strong> entran directamente con aprobacion interna
-              (sin pasar por el cliente), util cuando DYMMSA necesita ajustar la cotizacion post-aprobacion.
-            </p>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p>
+                En <strong>En aprobacion</strong> puedes ajustar precio, cantidad o entrega, y agregar o quitar
+                productos. Guardar no cambia el link, y lo que agregues le aparece al cliente como pendiente.
+              </p>
+              <p>
+                <strong>Ojo:</strong> guardar renueva los productos. Si el cliente ya abrio el link, avisale que
+                recargue la pagina despues de que guardes: lo que tenga marcado sin guardar se pierde. Y recarga
+                tu el detalle antes de editar, para no borrar el avance que el cliente ya guardo.
+              </p>
+              <p>
+                Los productos agregados en <strong>Aprobada</strong> entran como <strong>Pendientes</strong>: los
+                apruebas o rechazas tu con los botones ✓ / ✗ de la tabla (no pasan por el cliente). Solo los
+                aprobados entran a la orden.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-2 text-sm">
@@ -591,7 +609,7 @@ export default function DocsPage() {
             </p>
             <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
               <li>El cliente puede aprobar o rechazar <strong>cada producto de forma independiente</strong> (aprobacion parcial).</li>
-              <li>Hay un boton de <strong>&ldquo;Aprobar todo&rdquo;</strong> para confirmar todos los productos de una vez.</li>
+              <li>Hay un boton de <strong>&ldquo;Aprobar todos&rdquo;</strong> para confirmar todos los productos de una vez (con un filtro activo dice <strong>&ldquo;Aprobar N visibles&rdquo;</strong> y aprueba solo lo filtrado).</li>
               <li>
                 <strong>Guardar avance:</strong> en cotizaciones grandes el cliente puede guardar lo que lleva
                 aprobado <em>sin enviar todavia</em> y retomar despues desde el mismo enlace, justo donde se
@@ -599,7 +617,7 @@ export default function DocsPage() {
               </li>
               <li>Al <strong>enviar</strong> la aprobacion definitiva se le pide una <strong>confirmacion</strong> (resumen de cuantos productos y el total) para evitar envios por error.</li>
               <li>Una vez enviada la decision, la pagina muestra el estado actual y no permite re-aprobar. En el detalle veras la <strong>fecha y hora de aprobacion</strong>.</li>
-              <li>Tu ves en tiempo real que productos fueron aprobados y cuales rechazados desde el detalle de la cotizacion.</li>
+              <li>Al abrir (o recargar) el detalle de la cotizacion ves que productos fueron aprobados y cuales rechazados. Hoy no se envia un aviso por correo: revisa el estado en la lista de cotizaciones.</li>
             </ul>
           </div>
 
@@ -1122,6 +1140,8 @@ export default function DocsPage() {
               Desde cualquier estado activo (excepto Completado) tambien se puede pasar a{' '}
               <span className="rounded-full border px-2 py-0.5 bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-medium text-xs">Cancelado</span>{' '}
               usando el boton de cancelar, lo que restaura el inventario apartado.
+              Eliminar la orden solo devuelve el stock si sigue en tienda (Pedido o Recibido): una
+              cancelada ya lo devolvio, y una entregada o completada ya salio con el cliente.
             </p>
             <Table>
               <TableHeader>

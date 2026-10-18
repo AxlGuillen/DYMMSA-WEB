@@ -15,12 +15,12 @@
 | `GET` | `/api/quotations/stats` | ✅ | Conteo por status: `{ draft, sent_for_approval, approved, rejected, converted_to_order }` |
 | `POST` | `/api/quotations/save` | ✅ | Crear cotización nueva + auto-learn etm_products. Body: `{ name, customer_name, items: QuotationItemRow[] }`. Cada ítem se guarda con `dymmsa_description` **resuelta server-side** (catálogo URREA > curada > null; snapshot congelado, ADR-013) |
 | `GET` | `/api/quotations/[id]` | ✅ | Obtener cotización con sus ítems (`quotation_items(*)` ordenados por `sort_order`, `limit(5000)` contra truncamiento). 404 si no existe |
-| `DELETE` | `/api/quotations/[id]` | ✅ | Eliminar cotización + sus ítems (cualquier estado) |
-| `PATCH` | `/api/quotations/[id]/update` | ✅ | Editar cotización en estado `draft` o `approved`. Body: `{ name?, customer_name?, items?, status?, notes? }`. Re-resuelve `dymmsa_description` con jerarquía de catálogo (fallback al snapshot en BD si la UI no manda el campo, ADR-013) |
-| `POST` | `/api/quotations/[id]/send-for-approval` | ✅ | Genera `approval_token` UUID + cambia status a `sent_for_approval` |
-| `POST` | `/api/quotations/[id]/create-order` | ✅ | Crear orden desde cotización `approved`. Stock check + deducción inventario. Status → `converted_to_order` |
+| `DELETE` | `/api/quotations/[id]` | ✅ | Eliminar cotización (sus ítems se van por `ON DELETE CASCADE`). **Bloqueado con 400** si tiene una orden vinculada ("Elimina la orden vinculada antes de eliminar esta cotización."; también ante el 23503 de una orden ligada después del chequeo) — ADR-010 |
+| `PATCH` | `/api/quotations/[id]/update` | ✅ | Editar cotización en estado `draft`, `sent_for_approval` o `approved` (otro → 400; no cambia el `approval_token`). Body: `{ name, customer_name, items }` (los tres obligatorios → 400; el estado se cambia con `PATCH /status`). Re-resuelve `dymmsa_description` con jerarquía de catálogo (fallback al snapshot en BD si la UI no manda el campo, ADR-013) |
+| `POST` | `/api/quotations/[id]/send-for-approval` | ✅ | Solo desde `draft` (si no → 400): cambia status a `sent_for_approval` y devuelve el `approval_token`. No lo genera: es default de la BD y lo regenera cada `PATCH /status` |
+| `POST` | `/api/quotations/[id]/create-order` | ✅ | Crear orden desde cotización `approved` con `quotation_id` ligado (desde 2026-10-17; índice único parcial → una orden por cotización, el choque concurrente da 400). Stock check; status → `converted_to_order` **antes** de deducir inventario (si falla, borra la orden) |
 | `PATCH` | `/api/quotations/[id]/status` | ✅ | Cambio manual de estado entre `draft`/`sent_for_approval`/`approved`/`rejected`. Body: `{ status }`. Preserva `is_approved` y `approved_at`. Sella `approved_at` al marcar `approved` solo si aún no existe (conserva la fecha original del cliente); **nunca lo borra** → la fecha de aprobación se ve en cualquier fase posterior. `converted_to_order` no es destino manual (400). Revertir desde `converted_to_order` exige que la orden vinculada esté **eliminada** (si existe cualquier orden vinculada → 400) |
-| `GET` | `/api/quotations/[id]/cut-candidates` | ✅ | Piezas DYMMSA de la cotización para **sembrar el corte rápido** (issue #71): misma forma que los `candidates` del cut-plan de orden (nominales `cut_*`, marca trim+upper), separadores e `is_sold=false` fuera |
+| `GET` | `/api/quotations/[id]/cut-candidates` | ✅ | Piezas DYMMSA de la cotización para **sembrar el corte rápido** (issue #71). Respuesta `{ quotation: { id, name, customer_name }, candidates }` (hasta 2026-10-17 pedía `quotation_number`, que no existe, y respondía 500 siempre). `candidates` tiene la misma forma que los del cut-plan de orden (nominales `cut_*`, marca trim+upper); separadores e `is_sold=false` fuera. 404 si la cotización no existe; cualquier otro error de la BD → 500 |
 
 ---
 
@@ -31,7 +31,7 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `GET` | `/api/approve/[token]` | ❌ | Obtener datos de cotización por approval_token (solo campos públicos) |
-| `POST` | `/api/approve/[token]` | ❌ | Persistir decisiones. Body: `{ approvedIds: string[], finalize: boolean }`. `finalize=false` → **guardar avance** (aprobados=`true`, resto=`null` pendiente; **status NO cambia** → link sigue vivo). `finalize=true` → **enviar** (resto=`false`, status `approved`/`rejected` + `approved_at`). Solo si status `sent_for_approval`. Excluye `is_sold=false`. Eficiente: 2-3 queries. **Si finaliza en `approved`** → envía notificación por email a DYMMSA (Resend, `sendApprovalNotification`) en `try/catch` aislado: un fallo de correo nunca revierte la aprobación ni cambia el 200 ([[04-Decisiones-Tecnicas/ADR-012-Notificaciones-Email]]). **Guarda de concurrencia:** la transición de status usa `.eq('status','sent_for_approval')`; si otro request concurrente (misma liga en 2 pestañas/dispositivos) ya finalizó → 409 (no pisa el estado) |
+| `POST` | `/api/approve/[token]` | ❌ | Persistir decisiones. Body: `{ approvedIds: string[], finalize: boolean }`. `finalize=false` → **guardar avance** (aprobados=`true`, resto=`null` pendiente; **status NO cambia** → link sigue vivo). `finalize=true` → **enviar** (resto=`false`, status `approved`/`rejected` + `approved_at`). Solo si status `sent_for_approval`. Excluye `is_sold=false`. Eficiente: 2-3 queries. **Si finaliza en `approved`** → llama `sendApprovalNotification` (Resend), hoy **apagada** (`EMAIL_NOTIFICATIONS_ENABLED = false`: regresa `skipped` sin mandar nada), en `try/catch` aislado: un fallo de correo nunca revierte la aprobación ni cambia el 200 ([[04-Decisiones-Tecnicas/ADR-012-Notificaciones-Email]]). **Guarda de concurrencia:** la transición de status usa `.eq('status','sent_for_approval')`; si otro request concurrente (misma liga en 2 pestañas/dispositivos) ya finalizó → 409 (no pisa el estado) |
 
 ---
 
@@ -42,6 +42,9 @@
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
 | `POST` | `/api/orders/create` | ✅ | Crear orden directa sin cotización (flujo legacy) |
+| `GET` | `/api/orders/by-quotation/[quotationId]` | ✅ | `{ id, name, status }` de la orden ligada por `quotation_id`, o `null`. La usan «Ver orden» y el candado del selector de estado en `QuotationDetail` (ADR-010) |
+| `PATCH` | `/api/orders/[id]/status` | ✅ | Cambio manual entre `ordered`/`received`/`delivered`/`completed`. `cancelled` → 400 (solo por `/cancel`, que es la que restaura el stock) y una orden cancelada ya no cambia de estado → 400 (2026-10-17, ADR-010) |
+| `DELETE` | `/api/orders/[id]` | ✅ | Eliminar orden + sus ítems. Restaura el stock **solo** si sigue en tienda (`ordered`/`received`, `deleteRestoresStock()`): una cancelada ya lo devolvió y una entregada/completada ya salió con el cliente (2026-10-17, ADR-010) |
 | `POST` | `/api/orders/[id]/items` | ✅ | Agregar ítem a orden existente + stock check + deducción inventario |
 | `PATCH` | `/api/orders/[id]/items/[itemId]` | ✅ | Editar precio de un ítem. Recalcula `total_amount` de la orden |
 | `DELETE` | `/api/orders/[id]/items/[itemId]` | ✅ | Eliminar ítem + restaurar `quantity_in_stock` al inventario |

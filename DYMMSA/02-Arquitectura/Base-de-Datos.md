@@ -156,7 +156,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `customer_name` | text | No | — | | |
 | `status` | text | No | `'pending_urrea_order'` | CHECK | Ver estados abajo |
 | `total_amount` | numeric | No | — | `>= 0` | Total en MXN |
-| `quotation_id` | uuid | Sí | — | FK → `quotations.id` | null si orden directa |
+| `quotation_id` | uuid | Sí | — | FK → `quotations.id` (sin cascade); UNIQUE parcial `orders_quotation_id_unique` (`WHERE quotation_id IS NOT NULL`) | null si orden directa. A lo más una orden por cotización; mientras exista, la cotización no se puede eliminar (400, ADR-010) |
 | `original_file_url` | text | Sí | — | | |
 | `urrea_order_file_url` | text | Sí | — | | URL del Excel generado para URREA |
 | `notes` | text | Sí | — | | |

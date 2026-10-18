@@ -32,3 +32,17 @@ export const overdueDomain = (today: string): DomainTriple[] => [
   ...OPEN_RECEIVABLES_DOMAIN,
   ['invoice_date_due', '<', today],
 ]
+
+/** A domain in Odoo's prefix notation: operators come before their operands. */
+export type DomainItem = DomainTriple | '|' | '&' | '!'
+
+/** OR of the conditions; none matches nothing, never everything (#144). */
+export function orDomain(conditions: readonly DomainTriple[]): DomainItem[] {
+  if (conditions.length === 0) return [['id', 'in', []]]
+  return [...Array<'|'>(conditions.length - 1).fill('|'), ...conditions]
+}
+
+/** For ilike/=ilike patterns built from input: Postgres reads % and _ as wildcards and \ as the escape. */
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`)
+}

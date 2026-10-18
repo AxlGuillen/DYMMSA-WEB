@@ -98,7 +98,7 @@ src/
 │   ├── orders/                   # NewOrderForm, OrderDetail, OrderStatusBadge, OrdersTable, PurchasePlanner
 │   ├── providers/                # QueryProvider (TanStack), ThemeProvider
 │   ├── quotations/               # QuotationDetail, QuotationStatusBadge, QuotationsTable
-│   ├── quoter/                   # FileUploader, ProductModal, QuotationEditor, QuotePreview
+│   ├── quoter/                   # FileUploader, ProductModal, QuotationEditor
 │   ├── suppliers/                # SuppliersTable, SupplierForm, BrandsManager (issue #21)
 │   ├── tasks/                    # TaskForm, TaskDetail, TaskPriorityBadge
 │   └── ui/                       # shadcn/ui components (alert-dialog, badge, button, chart, etc.)
@@ -190,7 +190,7 @@ tests/
 └── components/                   # Componentes React (jsdom + Testing Library)
     ├── setup.ts                  # jest-dom + cleanup + polyfills (matchMedia, ResizeObserver, crypto, clipboard)
     ├── helpers/                  # render (QueryClientProvider), stores (resetStores), fixtures (shape UI)
-    ├── smoke / badges / MetricCard / useCurrency / DiscreteModeToggle / QuotePreview
+    ├── smoke / badges / MetricCard / useCurrency / DiscreteModeToggle
     └── ProductModal / QuotationEditor / QuotationDetail   # interactivos (userEvent, mock de hooks)
 ```
 

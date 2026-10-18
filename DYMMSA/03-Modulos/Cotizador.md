@@ -13,11 +13,12 @@
    - Busca columna "ETM" (case insensitive) en cada hoja
    - Extrae columnas opcionales: description, description_es, model_code, quantity, price, brand
    - Productos sin ETM → DYMMSA-TEMP-{n}
-4. GET /api/quotes/lookup → contrasta ETMs con etm_products → completa datos faltantes
-5. QuotationEditor muestra tabla editable pre-rellena
-6. Usuario ajusta precios, cantidades, agrega filas, inserta separadores
-7. POST /api/quotations/save → persiste en BD + auto-learn
-8. Reset del Zustand store + limpieza de localStorage
+4. POST /api/quotes/lookup → contrasta ETMs con etm_products → completa datos faltantes
+5. QuotationEditor muestra la tabla pre-rellena (las celdas son de solo lectura)
+6. Usuario edita cada producto con el lápiz (ProductModal), agrega filas,
+   inserta separadores (su nombre sí se escribe en la fila) y reordena
+7. Pre-flight (getBlockingIssues) → POST /api/quotations/save → persiste en BD + auto-learn
+8. Reset del Zustand store + limpieza de localStorage → abre el detalle de la cotización nueva
 ```
 
 ## Estado: Zustand + localStorage
@@ -55,7 +56,6 @@ El store persiste automáticamente en localStorage via `persist` de Zustand. Se 
 | `FileUploader` | `src/components/quoter/FileUploader.tsx` | Drag & drop de Excel, dispara parseo |
 | `QuotationEditor` | `src/components/quoter/QuotationEditor.tsx` | Tabla editable principal, gestiona Zustand |
 | `ProductModal` | `src/components/quoter/ProductModal.tsx` | Modal de edición por producto (modos: create / edit) |
-| `QuotePreview` | `src/components/quoter/QuotePreview.tsx` | Preview de cotización antes de guardar |
 
 ## QuotationItemRow (tipo local, no en BD)
 
@@ -76,22 +76,22 @@ interface QuotationItemRow {
 }
 ```
 
-Ítems con `_inDb = false` (sin model_code) se resaltan en gris en la tabla con leyenda.
+Colores de fila (con leyenda): **naranja** = sin descripción ni `model_code` ("Sin datos"), **gris** = sin `model_code`, **amarillo** = sin cantidad, **verde** = completo (código, cantidad y precio). Un "no lo vendemos" gana sobre todos. `_inDb` solo pinta la columna Origen (Catálogo / Nuevo).
 
 ## Guardar cotización (`POST /api/quotations/save`)
 
-1. Valida: `name` requerido, `customer_name` requerido, al menos 1 ítem de tipo `product`.
+1. Antes del request, la página corre el pre-flight (`getBlockingIssues`, `src/lib/quotation-validation.ts`): cada producto necesita ETM y cantidad > 0, y el precio puede ir vacío pero no negativo; los "no lo vendemos" quedan exentos. Sin código de modelo no bloquea (severidad `warning`). La ruta valida `name`, `customer_name` y al menos 1 ítem de tipo `product`.
 2. Calcula `total_amount` sumando `unit_price * quantity` de ítems producto con ambos campos presentes.
 3. Inserta en `quotations` (status: `draft`).
 4. Inserta en `quotation_items` con `sort_order = index`.
 5. Separadores: `etm, description, model_code, etc.` = null; `section_label` se preserva.
-6. Ejecuta `processAutoLearn()` en background.
+6. Ejecuta `processAutoLearn()` después de guardar, en su propio try/catch: si falla, la cotización ya quedó guardada y la respuesta trae `warning: 'auto_learn_failed'`.
 7. Si la inserción de ítems falla → rollback (elimina la cotización).
 
 ## Archivos relevantes
 
 - `src/app/dashboard/quoter/page.tsx`
-- `src/components/quoter/` (4 componentes)
+- `src/components/quoter/` (3 componentes: `FileUploader`, `QuotationEditor`, `ProductModal`)
 - `src/stores/quotationStore.ts`
 - `src/lib/excel/parser.ts`
 - `src/hooks/useQuotes.ts`

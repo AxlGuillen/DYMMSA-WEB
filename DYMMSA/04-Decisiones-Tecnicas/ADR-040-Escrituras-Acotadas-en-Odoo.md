@@ -1,0 +1,74 @@
+# ADR-040: escrituras acotadas en Odoo (cotización → venta → factura en borrador, nunca timbrar)
+
+**Fecha:** 2026-10-18
+**Estado:** Aceptado. La infraestructura está mergeada (PR #149); el registro de las tools, la vista y la documentación in-app llegan en el PR siguiente.
+**Relacionado:** [[ADR-025-Bloque-Odoo-MCP]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-036-Vistas-del-MCP-con-MCP-Apps]] · issue #144
+
+## Contexto
+
+Hasta ahora el bloque Odoo del MCP solo leía (ADR-025). La #144 pide que el asistente:
+- cree y edite **cotizaciones** (`sale.order` en borrador);
+- las **confirme** como venta;
+- haga la **factura completa en borrador** desde una venta confirmada.
+
+Nunca debe publicar, timbrar ni enviar. La facturación oficial vive en Odoo Online 19 y el timbrado (PAC SW) está **en producción**: un `action_post` por error sería un CFDI real.
+
+Lo que encontró la exploración de solo lectura (2026-10-17):
+- **La llave es de administrador.** Odoo tiene un solo usuario interno, el dueño (uid 2), y su llave tiene todos los permisos, así que Odoo no frenaría nada. Un usuario técnico con solo Ventas sí frenaría `_post`, pero cuesta una licencia.
+- **Política de facturación.** El 99.6 % de los productos son bienes con política de facturación "por entrega".
+- **Efecto de confirmar.** Confirmar crea la entrega OFI/OUT.
+- **Nada timbra un borrador.** No hay automatizaciones, y los crons no tocan borradores con `auto_post='no'`.
+- **El borrador no consume folio.** En v19 tiene `name=false`; la F se asigna al publicar.
+
+## Decisiones (con el usuario, 2026-10-16/17)
+
+1. **Solo administradores.** Un member no recibe las tools.
+2. **El asistente confirma ventas,** siempre tras el sí explícito del usuario.
+3. **Factura completa y nada más.** Siempre `advance_payment_method='delivered'`: sin anticipos, porcentajes ni montos fijos. Para bienes, solo después de que una persona valide la entrega en Odoo. La tool lo revisa antes y nunca toca inventario.
+4. **Productos nuevos:**
+   - solo con el clic en el botón de la vista;
+   - solo como bienes (`consu`), con los defaults de la instancia (factura por entrega, IVA 16, Unidades);
+   - clave SAT opcional con aviso; el asistente nunca la inventa;
+   - los servicios nuevos se dan de alta a mano.
+5. **Sin clientes nuevos** (`res.partner` nunca se crea).
+6. **Edición:** cualquier cotización `draft`/`sent`, incluidas las hechas a mano. Se edita línea por línea y conserva las descripciones escritas.
+7. **Atribución al dueño.** Todo queda como uid 2 (`create_uid`, chatter, vendedor). Cada escritura **agrega** una línea en `internal_note` con qué administrador de DYMMSA-WEB la pidió, sin pisar la nota.
+8. **Encendido por ventanas.** `ODOO_WRITE_API_KEY` se pone en Vercel **solo en Production** cuando se va a usar y se quita al terminar, con redeploy en cada caso. En Preview cualquier rama escribiría en el Odoo real.
+9. **Sin puente con las cotizaciones de la app en v1.** La regla de oro sigue igual.
+
+## Diseño: la frontera de escritura, por capas
+
+| Capa | Dónde | Garantía |
+|---|---|---|
+| Lector de solo lectura | `client.ts` (`READ_METHODS` congelado: `search_read`, `read_group`, `search_count`; `assertReadCall` antes de la cola) | Ninguna lectura, actual o futura, puede escribir |
+| Llave aparte | `env.ts` (`ODOO_WRITE_API_KEY`, sin respaldo en `ODOO_API_KEY`, leída en cada llamada) | Sin la variable no se escribe nada y las lecturas siguen; es el interruptor |
+| Escritor crudo | `client.ts` `createOdooRawWriter`: misma cola, `https` obligatorio, sin seguir redirecciones, sin reintentos salvo un 429 corto | Una sola vía de red para escribir |
+| Allowlist + lista negra | `write-catalog.ts`. La lista negra (account*, l10n_mx*, res.partner*, stock.*, mail.*, ir.*; métodos post/send/edi/stamp/unlink/cancel…; llaves `l10n_mx*`/`x_studio*`; contexto `default_*`, `send_email`…) **se evalúa primero**. Después vienen las 6 operaciones exactas con zod `strict` | `sale.order` create/write/action_confirm, `product.product.create` y el wizard de factura (create + create_invoices con su contexto exacto). Nada más |
+| Fachada | `writer.ts`: ids, contexto y nota interna los arma el servidor; los `[1]`/`[2]` solo tocan líneas releídas de **esa** venta (`ownedSaleLines`) | El chat nunca manda contexto, ids de wizard ni comandos libres |
+| Admin vivo | `requireLiveAdmin` relee `profiles` (TTL 90 s) y emite un `AdminProof` reconocido por identidad (`WeakSet`) | Un objeto armado por el modelo nunca pasa; un admin degradado deja de escribir |
+| Clave de vista previa | `preview-token.ts`: HMAC (secreto derivado de la llave de escritura) que ata admin, contenido canónico, intención (`crear`/`editar`/`confirmar`) y `write_date`; vale 30 min | Se guarda exactamente lo que se mostró, y si alguien cambió la cotización desde la vista previa se rechaza |
+| Autorización del botón | Solo en `_meta` del resultado de la vista previa (`withResultMeta`) | Sin vista no hay alta de productos; `visibility ['app']` es solo una pista para el host |
+| Idempotencia | `origin = 'Asistente DYMMSA · <k10>'`, derivado de la clave. Antes de crear se busca; dos coincidencias son error | Repetir la misma llamada no duplica |
+| Resultado incierto | `OdooUncertainWriteError(operación, reintento)`: nunca se reintenta solo, y el mensaje pide repetir **la misma** llamada | Un timeout no duplica ni deja la duda escondida |
+| Plazo | `deadline.ts`: presupuesto de 50 s bajo el `maxDuration` de 60, revisado **al salir de la cola**; con menos de 15 s no sale a la red | Ninguna función se corta a media escritura |
+| Verificación posterior | La factura se relee: `state='draft'`, sin `name`, sin `sending_data`, `l10n_mx_edi_cfdi_state` vacío | Si algo saliera distinto, se avisa |
+
+**Fuera, a propósito:** publicar, timbrar, enviar, cancelar o borrar (desde el MCP), clientes, pagos, notas de crédito, validar entregas e inventario, anticipos y facturas parciales.
+
+## Presupuesto del MCP (ADR-034)
+
+Son 4 tools nuevas: `odoo_preview_quotation`, `odoo_save_quotation`, `odoo_save_product` y `odoo_create_draft_invoice`. Odoo pasa de 15 a 19 y el tope sube de 16 a 20 (decisión 2026-10-16). Con las tools se suben también, de forma explícita, `descriptionsTotal`, `listTotal` e `instructions`, que hoy están casi llenos. `odoo_create_draft_invoice` queda como excepción con nombre a la regla "una `save_x` por entidad", igual que `update_payable`. `requireLiveAdmin` revierte, para Odoo, la alternativa descartada en ADR-034 de "leer el rol en cada llamada": aquí sí se relee, porque la RLS no protege a Odoo.
+
+## Alternativas descartadas
+
+- **Usuario técnico de Odoo** (solo Ventas): frenaría `_post` dentro de Odoo, pero cuesta una licencia, no cierra el wizard de envío ni `l10n_mx_edi.document`, y no puede limpiar pruebas. Queda como defensa adicional futura; la barrera del código es obligatoria con cualquier llave.
+- **Una sola llave para leer y escribir:** no permite apagar solo las escrituras.
+- **Ampliar `ODOO_CATALOG` para las tools nuevas:** ampliaría `odoo_query` para los members. Las tools leen con proyecciones fijas.
+
+## Pendiente
+
+- **PR siguiente:**
+  - la vista `odoo-quotation` y el registro de las 4 tools;
+  - manifiesto, consentimiento, instrucciones y presupuesto;
+  - las secciones de documentación in-app y CLAUDE.md "Bloque Odoo" con las tools vivas.
+- **Prueba en producción:** con el guion de la fase A y el contacto de la empresa, fuera de horario y con el dueño avisado. Después se anotan aquí sus resultados en §Verificación.

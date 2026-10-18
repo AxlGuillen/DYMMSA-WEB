@@ -58,7 +58,7 @@ tests/
 └── components/            # tests de componentes React (jsdom)
     ├── setup.ts           # jest-dom + cleanup + polyfills (matchMedia, ResizeObserver, crypto, clipboard)
     ├── helpers/           # render (QueryClientProvider), stores (resetStores), fixtures (shape UI)
-    ├── smoke / badges / MetricCard / useCurrency / DiscreteModeToggle / QuotePreview
+    ├── smoke / badges / MetricCard / useCurrency / DiscreteModeToggle
     └── ProductModal / QuotationEditor / QuotationDetail
 ```
 
@@ -96,7 +96,7 @@ La ruta pública `/approve/[token]` usa `createAdminClient` de `@/lib/supabase/a
 | Comp. MetricCard | `components/MetricCard.test.tsx` | 4 | value/description/isLoading/icon |
 | Comp. useCurrency | `components/useCurrency.test.tsx` | 4 | formato es-MX, modo discreto, null |
 | Comp. toggle | `components/DiscreteModeToggle.test.tsx` | 3 | alterna store + aria-label |
-| Comp. QuotePreview | `components/QuotePreview.test.tsx` | 9 | % match/color, total, copiar ETMs, callbacks |
+| ~~Comp. QuotePreview~~ | ~~`components/QuotePreview.test.tsx`~~ | ~~9~~ | Eliminado el 2026-10-17 junto con el componente (código muerto) |
 | Comp. ProductModal | `components/ProductModal.test.tsx` | 4 | submit → payload, validación ETM (local/catálogo/edit) |
 | Comp. QuotationEditor | `components/QuotationEditor.test.tsx` | 6 | cards de resumen, add/remove, separador (DnD omitido) |
 | Comp. QuotationDetail | `components/QuotationDetail.test.tsx` | 5 | toggle aprobación ✓/✗, contadores, save → mutateAsync |
@@ -128,7 +128,7 @@ La ruta pública `/approve/[token]` usa `createAdminClient` de `@/lib/supabase/a
 Cubre la lógica interactiva propia, no los componentes de shadcn/ui (terceros). Helpers en `tests/components/helpers/`:
 - **`render.tsx`** — `renderWithProviders` (QueryClientProvider nuevo por test, retry off).
 - **`stores.ts`** — `resetStores()` (Zustand singletons + `localStorage.clear()`); `seedQuotationItems()`.
-- **`fixtures.ts`** — builders con shape de UI (`quotationItemRow`, `quotationWithItems`, `etmProduct`).
+- **`fixtures.ts`** — builders con shape de UI (`quotationItemRow`, `quotationWithItems`).
 - **`setup.ts`** — polyfills jsdom: `crypto.randomUUID`, `navigator.clipboard`.
 
 **Estrategia para hooks:** los hooks de TanStack se mockean a nivel de módulo (`vi.mock('@/hooks/*')` → `{ mutateAsync: vi.fn(), isPending: false }`); sin red ni QueryClient real, se assertea que `mutateAsync` fue llamado. **Gotcha (ProductModal):** el campo ETM tiene `onBlur` que deshabilita el submit mientras valida; tras editarlo, usar `fireEvent.submit(form)` en vez de click para evitar la carrera. react-hook-form no valida `required` poblado solo vía `reset()` hasta recibir un evento de cambio.

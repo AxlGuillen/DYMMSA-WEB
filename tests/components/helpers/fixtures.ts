@@ -4,7 +4,6 @@ import type {
   QuotationItemRow,
   QuotationItem,
   QuotationWithItems,
-  EtmProduct,
 } from '@/types/database'
 
 let seq = 0
@@ -88,23 +87,6 @@ export function quotationWithItems(
     updated_at: '2026-05-01T00:00:00Z',
     created_by: 'user-1',
     quotation_items: [quotationItem()],
-    ...overrides,
-  }
-}
-
-/** Catalog product (for QuotePreview). */
-export function etmProduct(overrides: Partial<EtmProduct> = {}): EtmProduct {
-  return {
-    id: uid('etm'),
-    etm: 'ETM-1',
-    description: 'Producto',
-    description_es: 'Producto',
-    model_code: 'MC1',
-    price: 100,
-    brand: 'URREA',
-    created_at: '2026-05-01T00:00:00Z',
-    updated_at: '2026-05-01T00:00:00Z',
-    created_by: 'user-1',
     ...overrides,
   }
 }

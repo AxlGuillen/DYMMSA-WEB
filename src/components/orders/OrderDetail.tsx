@@ -95,6 +95,7 @@ import {
   receptionExcess,
   statusAfterReceived,
 } from '@/lib/business-rules'
+import { deleteRestoresStock } from '@/lib/inventory'
 import { separatorRowClass } from '@/lib/separator-palette'
 import { fetchJson } from '@/lib/fetch-json'
 import type {
@@ -149,6 +150,12 @@ const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'completed', label: 'Completado' },
 ]
 
+
+function deleteStockNote(status: OrderStatus): string {
+  if (deleteRestoresStock(status)) return 'Si tenía stock descontado del inventario, será restaurado automáticamente.'
+  if (status === 'cancelled') return 'El inventario ya se restauró al cancelarla, así que no se vuelve a sumar.'
+  return 'Los productos ya se entregaron al cliente, así que el inventario no cambia.'
+}
 
 interface OrderDetailProps {
   order: OrderWithItems
@@ -641,8 +648,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Eliminar esta orden?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Se eliminará la orden y todos sus ítems permanentemente. Si tenía stock
-                  descontado del inventario, será restaurado automáticamente.
+                  Se eliminará la orden y todos sus ítems permanentemente.{' '}
+                  {deleteStockNote(order.status)}{' '}
                   Esta acción no se puede deshacer.
                 </AlertDialogDescription>
               </AlertDialogHeader>

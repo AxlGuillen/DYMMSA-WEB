@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError, fetchJson } from '@/lib/fetch-json'
+import { ORDERS_KEY } from '@/hooks/useOrders'
 import type {
   Quotation,
   QuotationWithItems,
@@ -187,6 +188,8 @@ export function useCreateOrderFromQuotation() {
     onSuccess: (_, quotationId) => {
       queryClient.invalidateQueries({ queryKey: QUOTATIONS_KEY })
       queryClient.invalidateQueries({ queryKey: [...QUOTATIONS_KEY, quotationId] })
+      // Also refreshes the by-quotation lookup behind "Ver orden" and the status lock.
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
     },
   })
 }
