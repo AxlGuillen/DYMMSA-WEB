@@ -45,6 +45,11 @@ cancelación) por dos razones:
   orden de `cancelled`.
 - Garantiza **≤1 orden por cotización** en todo momento → evita órdenes huérfanas y
   mantiene `by-quotation` (`maybeSingle`) sin ambigüedad.
+- **2026-10-17:** la guarda solo funcionaba con órdenes de marzo, porque `create-order` nunca
+  escribía `quotation_id`. Ahora lo escribe, la misma guarda cubre `DELETE /api/quotations/[id]`
+  (400 con orden vinculada) y el índice único parcial `orders_quotation_id_unique` impone
+  ≤1 orden por cotización también en la BD (en la nube, con la migración
+  `link_orders_and_unique_quotation`, que se aplica tras el deploy).
 
 ### 3. El cambio de estado regenera `approval_token`
 Cada `PATCH /status` setea un `approval_token` nuevo (`crypto.randomUUID()`). El link
@@ -88,6 +93,9 @@ pre-selecciona los `is_approved === true`, así que el cliente solo decide los n
 - `tests/api/quotations.test.ts`: target inválido (converted) → 400; 404; revertir
   `sent_for_approval → draft` sin tocar ítems; guarda con orden vinculada → 400; sin
   orden → 200; **regenera `approval_token`**; **update preserva `is_approved` en draft**.
+- 2026-10-17: `DELETE` con orden vinculada → 400 (también ante el 23503); `create-order` guarda
+  `quotation_id` y una segunda orden choca con el índice (400 sin tocar stock); integración en
+  `tests/integration/orders.integration.test.ts` y `flow.integration.test.ts`.
 
 ---
 

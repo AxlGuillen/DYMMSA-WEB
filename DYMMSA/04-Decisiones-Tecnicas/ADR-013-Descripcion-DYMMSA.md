@@ -139,8 +139,16 @@ UI etiquete el origen y deshabilite la edición cuando gana el catálogo).
 
 ## Pendiente
 
-- El catálogo URREA sigue **vacío en producción**; al primer import todo queda
-  normalizado desde el origen.
+- ~~El catálogo URREA sigue vacío en producción~~: ya está importado (al 2026-10-17,
+  650 productos de la BD ETM hacen match estricto con él; 428 de ellos tenían la
+  oficial copiada como curada).
+- **Limpieza de las copias (2026-10-17):** auto-learn ya nunca aprende el texto del
+  catálogo, pero las 428 copias siguen en `etm_products.dymmsa_description`. Las borra
+  la migración de datos `clear_catalog_copied_dymmsa_description`, que se aplica
+  **después** del deploy a producción y con respaldo previo de `etm, dymmsa_description`.
+  Sin el deploy, cada "Guardar cambios" las vuelve a copiar. Quedan fuera 2 productos
+  sin match estricto cuyo texto es la oficial del mismo código en otra marca (decisión
+  pendiente).
 - Excel de orden URREA sigue usando `description_es` (fuera de alcance v1).
 - Catálogos de otras marcas: generalizar a una tabla `catalogs` con columna
   `brand` y extender el resolver — sin migrar datos copiados.

@@ -99,9 +99,13 @@ Cotización en sent_for_approval / approved / rejected
   el cliente ve los ya aprobados pre-seleccionados y solo decide los nuevos
 
 Cotización en converted_to_order
-→ Primero ELIMINAR la orden vinculada (restaura inventario)
+→ Primero ELIMINAR la orden vinculada (devuelve el stock solo si sigue en
+  tienda: Pedido/Recibido; una cancelada ya lo devolvió al cancelarla)
 → luego el dropdown permite reabrirla
 ```
+
+Mientras exista una orden vinculada (aunque esté cancelada), la cotización
+tampoco se puede **eliminar**: `DELETE /api/quotations/[id]` responde 400.
 
 Ver [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]].
 
@@ -115,7 +119,7 @@ Ver [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]].
 | Separadores no cuentan | `item_type='separator'` excluido de totales, auto-learn, aprobación, Excel URREA | [[04-Decisiones-Tecnicas/ADR-001-Separadores]] |
 | Stock se aparta al crear orden | No al confirmar recepción — evita doble promesa al cliente | [[01-Negocio/Decisiones-de-Negocio#Por qué deducir inventario al crear la orden]] |
 | Cancelar restaura inventario | `quantity_in_stock` vuelve al store al cancelar la orden | [[03-Modulos/Inventario#Movimientos automáticos de inventario]] |
-| Reabrir convertida exige eliminar la orden | Para regresar una `converted_to_order` a un estado editable, su orden vinculada debe eliminarse (restaura inventario; garantiza ≤1 orden por cotización) | [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]] |
+| Reabrir o eliminar convertida exige eliminar la orden | Para regresar una `converted_to_order` a un estado editable, o para eliminarla, su orden vinculada debe eliminarse antes (400 si existe, aunque esté cancelada). Eliminar la orden devuelve el stock solo si sigue en tienda (`ordered`/`received`); garantiza ≤1 orden por cotización | [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]] |
 | Cambiar de estado regenera el link de aprobación | Cada `PATCH /status` regenera `approval_token`; el link compartido antes queda muerto (404) | [[03-Modulos/Aprobacion-por-Token#Seguridad y acceso]] |
 | Auto-learn solo actualiza con datos no vacíos | No sobreescribe datos buenos con campos vacíos | [[03-Modulos/Catalogo-ETM#Auto-learn]] |
 | Excel URREA = decisiones de mayoreo guardadas | Criterio: pertenencia a `urrea_catalog` (cualquier línea, ya no `brand=URREA`); piezas en múltiplos de STD; menudeo y sin-catálogo van a la lista de compra local | [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]] |
