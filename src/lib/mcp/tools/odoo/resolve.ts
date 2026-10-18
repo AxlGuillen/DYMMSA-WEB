@@ -229,7 +229,7 @@ export async function requireExactSale(odoo: OdooCaller, folio: string, fields: 
   throw new ToolError(`No hay ninguna venta ${name} en Odoo.${hint}`)
 }
 
-/** More than this and an edit could exceed the writer's 200 commands (80 desired + every removal). */
+/** Every current line may be removed while MAX_QUOTATION_LINES are added: the sum must fit MAX_LINE_COMMANDS. */
 export const MAX_EDIT_LINES = 120
 
 const LINE_FIELDS = ['display_type', 'name', 'product_id', 'product_uom_qty', 'price_unit', 'discount', 'sequence', 'price_subtotal']

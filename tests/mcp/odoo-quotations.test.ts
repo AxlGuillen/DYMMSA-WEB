@@ -510,7 +510,7 @@ describe('crear', () => {
     const { odoo } = fakeOdoo({ 'sale.order.search_read': [[saleRow(), saleRow({ id: 913, name: 'S00913' })]] })
     const { writer, attempts } = throwingWriter()
     await expect(odooSaveQuotation({ reader: odoo, writer }, context().ctx, { ...CREATE_INPUT, clave })).rejects.toThrow(
-      /Hay 2 ventas con la marca de esta vista previa \(S00912, S00913\)/,
+      /Hay al menos 2 ventas con la marca de esta vista previa \(S00912, S00913\)/,
     )
     expect(attempts).toEqual([])
   })
