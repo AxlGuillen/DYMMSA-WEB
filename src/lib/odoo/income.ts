@@ -6,7 +6,7 @@
 import type { OdooCaller } from './client'
 import { allowedFields, assertDomainAllowed, type DomainTriple } from './catalog'
 import { OPEN_CUSTOMER_MOVES_DOMAIN } from './domains'
-import { many2oneId, normalizeRecords } from './normalize'
+import { many2oneId, normalizeRecord, normalizeRecords } from './normalize'
 import { monthRange } from '@/lib/month'
 
 /** 500 covers years of DYMMSA volume; `truncated` says when it did not (PR #75). */
@@ -110,21 +110,24 @@ export async function fetchOpenCustomerMoves(odoo: OdooCaller): Promise<OdooRows
   })
   const rawRows = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
   return {
-    // Normalized and raw from the same row: the partner id lives only in the raw many2one.
-    rows: rawRows.map((rawRow) => [normalizeRecords([rawRow])[0], rawRow] as const).map(([r, rawRow]) => ({
-      id: num(r.id),
-      moveType: r.move_type === 'out_refund' ? 'out_refund' : 'out_invoice',
-      folio: str(r.name) ?? '',
-      customer: str(r.partner_id),
-      customerId: many2oneId(rawRow.partner_id),
-      invoiceDate: str(r.invoice_date),
-      dueDate: str(r.invoice_date_due),
-      // Unsigned in Odoo 17+, also on refunds; abs guards a signed instance from netting by accident.
-      total: Math.abs(num(r.amount_total)),
-      residual: Math.abs(num(r.amount_residual)),
-      currency: str(r.currency_id),
-      paymentState: str(r.payment_state) ?? '',
-    })),
+    rows: rawRows.map((rawRow) => {
+      // The partner id lives only in the raw many2one: normalizing keeps the name.
+      const r = normalizeRecord(rawRow)
+      return {
+        id: num(r.id),
+        moveType: r.move_type === 'out_refund' ? 'out_refund' : 'out_invoice',
+        folio: str(r.name) ?? '',
+        customer: str(r.partner_id),
+        customerId: many2oneId(rawRow.partner_id),
+        invoiceDate: str(r.invoice_date),
+        dueDate: str(r.invoice_date_due),
+        // Unsigned in Odoo 17+, also on refunds; abs guards a signed instance from netting by accident.
+        total: Math.abs(num(r.amount_total)),
+        residual: Math.abs(num(r.amount_residual)),
+        currency: str(r.currency_id),
+        paymentState: str(r.payment_state) ?? '',
+      }
+    }),
     truncated: rawRows.length >= INCOME_FETCH_LIMIT,
   }
 }
