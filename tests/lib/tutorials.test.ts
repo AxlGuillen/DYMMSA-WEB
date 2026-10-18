@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   coverUrl,
+  DOCS_ANCHORS,
   embedUrl,
   PENDING_ID,
   publishedTutorials,
@@ -23,7 +24,7 @@ const docsFiles = [
 
 /**
  * The source of the ONE section whose element carries `id="<anchor>"`, up to the next `id=` in the file.
- * Assumes the button comes before any nested `id=` (true in the three sections today).
+ * Assumes the button comes before any nested `id=` (true in the five sections today).
  */
 function sectionSource(anchor: string): string | null {
   const pattern = new RegExp(`id=["']${anchor}["']`, 'g')
@@ -53,6 +54,14 @@ describe('catálogo de tutoriales', () => {
     }
   })
 
+  test('ANTI-DRIFT: cada sección de documentación del catálogo existe y ya muestra su botón, aunque aún no tenga video', () => {
+    for (const anchor of DOCS_ANCHORS) {
+      const section = sectionSource(anchor)
+      expect(section, `#${anchor} no existe o está repetida`).not.toBeNull()
+      expect(section, `el botón no está en la sección #${anchor}`).toContain(`tutorialsForDocs('${anchor}')`)
+    }
+  })
+
   test('REGLA: ningún video en la página pública de aprobación (sin sesión; su liga a docs mandaría al login)', () => {
     expect(TUTORIALS.filter((t) => t.tours.includes('approval')).map((t) => t.slug)).toEqual([])
   })
@@ -65,6 +74,8 @@ describe('catálogo de tutoriales', () => {
     expect(tutorialsForTour('cut-planner').map((t) => t.youtubeId)).toEqual(['8xgDHUaOCVM'])
     expect(tutorialsForTour('inventory')).toEqual([])
     expect(tutorialsForDocs('compra').map((t) => t.slug)).toEqual(['ordenes-2-planificar-compra'])
+    expect(tutorialsForDocs('cotizar')).toEqual([])
+    expect(tutorialsForDocs('cotizaciones')).toEqual([])
   })
 })
 

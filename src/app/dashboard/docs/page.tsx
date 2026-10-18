@@ -239,9 +239,12 @@ export default function DocsPage() {
       <div id="cotizar" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2">
             <FileSpreadsheet className="size-5" />
             Formato Excel para Cotizar (Matcher)
+            <span className="ml-auto">
+              <TutorialButton tutorials={tutorialsForDocs('cotizar')} showDocsLink={false} />
+            </span>
           </CardTitle>
           <CardDescription>
             Formato del archivo Excel que sube el cliente para generar una
@@ -378,9 +381,12 @@ export default function DocsPage() {
       <div id="cotizaciones" className="login-card-border">
       <Card className="docs-card-inner border-0">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2">
             <ClipboardList className="size-5" />
             Cotizaciones y Flujo
+            <span className="ml-auto">
+              <TutorialButton tutorials={tutorialsForDocs('cotizaciones')} showDocsLink={false} />
+            </span>
           </CardTitle>
           <CardDescription>
             Como crear, gestionar y aprobar cotizaciones, y que puedes hacer en cada etapa.
