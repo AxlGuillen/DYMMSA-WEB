@@ -88,9 +88,12 @@ const saleOrderCreateVals = z.strictObject({
 // Owner notes pasted from mail or Word keep inline styles: a tight cap would freeze every edit.
 const INTERNAL_NOTE_WRITE_MAX = 500_000
 
+/** Line commands one sale.order.write may carry (adds + updates + removals). */
+export const MAX_LINE_COMMANDS = 200
+
 const saleOrderWriteVals = z
   .strictObject({
-    order_line: z.array(z.union([addLine, updateLine, removeLine])).min(1).max(200).optional(),
+    order_line: z.array(z.union([addLine, updateLine, removeLine])).min(1).max(MAX_LINE_COMMANDS).optional(),
     validity_date: isoDate.optional(),
     internal_note: z.string().min(1).max(INTERNAL_NOTE_WRITE_MAX).optional(),
   })

@@ -28,6 +28,9 @@ import {
 } from '@/lib/odoo/preview-token'
 import { ADMIN_ONLY_MESSAGE } from '@/lib/odoo/write-guard'
 import type { McpRole } from '@/lib/mcp/manifest'
+import { MAX_LINE_COMMANDS } from '@/lib/odoo/write-catalog'
+import { MAX_EDIT_LINES } from '@/lib/mcp/tools/odoo/resolve'
+import { MAX_QUOTATION_LINES } from '@/lib/mcp/tools/odoo/quotations'
 
 // 17:00 in Morelia (UTC-6).
 const NOW = Date.UTC(2026, 9, 17, 23, 0)
@@ -498,6 +501,16 @@ describe('crear', () => {
     const { writer, attempts } = throwingWriter()
     await expect(odooSaveQuotation({ reader: odoo, writer }, context().ctx, { ...CREATE_INPUT, clave })).rejects.toThrow(
       /La S00912 que creó esta vista previa está cancelada: pide una vista previa nueva/,
+    )
+    expect(attempts).toEqual([])
+  })
+
+  test('dos ventas con la misma marca no se adivinan: error que las nombra, sin escribir', async () => {
+    const clave = await createKey()
+    const { odoo } = fakeOdoo({ 'sale.order.search_read': [[saleRow(), saleRow({ id: 913, name: 'S00913' })]] })
+    const { writer, attempts } = throwingWriter()
+    await expect(odooSaveQuotation({ reader: odoo, writer }, context().ctx, { ...CREATE_INPUT, clave })).rejects.toThrow(
+      /Hay 2 ventas con la marca de esta vista previa \(S00912, S00913\)/,
     )
     expect(attempts).toEqual([])
   })
@@ -977,5 +990,12 @@ describe('fallos', () => {
       'La vigencia 2026-10-01 ya pasó: usa hoy o una fecha posterior.',
     )
     expect(calls).toEqual([])
+  })
+})
+
+describe('límites de líneas (review PR #149)', () => {
+  test('la edición más grande que deja pasar la vista previa cabe en una sola escritura', () => {
+    // Every current line may be removed and every desired line added in the same write.
+    expect(MAX_EDIT_LINES + MAX_QUOTATION_LINES).toBeLessThanOrEqual(MAX_LINE_COMMANDS)
   })
 })

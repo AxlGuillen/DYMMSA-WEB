@@ -53,3 +53,13 @@ cronología en git. El estado acumulado vive en [schema.sql](./schema.sql).
 | 20261005165214 | profile_hourly_rate — ajustes del 2026-10-05: `profiles.hourly_rate numeric(10,2) DEFAULT 52 CHECK (hourly_rate IS NULL OR hourly_rate > 0)` (las filas existentes quedan en 52 por el default) para el pago estimado que ve el admin, y `profiles.area text NOT NULL DEFAULT 'office' CHECK (area IN ('office','workshop'))`; `guard_profile_admin_fields()` protege las dos y su mensaje ahora nombra área, dueño y tarifa. |
 | 20261007035652 | profile_pay_admin_only — review PR #137: `profiles.hourly_rate` se muda a la tabla `profile_pay` (`profile_id` PK → profiles CASCADE, `hourly_rate numeric(10,2) NOT NULL CHECK > 0`; sin fila = sin tarifa), RLS `FOR ALL` con `is_admin()` y GRANTs sin `anon`. La policy de SELECT de fila propia de `profiles` dejaba a un member leer su tarifa por PostgREST aunque la ruta no la mandara (CLAUDE.md prometía que jamás se le muestra). Datos copiados en la misma migración; `guard_profile_admin_fields()` deja de nombrar la tarifa. |
 | 20261008233218 | excused_days_admin_update — review PR #138: `excused_days` no tenía policy ni GRANT de UPDATE, así que el `update` de `save_excused_day` (cambiar feriado ↔ salida autorizada en su lugar) fallaba con 42501 incluso para el admin; policy `Admins update excused days` (`is_admin()` USING + WITH CHECK) y `GRANT UPDATE … TO authenticated`. |
+
+## Pendientes de aplicar en la nube
+
+Ya están en `schema.sql`, el baseline y el código (PR #149), pero **todavía no en producción**. Se aplican **después** del deploy a producción, porque stg, previews y producción comparten la BD. Al aplicarlas, cada una pasa a la tabla de arriba con su versión real (`list_migrations`).
+
+| Nombre | Qué hace | Antes de aplicar |
+|---|---|---|
+| `link_orders_and_unique_quotation` | Liga las 10 órdenes históricas con su cotización: por `name` + `customer_name`, solo pares 1:1 en los dos sentidos y solo cotizaciones `converted_to_order` sin orden. Luego crea el índice único parcial `orders_quotation_id_unique` (ADR-010). | Correr la vista previa: los 10 pares, cero cotizaciones con más de una orden ya ligada (`GROUP BY quotation_id HAVING count(*) > 1`) y los conteos base. Si aparece un duplicado, se detiene y se revisa a mano. |
+| `clear_catalog_copied_dymmsa_description` | Vacía `etm_products.dymmsa_description` donde copia la descripción oficial de su match estricto `(code, brand)` en `urrea_catalog`. Son 428 filas el 2026-10-17 (ADR-013). | Respaldar con un SELECT `etm`/`dymmsa_description` de las filas afectadas y confirmar el conteo. |
+

@@ -77,6 +77,9 @@ export type {
 } from '@/lib/odoo/quotation-plan'
 
 // Short descriptions: every character counts twice in the tools/list budget (ADR-034).
+/** Desired lines per quotation; MAX_EDIT_LINES + this must fit MAX_LINE_COMMANDS (tested). */
+export const MAX_QUOTATION_LINES = 80
+
 export const quotationLine = z.strictObject({
   linea_id: z.number().int().positive().optional().describe('Línea existente (editar): de lineas_como_entrada'),
   producto_id: z.number().int().positive().optional().describe('Id del producto en Odoo (desempata)'),
@@ -100,7 +103,7 @@ const isoDate = z.string().refine((value) => isRealDate(value), 'fecha inválida
 export const previewQuotationShape = {
   cliente: z.string().min(1).max(120).optional().describe('Crear: nombre, RFC o #id del cliente'),
   folio: folio.optional().describe('Cotización existente: revisar (solo folio) o editar (con lineas)'),
-  lineas: z.array(quotationLine).min(1).max(80).optional().describe('La lista COMPLETA deseada'),
+  lineas: z.array(quotationLine).min(1).max(MAX_QUOTATION_LINES).optional().describe('La lista COMPLETA deseada'),
   vigencia: isoDate.optional().describe('Vence el (YYYY-MM-DD)'),
 }
 
@@ -642,6 +645,10 @@ async function saveCreate(run: SaveRun): Promise<QuotationSaveResult> {
       order: 'id asc',
     }),
   ).map(saleFromRow)
+  // The marker is unique per preview: two hits mean someone copied it by hand in Odoo (review PR #149).
+  if (existing.length > 1) {
+    throw new ToolError(`Hay ${existing.length} ventas con la marca de esta vista previa (${existing.map((s) => s.name).join(', ')}): revísalas en Odoo. No escribí nada.`)
+  }
   if (existing.length > 0) {
     const sale = existing[0]
     if (sale.state === 'cancel') {
