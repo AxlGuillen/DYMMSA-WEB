@@ -8,6 +8,12 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ### Corregido
 - **«Planificar corte» desde una cotización vuelve a funcionar.** Ya no sale
   "Error al cargar la cotización": abre el corte rápido con sus piezas DYMMSA.
+- **La «Desc. DYMMSA» de la BD ETM ya no se llena sola con la descripción
+  oficial de URREA.** Al guardar cambios en una cotización, los productos del
+  catálogo copiaban ese texto como si DYMMSA lo hubiera escrito. Las
+  cotizaciones siguen mostrando la descripción oficial igual que antes, y
+  guardar una cotización vieja ya no reemplaza la «Desc. DYMMSA» que se haya
+  corregido después en la BD ETM.
 
 ## 2026-10-15
 

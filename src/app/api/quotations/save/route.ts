@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculateQuotationTotal, isProductItem, resolveDymmsaDescription } from '@/lib/business-rules'
 import { requireAuth } from '@/lib/api-helpers'
 import { processAutoLearn } from '@/lib/auto-learn'
-import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
+import { fetchCatalogDescriptionMapOrNull } from '@/lib/urrea-catalog'
 import { explainPgError } from '@/lib/supabase-errors'
 import type { QuotationItemRow } from '@/types/database'
 
@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Frozen snapshot of the DYMMSA description resolved server-side (catalog beats curated, ADR-013).
-    const catalogMap = await fetchCatalogDescriptionMap(supabase, items.map((i) => i.model_code))
+    const catalog = await fetchCatalogDescriptionMapOrNull(supabase, items.map((i) => i.model_code))
+    const catalogMap = catalog ?? new Map<string, string | null>()
 
     const quotationItems = items.map((item, index) => ({
       quotation_id:   quotation.id,
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
     let autoLearn = { added: 0, updated: 0, skipped: 0 }
     let autoLearnFailed = false
     try {
-      autoLearn = await processAutoLearn(supabase, user.id, items)
+      autoLearn = await processAutoLearn(supabase, user.id, items, catalog)
     } catch (err) {
       console.error('Auto-learn failed (quotation already saved):', err)
       autoLearnFailed = true

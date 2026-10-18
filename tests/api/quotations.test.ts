@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from 'vitest'
-import { createMockSupabase, MockSupabaseClient, filterValue } from '../helpers/supabase-mock'
+import { createMockSupabase, MockSupabaseClient, filterValue, type ResponseValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
 import { AUTH, quotationItem as product, separator } from '../helpers/factories'
 import { makeRequest, makeParams } from '../helpers/request'
@@ -259,6 +259,41 @@ describe('POST /quotations/save', () => {
     expect(rows[1].dymmsa_description).toBe('Martillo curado')
     expect(rows[2].dymmsa_description).toBeNull()
     expect(rows[3].dymmsa_description).toBeNull() // separator
+
+    // Auto-learn: the catalog-matched line never learns a curated text (ADR-013 rule 1).
+    const learned = activeClient.callsTo('etm_products', 'insert')
+      .map((c) => c.payload as Record<string, unknown>)
+    expect(learned.map((r) => [r.etm, r.dymmsa_description])).toEqual([
+      ['ETM-1', null],
+      ['ETM-2', 'Martillo curado'],
+      ['ETM-3', null],
+    ])
+  })
+
+  test('REGLA: si urrea_catalog falla, auto-learn no aprende la Desc. DYMMSA de líneas con código', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.insert': { data: { id: 'q1' }, error: null },
+        'quotation_items.insert': { data: null, error: null },
+        'urrea_catalog.select': { data: null, error: { message: 'canceling statement due to statement timeout' } },
+      },
+    })
+    const res = await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [
+        product({ model_code: 'MC1', dymmsa_description: 'Oficial URREA' }),
+        product({ etm: 'ETM-2', model_code: '', brand: '', dymmsa_description: 'Curada sin código' }),
+      ],
+    }))
+    expect(res.status).toBe(200) // saving never depends on the catalog
+
+    const learned = activeClient.callsTo('etm_products', 'insert')
+      .map((c) => c.payload as Record<string, unknown>)
+    expect(learned.map((r) => [r.etm, r.dymmsa_description])).toEqual([
+      ['ETM-1', null],
+      ['ETM-2', 'Curada sin código'],
+    ])
   })
 
   test('REGLA: match de catálogo normaliza el model_code (espacios/minúsculas)', async () => {
@@ -454,6 +489,108 @@ describe('PATCH /quotations/[id]/update', () => {
     const rows = activeClient.insertPayload('quotation_items')
     expect(rows[0].dymmsa_description).toBe('Oficial URREA')
     expect(rows[1].dymmsa_description).toBe('curada guardada')
+  })
+
+  test('REGLA: el snapshot oficial que reenvía el detalle no se aprende como curada en etm_products', async () => {
+    const etm = (etm: string, model_code: string, dymmsa_description: string | null) => ({
+      etm, model_code, dymmsa_description, description: 'Producto', description_es: 'Producto',
+      price: 100, brand: 'URREA', is_sold: null,
+    })
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
+        'quotation_items.select': { data: [], error: null },
+        'quotation_items.delete': { data: null, error: null },
+        'quotation_items.insert': { data: null, error: null },
+        'quotations.update': { data: null, error: null },
+        'urrea_catalog.select': { data: [{ code: 'MC1', brand: 'URREA', description: 'Oficial URREA' }], error: null },
+        'etm_products.select': { data: [etm('ETM-1', 'MC1', null), etm('ETM-2', 'MC2', 'Vieja')], error: null },
+      },
+    })
+    const res = await update.PATCH(
+      makeRequest({
+        name: 'Q', customer_name: 'ACME',
+        items: [
+          // QuotationDetail sends the resolved snapshot back as if it were curated.
+          product({ etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA' }),
+          product({ etm: 'ETM-2', model_code: 'MC2', dymmsa_description: 'Martillo curado' }),
+        ],
+      }, { method: 'PATCH' }),
+      makeParams({ id: 'q1' }),
+    )
+    expect(res.status).toBe(200)
+
+    const updates = new Map(activeClient.callsTo('etm_products', 'update')
+      .map((c) => [filterValue(c, 'etm'), c.payload]))
+    expect(updates.get('ETM-1')).toEqual({ price: 120 })
+    expect(updates.get('ETM-2')).toEqual({ dymmsa_description: 'Martillo curado' })
+  })
+
+  const updateClient = (responses: Record<string, ResponseValue>) => createMockSupabase({
+    user: AUTH,
+    responses: {
+      'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
+      'quotation_items.delete': { data: null, error: null },
+      'quotation_items.insert': { data: null, error: null },
+      'quotations.update': { data: null, error: null },
+      'etm_products.select': {
+        data: [
+          { etm: 'ETM-1', model_code: 'MC1', dymmsa_description: null, description: 'Producto', description_es: 'Producto', price: 100, brand: 'URREA', is_sold: null },
+          { etm: 'ETM-2', model_code: 'MC2', dymmsa_description: null, description: 'Producto', description_es: 'Producto', price: 100, brand: 'URREA', is_sold: null },
+        ],
+        error: null,
+      },
+      ...responses,
+    },
+  })
+
+  test('REGLA: si urrea_catalog falla al editar, la oficial reenviada no se copia a etm_products', async () => {
+    activeClient = updateClient({
+      'quotation_items.select': { data: [], error: null },
+      'urrea_catalog.select': { data: null, error: { message: 'canceling statement due to statement timeout' } },
+    })
+    const res = await update.PATCH(
+      makeRequest({
+        name: 'Q', customer_name: 'ACME',
+        items: [product({ etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA' })],
+      }, { method: 'PATCH' }),
+      makeParams({ id: 'q1' }),
+    )
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('etm_products')).toEqual({ price: 120 })
+  })
+
+  test('REGLA: el snapshot reenviado sin cambios no se aprende aunque el catálogo ya no lo tenga; lo editado sí', async () => {
+    activeClient = updateClient({
+      'quotation_items.select': {
+        data: [
+          { id: 'db1', is_approved: true, is_sold: null, dymmsa_description: 'Oficial URREA vieja' },
+          { id: 'db2', is_approved: true, is_sold: null, dymmsa_description: 'Curada vieja' },
+        ],
+        error: null,
+      },
+      // A catalog reimport dropped MC1: the old official text no longer resolves to the catalog.
+      'urrea_catalog.select': { data: [], error: null },
+    })
+    const res = await update.PATCH(
+      makeRequest({
+        name: 'Q', customer_name: 'ACME',
+        items: [
+          product({ _dbId: 'db1', etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA vieja' }),
+          product({ _dbId: 'db2', etm: 'ETM-2', model_code: 'MC2', dymmsa_description: 'Curada editada' }),
+        ],
+      }, { method: 'PATCH' }),
+      makeParams({ id: 'q1' }),
+    )
+    expect(res.status).toBe(200)
+    // The quotation keeps its frozen snapshot (ADR-013 rule 2).
+    expect(activeClient.insertPayload('quotation_items')[0].dymmsa_description).toBe('Oficial URREA vieja')
+
+    const updates = new Map(activeClient.callsTo('etm_products', 'update')
+      .map((c) => [filterValue(c, 'etm'), c.payload]))
+    expect(updates.get('ETM-1')).toEqual({ price: 120 })
+    expect(updates.get('ETM-2')).toEqual({ dymmsa_description: 'Curada editada' })
   })
 })
 

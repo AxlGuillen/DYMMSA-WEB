@@ -1,6 +1,6 @@
 # ADR-013 — Descripción DYMMSA con jerarquía de catálogo
 
-**Fecha:** 2026-07-08 · **Actualizado:** 2026-07-14 (cruce por código **y marca**)
+**Fecha:** 2026-07-08 · **Actualizado:** 2026-07-14 (cruce por código **y marca**) · 2026-10-17 (auto-learn nunca aprende la oficial)
 **Estado:** Aceptado
 
 ## Contexto
@@ -38,9 +38,30 @@ UI etiquete el origen y deshabilite la edición cuando gana el catálogo).
    Congelado como el resto del ítem: una cotización es un documento comercial;
    reimportar el catálogo NO reescribe cotizaciones guardadas (feature, no bug).
 3. **Auto-learn persiste solo la curada CRUDA** que manda la UI — nunca el
-   valor resuelto. Garantía estructural: la resolución ocurre después, solo en
-   el payload de inserción de `quotation_items`. Reglas de merge estándar
-   (no vacío + distinto → update; vacío nunca pisa).
+   valor resuelto. Reglas de merge estándar (no vacío + distinto → update;
+   vacío nunca pisa).
+   - **La garantía vive en `processAutoLearn`** (corregido 2026-10-17), vía
+     `learnableDymmsaDescription()`. Antes se asumía que "la resolución ocurre
+     después, solo en el payload de `quotation_items`", pero `QuotationDetail`
+     reenvía el snapshot ya resuelto como si fuera la curada: cada "Guardar
+     cambios" copiaba la oficial a `etm_products` (428 filas en producción al
+     2026-10-17; se limpian con la migración de datos
+     `clear_catalog_copied_dymmsa_description`, después del deploy). El
+     `dymmsa_description` de un ítem **no se aprende** (insert ni update) si:
+     1. **Resuelve al catálogo** con el mismo `catalogMap` con el que la ruta
+        armó el snapshot (`resolveDymmsaDescription(...).source === 'catalog'`).
+        Es la condición exacta del resolver: una fila de catálogo sin
+        descripción no cuenta como match (regla 6) y la curada se aprende.
+     2. **El catálogo no se pudo leer** (`fetchCatalogDescriptionMapOrNull` →
+        `null`) y la línea trae código: "no sé" no es "sin match". El snapshot
+        sigue degradando a la curada, como siempre (guardar nunca depende del
+        catálogo).
+     3. **Es el snapshot reenviado sin cambios** (`update`, comparado contra el
+        `quotation_items` guardado de esa línea por `_dbId`): es un valor
+        resuelto, no una edición. Cubre la oficial vieja de una línea cuyo
+        match ya no existe (reimport del catálogo, cambio de marca en el
+        `ProductModal`) y evita que una cotización vieja pise una curada más
+        nueva de la BD ETM.
 4. **La llave de cruce es `(código, marca)`, no solo el código** — `catalogKey()`
    (2026-07-14). `urrea_catalog` tiene identidad `UNIQUE(code, brand)` porque el
    mismo código puede existir en varias marcas (URREA maneja varias líneas), así
@@ -113,7 +134,7 @@ UI etiquete el origen y deshabilite la edición cuando gana el catálogo).
 - UI: `QuotationEditor` (columna + badge URREA), `ProductModal`, `ProductForm`,
   `ProductsTable`, `QuotationDetail`, `ApprovalClient`.
 - Tests: `business-rules` (resolver/normalizador), `quotations` (snapshot),
-  `auto-learn` (curada cruda), `urrea-catalog` (normalización + lookup),
+  `auto-learn` (curada cruda; no aprende con match de catálogo, catálogo ilegible ni snapshot reenviado), `urrea-catalog` (normalización + lookup),
   `quotes-lookup` (nuevo), `QuotationEditor` (columna resuelta).
 
 ## Pendiente

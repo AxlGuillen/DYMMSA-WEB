@@ -12,6 +12,16 @@ export async function fetchCatalogDescriptionMap(
   supabase: SupabaseServerClient,
   codes: (string | null | undefined)[],
 ): Promise<Map<string, string | null>> {
+  // Degrade to "no catalog" (curated/empty): saving must not fail because the catalog went quiet.
+  return (await fetchCatalogDescriptionMapOrNull(supabase, codes)) ?? new Map()
+}
+
+/** Same map, but null when urrea_catalog could not be read: auto-learn must not take
+ *  "unknown" for "no match" (ADR-013). */
+export async function fetchCatalogDescriptionMapOrNull(
+  supabase: SupabaseServerClient,
+  codes: (string | null | undefined)[],
+): Promise<Map<string, string | null> | null> {
   const normalized = [...new Set(codes.map(normalizeCatalogCode).filter(Boolean))]
   if (normalized.length === 0) return new Map()
 
@@ -21,9 +31,8 @@ export async function fetchCatalogDescriptionMap(
     .in('code', normalized)
 
   if (error || !data) {
-    // Degrade to "no catalog" (curated/empty): saving must not fail because the catalog went quiet.
     if (error) console.warn('fetchCatalogDescriptionMap error (ignored):', error)
-    return new Map()
+    return null
   }
 
   return new Map(data.map((row) => [catalogKey(row.code, row.brand), row.description]))

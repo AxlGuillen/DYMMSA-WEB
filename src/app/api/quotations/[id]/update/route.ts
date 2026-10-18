@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculateQuotationTotal, isProductItem, resolveDymmsaDescription } from '@/lib/business-rules'
 import { requireAuth } from '@/lib/api-helpers'
 import { processAutoLearn } from '@/lib/auto-learn'
-import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
+import { fetchCatalogDescriptionMapOrNull } from '@/lib/urrea-catalog'
 import { explainPgError } from '@/lib/supabase-errors'
 import type { QuotationItemRow } from '@/types/database'
 
@@ -79,7 +79,8 @@ export async function PATCH(
     }
 
     // Catalog map to re-resolve the DYMMSA description on re-insert (catalog > curated > null).
-    const catalogMap = await fetchCatalogDescriptionMap(supabase, items.map((i) => i.model_code))
+    const catalog = await fetchCatalogDescriptionMapOrNull(supabase, items.map((i) => i.model_code))
+    const catalogMap = catalog ?? new Map<string, string | null>()
 
     const { error: deleteError } = await supabase
       .from('quotation_items')
@@ -160,7 +161,7 @@ export async function PATCH(
     // Auto-learn is isolated: the update already landed, so warn instead of throwing 500.
     let autoLearnFailed = false
     try {
-      await processAutoLearn(supabase, user.id, items)
+      await processAutoLearn(supabase, user.id, items, catalog, dymmsaDescMap)
     } catch (err) {
       console.error('Auto-learn failed (quotation already updated):', err)
       autoLearnFailed = true

@@ -67,6 +67,60 @@ describe('PATCH /quotations/[id]/update (integración local)', () => {
     expect(item.dymmsa_description).toBe('Botador de cobre 30/300mm (oficial URREA)')
   })
 
+  test('el snapshot oficial que reenvía el detalle no se copia a etm_products; la curada sí se aprende', async () => {
+    const { id, itemIds } = await seedQuotation({
+      status: 'approved',
+      items: [
+        { etm: 'SEED-URREA-1', model_code: '60001', brand: 'URREA', unit_price: 100, quantity: 1, is_approved: true },
+        { etm: 'SEED-LOCAL', model_code: '60005', brand: 'TRUPER', unit_price: 25, quantity: 1, is_approved: true },
+      ],
+    })
+    // QuotationDetail resends the resolved snapshot in dymmsa_description.
+    const res = await patch(id, {
+      name: 'Editada', customer_name: 'ACME',
+      items: [
+        { _dbId: itemIds[0], item_type: 'product', etm: 'SEED-URREA-1', model_code: '60001', brand: 'URREA', unit_price: 100, quantity: 1, delivery_time: 'immediate', dymmsa_description: 'Botador de cobre 30/300mm (oficial URREA)' },
+        { _dbId: itemIds[1], item_type: 'product', etm: 'SEED-LOCAL', model_code: '60005', brand: 'TRUPER', unit_price: 25, quantity: 1, delivery_time: 'immediate', dymmsa_description: 'Herramienta local v2' },
+      ],
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).not.toHaveProperty('warning') // auto-learn did run
+
+    const products = await sql<{ etm: string; dymmsa_description: string | null }>(
+      "SELECT etm, dymmsa_description FROM etm_products WHERE etm IN ('SEED-URREA-1', 'SEED-LOCAL') ORDER BY etm",
+    )
+    expect(products).toEqual([
+      { etm: 'SEED-LOCAL', dymmsa_description: 'Herramienta local v2' },
+      { etm: 'SEED-URREA-1', dymmsa_description: null }, // ADR-013 rule 1: stays empty
+    ])
+  })
+
+  test('un snapshot reenviado sin cambios no pisa la curada de etm_products', async () => {
+    const { id, itemIds } = await seedQuotation({
+      status: 'approved',
+      items: [{ etm: 'SEED-LOCAL', model_code: '60005', brand: 'TRUPER', unit_price: 25, quantity: 1, is_approved: true }],
+    })
+    // An older snapshot: BD ETM was curated again after this quotation was saved.
+    await sql('UPDATE quotation_items SET dymmsa_description = $1 WHERE id = $2', ['Texto viejo del snapshot', itemIds[0]])
+
+    const res = await patch(id, {
+      name: 'Editada', customer_name: 'ACME',
+      items: [
+        { _dbId: itemIds[0], item_type: 'product', etm: 'SEED-LOCAL', model_code: '60005', brand: 'TRUPER', unit_price: 25, quantity: 3, delivery_time: 'immediate', dymmsa_description: 'Texto viejo del snapshot' },
+      ],
+    })
+    expect(res.status).toBe(200)
+
+    const [product] = await sql<{ dymmsa_description: string | null }>(
+      "SELECT dymmsa_description FROM etm_products WHERE etm = 'SEED-LOCAL'",
+    )
+    expect(product.dymmsa_description).toBe('Herramienta local (curada)')
+    const [item] = await sql<{ dymmsa_description: string | null }>(
+      'SELECT dymmsa_description FROM quotation_items WHERE quotation_id = $1', [id],
+    )
+    expect(item.dymmsa_description).toBe('Texto viejo del snapshot') // ADR-013 rule 2: frozen
+  })
+
   test('si el re-insert VIOLA un CHECK (cantidad 0) → 400 y ROLLBACK conserva los originales', async () => {
     const { id } = await seedQuotation({
       status: 'draft',
