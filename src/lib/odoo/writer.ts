@@ -96,12 +96,14 @@ export interface OdooWriter {
     dl: Deadline,
   ): Promise<void>
   confirmSale(proof: AdminProof, grant: PreviewGrant, saleId: number, dl: Deadline): Promise<void>
+  /** `keys`: the confirming key's marker, so a retry after an uncertain confirm can look for its trail. */
   appendSaleTrail(
     proof: AdminProof,
     saleId: number,
     currentNote: OdooNote,
     action: FollowUpTrailAction,
     dl: Deadline,
+    keys?: Pick<MarkerKeys, 'k10'>,
   ): Promise<void>
   createProducts(proof: AdminProof, vals: readonly ProductCreateVals[], dl: Deadline): Promise<number[]>
   /** Wizard create + create_invoices with the same key: rule 161 lets only its creator use it. */
@@ -145,10 +147,20 @@ function mexicoDateTime(at: Date): string {
 }
 
 /** Odoo records every write as the key's owner: this line says which admin asked for it (ADR-040). */
-export function trailNote(action: TrailAction, displayName: string, at: Date, keys?: MarkerKeys): string {
+export function trailNote(
+  action: TrailAction,
+  displayName: string,
+  at: Date,
+  keys?: Pick<MarkerKeys, 'k10'> & Partial<Pick<MarkerKeys, 'h10'>>,
+): string {
   const who = action === 'Creada' ? 'el asistente (MCP)' : 'el asistente'
-  const marker = keys ? ` · clave ${keys.k10} · contenido ${keys.h10}` : ''
+  const marker = keys ? ` · clave ${keys.k10}${keys.h10 ? ` · contenido ${keys.h10}` : ''}` : ''
   return `<p>${action} por ${who} a petición de ${escapeHtml(displayName)} · ${mexicoDateTime(at)}${marker}</p>`
+}
+
+/** k10 is unique per preview key: only the trail written with that key carries it. */
+export function noteHasKeyMarker(note: OdooNote, k10: string): boolean {
+  return typeof note === 'string' && /^[0-9a-f]{10}$/.test(k10) && note.includes(`clave ${k10}`)
 }
 
 const NOTE_UNREADABLE = 'No pude leer la nota interna de la venta: no escribí nada.'
@@ -240,9 +252,9 @@ export function createOdooWriter(raw: OdooRawWriter, deps: WriterDeps = {}): Odo
       log({ op: 'sale.order.action_confirm', ids: [saleId], actor: proof.userId })
     },
 
-    async appendSaleTrail(proof, saleId, currentNote, action, dl) {
+    async appendSaleTrail(proof, saleId, currentNote, action, dl, keys) {
       assertAdminProof(proof, now())
-      const internalNote = withTrail(currentNote, trailNote(action, proof.displayName, new Date(now())))
+      const internalNote = withTrail(currentNote, trailNote(action, proof.displayName, new Date(now()), keys))
       const retry = TRAIL_RETRY[action]
       try {
         await raw('sale.order', 'write', { ids: [saleId], vals: { internal_note: internalNote } }, dl)
