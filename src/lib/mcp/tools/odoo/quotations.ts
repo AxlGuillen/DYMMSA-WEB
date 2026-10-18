@@ -208,7 +208,7 @@ function issueReason(issue: z.core.$ZodIssue): string | null {
 }
 
 /** The SDK already parsed with zod; this keeps direct calls (tests, scripts) to the same contract. */
-function parseInput<S extends z.ZodType>(schema: S, raw: unknown): z.infer<S> {
+export function parseInput<S extends z.ZodType>(schema: S, raw: unknown): z.infer<S> {
   const parsed = schema.safeParse(raw)
   if (parsed.success) return parsed.data
   const issue = parsed.error.issues[0]
@@ -226,7 +226,7 @@ function writeDisabledReason(): string | null {
   }
 }
 
-const errorName = (error: unknown) => (error instanceof Error ? error.name : 'unknown')
+export const errorName = (error: unknown) => (error instanceof Error ? error.name : 'unknown')
 
 function partnerView(partner: WritePartner): PreviewClient {
   return { id: partner.id, nombre: partner.name, rfc: partner.vat, es_la_empresa: partner.isCompany }
@@ -542,7 +542,7 @@ function assertSameAsPreview(sale: SaleRecord, verified: VerifiedQuotationKey): 
   if (sale.partnerId !== p || sale.writeDate !== w) throw new ToolError(PREVIEW_CHANGED_MESSAGE)
 }
 
-function noteOf(sale: SaleRecord): OdooNote {
+export function noteOf(sale: SaleRecord): OdooNote {
   const note = sale.raw.internal_note
   if (note === false || typeof note === 'string') return note
   throw new OdooError(`No pude leer la nota interna de la ${sale.name}: no escribí nada.`)

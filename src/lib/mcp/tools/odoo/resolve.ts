@@ -28,7 +28,7 @@ export function rowsOf(value: unknown): Row[] {
   return value as Row[]
 }
 
-const isId = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0
+export const isId = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0
 const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value : null)
 export const numberOr = (value: unknown, fallback: number) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback)
 

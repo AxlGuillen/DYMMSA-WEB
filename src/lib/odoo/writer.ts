@@ -163,6 +163,11 @@ export function noteHasKeyMarker(note: OdooNote, k10: string): boolean {
   return typeof note === 'string' && /^[0-9a-f]{10}$/.test(k10) && note.includes(`clave ${k10}`)
 }
 
+/** A follow-up trail of this action by any admin; ASCII-only match survives Odoo's html sanitizer. */
+export function noteHasTrail(note: OdooNote, action: FollowUpTrailAction): boolean {
+  return typeof note === 'string' && note.includes(`${action} por el asistente`)
+}
+
 const NOTE_UNREADABLE = 'No pude leer la nota interna de la venta: no escribí nada.'
 
 /** Appended, never replacing what the owner wrote: a note left out of the read must not erase it. */
