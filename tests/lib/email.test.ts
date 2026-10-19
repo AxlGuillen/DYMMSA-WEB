@@ -1,7 +1,15 @@
-/** Pure builders for the approval mail; real sending is covered in tests/api/approve.test.ts. */
+/** Approval mail: pure builders plus the kill switch; the route side is in tests/api/approve.test.ts. */
 
-import { describe, test, expect } from 'vitest'
-import { buildQuotationUrl, buildHtml } from '@/lib/email/send-approval-notification'
+import { describe, test, expect, vi, afterEach } from 'vitest'
+
+const send = vi.fn()
+vi.mock('@/lib/email/client', () => ({ getResend: () => ({ emails: { send } }) }))
+
+import {
+  buildQuotationUrl,
+  buildHtml,
+  sendApprovalNotification,
+} from '@/lib/email/send-approval-notification'
 
 describe('buildQuotationUrl', () => {
   test('arma URL absoluta cuando NEXT_PUBLIC_APP_URL es válida', () => {
@@ -43,5 +51,27 @@ describe('buildHtml', () => {
     // but the rest of the mail (the data) is still there
     expect(html).toContain('ACME')
     expect(html).toContain('COT-001')
+  })
+})
+
+describe('sendApprovalNotification', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    send.mockReset()
+  })
+
+  // Turning the switch on must come with tours/docs that promise the email again (ADR-012, #25).
+  test('el interruptor sigue apagado: no manda nada aunque Resend esté configurado', async () => {
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv('RESEND_FROM_EMAIL', 'avisos@dymmsa.test')
+    vi.stubEnv('NOTIFICATION_EMAIL_TO', 'ventas@dymmsa.test')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.dymmsa.test')
+
+    const result = await sendApprovalNotification({
+      customerName: 'ACME', quotationName: 'COT-001', total: 1500, approvedCount: 2, quotationId: 'q1',
+    })
+
+    expect(result).toEqual({ ok: false, skipped: true })
+    expect(send).not.toHaveBeenCalled()
   })
 })

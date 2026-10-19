@@ -105,6 +105,16 @@ describe('explainPgError', () => {
     expect(r.userMessage).toMatch(/modelo.*inventario/i)
   })
 
+  test('orders_quotation_id_unique → la cotización ya tiene orden (ADR-010)', () => {
+    const r = explainPgError({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "orders_quotation_id_unique"',
+    })
+    expect(r.userMessage).toMatch(/ya tiene una orden/i)
+    expect(r.isConstraintViolation).toBe(true)
+    expect(r.constraintName).toBe('orders_quotation_id_unique')
+  })
+
   test('FK violation → mensaje genérico de relación', () => {
     const r = explainPgError({
       code: '23503',

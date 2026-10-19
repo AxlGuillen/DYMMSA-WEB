@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { computeRestoration } from '@/lib/inventory'
+import { computeRestoration, deleteRestoresStock } from '@/lib/inventory'
 
 function makeItem(overrides: Partial<{
   model_code: string | null
@@ -142,5 +142,21 @@ describe('computeRestoration', () => {
     expect(result).toHaveLength(1)
     expect(result[0].model_code).toBe('MC-999')
     expect(result[0].quantityToRestore).toBe(4)
+  })
+})
+
+describe('deleteRestoresStock (ADR-010)', () => {
+  test('pedida o recibida: el stock sigue en tienda → se restaura', () => {
+    expect(deleteRestoresStock('ordered')).toBe(true)
+    expect(deleteRestoresStock('received')).toBe(true)
+  })
+
+  test('cancelada: la cancelación ya lo restauró → no se duplica', () => {
+    expect(deleteRestoresStock('cancelled')).toBe(false)
+  })
+
+  test('entregada o completada: los productos ya salieron con el cliente → no se restaura', () => {
+    expect(deleteRestoresStock('delivered')).toBe(false)
+    expect(deleteRestoresStock('completed')).toBe(false)
   })
 })

@@ -1,6 +1,6 @@
 /**
- * Vercel Data Cache for the income reads (#94, ADR-027): shared across instances and cold
- * starts, unlike a module Map. The ONLY file importing next/cache — swap here if the API goes.
+ * Vercel Data Cache for the Odoo reads of Finanzas (#94, ADR-027) and Clientes (#145, ADR-039): shared
+ * across instances and cold starts. The ONLY file importing next/cache — swap here if the API goes.
  */
 
 import { unstable_cache } from 'next/cache'
@@ -12,8 +12,10 @@ import {
   type OdooOpenInvoice,
   type OdooRows,
 } from './income'
+import { fetchCustomer, fetchCustomerActivity, fetchCustomers, type OdooCustomer, type OdooCustomerActivity } from './customers'
 
 export const INCOME_CACHE_TAG = 'finance-income'
+export const CUSTOMERS_CACHE_TAG = 'odoo-customers'
 export const INCOME_REVALIDATE_SECONDS = 900
 
 export interface CachedRows<T> extends OdooRows<T> {
@@ -38,9 +40,26 @@ export const cachedMonthCollections = unstable_cache(
   { revalidate: INCOME_REVALIDATE_SECONDS, tags: [INCOME_CACHE_TAG] },
 )
 
-// New key on purpose: entries under 'open-receivables' lack moveType for up to 15 min after deploy (#102).
+// New key on purpose whenever the row shape grows: old entries would lack customerId for up to 15 min (#145).
 export const cachedOpenCustomerMoves = unstable_cache(
   async (): Promise<CachedRows<OdooOpenInvoice>> => stamp(await fetchOpenCustomerMoves(callOdoo)),
-  ['finance-income', 'open-moves'],
+  ['finance-income', 'open-moves-v2'],
   { revalidate: INCOME_REVALIDATE_SECONDS, tags: [INCOME_CACHE_TAG] },
+)
+
+export const cachedCustomers = unstable_cache(
+  async (): Promise<CachedRows<OdooCustomer>> => stamp(await fetchCustomers(callOdoo)),
+  ['odoo-customers', 'list'],
+  { revalidate: INCOME_REVALIDATE_SECONDS, tags: [CUSTOMERS_CACHE_TAG] },
+)
+
+/** `partnerId` is part of the key: one entry per customer. */
+export const cachedCustomerActivity = unstable_cache(
+  async (partnerId: number): Promise<OdooCustomerActivity & { customer: OdooCustomer | null; fetchedAt: string }> => ({
+    customer: await fetchCustomer(callOdoo, partnerId),
+    ...(await fetchCustomerActivity(callOdoo, partnerId)),
+    fetchedAt: new Date().toISOString(),
+  }),
+  ['odoo-customers', 'activity-v2'],
+  { revalidate: INCOME_REVALIDATE_SECONDS, tags: [CUSTOMERS_CACHE_TAG] },
 )

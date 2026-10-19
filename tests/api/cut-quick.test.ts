@@ -75,7 +75,7 @@ describe('GET /quotations/[id]/cut-candidates', () => {
   const get = () =>
     cutCandidatesRoute.GET(makeRequest(undefined, { method: 'GET' }), makeParams({ id: 'q1' }))
 
-  const QUOTATION = { id: 'q1', quotation_number: 'COT-001', customer_name: 'ACME' }
+  const QUOTATION = { id: 'q1', name: 'Obra A', customer_name: 'ACME' }
 
   test('401 sin auth', async () => {
     activeClient = createMockSupabase({ user: null })
@@ -112,7 +112,7 @@ describe('GET /quotations/[id]/cut-candidates', () => {
     const res = await get()
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.quotation).toMatchObject({ id: 'q1', quotation_number: 'COT-001' })
+    expect(body.quotation).toEqual({ id: 'q1', name: 'Obra A', customer_name: 'ACME' })
     expect(body.candidates).toHaveLength(1)
     // Nominal numeric-string coerced to number (the same supabase-js trap).
     expect(body.candidates[0]).toMatchObject({

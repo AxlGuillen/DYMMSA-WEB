@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
 import { buildIncomeOverview, incomeUnavailable } from '@/lib/income'
+import { withinBudget } from '@/lib/odoo/budget'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
 import { INCOME_CACHE_TAG, loadIncomeFresh } from '@/lib/odoo/income-cache'
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     revalidateTag(INCOME_CACHE_TAG, { expire: 0 })
 
     try {
-      const { collections, open } = await loadIncomeFresh(month)
+      const { collections, open } = await withinBudget(loadIncomeFresh(month))
       return NextResponse.json(buildIncomeOverview(month, today, collections, open))
     } catch (error) {
       if (!(error instanceof OdooError)) throw error

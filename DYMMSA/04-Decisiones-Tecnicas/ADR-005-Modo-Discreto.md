@@ -91,7 +91,7 @@ El modo discreto solo aplica a las páginas autenticadas del sistema interno.
 | Consumidor | `src/components/orders/OrdersTable.tsx` |
 | Consumidor | `src/components/orders/OrderDetail.tsx` |
 | Consumidor | `src/components/orders/NewOrderForm.tsx` |
-| Consumidor | `src/components/quoter/QuotePreview.tsx` |
+| Consumidor (eliminado el 2026-10-17: código muerto desde 2026-02-28) | ~~`src/components/quoter/QuotePreview.tsx`~~ |
 | Consumidor | `src/components/quoter/QuotationEditor.tsx` |
 | Consumidor (eliminó `formatCurrency` local) | `src/components/dashboard/DashboardMetrics.tsx` |
 | No modificado (intencional) | `src/app/approve/[token]/ApprovalClient.tsx` |

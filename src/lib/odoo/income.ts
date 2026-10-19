@@ -6,7 +6,7 @@
 import type { OdooCaller } from './client'
 import { allowedFields, assertDomainAllowed, type DomainTriple } from './catalog'
 import { OPEN_CUSTOMER_MOVES_DOMAIN } from './domains'
-import { normalizeRecords } from './normalize'
+import { many2oneId, normalizeRecord, normalizeRecords } from './normalize'
 import { monthRange } from '@/lib/month'
 
 /** 500 covers years of DYMMSA volume; `truncated` says when it did not (PR #75). */
@@ -35,6 +35,8 @@ export interface OdooOpenInvoice {
   moveType: OdooCustomerMoveType
   folio: string
   customer: string | null
+  /** Odoo partner id: the Clientes module groups and links by it (#145). */
+  customerId: number | null
   invoiceDate: string | null
   dueDate: string | null
   total: number
@@ -100,28 +102,32 @@ export async function fetchMonthCollections(odoo: OdooCaller, month: string): Pr
 export async function fetchOpenCustomerMoves(odoo: OdooCaller): Promise<OdooRows<OdooOpenInvoice>> {
   const domain = [...OPEN_CUSTOMER_MOVES_DOMAIN]
   assertDomainAllowed('account.move', domain)
-  const records = normalizeRecords(
-    await odoo('account.move', 'search_read', {
-      domain,
-      fields: allowedFields('account.move', OPEN_MOVE_FIELDS),
-      limit: INCOME_FETCH_LIMIT,
-      order: 'invoice_date_due asc',
-    }),
-  )
+  const raw = await odoo('account.move', 'search_read', {
+    domain,
+    fields: allowedFields('account.move', OPEN_MOVE_FIELDS),
+    limit: INCOME_FETCH_LIMIT,
+    order: 'invoice_date_due asc',
+  })
+  const rawRows = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
   return {
-    rows: records.map((r) => ({
-      id: num(r.id),
-      moveType: r.move_type === 'out_refund' ? 'out_refund' : 'out_invoice',
-      folio: str(r.name) ?? '',
-      customer: str(r.partner_id),
-      invoiceDate: str(r.invoice_date),
-      dueDate: str(r.invoice_date_due),
-      // Unsigned in Odoo 17+, also on refunds; abs guards a signed instance from netting by accident.
-      total: Math.abs(num(r.amount_total)),
-      residual: Math.abs(num(r.amount_residual)),
-      currency: str(r.currency_id),
-      paymentState: str(r.payment_state) ?? '',
-    })),
-    truncated: records.length >= INCOME_FETCH_LIMIT,
+    rows: rawRows.map((rawRow) => {
+      // The partner id lives only in the raw many2one: normalizing keeps the name.
+      const r = normalizeRecord(rawRow)
+      return {
+        id: num(r.id),
+        moveType: r.move_type === 'out_refund' ? 'out_refund' : 'out_invoice',
+        folio: str(r.name) ?? '',
+        customer: str(r.partner_id),
+        customerId: many2oneId(rawRow.partner_id),
+        invoiceDate: str(r.invoice_date),
+        dueDate: str(r.invoice_date_due),
+        // Unsigned in Odoo 17+, also on refunds; abs guards a signed instance from netting by accident.
+        total: Math.abs(num(r.amount_total)),
+        residual: Math.abs(num(r.amount_residual)),
+        currency: str(r.currency_id),
+        paymentState: str(r.payment_state) ?? '',
+      }
+    }),
+    truncated: rawRows.length >= INCOME_FETCH_LIMIT,
   }
 }

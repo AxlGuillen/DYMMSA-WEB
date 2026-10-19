@@ -24,7 +24,7 @@ En Minuto Dulce (v0.4.0) ya resolvimos lo mismo para celular con Shorts 9:16. Se
 1. **Un catálogo tipado** en `src/lib/tutorials.ts`:
    - Campos: `slug`, `order`, `youtubeId`, título, descripción y `duration` opcional.
    - `tours` es una lista de `TourId`, es decir, de las pantallas de su vista guiada. Una pantalla inexistente no compila.
-   - `docs` es la sección de Documentación (`ordenes` / `compra` / `corte`).
+   - `docs` es la sección de Documentación (`cotizar` / `cotizaciones` / `ordenes` / `compra` / `corte`). Cada sección de la lista `DOCS_ANCHORS` ya trae su "Ver tutorial", que no pinta nada mientras no tenga video (2026-10-17: se sumaron las dos de Cotizaciones antes de grabar sus videos).
    - `adminOnly` es opcional.
    - Un video con `PENDING_ID` o con un id inválido **nunca se muestra**.
 2. **El botón sale del `TourButton`.** Si el catálogo tiene videos para su `TourId`, pinta **"Ver tutorial"** junto a "Vista guiada". Las pantallas no se tocan: agregar un video a una pantalla es una línea en el catálogo. Decisión del 2026-10-14: un botón aparte, no un menú "Ayuda", para que se descubra solo.
@@ -60,7 +60,7 @@ En Minuto Dulce (v0.4.0) ya resolvimos lo mismo para celular con Shorts 9:16. Se
 
 - `tests/lib/tutorials.test.ts`:
   - ids válidos, `slug` y `order` únicos;
-  - **la sección de docs de cada video existe y muestra su botón**;
+  - **la sección de docs de cada video existe y muestra su botón**, y lo mismo para cada sección de `DOCS_ANCHORS` aunque aún no tenga video;
   - la asignación decidida;
   - lo pendiente, lo de admin y las URLs.
 - `tests/components/tutorials.test.tsx`:

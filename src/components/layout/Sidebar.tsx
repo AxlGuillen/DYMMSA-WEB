@@ -60,6 +60,7 @@ import {
   Users,
   Scissors,
   Truck,
+  Contact,
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { ROLE_LABELS } from '@/lib/profile'
@@ -88,6 +89,10 @@ const dymmsaLinks: LinkItem[] = [
   // Standalone quick cutting plus the registered-sizes control (#71).
   { href: '/dashboard/cutting',     label: 'Planificar corte',    icon: Scissors },
   { href: '/dashboard/materials',   label: 'Medidas de material', icon: Ruler },
+]
+
+const customerLinks: LinkItem[] = [
+  { href: '/dashboard/clientes', label: 'Cartera', icon: Contact },
 ]
 
 const financeLinks: LinkItem[] = [
@@ -262,6 +267,7 @@ function SidebarContent({
           <NavSection links={mainLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-main" />
           <NavSection title="ETM — Catálogo" links={etmUrreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-etm" />
           <NavSection title="DYMMSA" links={dymmsaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-dymmsa" />
+          <NavSection title="Clientes" links={customerLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-clientes" />
           <NavSection title="Finanzas" links={isAdmin ? [...financeLinks, ...financeAdminLinks] : financeLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-finanzas" />
           <NavSection title="Horas" links={isAdmin ? [...hoursLinks, ...hoursAdminLinks] : hoursLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-horas" />
           <NavSection title="URREA" links={urreaLinks} collapsed={collapsed} onNavigate={onNavigate} tour="nav-urrea" />

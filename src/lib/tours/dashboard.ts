@@ -24,6 +24,13 @@ export const DASHBOARD_TOUR: OverviewStep[] = [
     side: 'right',
   },
   {
+    selector: '[data-tour="nav-clientes"]',
+    title: 'Clientes',
+    description:
+      'La <b>Cartera</b> de los clientes de Odoo: lo vencido y lo por vencer en el rango que elijas, y por cliente su <b>estado de cuenta</b> listo para mandar en Excel o impreso.',
+    side: 'right',
+  },
+  {
     selector: '[data-tour="nav-finanzas"]',
     title: 'Finanzas',
     description:

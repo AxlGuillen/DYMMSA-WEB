@@ -43,7 +43,11 @@ porción del cliente  = min(recibido, pedido)          → receivedForCustomer()
 3. **Cancelar/eliminar orden** (`computeRestoration`): restaura
    `in_stock + min(recibido, pedido)` — la mercancía del cliente que ya llegó
    se queda en tienda; el excedente **no se re-suma** (ya entró en la
-   recepción). Fin del doble conteo.
+   recepción). Fin del doble conteo. Cancelar (`/cancel`) restaura siempre
+   que procede; desde 2026-10-17 eliminar restaura **solo** si la orden sigue
+   en tienda (`ordered`/`received`, `deleteRestoresStock()`): una cancelada
+   ya lo devolvió y una entregada/completada ya salió con el cliente
+   ([[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]]).
 4. **UI anti-dedazo**: sin tope en el input (el punto es permitir excedente),
    pero "Confirmar Recepción" abre un **resumen** (pedido/recibido/efecto en
    inventario por ítem, filas ámbar con excedente, ⚠️ cuando recibido > 2×
@@ -83,3 +87,10 @@ Helpers `receivedForCustomer()`/`receptionExcess()` en `business-rules.ts` ·
 route `confirm-reception` (delta + warnings, `ConfirmReceptionResult`) ·
 `computeRestoration` topada · Excel de entrega topado · UI con resumen de
 confirmación. ~26 tests nuevos (598 total).
+
+## Adenda 2026-10-15 — Surtido automático y resumen legible (#146)
+
+- **Al capturar**, recibido ≥ pedido pasa la línea a **Surtido** (`statusAfterReceived()` en `business-rules.ts`). Si después se baja por debajo de lo pedido, regresa al estado que tenía, **solo si el cambio fue automático**: un Surtido elegido a mano no se toca. Una recepción parcial no cambia el estado. Las líneas sin pedido a URREA no se editan. Decisión del 2026-10-15.
+- El cambio vive en la captura (la tabla), no en la ruta: el usuario lo ve y lo puede corregir antes de confirmar. A la API solo viajan `id`, `quantity_received` y `urrea_status`.
+- El resumen de "Confirmar recepción" muestra **código URREA** y **descripción** en vez del ETM, porque quien recibe la mercancía reconoce eso. Una línea sin código URREA (captura manual) conserva el ETM como identificador.
+- **Review del PR #147:** un estado elegido a mano en la captura es **pegajoso** (`manual`): la cantidad ya no lo cambia, ni para subir ni para bajar. `autoFrom` y `manual` viven solo en la captura: en una recepción posterior la base sale de lo guardado, así que un Surtido de la recepción anterior se trata como del usuario y bajar la cantidad ya no lo regresa. Es a propósito, no un bug.

@@ -158,6 +158,100 @@ describe('odoo_overdue_invoices', () => {
   })
 })
 
+// Far past / far future so the "today" of the run never flips a status.
+const OPEN = (o: Record<string, unknown>) => ({
+  id: 1, name: 'F1', move_type: 'out_invoice', partner_id: [24, 'Andritz'], invoice_date: '2020-01-01', invoice_date_due: '2020-02-01',
+  amount_total: 100, amount_residual: 100, payment_state: 'not_paid', currency_id: [33, 'MXN'], ...o,
+})
+const STATEMENT_MOVES = [
+  OPEN({ id: 1, name: 'F-VIEJA', invoice_date_due: '2020-02-01', amount_residual: 100 }),
+  OPEN({ id: 2, name: 'F-FUTURA', invoice_date_due: '2099-03-01', amount_residual: 40 }),
+  OPEN({ id: 3, name: 'RINV1', move_type: 'out_refund', amount_residual: 30 }),
+  OPEN({ id: 4, name: 'G-1', partner_id: [17, 'GE POWER SERVICES MEXICO'], amount_residual: 500 }),
+  OPEN({ id: 5, name: 'G-2', partner_id: [18, 'GE Vernova'], invoice_date_due: '2099-01-01', amount_residual: 7 }),
+]
+
+describe('odoo_overdue_invoices — estado de cuenta (#145)', () => {
+  test('con cliente: UNA lectura de lo abierto, detalle factura por factura y la nota de crédito aparte sin restar', async () => {
+    const { odoo, calls } = fakeOdoo({ 'account.move.search_read': [STATEMENT_MOVES] })
+
+    // Accents and case do not matter; an exact name wins over partial matches.
+    const result = await odooOverdueInvoices(odoo, { cliente: 'ÁNDRITZ', incluir: 'ambas' })
+
+    expect(calls).toHaveLength(1)
+    const domain = calls[0].payload.domain as unknown[][]
+    expect(domain).toContainEqual(['move_type', 'in', ['out_invoice', 'out_refund']])
+    expect(result).toMatchObject({
+      cliente: 'Andritz',
+      incluye: 'ambas',
+      rango: 'Todas las fechas de vencimiento',
+      total_por_cobrar: 140,
+      total_vencido: 100,
+      total_por_vencer: 40,
+      facturas: 2,
+      notas_credito_sin_aplicar: { total: 30, documentos: 1 },
+    })
+    expect('detalle' in result && result.detalle.map((l) => [l.folio, l.estado, l.moneda])).toEqual([
+      ['F-VIEJA', 'vencida', 'MXN'],
+      ['F-FUTURA', 'por vencer', 'MXN'],
+    ])
+    // All MXN: nothing to warn about.
+    expect('monedas_sin_convertir' in result && result.monedas_sin_convertir).toBeFalsy()
+  })
+
+  test('solo cliente = el default de la pantalla (vencido + este mes, ambas); con fechas, ambas', async () => {
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [STATEMENT_MOVES, STATEMENT_MOVES, STATEMENT_MOVES] })
+    // The 2099 invoice falls after this month's end, so only the overdue one is in the default window.
+    const screen = await odooOverdueInvoices(odoo, { cliente: 'andritz' })
+    expect(screen).toMatchObject({ incluye: 'ambas', rango: expect.stringMatching(/^Vence hasta el \d{4}-\d{2}-\d{2}$/), total_por_cobrar: 100, facturas: 1 })
+
+    const windowed = await odooOverdueInvoices(odoo, { cliente: 'andritz', vence_desde: '2099-01-01', vence_hasta: '2099-12-31' })
+    expect(windowed).toMatchObject({ incluye: 'ambas', rango: 'Vence del 2099-01-01 al 2099-12-31', total_por_cobrar: 40, facturas: 1 })
+
+    const explicit = await odooOverdueInvoices(odoo, { cliente: 'andritz', incluir: 'vencidas', vence_desde: '2099-01-01' })
+    expect(explicit).toMatchObject({ incluye: 'vencidas', total_por_cobrar: 0 })
+  })
+
+  test('una factura en dólares se suma sin convertir y la respuesta lo dice', async () => {
+    const usd = [...STATEMENT_MOVES, OPEN({ id: 6, name: 'F-USD', currency_id: [2, 'USD'], amount_residual: 10 })]
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [usd] })
+    const result = await odooOverdueInvoices(odoo, { cliente: 'andritz' })
+    expect(result).toMatchObject({ total_por_cobrar: 110, monedas_sin_convertir: ['USD'] })
+  })
+
+  test('cliente en blanco → error, nunca "cualquiera"', async () => {
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [STATEMENT_MOVES] })
+    await expect(odooOverdueInvoices(odoo, { cliente: '  ' })).rejects.toThrow(/Indica el nombre del cliente/)
+  })
+
+  test('nombre ambiguo → error que lista las coincidencias, nunca adivina', async () => {
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [STATEMENT_MOVES] })
+    // The id tells apart two partners with the same name.
+    await expect(odooOverdueInvoices(odoo, { cliente: 'ge' })).rejects.toThrow(/Hay 2 coincidencias.*GE POWER SERVICES MEXICO \(#17\).*GE Vernova \(#18\)/)
+  })
+
+  test('fecha inexistente o rango invertido → error antes de llamar a Odoo', async () => {
+    const { odoo, calls } = fakeOdoo({})
+    await expect(odooOverdueInvoices(odoo, { vence_hasta: '2026-02-30' })).rejects.toThrow(/inexistente/)
+    await expect(odooOverdueInvoices(odoo, { vence_desde: '2026-11-01', vence_hasta: '2026-10-01' })).rejects.toThrow(/Rango invertido/)
+    expect(calls).toHaveLength(0)
+  })
+
+  test('sin cliente: cartera por cliente del rango y las primeras facturas, con limit', async () => {
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [STATEMENT_MOVES] })
+    const result = await odooOverdueInvoices(odoo, { incluir: 'ambas', limit: 2 })
+    expect(result).toMatchObject({ total_por_cobrar: 647, facturas: 4 })
+    // Credit notes travel apart in this mode too, never subtracted (#102).
+    expect(result).toMatchObject({ notas_credito_sin_aplicar: { total: 30, documentos: 1 } })
+    expect('por_cliente' in result && result.por_cliente.map((c) => [c.cliente, c.total])).toEqual([
+      ['GE POWER SERVICES MEXICO', 500],
+      ['Andritz', 140],
+      ['GE Vernova', 7],
+    ])
+    expect('primeras' in result && result.primeras.map((l) => l.folio)).toEqual(['F-VIEJA', 'G-1'])
+  })
+})
+
 describe('odoo_invoices_summary', () => {
   test('valida fechas y agrupa por mes con el rango en el dominio; notas de crédito del periodo aparte', async () => {
     const { odoo, calls } = fakeOdoo({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
-import { restoreOrderInventory } from '@/lib/inventory'
+import { deleteRestoresStock, restoreOrderInventory } from '@/lib/inventory'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -53,7 +53,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 }
 
 // DELETE — Remove an order and all its items (any status allowed).
-// Restores inventory for items that had quantity_in_stock > 0, same as cancel.
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const { id: orderId } = await params
@@ -64,14 +63,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
     const { data: order } = await supabase
       .from('orders')
-      .select('id')
+      .select('id, status')
       .eq('id', orderId)
       .single()
 
     if (!order) return NextResponse.json({ message: 'Orden no encontrada' }, { status: 404 })
 
-    // Restore inventory before deleting (same logic as cancel)
-    await restoreOrderInventory(supabase, orderId)
+    // Restoring a cancelled order again would duplicate its stock (ADR-010).
+    if (deleteRestoresStock(order.status)) await restoreOrderInventory(supabase, orderId)
 
     // Delete items first (FK), then order
     await supabase.from('order_items').delete().eq('order_id', orderId)

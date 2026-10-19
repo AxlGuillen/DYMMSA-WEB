@@ -1,6 +1,6 @@
 /** Auto-learn: every saved quotation/order enriches etm_products (rules in CLAUDE.md). */
 
-import { isProductItem } from '@/lib/business-rules'
+import { isProductItem, normalizeCatalogCode, resolveDymmsaDescription } from '@/lib/business-rules'
 import type { createClient } from '@/lib/supabase/server'
 import type { QuotationItemRow } from '@/types/database'
 
@@ -88,14 +88,39 @@ export function mergeEtmFields(
   return { updates, hasChanges: Object.keys(updates).length > 0 }
 }
 
+/** Curated text auto-learn may store for a line, '' = none (ADR-013 r1/r3). `catalogMap` null =
+ *  urrea_catalog unreadable; `storedSnapshot` = the line's saved quotation_items value. */
+export function learnableDymmsaDescription(
+  item: QuotationItemRow,
+  catalogMap: Map<string, string | null> | null,
+  storedSnapshot?: string | null
+): string {
+  const text = item.dymmsa_description ?? ''
+  if (!text.trim()) return ''
+  // A resent snapshot is a resolved value, not an edit: it may hold an outdated official text.
+  if (storedSnapshot && text.trim() === storedSnapshot.trim()) return ''
+  // Unknown catalog: any line with a code may be a match.
+  if (catalogMap === null) return normalizeCatalogCode(item.model_code) ? '' : text
+  return resolveDymmsaDescription(item, catalogMap).source === 'catalog' ? '' : text
+}
+
 export async function processAutoLearn(
   supabase: SupabaseServerClient,
   userId: string,
-  items: QuotationItemRow[]
+  items: QuotationItemRow[],
+  catalogMap: Map<string, string | null> | null,
+  storedSnapshots?: Map<string, string | null>
 ): Promise<QuotationAutoLearnResult> {
   const result: QuotationAutoLearnResult = { added: 0, updated: 0, skipped: 0 }
 
-  const eligible = items.filter(isEligibleForAutoLearn)
+  const eligible = items
+    .map((item) => ({
+      ...item,
+      dymmsa_description: learnableDymmsaDescription(
+        item, catalogMap, storedSnapshots?.get(item._dbId ?? item._id)
+      ),
+    }))
+    .filter(isEligibleForAutoLearn)
   if (eligible.length === 0) return result
 
   const etmCodes = eligible.map((i) => i.etm)

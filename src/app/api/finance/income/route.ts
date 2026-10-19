@@ -4,6 +4,7 @@ import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
 import { buildIncomeOverview, incomeUnavailable } from '@/lib/income'
 import { ISO_MONTH } from '@/lib/month'
+import { withinBudget } from '@/lib/odoo/budget'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
 import { cachedMonthCollections, cachedOpenCustomerMoves } from '@/lib/odoo/income-cache'
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     try {
       // The Odoo queue serializes these; Promise.all only overlaps the cache lookups.
-      const [collections, open] = await Promise.all([cachedMonthCollections(month), cachedOpenCustomerMoves()])
+      const [collections, open] = await withinBudget(Promise.all([cachedMonthCollections(month), cachedOpenCustomerMoves()]))
       return NextResponse.json(buildIncomeOverview(month, today, collections, open))
     } catch (error) {
       if (!(error instanceof OdooError)) throw error

@@ -6,6 +6,7 @@ import { makeRequest, makeParams } from '../helpers/request'
 import * as create from '@/app/api/orders/create/route'
 import * as orderById from '@/app/api/orders/[id]/route'
 import * as cancel from '@/app/api/orders/[id]/cancel/route'
+import * as orderStatus from '@/app/api/orders/[id]/status/route'
 import * as confirmReception from '@/app/api/orders/[id]/confirm-reception/route'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -171,7 +172,7 @@ describe('DELETE /orders/[id]', () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
-        'orders.select': { data: { id: 'o1' }, error: null },
+        'orders.select': { data: { id: 'o1', status: 'ordered' }, error: null },
         // restoreOrderInventory reads order_items
         'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 3, quantity_received: 0, quantity_to_order: 0 }], error: null },
         'store_inventory.select': { data: { id: 'inv1', quantity: 5 }, error: null },
@@ -189,6 +190,85 @@ describe('DELETE /orders/[id]', () => {
     expect(upd.quantity).toBe(8)
     expect(activeClient.didCall('order_items', 'delete')).toBe(true)
     expect(activeClient.didCall('orders', 'delete')).toBe(true)
+  })
+
+  test('REGLA: una orden cancelada se borra sin restaurar otra vez (cancelar ya lo hizo)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'orders.select': { data: { id: 'o1', status: 'cancelled' }, error: null },
+        'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 3, quantity_received: 0, quantity_to_order: 0 }], error: null },
+        'store_inventory.select': { data: { id: 'inv1', quantity: 5 }, error: null },
+      },
+    })
+    const res = await orderById.DELETE(makeRequest(), makeParams({ id: 'o1' }))
+    expect(res.status).toBe(200)
+    expect(activeClient.didCall('order_items', 'select')).toBe(false)
+    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
+    expect(activeClient.didCall('store_inventory', 'insert')).toBe(false)
+    expect(activeClient.didCall('orders', 'delete')).toBe(true)
+  })
+
+  test('REGLA: entregada o completada se borra sin devolver al inventario lo que ya salió', async () => {
+    for (const status of ['delivered', 'completed']) {
+      activeClient = createMockSupabase({
+        user: AUTH,
+        responses: {
+          'orders.select': { data: { id: 'o1', status }, error: null },
+          'order_items.select': { data: [{ model_code: 'MC1', quantity_in_stock: 3, quantity_received: 2, quantity_to_order: 2 }], error: null },
+          'store_inventory.select': { data: { id: 'inv1', quantity: 5 }, error: null },
+        },
+      })
+      const res = await orderById.DELETE(makeRequest(), makeParams({ id: 'o1' }))
+      expect(res.status, status).toBe(200)
+      expect(activeClient.didCall('store_inventory', 'update'), status).toBe(false)
+      expect(activeClient.didCall('orders', 'delete'), status).toBe(true)
+    }
+  })
+})
+
+describe('PATCH /orders/[id]/status', () => {
+  const patch = (status: string) =>
+    orderStatus.PATCH(makeRequest({ status }, { method: 'PATCH' }), makeParams({ id: 'o1' }))
+
+  test('cambia entre los estados manuales', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'orders.select': { data: { id: 'o1', status: 'ordered' }, error: null },
+        'orders.update': { data: { id: 'o1', status: 'delivered' }, error: null },
+      },
+    })
+    const res = await patch('delivered')
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('orders')).toEqual({ status: 'delivered' })
+  })
+
+  test('REGLA: "cancelled" no es destino manual — solo /cancel, que restaura el inventario', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'orders.select': { data: { id: 'o1', status: 'ordered' }, error: null } },
+    })
+    const res = await patch('cancelled')
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toMatch(/Cancelar orden/)
+    expect(activeClient.didCall('orders', 'update')).toBe(false)
+  })
+
+  test('REGLA: una orden cancelada ya no cambia de estado (borrarla después duplicaría el stock)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'orders.select': { data: { id: 'o1', status: 'cancelled' }, error: null } },
+    })
+    const res = await patch('ordered')
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toMatch(/cancelada/)
+    expect(activeClient.didCall('orders', 'update')).toBe(false)
+  })
+
+  test('400 con un estado desconocido', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await patch('lost')).status).toBe(400)
   })
 })
 

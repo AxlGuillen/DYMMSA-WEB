@@ -5,8 +5,9 @@
 
 import type { TourId } from '@/lib/tours/registry'
 
-/** Documentación sections a tutorial can belong to (their `id` anchors in /dashboard/docs). */
-export type DocsAnchor = 'ordenes' | 'compra' | 'corte'
+/** Documentación sections a tutorial can belong to (their `id` anchors in /dashboard/docs); each one already shows its button. */
+export const DOCS_ANCHORS = ['cotizar', 'cotizaciones', 'ordenes', 'compra', 'corte'] as const
+export type DocsAnchor = (typeof DOCS_ANCHORS)[number]
 
 export interface Tutorial {
   slug: string

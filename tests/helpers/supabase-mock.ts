@@ -3,6 +3,9 @@
  * `.single()`. Responses keyed by `table` or `table.op`; `.throwOnError()`/`storage.*` not modeled.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 export type MockResult = { data?: unknown; error?: unknown; count?: number }
 export type ResponseValue = MockResult | ((rec: CallRecord) => MockResult)
 
@@ -19,6 +22,8 @@ export interface CallRecord {
   filters: Array<{ method: string; args: unknown[] }>
   /** True if .single() or .maybeSingle() was called. */
   single: boolean
+  /** Column list passed to .select(), if any. */
+  columns?: string
 }
 
 export interface MockConfig {
@@ -29,6 +34,74 @@ export interface MockConfig {
 }
 
 const DEFAULT_RESULT: MockResult = { data: null, error: null }
+
+// Selects on these tables are checked against supabase/schema.sql: an unchecked mock
+// let a nonexistent `quotations.quotation_number` reach production (cut-candidates).
+const SCHEMA_CHECKED_TABLES = new Set(['quotations'])
+let schemaColumns: Map<string, Set<string>> | null = null
+
+/** Columns per table from schema.sql (CREATE TABLE bodies + ALTER TABLE ... ADD COLUMN). */
+function loadSchemaColumns(): Map<string, Set<string>> {
+  const tables = new Map<string, Set<string>>()
+  const add = (table: string, column: string) => {
+    if (!tables.has(table)) tables.set(table, new Set())
+    tables.get(table)!.add(column)
+  }
+  let creating: string | null = null
+  let altering: string | null = null
+  const schema = readFileSync(join(process.cwd(), 'supabase/schema.sql'), 'utf8')
+  for (const raw of schema.split(/\r?\n/)) {
+    const line = raw.replace(/--.*$/, '').trim()
+    const create = /^CREATE TABLE (?:public\.)?(\w+) \($/i.exec(line)
+    if (create) { creating = create[1]; continue }
+    if (creating) {
+      // A bare `)` can close a multi-line CHECK; only `);` ends the table.
+      if (line.startsWith(')') && line.endsWith(';')) creating = null
+      else {
+        const column = /^(\w+)\s/.exec(line)?.[1]
+        if (column && !/^(CONSTRAINT|PRIMARY|UNIQUE|CHECK|FOREIGN)$/i.test(column)) add(creating, column)
+      }
+      continue
+    }
+    const alter = /^ALTER TABLE (?:ONLY )?(?:public\.)?(\w+)/i.exec(line)
+    if (alter) altering = alter[1]
+    const added = /\bADD COLUMN (?:IF NOT EXISTS )?(\w+)/i.exec(line)?.[1]
+    if (altering && added) add(altering, added)
+    if (line.endsWith(';')) altering = null
+  }
+  return tables
+}
+
+/** Plain top-level columns of a select string; `*`, embeds and aggregates are skipped. */
+export function selectedColumns(select: string): string[] {
+  const tokens: string[] = []
+  let depth = 0
+  let current = ''
+  for (const ch of select) {
+    if (ch === '(') depth++
+    if (ch === ')') depth--
+    if (ch === ',' && depth === 0) { tokens.push(current); current = '' }
+    else current += ch
+  }
+  tokens.push(current)
+  return tokens
+    .map((token) => token.trim())
+    .filter((token) => token && token !== '*' && !token.includes('('))
+    .map((token) => {
+      const noCast = token.split('::')[0].split('->')[0]
+      return noCast.slice(noCast.indexOf(':') + 1).trim()
+    })
+    .filter((column) => /^\w+$/.test(column))
+}
+
+/** First selected column that the table does not have, as PostgREST would reject it. */
+function unknownColumn(rec: CallRecord): string | undefined {
+  if (!rec.columns || !SCHEMA_CHECKED_TABLES.has(rec.table)) return undefined
+  schemaColumns ??= loadSchemaColumns()
+  const known = schemaColumns.get(rec.table)
+  if (!known?.size) throw new Error(`supabase-mock: no se encontraron columnas de ${rec.table} en supabase/schema.sql`)
+  return selectedColumns(rec.columns).find((column) => !known.has(column))
+}
 
 class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   private record: CallRecord
@@ -47,8 +120,9 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   delete()                 { return this.setOp('delete') }
 
   /** select never overwrites an op already set (e.g. insert().select()). */
-  select(_columns?: string) {
+  select(columns?: string) {
     if (!this.opSet) this.record.op = 'select'
+    if (columns !== undefined) this.record.columns = columns
     return this
   }
 
@@ -78,6 +152,7 @@ class QueryBuilder<R = MockResult> implements PromiseLike<R> {
   order(...a: unknown[]) { return this.filter('order', a) }
   limit(...a: unknown[]) { return this.filter('limit', a) }
   range(...a: unknown[]) { return this.filter('range', a) }
+  abortSignal(...a: unknown[]) { return this.filter('abortSignal', a) }
 
   single(): Promise<R>      { this.record.single = true; return this.resolve() }
   maybeSingle(): Promise<R> { this.record.single = true; return this.resolve() }
@@ -128,6 +203,10 @@ export class MockSupabaseClient {
   }
 
   _lookup(rec: CallRecord): MockResult {
+    const unknown = unknownColumn(rec)
+    if (unknown) {
+      return { data: null, error: { code: '42703', message: `column ${rec.table}.${unknown} does not exist` } }
+    }
     const v =
       this.responses[`${rec.table}.${rec.op}`] ?? this.responses[rec.table]
     if (v === undefined) return DEFAULT_RESULT

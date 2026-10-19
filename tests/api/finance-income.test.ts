@@ -126,6 +126,24 @@ describe('GET /api/finance/income', () => {
   })
 })
 
+describe('presupuesto de Odoo (review PR #150)', () => {
+  test('si Odoo no contesta a tiempo, el overview y el refresh degradan a 200 con income null en vez de 504', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(callOdoo).mockImplementation(() => new Promise(() => {}))
+      for (const call of [get, post]) {
+        const pending = call()
+        await vi.advanceTimersByTimeAsync(45_000)
+        const res = await pending
+        expect(res.status).toBe(200)
+        expect(await readJson<IncomeOverviewResponse>(res)).toMatchObject({ income: null, unavailable: { reason: 'odoo_error' } })
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('POST /api/finance/income/refresh', () => {
   test('purga el tag con expiración inmediata y responde con una lectura fresca', async () => {
     scriptOdoo()

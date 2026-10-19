@@ -300,6 +300,8 @@ CREATE INDEX idx_orders_created_at ON public.orders USING btree (created_at DESC
 CREATE INDEX idx_orders_created_by ON public.orders USING btree (created_by);
 CREATE INDEX idx_orders_customer ON public.orders USING btree (customer_name);
 CREATE INDEX idx_orders_quotation_id ON public.orders USING btree (quotation_id);
+-- At most one order per quotation (ADR-010); manual orders keep quotation_id NULL.
+CREATE UNIQUE INDEX orders_quotation_id_unique ON public.orders USING btree (quotation_id) WHERE (quotation_id IS NOT NULL);
 CREATE INDEX idx_orders_status ON public.orders USING btree (status);
 CREATE INDEX idx_quotation_items_etm ON public.quotation_items USING btree (etm);
 CREATE INDEX idx_quotation_items_quotation_id ON public.quotation_items USING btree (quotation_id);

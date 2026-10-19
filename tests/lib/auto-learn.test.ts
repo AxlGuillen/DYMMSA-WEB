@@ -3,8 +3,11 @@ import {
   isEligibleForAutoLearn,
   computeNewEtmFields,
   mergeEtmFields,
+  learnableDymmsaDescription,
+  processAutoLearn,
 } from '@/lib/auto-learn'
 import type { QuotationItemRow } from '@/types/database'
+import { createMockSupabase, type MockSupabaseClient } from '../helpers/supabase-mock'
 
 function makeItem(overrides: Partial<QuotationItemRow> = {}): QuotationItemRow {
   return {
@@ -283,5 +286,148 @@ describe('auto-learn de dymmsa_description', () => {
 
     const same = mergeEtmFields(existing, asArg(makeItem({ dymmsa_description: 'Vieja' })))
     expect(same.updates.dymmsa_description).toBeUndefined()
+  })
+})
+
+describe('processAutoLearn — la descripción oficial del catálogo nunca se aprende (ADR-013)', () => {
+  const OFFICIAL = 'LLAVE COMBINADA 1/2" URREA'
+  const catalog = (entries: Record<string, string | null>) => new Map(Object.entries(entries))
+
+  function clientWith(existing: ReturnType<typeof makeExisting>[] = []): MockSupabaseClient {
+    return createMockSupabase({
+      responses: { 'etm_products.select': { data: existing, error: null } },
+    })
+  }
+
+  const run = (
+    client: MockSupabaseClient,
+    items: QuotationItemRow[],
+    map: Map<string, string | null> | null,
+    snapshots?: Map<string, string | null>,
+  ) => processAutoLearn(client as unknown as Parameters<typeof processAutoLearn>[0], 'user-1', items, map, snapshots)
+
+  const insertRows = (client: MockSupabaseClient) =>
+    client.callsTo('etm_products', 'insert').map((c) => c.payload as Record<string, unknown>)
+
+  test('match de catálogo: la oficial que regresa del snapshot no llega a etm_products (update)', async () => {
+    const client = clientWith([makeExisting({ dymmsa_description: null })])
+    const item = makeItem({ dymmsa_description: OFFICIAL, unit_price: 150 })
+
+    const result = await run(client, [item], catalog({ 'URREA|MC001': OFFICIAL }))
+
+    // The rest of the merge still runs; only the description is held back.
+    const updates = client.updatePayload('etm_products')
+    expect(updates.price).toBe(150)
+    expect(updates).not.toHaveProperty('dymmsa_description')
+    expect(result.updated).toBe(1)
+    expect(item.dymmsa_description).toBe(OFFICIAL) // the caller's item is not mutated
+  })
+
+  test('match de catálogo sin otros cambios: no hace update', async () => {
+    const existing = makeExisting({ dymmsa_description: null })
+    const client = clientWith([existing])
+    const item = makeItem({
+      description: existing.description, description_es: existing.description_es,
+      unit_price: existing.price, dymmsa_description: OFFICIAL,
+    })
+
+    const result = await run(client, [item], catalog({ 'URREA|MC001': OFFICIAL }))
+
+    expect(client.didCall('etm_products', 'update')).toBe(false)
+    expect(result).toEqual({ added: 0, updated: 0, skipped: 1 })
+  })
+
+  test('match de catálogo con código/marca sin normalizar: tampoco se aprende', async () => {
+    const client = clientWith([makeExisting({ dymmsa_description: null })])
+    // Empty brand resolves as URREA, same as the resolver.
+    const item = makeItem({ model_code: ' mc001 ', brand: '', dymmsa_description: OFFICIAL })
+
+    await run(client, [item], catalog({ 'URREA|MC001': OFFICIAL }))
+
+    expect(client.updatePayload('etm_products')).not.toHaveProperty('dymmsa_description')
+  })
+
+  test('match de catálogo en un ETM nuevo: se inserta con dymmsa_description null', async () => {
+    const client = clientWith([])
+
+    const result = await run(
+      client,
+      [makeItem({ etm: 'ETM-NEW', dymmsa_description: OFFICIAL })],
+      catalog({ 'URREA|MC001': OFFICIAL }),
+    )
+
+    expect(result.added).toBe(1)
+    expect(insertRows(client)[0]).toMatchObject({ etm: 'ETM-NEW', model_code: 'MC001', dymmsa_description: null })
+  })
+
+  test('sin match estricto (el código existe solo en otra marca): la curada sí se aprende', async () => {
+    const client = clientWith([makeExisting({ dymmsa_description: null })])
+    const item = makeItem({ dymmsa_description: 'Martillo curado' })
+
+    await run(client, [item], catalog({ 'SURTEK|MC001': 'Oficial SURTEK' }))
+
+    expect(client.updatePayload('etm_products').dymmsa_description).toBe('Martillo curado')
+  })
+
+  test('fila de catálogo sin descripción: la curada sí se aprende (insert)', async () => {
+    const client = clientWith([])
+    const items = [
+      makeItem({ etm: 'ETM-A', model_code: 'MC-A', dymmsa_description: 'Curada A' }),
+      makeItem({ etm: 'ETM-B', model_code: 'MC-B', dymmsa_description: 'Curada B' }),
+    ]
+
+    await run(client, items, catalog({ 'URREA|MC-A': '   ', 'URREA|MC-B': null }))
+
+    expect(insertRows(client).map((r) => r.dymmsa_description)).toEqual(['Curada A', 'Curada B'])
+  })
+
+  test('catálogo ilegible (null): no aprende la descripción de líneas con código; sin código sí', async () => {
+    const client = clientWith([makeExisting({ dymmsa_description: null })])
+    const items = [
+      makeItem({ dymmsa_description: OFFICIAL, unit_price: 150 }),
+      makeItem({ etm: 'ETM-NOCODE', model_code: '', brand: '', dymmsa_description: 'Curada sin código' }),
+    ]
+
+    await run(client, items, null)
+
+    const updates = client.updatePayload('etm_products')
+    expect(updates.price).toBe(150)
+    expect(updates).not.toHaveProperty('dymmsa_description')
+    expect(insertRows(client)[0]).toMatchObject({ etm: 'ETM-NOCODE', dymmsa_description: 'Curada sin código' })
+  })
+
+  test('snapshot reenviado sin cambios: no se aprende aunque el catálogo ya no lo tenga', async () => {
+    const client = clientWith([makeExisting({ dymmsa_description: null })])
+    // The line's frozen snapshot is an old official text; a reimport dropped that catalog row.
+    const item = makeItem({ _dbId: 'qi-1', dymmsa_description: OFFICIAL, unit_price: 150 })
+
+    await run(client, [item], catalog({}), new Map([['qi-1', OFFICIAL]]))
+
+    expect(client.updatePayload('etm_products')).not.toHaveProperty('dymmsa_description')
+  })
+
+  test('texto distinto del snapshot (editado en el detalle): la curada sí se aprende', async () => {
+    const client = clientWith([makeExisting({ dymmsa_description: null })])
+    const item = makeItem({ _dbId: 'qi-1', dymmsa_description: 'Llave curada' })
+
+    await run(client, [item], catalog({}), new Map([['qi-1', 'Texto anterior']]))
+
+    expect(client.updatePayload('etm_products').dymmsa_description).toBe('Llave curada')
+  })
+})
+
+describe('learnableDymmsaDescription', () => {
+  const MATCH = new Map([['URREA|MC001', 'Oficial']])
+
+  test.each([
+    ['vacía', makeItem({ dymmsa_description: '  ' }), MATCH, undefined, ''],
+    ['igual al snapshot (con espacios)', makeItem({ dymmsa_description: ' Curada ' }), new Map(), 'Curada', ''],
+    ['catálogo ilegible con código', makeItem({ dymmsa_description: 'Curada' }), null, undefined, ''],
+    ['catálogo ilegible sin código', makeItem({ model_code: ' ', dymmsa_description: 'Curada' }), null, undefined, 'Curada'],
+    ['match estricto de catálogo', makeItem({ dymmsa_description: 'Curada' }), MATCH, undefined, ''],
+    ['sin match', makeItem({ model_code: 'OTRO', dymmsa_description: 'Curada' }), MATCH, undefined, 'Curada'],
+    ['snapshot vacío no bloquea', makeItem({ model_code: 'OTRO', dymmsa_description: 'Curada' }), MATCH, null, 'Curada'],
+  ])('%s', (_label, item, map, snapshot, expected) => {
+    expect(learnableDymmsaDescription(item, map, snapshot)).toBe(expected)
   })
 })

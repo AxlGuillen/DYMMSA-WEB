@@ -71,6 +71,13 @@ describe('Cadena completa: cotización → aprobación → orden → recepción'
     const [q3] = await sql<{ status: string }>('SELECT status FROM quotations WHERE id = $1', [quotation_id])
     expect(q3.status).toBe('converted_to_order')
 
+    // The order is linked, so the ADR-010 reopen guard sees it: no second order possible.
+    const [o] = await sql<{ quotation_id: string | null }>('SELECT quotation_id FROM orders WHERE id = $1', [order_id])
+    expect(o.quotation_id).toBe(quotation_id)
+    const reopen = await statusRoute.PATCH(makeRequest({ status: 'approved' }, { method: 'PATCH' }), makeParams({ id: quotation_id }))
+    expect(reopen.status).toBe(400)
+    expect((await readJson<{ message: string }>(reopen)).message).toMatch(/orden vinculada/i)
+
     // 60001 (stock 5): 5 in stock / 7 to order. 60002 (no stock): 0 / 3.
     const [p1] = await sql<{ quantity_in_stock: number; quantity_to_order: number }>("SELECT quantity_in_stock, quantity_to_order FROM order_items WHERE order_id = $1 AND etm = 'SEED-URREA-1'", [order_id])
     expect(p1).toMatchObject({ quantity_in_stock: 5, quantity_to_order: 7 })

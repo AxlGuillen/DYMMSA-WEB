@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, vi } from 'vitest'
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
@@ -9,7 +9,7 @@ import { useCutDraftStore } from '@/stores/cutDraftStore'
 import { QUOTATION_DETAIL_TOUR } from '@/lib/tours/quotation-detail'
 
 // Mutation hook spies, hoisted so vi.mock can use them.
-const { updateAsync, sendAsync, createAsync, deleteAsync, changeStatusAsync, pushMock, fetchJsonMock } = vi.hoisted(() => ({
+const { updateAsync, sendAsync, createAsync, deleteAsync, changeStatusAsync, pushMock, fetchJsonMock, orderByQuotationMock } = vi.hoisted(() => ({
   updateAsync: vi.fn().mockResolvedValue(undefined),
   sendAsync: vi.fn().mockResolvedValue(undefined),
   createAsync: vi.fn().mockResolvedValue({ id: 'o1' }),
@@ -17,6 +17,7 @@ const { updateAsync, sendAsync, createAsync, deleteAsync, changeStatusAsync, pus
   changeStatusAsync: vi.fn().mockResolvedValue(undefined),
   pushMock: vi.fn(),
   fetchJsonMock: vi.fn(),
+  orderByQuotationMock: vi.fn((): { data: { id: string; name: string; status: string } | null } => ({ data: null })),
 }))
 
 vi.mock('@/lib/fetch-json', () => ({
@@ -38,7 +39,7 @@ vi.mock('@/hooks/useQuotations', () => ({
 }))
 
 vi.mock('@/hooks/useOrders', () => ({
-  useOrderByQuotationId: () => ({ data: null }),
+  useOrderByQuotationId: orderByQuotationMock,
 }))
 
 vi.mock('next/navigation', () => ({
@@ -211,5 +212,44 @@ describe('QuotationDetail — vista guiada (issue #74)', () => {
     expect(document.querySelector('[data-tour="qd-approval-link"]')).toBeNull()
     expect(document.querySelector('[data-tour="qd-status"]')).not.toBeNull()
     expect(document.querySelector('[data-tour="qd-items"]')).not.toBeNull()
+  })
+})
+
+describe('QuotationDetail — orden vinculada (ADR-010)', () => {
+  beforeEach(() => {
+    resetStores()
+    vi.clearAllMocks()
+  })
+  afterEach(() => {
+    orderByQuotationMock.mockImplementation(() => ({ data: null }))
+  })
+
+  const converted = () =>
+    quotationWithItems({
+      status: 'converted_to_order',
+      quotation_items: [quotationItem({ id: 'p1', is_approved: true })],
+    })
+
+  test('con su orden viva: "Ver orden" lleva a la orden y el estado queda bloqueado', () => {
+    orderByQuotationMock.mockImplementation(() => ({ data: { id: 'o1', name: 'Q', status: 'ordered' } }))
+    renderWithProviders(<QuotationDetail quotation={converted()} />)
+
+    expect(orderByQuotationMock).toHaveBeenCalledWith('q1', true)
+    expect(screen.getByRole('link', { name: /ver orden/i })).toHaveAttribute('href', '/dashboard/orders/o1')
+    expect(screen.getByRole('combobox', { name: 'Cambiar estado' })).toBeDisabled()
+    expect(screen.getByText('Elimina la orden vinculada para reabrir')).toBeInTheDocument()
+  })
+
+  test('sin orden vinculada (eliminada): no hay "Ver orden" y el estado se puede cambiar', () => {
+    renderWithProviders(<QuotationDetail quotation={converted()} />)
+
+    expect(screen.queryByRole('link', { name: /ver orden/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Cambiar estado' })).toBeEnabled()
+    expect(screen.queryByText('Elimina la orden vinculada para reabrir')).not.toBeInTheDocument()
+  })
+
+  test('fuera de converted_to_order ni siquiera busca la orden', () => {
+    renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
+    expect(orderByQuotationMock).toHaveBeenCalledWith('q1', false)
   })
 })

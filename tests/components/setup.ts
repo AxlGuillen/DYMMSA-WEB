@@ -44,7 +44,7 @@ if (!globalThis.crypto?.randomUUID) {
     () => `test-${Math.random().toString(16).slice(2)}-${Date.now().toString(16)}` as never
 }
 
-// navigator.clipboard — used by QuotePreview (handleCopyUnmatched).
+// navigator.clipboard — used by QuotationDetail (copy link) and PurchasePlanner (copy for Excel).
 if (!navigator.clipboard) {
   Object.defineProperty(navigator, 'clipboard', {
     value: { writeText: vi.fn().mockResolvedValue(undefined) },

@@ -204,6 +204,13 @@ export function explainPgError(
         constraintName: constraint,
       }
     }
+    if (constraint === 'orders_quotation_id_unique') {
+      return {
+        userMessage: 'Esta cotización ya tiene una orden. Recarga la página para verla.',
+        isConstraintViolation: true,
+        constraintName: constraint,
+      }
+    }
     return {
       userMessage: 'Conflicto: el recurso ya existe.',
       isConstraintViolation: true,

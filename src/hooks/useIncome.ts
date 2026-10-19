@@ -3,8 +3,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
 import type { IncomeOverviewResponse } from '@/lib/income'
+import { CUSTOMERS_KEY, INCOME_KEY } from './odoo-query-keys'
 
-export const INCOME_KEY = ['finance', 'income']
+export { INCOME_KEY }
 
 /** The server already caches Odoo for 15 min; 5 min here just avoids re-hitting it on every focus. */
 export function useIncomeOverview(month: string) {
@@ -28,6 +29,8 @@ export function useRefreshIncome() {
         refetchType: 'none',
         predicate: (q) => q.queryKey[2] !== month,
       })
+      // Clientes reads the same purged open receivables (#145).
+      queryClient.invalidateQueries({ queryKey: CUSTOMERS_KEY, refetchType: 'none' })
     },
   })
 }

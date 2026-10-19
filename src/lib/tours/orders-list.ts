@@ -6,7 +6,7 @@ export const ORDERS_LIST_TOUR: OverviewStep[] = [
     selector: '[data-tour="ol-stats"]',
     title: 'Las órdenes por etapa',
     description:
-      'El flujo después de la aprobación: <b>Ordenada → Recibida → Entregada → Completada</b> (o Cancelada). Cada tarjeta filtra la lista al hacer clic. Recuerda: el stock se descuenta al CREAR la orden; cancelarla o eliminarla lo devuelve.',
+      'El flujo después de la aprobación: <b>Ordenada → Recibida → Entregada → Completada</b> (o Cancelada). Cada tarjeta filtra la lista al hacer clic. Recuerda: el stock se descuenta al CREAR la orden; cancelarla lo devuelve, y eliminarla también mientras siga en tienda.',
   },
   {
     selector: '[data-tour="ol-filters"]',

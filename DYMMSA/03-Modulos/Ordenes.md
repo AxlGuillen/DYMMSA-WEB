@@ -31,11 +31,13 @@ ordered ──→ received ──→ delivered ──→ completed
    - `quantity_in_stock = min(quantity_approved, stock_disponible)`.
    - `quantity_to_order = quantity_approved - quantity_in_stock`.
    - Registra la deducción de inventario para aplicar al final.
-4. Crea `orders` (status: `ordered`, `quotation_id` → FK).
+4. Crea `orders` (status: `ordered`) con `quotation_id` → FK. **Se guarda desde 2026-10-17**: antes la ruta nunca lo mandaba, así que ni "Ver orden" ni el candado del selector de estado veían la orden (ADR-010). El índice único parcial `orders_quotation_id_unique` (`WHERE quotation_id IS NOT NULL`) deja a lo más una orden por cotización: un segundo clic concurrente choca ahí → 400, antes de tocar el stock. Las órdenes manuales siguen con `quotation_id = NULL`.
 5. Inserta `order_items` con `sort_order` preservado.
-6. Aplica deducciones al `store_inventory`.
-7. Actualiza `quotations.status` → `converted_to_order`.
+6. Actualiza `quotations.status` → `converted_to_order` **antes** de mover el stock; si falla, elimina la orden.
+7. Aplica deducciones al `store_inventory`.
 8. Rollback: si falla inserción de ítems → elimina la orden.
+
+Mientras la orden exista, la cotización no se puede reabrir (`PATCH /status` → 400) ni eliminar (`DELETE /api/quotations/[id]` → 400 "Elimina la orden vinculada antes de eliminar esta cotización."). Eliminar la orden libera la cotización (y devuelve el stock si la orden sigue en tienda: `deleteRestoresStock()`).
 
 ## Planificar compra (mayoreo vs menudeo)
 
@@ -59,7 +61,7 @@ en un popover (tabla `app_settings`).
 
 ## Generar Excel URREA
 
-**Ruta generada desde:** `OrderDetail` (componente)
+**Se descarga desde:** el planificador (`PurchasePlanner`, issue #54); `OrderDetail` solo conserva el Formato de Entrega
 **Librería:** SheetJS + JSZip (`src/lib/excel/generator.ts`, template .xlsm con macros)
 
 Se genera desde las **decisiones de mayoreo guardadas** del planificador:
@@ -68,8 +70,8 @@ Se genera desde las **decisiones de mayoreo guardadas** del planificador:
 - Criterio de "pedible a URREA" = **pertenencia al catálogo** (cualquier línea:
   URREA/SURTEK/FOY...), ya **no** `brand='URREA'`
 
-Sin decisiones guardadas → el botón redirige al planificador. Con decisiones
-desactualizadas → AlertDialog de aviso. Máximo 1012 filas (fórmulas del
+Con grupos sin decidir ("Revisar") no genera y avisa; con cambios en pantalla,
+primero guarda las decisiones y luego genera. Máximo 1012 filas (fórmulas del
 template). La contraparte es **Exportar compra local** (restos a menudeo +
 productos sin catálogo) desde el planificador.
 

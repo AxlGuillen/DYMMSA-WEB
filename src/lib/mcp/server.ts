@@ -6,7 +6,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { GitHubError } from '@/lib/github'
 import { OdooError, callOdoo } from '@/lib/odoo/client'
-import { ToolError, type Db } from './shared'
+import { splitResultMeta, ToolError, type Db, type ResultMeta } from './shared'
 import { contextFrom, type McpContext } from './context'
 import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } from './tools/odoo/accounting'
 import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
@@ -34,18 +34,19 @@ import { getPurchasePlan } from './tools/purchase'
 import { getAppSettings } from './tools/settings'
 import type { McpRole } from './manifest'
 
-type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
+export type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean; _meta?: ResultMeta }
 
 /** The SDK hands the AuthInfo validated by withMcpAuth in each call's extra. */
 type ToolExtra = { authInfo?: AuthInfo }
 
 /** Runs the tool with the token's db (RLS applies); expected errors surface their message, the rest go generic.
  *  The context carries the caller's identity for tools that mean "me" (hours, #101). */
-async function run(extra: ToolExtra, fn: (db: Db, ctx: McpContext) => Promise<unknown>): Promise<ToolResult> {
+export async function run(extra: ToolExtra, fn: (db: Db, ctx: McpContext) => Promise<unknown>): Promise<ToolResult> {
   try {
     const ctx = contextFrom(extra.authInfo)
-    const data = await fn(ctx.db, ctx)
-    return { content: [{ type: 'text', text: JSON.stringify(data) }] }
+    // Only a withResultMeta() result fills _meta: the view reads it, the text never carries it (#144).
+    const { data, meta } = splitResultMeta(await fn(ctx.db, ctx))
+    return { content: [{ type: 'text', text: JSON.stringify(data) }], ...(meta ? { _meta: meta } : {}) }
   } catch (e) {
     if (e instanceof ToolError || e instanceof GitHubError || e instanceof OdooError) {
       return { content: [{ type: 'text', text: e.message }], isError: true }
@@ -113,7 +114,7 @@ ${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábad
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
-- Contabilidad: odoo_overdue_invoices, odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit, odoo_invoice_link_check (facturas del periodo sin orden de venta ligada — la revisión periódica en una llamada).
+- Contabilidad: odoo_overdue_invoices (cartera vencida o estado de cuenta), odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit, odoo_invoice_link_check (facturas del periodo sin orden de venta ligada — la revisión periódica en una llamada).
 - Ventas y cobranza: odoo_sales_summary, odoo_customer_profile (incluye la cartera del cliente: deuda total, vencido y días promedio de pago), odoo_sale_detail, odoo_receivables_ranking ("¿a quién le cobro primero?" / "¿quién paga más lento?").
 - Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
 
@@ -766,11 +767,15 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
   server.registerTool(
     'odoo_overdue_invoices',
     {
-      title: 'Cartera vencida (Odoo)',
+      title: 'Cartera y estado de cuenta (Odoo)',
       description:
-        'Responde "¿quién nos debe y desde cuándo?" desde la facturación oficial (Odoo): total vencido, desglose por cliente ordenado por monto, y las facturas más vencidas con sus días de atraso. Solo facturas de cliente contabilizadas con saldo pendiente y fecha de vencimiento superada. Aparte, `notas_credito_sin_aplicar`: notas de crédito abiertas A HOY (sin corte de fecha), saldo a favor de clientes que NO se resta del vencido.',
+        'Sin parámetros: "¿quién nos debe y desde cuándo?" — por cliente y las más vencidas. Con `cliente`, `vence_desde`/`vence_hasta` (YYYY-MM-DD, por VENCIMIENTO; solo `cliente` = vencido + este mes) o `incluir`: el ESTADO DE CUENTA, por cliente o el de uno con todas sus facturas. `notas_credito_sin_aplicar` va aparte, sin restar.',
       inputSchema: {
-        limit: z.number().int().min(1).max(50).optional().describe('Cuántas facturas "más vencidas" listar (default 10)'),
+        limit: z.number().int().min(1).max(50).optional().describe('Sin cliente: cuántas listar (default 10)'),
+        cliente: z.string().min(1).optional().describe('Nombre (o parte)'),
+        vence_desde: z.string().optional(),
+        vence_hasta: z.string().optional(),
+        incluir: z.enum(['vencidas', 'por_vencer', 'ambas']).optional().describe('Default ambas'),
       },
       annotations: readOnly,
     },

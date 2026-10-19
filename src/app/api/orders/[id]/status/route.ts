@@ -3,12 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, notFound, badRequest, serverError } from '@/lib/api-helpers'
 import type { OrderStatus } from '@/types/database'
 
-const VALID_STATUSES: OrderStatus[] = [
+// 'cancelled' only through /cancel: it is the one that returns the stock, and DELETE relies on it (ADR-010).
+const MANUAL_ORDER_STATUSES: OrderStatus[] = [
   'ordered',
   'received',
   'delivered',
   'completed',
-  'cancelled',
 ]
 
 export async function PATCH(
@@ -23,18 +23,25 @@ export async function PATCH(
     if ('error' in auth) return auth.error
 
     const { status } = await request.json()
-    if (!VALID_STATUSES.includes(status)) {
+    if (status === 'cancelled') {
+      return badRequest('Para cancelar usa "Cancelar orden": es la que restaura el inventario')
+    }
+    if (!MANUAL_ORDER_STATUSES.includes(status)) {
       return badRequest('Estado inválido')
     }
 
     const { data: order } = await supabase
       .from('orders')
-      .select('id')
+      .select('id, status')
       .eq('id', id)
       .single()
 
     // oxlint-disable-next-line react-doctor/nextjs-no-redirect-in-try-catch -- custom notFound() helper returns a NextResponse, not Next navigation
     if (!order) return notFound('Orden no encontrada')
+
+    if (order.status === 'cancelled') {
+      return badRequest('Una orden cancelada ya no cambia de estado')
+    }
 
     const { data, error } = await supabase
       .from('orders')

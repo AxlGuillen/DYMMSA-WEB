@@ -9,7 +9,7 @@ const pay = (o: Partial<OdooCollection>): OdooCollection => ({
   id: 1, folio: 'PAY1', customer: 'Andritz', date: '2026-08-12', amount: 100, currency: 'MXN', state: 'paid', memo: null, ...o,
 })
 const inv = (o: Partial<OdooOpenInvoice>): OdooOpenInvoice => ({
-  id: 1, moveType: 'out_invoice', folio: 'F1', customer: 'Andritz', invoiceDate: '2026-08-01', dueDate: '2026-09-01', total: 100, residual: 100, currency: 'MXN', paymentState: 'not_paid', ...o,
+  id: 1, moveType: 'out_invoice', folio: 'F1', customer: 'Andritz', customerId: 24, invoiceDate: '2026-08-01', dueDate: '2026-09-01', total: 100, residual: 100, currency: 'MXN', paymentState: 'not_paid', ...o,
 })
 const credit = (o: Partial<OdooOpenInvoice>): OdooOpenInvoice => inv({ id: 9, moveType: 'out_refund', folio: 'RINV1', ...o })
 

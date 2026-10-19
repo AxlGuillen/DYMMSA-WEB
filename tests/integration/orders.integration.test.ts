@@ -1,6 +1,7 @@
 /**
  * Orders against local Supabase (ADR-021): inventory split on create,
- * reception excess (ADR-019) and inventory restore on cancel.
+ * reception excess (ADR-019), inventory restore on cancel and the
+ * quotation ↔ order link (ADR-010).
  */
 import { describe, test, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -11,6 +12,8 @@ import { resetDb, sql, seedQuotation, closePool } from './helpers/db'
 import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
 import * as reception from '@/app/api/orders/[id]/confirm-reception/route'
 import * as cancel from '@/app/api/orders/[id]/cancel/route'
+import * as orderRoute from '@/app/api/orders/[id]/route'
+import * as quotationRoute from '@/app/api/quotations/[id]/route'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
@@ -124,5 +127,83 @@ describe('cancel → restaura inventario (integración local)', () => {
     expect(inv.quantity).toBe(5)
     const [o] = await sql<{ status: string }>('SELECT status FROM orders WHERE id = $1', [order_id])
     expect(o.status).toBe('cancelled')
+  })
+})
+
+describe('vínculo cotización ↔ orden (ADR-010, integración local)', () => {
+  const stock = async () =>
+    Number((await sql<{ quantity: number }>("SELECT quantity FROM store_inventory WHERE model_code = '60001'"))[0].quantity)
+  const deleteQuotation = (id: string) =>
+    quotationRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))
+
+  test('create-order guarda quotation_id en la orden', async () => {
+    const { id } = await approvedQuotation()
+    const { order_id } = await readJson<{ order_id: string }>(await createFromQuote(id))
+    const [o] = await sql<{ quotation_id: string | null }>('SELECT quotation_id FROM orders WHERE id = $1', [order_id])
+    expect(o.quotation_id).toBe(id)
+  })
+
+  test('el índice único rechaza una segunda orden ligada a la misma cotización; las manuales (NULL) no chocan', async () => {
+    const { id } = await approvedQuotation()
+    const insert = (quotationId: string | null) =>
+      sql("INSERT INTO orders (name, customer_name, status, total_amount, quotation_id) VALUES ('O','ACME','ordered',0,$1)", [quotationId])
+
+    await insert(id)
+    await expect(insert(id)).rejects.toThrow(/orders_quotation_id_unique/)
+
+    await insert(null)
+    await insert(null)
+    expect(await sql('SELECT 1 FROM orders WHERE quotation_id IS NULL')).toHaveLength(2)
+  })
+
+  test('si la cotización vuelve a approved con la orden viva (doble clic), la segunda orden es 400 y no deduce stock otra vez', async () => {
+    const { id } = await approvedQuotation()
+    expect((await createFromQuote(id)).status).toBe(200)
+    expect(await stock()).toBe(0) // 5 reserved by the first order
+
+    // Simulates the race: the second request read status 'approved' before the first one finished.
+    await sql("UPDATE quotations SET status = 'approved' WHERE id = $1", [id])
+    await sql("UPDATE store_inventory SET quantity = 5 WHERE model_code = '60001'")
+
+    const res = await createFromQuote(id)
+    expect(res.status).toBe(400)
+    expect((await readJson<{ message: string }>(res)).message).toMatch(/ya tiene una orden/i)
+    expect(await sql('SELECT 1 FROM orders WHERE quotation_id = $1', [id])).toHaveLength(1)
+    expect(await stock()).toBe(5) // the losing request never reached the deduction
+  })
+
+  test('eliminar la cotización con su orden viva → 400 y no borra nada; sin la orden se elimina con sus ítems', async () => {
+    const { id } = await approvedQuotation()
+    const { order_id } = await readJson<{ order_id: string }>(await createFromQuote(id))
+
+    const blocked = await deleteQuotation(id)
+    expect(blocked.status).toBe(400)
+    expect((await readJson<{ message: string }>(blocked)).message).toMatch(/elimina la orden vinculada/i)
+    expect(await sql('SELECT 1 FROM quotations WHERE id = $1', [id])).toHaveLength(1)
+    expect(await sql('SELECT 1 FROM quotation_items WHERE quotation_id = $1', [id])).toHaveLength(3)
+
+    expect((await orderRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: order_id }))).status).toBe(200)
+
+    expect((await deleteQuotation(id)).status).toBe(200)
+    expect(await sql('SELECT 1 FROM quotations WHERE id = $1', [id])).toHaveLength(0)
+    expect(await sql('SELECT 1 FROM quotation_items WHERE quotation_id = $1', [id])).toHaveLength(0)
+  })
+
+  test('cancelar y luego eliminar la orden (el camino que pide la guarda) no restaura el stock dos veces', async () => {
+    const { id } = await approvedQuotation()
+    const { order_id } = await readJson<{ order_id: string }>(await createFromQuote(id))
+    expect(await stock()).toBe(0)
+
+    expect((await cancel.POST(makeRequest(undefined, { method: 'POST' }), makeParams({ id: order_id }))).status).toBe(200)
+    expect(await stock()).toBe(5)
+
+    // A cancelled order still blocks: the guard asks to delete it.
+    expect((await deleteQuotation(id)).status).toBe(400)
+
+    expect((await orderRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: order_id }))).status).toBe(200)
+    expect(await stock()).toBe(5) // NOT 10: cancel already returned those 5
+    expect(await sql('SELECT 1 FROM orders WHERE id = $1', [order_id])).toHaveLength(0)
+
+    expect((await deleteQuotation(id)).status).toBe(200)
   })
 })

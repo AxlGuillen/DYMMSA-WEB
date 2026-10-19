@@ -2,8 +2,15 @@
 
 import { receivedForCustomer } from '@/lib/business-rules'
 import type { createClient } from '@/lib/supabase/server'
+import type { OrderStatus } from '@/types/database'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
+
+/** Deleting returns stock only while the goods are still in the store: cancel already returned it,
+ *  and a delivered/completed order left with the customer (ADR-010). */
+export function deleteRestoresStock(status: OrderStatus): boolean {
+  return status === 'ordered' || status === 'received'
+}
 
 type RestorableItem = {
   model_code: string | null

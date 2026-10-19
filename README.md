@@ -293,7 +293,7 @@ tests/
 │   └── imports.test.ts
 └── components/     # React components — jsdom + Testing Library
     ├── helpers/    # render (QueryClientProvider), resetStores, fixtures
-    ├── badges / MetricCard / useCurrency / DiscreteModeToggle / QuotePreview
+    ├── badges / MetricCard / useCurrency / DiscreteModeToggle
     └── ProductModal / QuotationEditor / QuotationDetail (approval toggle)
 ```
 

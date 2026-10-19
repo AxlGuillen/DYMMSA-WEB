@@ -3,6 +3,60 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-17
+
+### Corregido
+- **«Ver orden» vuelve a salir en las cotizaciones convertidas.** Al generar la
+  orden, ahora queda ligada a su cotización: en el detalle aparece el botón
+  «Ver orden» y el selector de estado se bloquea mientras la orden exista.
+- **Una cotización con orden ya no se puede reabrir ni eliminar** (aunque la
+  orden esté cancelada). Antes se podía regresar a Borrador o Aprobada y
+  generar una segunda orden, y el stock se descontaba dos veces. Ahora la app
+  te pide eliminar primero la orden vinculada (si sigue en tienda, eso devuelve
+  el stock apartado) y después ya puedes reabrir o eliminar la cotización.
+- **Eliminar una orden cancelada ya no suma el stock dos veces.** Cancelarla ya
+  lo devuelve, así que eliminarla después deja el inventario igual. Tampoco
+  cambia al eliminar una orden entregada o completada, porque esos productos ya
+  salieron con el cliente. El aviso de «¿Eliminar esta orden?» te dice cuál de
+  los casos aplica.
+- **«Planificar corte» desde una cotización vuelve a funcionar.** Ya no sale
+  "Error al cargar la cotización": abre el corte rápido con sus piezas DYMMSA.
+- **La «Desc. DYMMSA» de la BD ETM ya no se llena sola con la descripción
+  oficial de URREA.** Al guardar cambios en una cotización, los productos del
+  catálogo copiaban ese texto como si DYMMSA lo hubiera escrito. Las
+  cotizaciones siguen mostrando la descripción oficial igual que antes, y
+  guardar una cotización vieja ya no reemplaza la «Desc. DYMMSA» que se haya
+  corregido después en la BD ETM.
+- **La ayuda y las vistas guiadas de Cotizaciones ya cuentan lo que hace la
+  app.** En «En aprobación» sí puedes editar, agregar y quitar productos (si el
+  cliente ya abrió el link, avísale que recargue la página después de que
+  guardes: lo que tenga marcado sin guardar se pierde); lo que agregas en
+  «Aprobada» entra como pendiente y lo apruebas o rechazas tú con ✓/✗. La
+  vista guiada del detalle ya no promete un correo cuando el cliente
+  aprueba (ese aviso está apagado: revisa el estado en la cotización), y la del
+  cotizador explica que cada producto se edita con el lápiz y que para guardar
+  necesita ETM y cantidad mayor a 0 (el precio puede quedar vacío).
+
+## 2026-10-15
+
+### Nuevo
+- **Clientes.** Nueva sección en el menú con la **cartera** de los clientes de
+  Odoo: lo vencido y lo por vencer en el rango de fechas que elijas, cliente por
+  cliente.
+- **Estado de cuenta por cliente**, listo para mandar en **Excel** o
+  **impreso** (también como PDF). Solo lleva nombre, folios, fechas y montos;
+  el RFC y el contacto se quedan en la pantalla. Abajo se ven sus últimas
+  ventas y pagos.
+- **El asistente también lo da:** pídele el estado de cuenta de un cliente con
+  el periodo que necesites.
+
+### Mejorado
+- **Recepción más rápida.** Al capturar lo recibido completo (o de más), la
+  línea pasa sola a **Surtido**. Si corriges la cantidad por debajo, regresa a
+  como estaba; si elegiste el estado a mano, no se toca.
+- **El resumen de "Confirmar recepción" muestra el código URREA y la
+  descripción** en vez del ETM del cliente.
+
 ## 2026-10-14
 
 ### Nuevo
