@@ -1,5 +1,5 @@
 /**
- * odoo_preview_quotation / odoo_save_quotation (#144, ADR-040), not registered yet. The real
+ * odoo_preview_quotation / odoo_save_quotation (#144, ADR-040). The real
  * keys, the real facade and write catalog run over fakes: nothing reaches Odoo nor Supabase.
  */
 

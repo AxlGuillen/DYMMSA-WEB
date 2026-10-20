@@ -1,7 +1,7 @@
 # ADR-040: escrituras acotadas en Odoo (cotización → venta → factura en borrador, nunca timbrar)
 
 **Fecha:** 2026-10-18
-**Estado:** Aceptado. La infraestructura está mergeada (PR #149); el registro de las tools, la vista y la documentación in-app llegan en el PR siguiente.
+**Estado:** Aceptado e implementado. Infraestructura en PR #149; registro de las 4 tools, vista `odoo-quotation`, manifiesto, consentimiento e instrucciones el 2026-10-20 (rama `feat/144-wire-odoo-writes`). Falta la prueba en producción.
 **Relacionado:** [[ADR-025-Bloque-Odoo-MCP]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-036-Vistas-del-MCP-con-MCP-Apps]] · issue #144
 
 ## Contexto
@@ -67,8 +67,9 @@ Son 4 tools nuevas: `odoo_preview_quotation`, `odoo_save_quotation`, `odoo_save_
 
 ## Pendiente
 
-- **PR siguiente:**
-  - la vista `odoo-quotation` y el registro de las 4 tools;
-  - manifiesto, consentimiento, instrucciones y presupuesto;
-  - las secciones de documentación in-app y CLAUDE.md "Bloque Odoo" con las tools vivas.
+- ~~**PR siguiente:** vista `odoo-quotation`, registro de las 4 tools, manifiesto, consentimiento, instrucciones, presupuesto, documentación in-app y CLAUDE.md.~~ Hecho el 2026-10-20. Notas del cableado:
+  - `odoo_save_product` se registra con `_meta.ui.visibility: ['app']`: el host no se la ofrece al modelo, solo al botón de la vista.
+  - La vista copia la llave `dymmsa/autorizacion` en vez de importar `preview-token.ts` (empaquetaría `node:crypto`); `tests/mcp/views.test.ts` la amarra a `PRODUCTS_AUTHORIZATION_META`.
+  - La documentación in-app no lista las 4 tools (son `adminOnly`, como Nómina); deja de decir «nunca escribe en Odoo» y dice «nunca publica, timbra ni envía».
+  - Topes de ADR-034: Odoo 16 → 20 tools, descripciones 18,500 → 20,000, `tools/list` 40,000 → 47,000 (el esquema de líneas viaja en la vista previa y en el guardado), instrucciones 7,500 → 8,000.
 - **Prueba en producción:** con el guion de la fase A y el contacto de la empresa, fuera de horario y con el dueño avisado. Después se anotan aquí sus resultados en §Verificación.

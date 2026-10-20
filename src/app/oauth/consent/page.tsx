@@ -102,7 +102,24 @@ export default async function ConsentPage({
               ))}
             </ul>
           </li>
-          <li>• Nunca modifica cotizaciones, órdenes ni cantidades de inventario, y nunca escribe en Odoo.</li>
+          {summary.odooWrites.length > 0 && (
+            <li>
+              • En Odoo, solo como administrador:
+              <ul className="mt-1 space-y-1 pl-4">
+                {summary.odooWrites.map((w) => (
+                  <li key={w.title}>
+                    – {w.title}. <span className="text-xs">{w.limits}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          )}
+          <li>
+            • Nunca modifica cotizaciones, órdenes ni cantidades de inventario de la app
+            {summary.odooWrites.length > 0
+              ? ', y en Odoo nunca publica, timbra ni envía facturas.'
+              : ', y nunca escribe en Odoo.'}
+          </li>
           <li>• Puedes revocar el acceso cuando quieras desde el panel de Supabase.</li>
         </ul>
 

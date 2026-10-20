@@ -3,19 +3,21 @@
 import { describe, test, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { AssistantSection, CustomersSection, FinanceSection, ProfileSection } from '@/app/dashboard/docs/sections'
-import { DOCS_MANIFEST, manifestFor } from '@/lib/mcp/manifest'
+import { DOCS_MANIFEST } from '@/lib/mcp/manifest'
 
 describe('AssistantSection', () => {
   test('pinta cada capacidad del manifiesto con su pregunta ejemplo y marca las que escriben', () => {
     render(<AssistantSection />)
-    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.block === 'app').length} de la app y ${manifestFor('odoo').length} de Odoo`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.block === 'app').length} de la app y ${DOCS_MANIFEST.filter((t) => t.block === 'odoo').length} de Odoo`))).toBeTruthy()
     for (const tool of DOCS_MANIFEST) {
       expect(screen.getAllByText(tool.title).length, tool.name).toBeGreaterThan(0)
     }
     // Only the module blocks carry the badge; the actions list repeats the limits, not the badge.
     expect(screen.getAllByText('escribe')).toHaveLength(8)
     expect(screen.getByText(/Nunca toca cantidades/)).toBeTruthy()
-    expect(screen.getByText(/Nunca escribe/)).toBeTruthy()
+    // The Odoo writes are admin-only (#144): the page every member reads still lists Odoo as read-only.
+    expect(DOCS_MANIFEST.some((t) => t.block === 'odoo' && t.kind === 'write')).toBe(false)
+    expect(screen.getByText(/nunca publica, timbra ni envia/)).toBeTruthy()
   })
 })
 

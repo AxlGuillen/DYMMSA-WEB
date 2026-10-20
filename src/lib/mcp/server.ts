@@ -15,6 +15,10 @@ import { odooInvoiceDetail, odooSaleDetail } from './tools/odoo/documents'
 import { odooPaymentDetail, odooRepAudit } from './tools/odoo/payments'
 import { odooInvoiceLinkCheck } from './tools/odoo/links'
 import { odooReceivablesRanking } from './tools/odoo/receivables'
+import { odooPreviewQuotation, odooSaveQuotation, previewQuotationShape, saveQuotationShape } from './tools/odoo/quotations'
+import { odooSaveProduct, saveProductShape } from './tools/odoo/products-write'
+import { draftInvoiceShape, odooCreateDraftInvoice } from './tools/odoo/draft-invoice'
+import { odooWriter } from '@/lib/odoo/writer'
 import { listQuotations, getQuotation } from './tools/quotations'
 import { listOrders, getOrder } from './tools/orders'
 import { searchInventory, setInventoryLocation } from './tools/inventory'
@@ -61,6 +65,10 @@ const readOnly = { readOnlyHint: true, openWorldHint: false } as const
 
 /** MCP App views (ADR-036): HTML bundled by scripts/build-mcp-views.ts. */
 const TIME_REPORT_VIEW = 'ui://dymmsa/time-report.html'
+const ODOO_QUOTATION_VIEW = 'ui://dymmsa/odoo-quotation.html'
+
+/** The Odoo writes (#144, ADR-040): the read-only caller plus the closed facade, never the raw transport. */
+const odooWriteDeps = { reader: callOdoo, writer: odooWriter }
 
 const pagination = {
   page: z.number().int().min(1).optional().describe('Página (1-indexada, default 1)'),
@@ -83,7 +91,7 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Cierre del mes** = cobrado (Odoo) − pagado (app); proyectado = real − pendiente del mes − vencido arrastrado. Sin Odoo el cierre solo refleja egresos.
 - **Cambiar el estado de una cotización regenera su approval_token** → el link de aprobación compartido antes muere.
 - **Tareas** = GitHub Issues del repo; prioridad por label priority:*, "Descartada" = cerrada como not_planned.
-- **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB (solo lectura). Las cotizaciones/órdenes de aquí y las facturas de Odoo son mundos separados — no asumas cruces entre ambos.
+- **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB. Las cotizaciones/órdenes de aquí y las de Odoo son mundos separados — no asumas cruces entre ambos.
 - **Vínculo factura↔orden de venta (Odoo)**: la verdad es ordenes_ligadas (el botón "Órdenes de venta" de la factura) y el vínculo línea a línea; origen (invoice_origin) es texto libre y NO prueba el vínculo — una factura con origen pero 0 órdenes ligadas tiene el vínculo roto. Las notas al pie (pedido_pie, "PEDIDO: …") vienen de Odoo, no de capturas.
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
@@ -112,13 +120,13 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
 ${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes: horas por empleado y día, total equivalente) y las escrituras record_payroll_hours (BORRADOR; confirmar y cerrar es en la app; la guía de la hoja va en la tool) y save_payroll_employee (alta, cambios y baja de empleados). Son HORAS, nunca montos. Rutina de los viernes: preview_time_report → save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
-La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
+La facturación OFICIAL de la empresa, en un sistema EXTERNO. ${admin ? 'Lectura, más las escrituras acotadas de Cotizar y facturar.' : 'SOLO lectura.'}
 - Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
 - Contabilidad: odoo_overdue_invoices (cartera vencida o estado de cuenta), odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit, odoo_invoice_link_check (facturas del periodo sin orden de venta ligada — la revisión periódica en una llamada).
 - Ventas y cobranza: odoo_sales_summary, odoo_customer_profile (incluye la cartera del cliente: deuda total, vencido y días promedio de pago), odoo_sale_detail, odoo_receivables_ranking ("¿a quién le cobro primero?" / "¿quién paga más lento?").
 - Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
-
-Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una factura de Odoo. Las únicas escrituras del MCP son las que el bloque A marca como escritura; todo lo demás es lectura.
+${admin ? '- Cotizar y facturar (solo administradores): odoo_preview_quotation (solo lee: vista previa y clave) → tras el sí, odoo_save_quotation (BORRADOR, editar o confirmar como venta) → odoo_create_draft_invoice (factura completa en BORRADOR). "Haz esta cotización en Odoo" es este flujo, nunca el navegador. Nunca publica, timbra, envía ni crea clientes; los productos nuevos solo con el botón de la vista (odoo_save_product: no la llames tú).\n' : ''}
+Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una de Odoo. Las únicas escrituras del MCP son las que cada bloque marca como escritura; todo lo demás es lectura.
 
 Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
 
@@ -721,8 +729,8 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
     (_input, extra) => run(extra, (db) => getAppSettings(db)),
   )
 
-  // Block B — Odoo: the COMPANY's external invoicing system, read-only with the server API key.
-  // Separate world from block A — never assume a row here maps to one there (ADR-025).
+  // Block B — Odoo: the COMPANY's external invoicing system; reads with the server API key, the
+  // admin-only writes at the end with ODOO_WRITE_API_KEY (ADR-025, ADR-040). Separate world from block A.
   const domainSchema = z
     .array(z.tuple([z.string(), z.string(), z.unknown()]))
     .optional()
@@ -953,5 +961,64 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       annotations: readOnly,
     },
     (_input, extra) => run(extra, () => odooFleetStatus(callOdoo)),
+  )
+
+  // Odoo writes (#144, ADR-040): admin-only, and every save needs the preview's key.
+  if (forAdmin) {
+    registerAppTool(
+      server,
+      'odoo_preview_quotation',
+      {
+        title: 'Vista previa de cotización (Odoo)',
+        description:
+          'SOLO LEE: arma la vista previa de una cotización de Odoo y firma la `clave` que exige odoo_save_quotation (vale 30 min). Crear: `cliente` (nombre, RFC o #id; nunca se crean clientes) + `lineas`, la lista COMPLETA: cada producto con codigo, etm o producto_id, cantidad y precio unitario sin IVA; nota/seccion para textos. Editar: `folio` + `lineas` (parte de lineas_como_entrada). Revisar o confirmar: solo `folio`. En Claude se ve como tabla; los productos que falten se dan de alta con su botón. Muestra el resumen (bloqueos, avisos, al_confirmar) y espera el sí antes de guardar.',
+        inputSchema: previewQuotationShape,
+        annotations: readOnly,
+        _meta: { ui: { resourceUri: ODOO_QUOTATION_VIEW } },
+      },
+      (input, extra) => run(extra, (_db, ctx) => odooPreviewQuotation(odooWriteDeps, ctx, input)),
+    )
+    registerAppResource(server, 'Vista: cotización de Odoo', ODOO_QUOTATION_VIEW, { description: 'Vista previa de la cotización con botón para dar de alta los productos que faltan' }, async () => ({
+      contents: [{ uri: ODOO_QUOTATION_VIEW, mimeType: RESOURCE_MIME_TYPE, text: MCP_VIEWS['odoo-quotation'].html, _meta: { ui: { prefersBorder: true } } }],
+    }))
+  }
+
+  if (forAdmin) server.registerTool(
+    'odoo_save_quotation',
+    {
+      title: 'Guardar cotización (Odoo)',
+      description:
+        'Escribe en Odoo lo que mostró odoo_preview_quotation, con los MISMOS datos y su `clave`: crea la cotización en BORRADOR, la edita (folio + lineas) o la confirma como venta (folio + confirmar: true, tras mostrar al_confirmar y recibir el sí). Nunca la envía al cliente, ni publica ni timbra. Repetir la misma llamada no duplica; si responde que no se sabe si guardó, espera y repite exactamente la misma.',
+      inputSchema: saveQuotationShape,
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (_db, ctx) => odooSaveQuotation(odooWriteDeps, ctx, input)),
+  )
+
+  // The view's button only: the authorization rides in the preview's _meta, never in the model's text.
+  if (forAdmin) registerAppTool(
+    server,
+    'odoo_save_product',
+    {
+      title: 'Alta de productos (Odoo)',
+      description:
+        'Solo la llama el botón de la vista de odoo_preview_quotation: da de alta en Odoo los productos nuevos de esa vista previa (bienes, IVA 16, factura por entrega). Sin la autorización de la vista no crea nada.',
+      inputSchema: saveProductShape,
+      annotations: { readOnlyHint: false, openWorldHint: false },
+      _meta: { ui: { visibility: ['app'] } },
+    },
+    (input, extra) => run(extra, (_db, ctx) => odooSaveProduct(odooWriteDeps, ctx, input)),
+  )
+
+  if (forAdmin) server.registerTool(
+    'odoo_create_draft_invoice',
+    {
+      title: 'Factura en borrador (Odoo)',
+      description:
+        'Crea la factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`), tras decir cuál y recibir el sí. Antes revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.',
+      inputSchema: draftInvoiceShape,
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    (input, extra) => run(extra, (_db, ctx) => odooCreateDraftInvoice(odooWriteDeps, ctx, input)),
   )
 }

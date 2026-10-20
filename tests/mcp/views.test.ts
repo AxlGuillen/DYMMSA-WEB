@@ -7,7 +7,10 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { MCP_VIEWS } from '@/lib/mcp/views/generated'
 import { registerDymmsaTools } from '@/lib/mcp/server'
 import type { McpRole } from '@/lib/mcp/manifest'
-import { VIEWS, viewSourceHash } from '../../scripts/mcp-views'
+import { PRODUCTS_AUTHORIZATION_META } from '@/lib/odoo/preview-token'
+import { VIEWS, viewDir, viewSourceHash } from '../../scripts/mcp-views'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 describe('vistas MCP generadas', () => {
   test('cada vista está generada y al día con su código (si falla: bun run build:mcp-views)', () => {
@@ -45,5 +48,39 @@ describe('vistas MCP generadas', () => {
     const member = await connect('member')
     expect((await member.listTools()).tools.map((t) => t.name)).not.toContain('preview_time_report')
     await expect(member.listResources()).rejects.toThrow()
+  })
+
+  test('cotización de Odoo (#144): la vista lee la autorización de la misma llave de _meta y no empaqueta código del servidor', () => {
+    const source = readFileSync(join(viewDir('odoo-quotation'), 'main.ts'), 'utf8')
+    expect(source).toContain(`'${PRODUCTS_AUTHORIZATION_META}'`)
+    expect(source).not.toMatch(/^import (?!type )[^\n]*@\/lib\//m)
+    expect(MCP_VIEWS['odoo-quotation'].html).not.toMatch(/node:crypto|createHmac/)
+  })
+
+  test('cotización de Odoo con el SDK real: la vista previa trae su vista, el alta de productos solo la ve la vista y un member no ve nada (#144)', async () => {
+    async function tools(role: McpRole) {
+      const server = new McpServer({ name: 'dymmsa', version: 'test' })
+      registerDymmsaTools(server, role)
+      const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
+      const client = new Client({ name: 'test', version: '1' })
+      await Promise.all([server.connect(serverSide), client.connect(clientSide)])
+      return { client, list: (await client.listTools()).tools }
+    }
+
+    const { client, list } = await tools('admin')
+    const preview = list.find((t) => t.name === 'odoo_preview_quotation')
+    expect(preview?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/odoo-quotation.html' } })
+    expect(preview?.annotations?.readOnlyHint).toBe(true)
+    expect(list.find((t) => t.name === 'odoo_save_product')?._meta).toMatchObject({ ui: { visibility: ['app'] } })
+    for (const name of ['odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
+      expect(list.find((t) => t.name === name)?.annotations?.readOnlyHint, name).toBe(false)
+    }
+    const read = await client.readResource({ uri: 'ui://dymmsa/odoo-quotation.html' })
+    expect(read.contents[0]).toMatchObject({ mimeType: 'text/html;profile=mcp-app', text: MCP_VIEWS['odoo-quotation'].html })
+
+    const member = (await tools('member')).list.map((t) => t.name)
+    for (const name of ['odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
+      expect(member, name).not.toContain(name)
+    }
   })
 })

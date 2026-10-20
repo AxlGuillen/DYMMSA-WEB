@@ -3,6 +3,18 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-20
+
+### Nuevo
+- [admin] **El asistente ya puede hacer cotizaciones en Odoo.** Desde Claude le
+  pides «haz esta cotización en Odoo para…» y te muestra una vista previa con
+  el cliente, los productos y los precios; solo la guarda (en borrador, sin
+  enviársela al cliente) cuando le dices que sí. También puede editarla,
+  confirmarla como venta y hacer la factura completa en borrador. Nunca
+  publica, timbra ni envía nada: eso sigue haciéndose en Odoo. Si falta un
+  producto, la vista previa trae un botón para darlo de alta. Para que
+  aparezca, abre un chat nuevo en Claude.
+
 ## 2026-10-17
 
 ### Corregido
