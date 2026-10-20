@@ -1,5 +1,5 @@
 /**
- * odoo_create_draft_invoice (#144, ADR-040), not registered yet. The real facade and write catalog
+ * odoo_create_draft_invoice (#144, ADR-040). The real facade and write catalog
  * run over fakes: nothing reaches Odoo nor Supabase, and account.move is only ever read.
  */
 

@@ -66,7 +66,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'update_task', block: 'app', module: 'Tareas', kind: 'write', title: 'Actualizar tarea', example: 'Cierra la tarea 45 y comenta que ya quedo.', limits: 'Comenta, cambia prioridad, cierra o reabre. Nunca reescribe el titulo ni la descripcion.' },
   { name: 'get_app_settings', block: 'app', module: 'Configuracion', kind: 'read', title: 'Configuracion de la app', example: '¿Que umbrales tiene el planificador de compra?' },
 
-  // Block B — Odoo (the company's official invoicing, read-only)
+  // Block B — Odoo (the company's official invoicing): reads, plus the admin-only writes of ADR-040
   { name: 'odoo_query', block: 'odoo', module: 'Consultas libres', kind: 'read', title: 'Consulta generica en Odoo', example: 'Facturas de GE de agosto con su estado de pago.' },
   { name: 'odoo_aggregate', block: 'odoo', module: 'Consultas libres', kind: 'read', title: 'Agregados en Odoo', example: 'Total facturado por cliente este año.' },
   { name: 'odoo_overdue_invoices', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Cartera y estado de cuenta', example: 'Estado de cuenta de Andritz: lo vencido y lo que vence este mes.' },
@@ -82,6 +82,10 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'odoo_stock_check', block: 'odoo', module: 'Operacion', kind: 'read', title: 'Existencias en Odoo', example: '¿Cuantas puntas de cobre hay en el almacen de Odoo?' },
   { name: 'odoo_employee_directory', block: 'odoo', module: 'Operacion', kind: 'read', title: 'Directorio de empleados', example: '¿Cual es el correo de trabajo de Diego?' },
   { name: 'odoo_fleet_status', block: 'odoo', module: 'Operacion', kind: 'read', title: 'Estado de la flotilla', example: '¿Que vehiculos tienen servicio reciente?' },
+  { name: 'odoo_preview_quotation', block: 'odoo', module: 'Cotizar y facturar', kind: 'read', title: 'Vista previa de cotizacion', example: 'Haz esta cotizacion en Odoo para GE Power con estos 6 aerosoles a $56.03.', adminOnly: true },
+  { name: 'odoo_save_quotation', block: 'odoo', module: 'Cotizar y facturar', kind: 'write', title: 'Guardar cotizacion en Odoo', example: 'Si, guardala. / Confirma la S00912 como venta.', limits: 'Solo lo que mostro la vista previa: cotizacion en borrador, editarla o confirmarla como venta. Nunca la envia al cliente, no publica, no timbra ni crea clientes.', adminOnly: true },
+  { name: 'odoo_save_product', block: 'odoo', module: 'Cotizar y facturar', kind: 'write', title: 'Alta de productos en Odoo', example: '(Boton "Dar de alta" de la vista previa.)', limits: 'Solo desde el boton de la vista previa y solo bienes con IVA 16; nunca inventa la clave SAT ni duplica un producto.', adminOnly: true },
+  { name: 'odoo_create_draft_invoice', block: 'odoo', module: 'Cotizar y facturar', kind: 'write', title: 'Factura en borrador en Odoo', example: 'Haz la factura de la S00912.', limits: 'Factura completa en borrador de una venta confirmada y entregada. Nunca publica, timbra ni envia; sin anticipos ni parciales.', adminOnly: true },
 ]
 
 export const manifestFor = (block: ToolBlock) => TOOL_MANIFEST.filter((t) => t.block === block)
@@ -100,16 +104,17 @@ export const DOCS_MANIFEST: readonly ToolManifestEntry[] = manifestForRole('memb
  * PR, with its why: each new tool has to earn its place or replace another.
  */
 export const TOOL_BUDGET = {
-  tools: { app: 36, odoo: 16 },
+  /** Odoo 16 → 20 for the four #144 writes (ADR-040, decided 2026-10-16). */
+  tools: { app: 36, odoo: 20 },
   /** Characters of description per tool; the exceptions carry a guide the model needs in full. */
   description: 1000,
   descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
-  /** Raised from 18,000 for the four #134 writes, after the second stage dropped three duplicated reads (ADR-037). */
-  descriptionsTotal: 18_500,
-  /** Characters of the whole tools/list an admin receives (name + title + description + schema + _meta). 37,000 → 40,000 for the #134 writes (ADR-037). */
-  listTotal: 40_000,
-  /** Characters of the server instructions, per role. */
-  instructions: 7500,
+  /** 18,000 → 18,500 for the #134 writes (ADR-037); → 20,000 for the four Odoo tools of #144 (ADR-040). */
+  descriptionsTotal: 20_000,
+  /** Characters of the whole tools/list an admin receives (name + title + description + schema + _meta). 37,000 → 40,000 for the #134 writes (ADR-037); → 47,000 for #144, whose line schema rides in both preview and save (ADR-040). */
+  listTotal: 47_000,
+  /** Characters of the server instructions, per role. 7,500 → 8,000 for the admin's Odoo write flow (#144). */
+  instructions: 8000,
 } as const
 
 /** Entries grouped by module, in first-appearance order. */

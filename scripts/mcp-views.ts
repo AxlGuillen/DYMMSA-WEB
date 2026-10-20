@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const VIEWS = ['time-report'] as const
+export const VIEWS = ['time-report', 'odoo-quotation'] as const
 export type ViewName = (typeof VIEWS)[number]
 
 export const viewDir = (name: ViewName) => join(process.cwd(), 'src/mcp-views', name)

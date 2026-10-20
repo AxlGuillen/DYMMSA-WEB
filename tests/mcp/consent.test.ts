@@ -8,7 +8,7 @@ describe('consentSummary', () => {
   test('un admin ve todas las escrituras con su limite; un member no ve las de administrador', () => {
     const admin = consentSummary('admin')
     const member = consentSummary('member')
-    const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write')
+    const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write' && t.block === 'app')
     expect(admin.writes.map((w) => w.title)).toEqual(writes.map((t) => t.title))
     for (const w of admin.writes) expect(w.limits.length).toBeGreaterThan(10)
     expect(member.writes).toHaveLength(writes.filter((t) => !t.adminOnly).length)
@@ -25,10 +25,11 @@ describe('consentSummary', () => {
     expect(new Set(reads).size).toBe(reads.length)
   })
 
-  test('REGLA: solo escrituras del bloque app, nunca de Odoo (la pantalla promete que no escribe ahi)', () => {
-    for (const w of consentSummary('admin').writes) {
-      const entry = TOOL_MANIFEST.find((t) => t.title === w.title)
-      expect(entry?.block, w.title).toBe('app')
-    }
+  test('REGLA: writes son solo de la app; las de Odoo van aparte y un member no recibe ninguna (#144)', () => {
+    const admin = consentSummary('admin')
+    for (const w of admin.writes) expect(TOOL_MANIFEST.find((t) => t.title === w.title)?.block, w.title).toBe('app')
+    expect(admin.odooWrites.map((w) => w.title)).toEqual(TOOL_MANIFEST.filter((t) => t.block === 'odoo' && t.kind === 'write').map((t) => t.title))
+    // The member's screen keeps promising that Odoo is never written.
+    expect(consentSummary('member').odooWrites).toEqual([])
   })
 })

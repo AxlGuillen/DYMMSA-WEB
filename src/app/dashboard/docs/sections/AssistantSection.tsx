@@ -64,11 +64,11 @@ export function AssistantSection() {
         cotizaciones u ordenes: eso se hace en la app.
       </Note>
 
-      <Sub>Odoo: la facturacion oficial (solo lectura)</Sub>
+      <Sub>Odoo: la facturacion oficial</Sub>
       <p className="text-muted-foreground">
         El asistente lee de Odoo facturas, pagos y sus complementos (REP), ventas, clientes, existencias del almacen de Odoo, el directorio de
-        empleados y la flotilla. <strong>Nunca escribe</strong> en Odoo, nunca entra a nomina ni salarios, y no cruza sus datos con los de la
-        app: las cotizaciones de aqui y las facturas de Odoo son mundos separados.
+        empleados y la flotilla. En Odoo <strong>nunca publica, timbra ni envia</strong> facturas, nunca entra a nomina ni salarios, y no cruza
+        sus datos con los de la app: las cotizaciones de aqui y las de Odoo son mundos separados.
       </p>
       <Block entries={odoo} />
     </DocSection>
