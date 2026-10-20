@@ -9,7 +9,9 @@ import { registerDymmsaTools } from '@/lib/mcp/server'
 import type { McpRole } from '@/lib/mcp/manifest'
 import { PRODUCTS_AUTHORIZATION_META } from '@/lib/odoo/preview-token'
 import { VIEWS, viewDir, viewSourceHash } from '../../scripts/mcp-views'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import { applyToolResult, AUTHORIZATION_META, initialState } from '@/mcp-views/odoo-quotation/state'
+import type { QuotationPreview } from '@/lib/mcp/tools/odoo/quotations'
 import { join } from 'node:path'
 
 describe('vistas MCP generadas', () => {
@@ -51,9 +53,11 @@ describe('vistas MCP generadas', () => {
   })
 
   test('cotización de Odoo (#144): la vista lee la autorización de la misma llave de _meta y no empaqueta código del servidor', () => {
-    const source = readFileSync(join(viewDir('odoo-quotation'), 'main.ts'), 'utf8')
-    expect(source).toContain(`'${PRODUCTS_AUTHORIZATION_META}'`)
-    expect(source).not.toMatch(/^import (?!type )[^\n]*@\/lib\//m)
+    expect(AUTHORIZATION_META).toBe(PRODUCTS_AUTHORIZATION_META)
+    for (const file of readdirSync(viewDir('odoo-quotation')).filter((f) => f.endsWith('.ts'))) {
+      const source = readFileSync(join(viewDir('odoo-quotation'), file), 'utf8')
+      expect(source, file).not.toMatch(/^import (?!type )[^\n]*@\/lib\//m)
+    }
     expect(MCP_VIEWS['odoo-quotation'].html).not.toMatch(/node:crypto|createHmac/)
   })
 
@@ -82,5 +86,31 @@ describe('vistas MCP generadas', () => {
     for (const name of ['odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
       expect(member, name).not.toContain(name)
     }
+  })
+
+  describe('cotización de Odoo: lo que un resultado le hace a la vista (#144, review PR #152)', () => {
+    const preview = { modo: 'crear', productos_para_alta: [{ codigo: 'X1', descripcion: 'Uno', precio: 1 }], puede_guardar: true } as unknown as QuotationPreview
+    const ok = { content: [{ type: 'text' as const, text: JSON.stringify(preview) }], _meta: { [PRODUCTS_AUTHORIZATION_META]: 'firma' } }
+
+    test('un resultado bueno trae la vista previa y la autorización del _meta, nunca del texto', () => {
+      const state = applyToolResult(initialState(), ok)
+      expect(state.preview).toEqual(preview)
+      expect(state.autorizacion).toBe('firma')
+      expect(applyToolResult(initialState(), { content: ok.content }).autorizacion).toBeNull()
+    })
+
+    test('un error después de una vista previa buena la quita y deja ver el error (con su botón de alta fuera)', () => {
+      const saved = { ...applyToolResult(initialState(), ok), saved: { creados: [], ya_existian: [], sin_clave_sat: 0 } }
+      const state = applyToolResult(saved, { isError: true, content: [{ type: 'text', text: 'La vista previa venció' }] })
+      expect(state).toMatchObject({ preview: null, autorizacion: null, error: 'La vista previa venció', saved: null })
+    })
+
+    test('una respuesta truncada también es error, y la siguiente buena limpia el error y el alta anterior', () => {
+      const broken = applyToolResult(applyToolResult(initialState(), ok), { content: [{ type: 'text', text: '{"modo":' }] })
+      expect(broken).toMatchObject({ preview: null, autorizacion: null })
+      expect(broken.error).toMatch(/incompleta/)
+      const again = applyToolResult({ ...broken, saved: { creados: [], ya_existian: [], sin_clave_sat: 0 }, saveError: 'x' }, ok)
+      expect(again).toMatchObject({ error: null, saved: null, saveError: null, autorizacion: 'firma' })
+    })
   })
 })

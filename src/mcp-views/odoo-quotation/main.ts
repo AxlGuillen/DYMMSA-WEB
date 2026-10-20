@@ -4,21 +4,11 @@
  */
 
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { PreviewLine, QuotationPreview } from '@/lib/mcp/tools/odoo/quotations'
 import type { ProductsSaveResult } from '@/lib/mcp/tools/odoo/products-write'
+import { applyToolResult, initialState, textOf } from './state'
 
-// PRODUCTS_AUTHORIZATION_META: importing preview-token would bundle node:crypto (tests/mcp/views.test.ts pins it).
-const AUTHORIZATION_META = 'dymmsa/autorizacion'
-
-const state: {
-  preview: QuotationPreview | null
-  autorizacion: string | null
-  error: string | null
-  saving: boolean
-  saved: ProductsSaveResult | null
-  saveError: string | null
-} = { preview: null, autorizacion: null, error: null, saving: false, saved: null, saveError: null }
+let state = initialState()
 
 const root = document.getElementById('app') as HTMLElement
 
@@ -30,10 +20,6 @@ function el(tag: string, className?: string, text?: string | null): HTMLElement 
   return node
 }
 
-function textOf(result: CallToolResult): string {
-  const block = result.content?.find((c) => c.type === 'text')
-  return block && 'text' in block ? block.text : ''
-}
 
 function money(value: number | null | undefined, currency: string): string {
   if (value == null) return '—'
@@ -266,20 +252,7 @@ function applyContext(ctx: McpUiHostContext | undefined) {
 const app = new App({ name: 'DYMMSA · Cotización de Odoo', version: '1.0.0' })
 
 app.ontoolresult = (result) => {
-  const text = textOf(result)
-  if (result.isError) state.error = text || 'No se pudo armar la vista previa'
-  else {
-    try {
-      state.preview = JSON.parse(text) as QuotationPreview
-      // A new result in the same view starts clean: an earlier products save says nothing about it.
-      state.saved = null
-      state.saveError = null
-      const meta = result._meta?.[AUTHORIZATION_META]
-      state.autorizacion = typeof meta === 'string' ? meta : null
-    } catch {
-      state.error = 'La respuesta del servidor llegó incompleta: vuelve a pedir la vista previa'
-    }
-  }
+  state = applyToolResult(state, result)
   render()
 }
 app.onhostcontextchanged = applyContext
