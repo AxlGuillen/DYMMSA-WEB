@@ -18,6 +18,8 @@ describe('AssistantSection', () => {
     // The Odoo writes are admin-only (#144): the page every member reads still lists Odoo as read-only.
     expect(DOCS_MANIFEST.some((t) => t.block === 'odoo' && t.kind === 'write')).toBe(false)
     expect(screen.getByText(/nunca publica, timbra ni envia/)).toBeTruthy()
+    // Admins read this page too and they do write in Odoo (#144): no "solo lectura" claim for the block.
+    expect(screen.queryByText(/Odoo: la facturacion oficial \(solo lectura\)/)).toBeNull()
   })
 })
 

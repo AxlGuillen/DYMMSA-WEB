@@ -981,44 +981,44 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
     registerAppResource(server, 'Vista: cotización de Odoo', ODOO_QUOTATION_VIEW, { description: 'Vista previa de la cotización con botón para dar de alta los productos que faltan' }, async () => ({
       contents: [{ uri: ODOO_QUOTATION_VIEW, mimeType: RESOURCE_MIME_TYPE, text: MCP_VIEWS['odoo-quotation'].html, _meta: { ui: { prefersBorder: true } } }],
     }))
+
+    server.registerTool(
+      'odoo_save_quotation',
+      {
+        title: 'Guardar cotización (Odoo)',
+        description:
+          'Escribe en Odoo lo que mostró odoo_preview_quotation, con los MISMOS datos y su `clave`: crea la cotización en BORRADOR, la edita (folio + lineas) o la confirma como venta (folio + confirmar: true, tras mostrar al_confirmar y recibir el sí). Nunca la envía al cliente, ni publica ni timbra. Repetir la misma llamada no duplica; si responde que no se sabe si guardó, espera y repite exactamente la misma.',
+        inputSchema: saveQuotationShape,
+        annotations: { readOnlyHint: false, openWorldHint: false },
+      },
+      (input, extra) => run(extra, (_db, ctx) => odooSaveQuotation(odooWriteDeps, ctx, input)),
+    )
+
+    // The view's button only: the authorization rides in the preview's _meta, never in the model's text.
+    registerAppTool(
+      server,
+      'odoo_save_product',
+      {
+        title: 'Alta de productos (Odoo)',
+        description:
+          'Solo la llama el botón de la vista de odoo_preview_quotation: da de alta en Odoo los productos nuevos de esa vista previa (bienes, IVA 16, factura por entrega). Sin la autorización de la vista no crea nada.',
+        inputSchema: saveProductShape,
+        annotations: { readOnlyHint: false, openWorldHint: false },
+        _meta: { ui: { visibility: ['app'] } },
+      },
+      (input, extra) => run(extra, (_db, ctx) => odooSaveProduct(odooWriteDeps, ctx, input)),
+    )
+
+    server.registerTool(
+      'odoo_create_draft_invoice',
+      {
+        title: 'Factura en borrador (Odoo)',
+        description:
+          'Crea la factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`), tras decir cuál y recibir el sí. Antes revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.',
+        inputSchema: draftInvoiceShape,
+        annotations: { readOnlyHint: false, openWorldHint: false },
+      },
+      (input, extra) => run(extra, (_db, ctx) => odooCreateDraftInvoice(odooWriteDeps, ctx, input)),
+    )
   }
-
-  if (forAdmin) server.registerTool(
-    'odoo_save_quotation',
-    {
-      title: 'Guardar cotización (Odoo)',
-      description:
-        'Escribe en Odoo lo que mostró odoo_preview_quotation, con los MISMOS datos y su `clave`: crea la cotización en BORRADOR, la edita (folio + lineas) o la confirma como venta (folio + confirmar: true, tras mostrar al_confirmar y recibir el sí). Nunca la envía al cliente, ni publica ni timbra. Repetir la misma llamada no duplica; si responde que no se sabe si guardó, espera y repite exactamente la misma.',
-      inputSchema: saveQuotationShape,
-      annotations: { readOnlyHint: false, openWorldHint: false },
-    },
-    (input, extra) => run(extra, (_db, ctx) => odooSaveQuotation(odooWriteDeps, ctx, input)),
-  )
-
-  // The view's button only: the authorization rides in the preview's _meta, never in the model's text.
-  if (forAdmin) registerAppTool(
-    server,
-    'odoo_save_product',
-    {
-      title: 'Alta de productos (Odoo)',
-      description:
-        'Solo la llama el botón de la vista de odoo_preview_quotation: da de alta en Odoo los productos nuevos de esa vista previa (bienes, IVA 16, factura por entrega). Sin la autorización de la vista no crea nada.',
-      inputSchema: saveProductShape,
-      annotations: { readOnlyHint: false, openWorldHint: false },
-      _meta: { ui: { visibility: ['app'] } },
-    },
-    (input, extra) => run(extra, (_db, ctx) => odooSaveProduct(odooWriteDeps, ctx, input)),
-  )
-
-  if (forAdmin) server.registerTool(
-    'odoo_create_draft_invoice',
-    {
-      title: 'Factura en borrador (Odoo)',
-      description:
-        'Crea la factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`), tras decir cuál y recibir el sí. Antes revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.',
-      inputSchema: draftInvoiceShape,
-      annotations: { readOnlyHint: false, openWorldHint: false },
-    },
-    (input, extra) => run(extra, (_db, ctx) => odooCreateDraftInvoice(odooWriteDeps, ctx, input)),
-  )
 }

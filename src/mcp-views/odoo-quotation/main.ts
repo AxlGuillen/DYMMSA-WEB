@@ -136,7 +136,7 @@ function renderTable(preview: QuotationPreview): HTMLElement {
   return wrap
 }
 
-function renderNotes(preview: QuotationPreview): HTMLElement | null {
+function renderNotes(preview: QuotationPreview): HTMLElement {
   const notes: [string, string][] = []
   for (const b of preview.bloqueos) notes.push(['bad', b])
   for (const a of preview.avisos) notes.push(['warn', a])
@@ -169,7 +169,7 @@ async function createProducts() {
         .updateModelContext({
           content: [{
             type: 'text',
-            text: `El administrador dio de alta en Odoo desde la vista: ${names}. ${s.sin_clave_sat ? `${s.sin_clave_sat} sin clave SAT (capturarla en Odoo antes de timbrar). ` : ''}La clave anterior ya no sirve para guardar: vuelve a pedir odoo_preview_quotation con los mismos datos y muestra el resumen antes de guardar.`,
+            text: `El administrador dio de alta en Odoo desde la vista: ${names}. ${s.sin_clave_sat ? `${s.sin_clave_sat} sin clave SAT (capturarla en Odoo antes de timbrar). ` : ''}Pide otra vista previa (odoo_preview_quotation con los mismos datos) para ver los productos recién dados de alta y muestra el resumen antes de guardar.`,
           }],
         })
         .catch(() => undefined)
@@ -250,8 +250,7 @@ function render() {
       : ['badge ok', preview.modo === 'revisar' ? 'Lista para confirmar' : 'Lista para guardar']
   header.append(title, el('span', badgeClass, badgeText))
   root.append(header, renderTable(preview))
-  const notes = renderNotes(preview)
-  if (notes) root.append(notes)
+  root.append(renderNotes(preview))
   const fresh = renderNewProducts(preview)
   if (fresh) root.append(fresh)
   root.append(renderFooter(preview))
@@ -272,6 +271,9 @@ app.ontoolresult = (result) => {
   else {
     try {
       state.preview = JSON.parse(text) as QuotationPreview
+      // A new result in the same view starts clean: an earlier products save says nothing about it.
+      state.saved = null
+      state.saveError = null
       const meta = result._meta?.[AUTHORIZATION_META]
       state.autorizacion = typeof meta === 'string' ? meta : null
     } catch {
