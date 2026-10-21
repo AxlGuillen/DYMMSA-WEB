@@ -1,12 +1,43 @@
 /** Payables math (#84). As in format.ts the clock is ALWAYS injected — nothing here reads `new Date()`. */
 
-import type { AuditEvent, Payable, PayableStatus, PayableUpdate } from '@/types/database'
+import type { AuditEvent, Payable, PayableCurrency, PayableStatus, PayableUpdate } from '@/types/database'
 import { isRealDate, monthOf, nextMonth, type ISODate } from './month'
 
 export { monthOf, nextMonth }
 export type { ISODate }
 
 export const PAYABLE_STATUSES: readonly PayableStatus[] = ['pending', 'paid', 'cancelled']
+
+export const PAYABLE_CURRENCIES: readonly PayableCurrency[] = ['MXN', 'USD']
+export const DEFAULT_PAYABLE_CURRENCY: PayableCurrency = 'MXN'
+
+export function isPayableCurrency(value: unknown): value is PayableCurrency {
+  return PAYABLE_CURRENCIES.includes(value as PayableCurrency)
+}
+
+/** ' USD' after a dollar amount, nothing for pesos: '$1,000.00 USD' never reads as pesos. */
+export const currencySuffix = (currency: PayableCurrency | null | undefined) =>
+  currency && currency !== DEFAULT_PAYABLE_CURRENCY ? ` ${currency}` : ''
+
+/** ' MXN' / ' USD': for totals shown side by side, where pesos need their name too. */
+export const currencyLabel = (currency: PayableCurrency) => ` ${currency}`
+
+export interface PayableTotals {
+  count: number
+  /** Sum per currency, rounded to cents; only currencies present in the rows. Never converted. */
+  byCurrency: Partial<Record<PayableCurrency, number>>
+}
+
+/** Totals of a filtered list (2026-10-20): pesos and dollars stay apart. */
+export function payableTotals(rows: readonly Pick<Payable, 'amount' | 'currency'>[]): PayableTotals {
+  const byCurrency: Partial<Record<PayableCurrency, number>> = {}
+  for (const r of rows) {
+    const currency = r.currency ?? DEFAULT_PAYABLE_CURRENCY
+    byCurrency[currency] = (byCurrency[currency] ?? 0) + r.amount
+  }
+  for (const c of Object.keys(byCurrency) as PayableCurrency[]) byCurrency[c] = Math.round(byCurrency[c]! * 100) / 100
+  return { count: rows.length, byCurrency }
+}
 
 export type PaymentUpdate =
   | { ok: true; updates: { status: PayableStatus; paid_at: string | null } }
@@ -49,6 +80,10 @@ export function parsePayableUpdate(body: unknown, today: ISODate): PayableUpdate
       return { ok: false, error: 'El monto debe ser mayor a 0' }
     }
     updates.amount = raw.amount
+  }
+  if (raw.currency !== undefined) {
+    if (!isPayableCurrency(raw.currency)) return { ok: false, error: 'Moneda inválida: usa MXN o USD' }
+    updates.currency = raw.currency
   }
   for (const field of ['invoice_date', 'due_date'] as const) {
     if (raw[field] !== undefined) {
@@ -135,6 +170,29 @@ export interface PayablesWeekBucket {
   count: number
 }
 
+export const weekLabel = (week: number) => `Semana ${week}`
+
+export interface PayablesWeekRows<T> {
+  week: number
+  label: string
+  rows: T[]
+  totals: PayableTotals
+}
+
+/** Per-week groups of a month's pending rows, every currency included (a dollars-only week still shows). */
+export function weeksByCurrency<T extends Pick<Payable, 'due_date' | 'amount' | 'currency'>>(rows: readonly T[]): PayablesWeekRows<T>[] {
+  const byWeek = new Map<number, T[]>()
+  for (const r of rows) {
+    const week = weekOfMonth(r.due_date)
+    const list = byWeek.get(week)
+    if (list) list.push(r)
+    else byWeek.set(week, [r])
+  }
+  return [...byWeek.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([week, list]) => ({ week, label: weekLabel(week), rows: list, totals: payableTotals(list) }))
+}
+
 export interface PayablesMonthSummary {
   /** Pending, due inside the selected month. */
   pendingTotal: number
@@ -155,7 +213,10 @@ export interface PayablesMonthSummary {
   weeks: PayablesWeekBucket[]
 }
 
-/** Month overview; `month` = 'YYYY-MM'. Cancelled payables count for nothing. */
+/**
+ * Month overview; `month` = 'YYYY-MM'. Cancelled payables count for nothing. Sums one currency:
+ * callers split pesos from dollars first (`splitByCurrency`), since amounts are never converted.
+ */
 export function summarizeMonth(
   payables: readonly Payable[],
   month: string,
@@ -201,7 +262,7 @@ export function summarizeMonth(
       summary.pendingTotal += p.amount
       summary.pendingCount += 1
       const week = weekOfMonth(p.due_date)
-      const bucket = weekMap.get(week) ?? { week, label: `Semana ${week}`, total: 0, count: 0 }
+      const bucket = weekMap.get(week) ?? { week, label: weekLabel(week), total: 0, count: 0 }
       bucket.total += p.amount
       bucket.count += 1
       weekMap.set(week, bucket)
@@ -210,6 +271,18 @@ export function summarizeMonth(
 
   summary.weeks = [...weekMap.values()].sort((a, b) => a.week - b.week)
   return summary
+}
+
+/** Pesos for the closing math, every other currency apart (2026-10-20). */
+export function splitByCurrency<T extends Pick<Payable, 'currency'>>(rows: readonly T[]): { mxn: T[]; foreign: Partial<Record<PayableCurrency, T[]>> } {
+  const mxn: T[] = []
+  const foreign: Partial<Record<PayableCurrency, T[]>> = {}
+  for (const r of rows) {
+    const currency = r.currency ?? DEFAULT_PAYABLE_CURRENCY
+    if (currency === DEFAULT_PAYABLE_CURRENCY) mxn.push(r)
+    else (foreign[currency] ??= []).push(r)
+  }
+  return { mxn, foreign }
 }
 
 /** Days from today to the due date (negative = overdue); drives the cell tone. */

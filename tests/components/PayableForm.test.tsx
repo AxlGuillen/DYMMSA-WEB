@@ -56,7 +56,7 @@ describe('PayableForm — pre-llenado del vencimiento', () => {
     renderWithProviders(<PayableForm open onOpenChange={vi.fn()} />)
 
     await setInvoiceDate('2026-09-01')
-    await user.click(screen.getByRole('combobox'))
+    await user.click(screen.getByRole('combobox', { name: 'Proveedor' }))
     await user.click(await screen.findByRole('option', { name: /Con Crédito SA/ }))
 
     expect(screen.getByLabelText('Vencimiento')).toHaveValue('2026-10-01')
@@ -67,7 +67,7 @@ describe('PayableForm — pre-llenado del vencimiento', () => {
     renderWithProviders(<PayableForm open onOpenChange={vi.fn()} />)
 
     await setInvoiceDate('2026-09-05')
-    await user.click(screen.getByRole('combobox'))
+    await user.click(screen.getByRole('combobox', { name: 'Proveedor' }))
     await user.click(await screen.findByRole('option', { name: /De Contado/ }))
 
     expect(screen.getByLabelText('Vencimiento')).toHaveValue('2026-09-05')
@@ -78,7 +78,7 @@ describe('PayableForm — pre-llenado del vencimiento', () => {
     renderWithProviders(<PayableForm open onOpenChange={vi.fn()} />)
 
     await setInvoiceDate('2026-09-01')
-    await user.click(screen.getByRole('combobox'))
+    await user.click(screen.getByRole('combobox', { name: 'Proveedor' }))
     await user.click(await screen.findByRole('option', { name: /Con Crédito SA/ }))
     expect(screen.getByLabelText('Vencimiento')).toHaveValue('2026-10-01')
 
@@ -97,6 +97,23 @@ describe('PayableForm — pre-llenado del vencimiento', () => {
 
 describe('PayableForm — estado y fecha de pago al editar (#100)', () => {
   beforeEach(() => { vi.clearAllMocks(); state.isAdmin = false; state.events = [] })
+
+  test('moneda: MXN por defecto; elegir USD viaja en el alta (2026-10-20)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<PayableForm open onOpenChange={vi.fn()} />)
+    expect(screen.getByRole('combobox', { name: 'Moneda' })).toHaveTextContent('MXN')
+
+    await setInvoiceDate('2026-09-01')
+    await user.click(screen.getByRole('combobox', { name: 'Proveedor' }))
+    await user.click(await screen.findByRole('option', { name: /Con Crédito SA/ }))
+    await user.type(screen.getByLabelText('Concepto'), 'F 16443')
+    await user.type(screen.getByLabelText('Monto'), '120')
+    await user.click(screen.getByRole('combobox', { name: 'Moneda' }))
+    await user.click(await screen.findByRole('option', { name: 'USD' }))
+    await user.click(screen.getByRole('button', { name: 'Registrar' }))
+
+    expect(createAsync).toHaveBeenCalledWith(expect.objectContaining({ amount: 120, currency: 'USD', concept: 'F 16443' }))
+  })
 
   test('al registrar no hay estado ni fecha de pago: nace pendiente', () => {
     renderWithProviders(<PayableForm open onOpenChange={vi.fn()} />)

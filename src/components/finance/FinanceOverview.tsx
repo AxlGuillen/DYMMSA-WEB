@@ -15,7 +15,8 @@ import { useIncomeOverview, useRefreshIncome } from '@/hooks/useIncome'
 import { useCurrency } from '@/hooks/useCurrency'
 import { formatRelative, todayInMexico } from '@/lib/format'
 import { useDateFormat } from '@/hooks/useDateFormat'
-import { monthOf, weekOfMonth } from '@/lib/payables'
+import { currencySuffix, monthOf, PAYABLE_CURRENCIES, weeksByCurrency, type PayablesMonthSummary } from '@/lib/payables'
+import type { PayableCurrency } from '@/types/database'
 import { monthClosing, totalReceivable } from '@/lib/income'
 
 const MONTH_LABELS = [
@@ -89,6 +90,7 @@ export function FinanceOverview() {
       .sort((a, b) => a.due_date.localeCompare(b.due_date)),
     [data?.payables, month],
   )
+  const monthWeeks = useMemo(() => weeksByCurrency(monthPending), [monthPending])
 
   return (
     <div className="space-y-6">
@@ -163,6 +165,13 @@ export function FinanceOverview() {
             />
           </div>
         )}
+        {/* Other currencies never enter the peso cards or the closing: shown apart, unconverted (2026-10-20). */}
+        {(Object.entries(data?.foreign ?? {}) as [PayableCurrency, PayablesMonthSummary][]).map(([currency, s]) => (
+          <p key={currency} className="text-xs text-muted-foreground" data-testid={`payables-${currency.toLowerCase()}`}>
+            En {currency === 'USD' ? 'dólares' : currency}, sin convertir y fuera de estos totales y del cierre: pendiente del mes {fmt(s.pendingTotal)} {currency} ·
+            vencido {fmt(s.overdueTotal)} {currency} · pagado en el mes {fmt(s.paidTotal)} {currency}.
+          </p>
+        ))}
         {payablesStale && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             Estos egresos son los de la última carga buena: el intento más reciente falló.
@@ -289,17 +298,19 @@ export function FinanceOverview() {
               Sin facturas pendientes con vencimiento en este mes.
             </p>
           )}
-          {(summary?.weeks ?? []).map((week) => (
-            <div key={week.week} className="space-y-1.5">
+          {/* Not summary.weeks: that one is pesos-only and would hide a dollars-only week. */}
+          {monthWeeks.map(({ week, label, rows, totals }) => (
+            <div key={week} className="space-y-1.5">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{week.label}</span>
+                <span className="font-medium">{label}</span>
                 <span className="tabular-nums text-muted-foreground">
-                  {fmt(week.total)} · {pieces(week.count)}
+                  {PAYABLE_CURRENCIES.filter((c) => totals.byCurrency[c] !== undefined)
+                    .map((c) => `${fmt(totals.byCurrency[c])}${currencySuffix(c)}`)
+                    .join(' + ')} · {pieces(totals.count)}
                 </span>
               </div>
               <div className="space-y-1">
-                {monthPending
-                  .filter((p) => weekOfMonth(p.due_date) === week.week)
+                {rows
                   .map((p) => (
                     <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
                       <span className="min-w-0 truncate">
@@ -307,7 +318,7 @@ export function FinanceOverview() {
                         <span className="text-muted-foreground"> · {p.concept}</span>
                       </span>
                       <span className="ml-3 shrink-0 tabular-nums">
-                        {fmtDay(p.due_date)} · {fmt(p.amount)}
+                        {fmtDay(p.due_date)} · {fmt(p.amount)}{currencySuffix(p.currency)}
                       </span>
                     </div>
                   ))}

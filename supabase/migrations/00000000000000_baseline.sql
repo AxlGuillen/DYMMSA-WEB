@@ -183,6 +183,7 @@ CREATE TABLE public.payables (
   supplier_id uuid NOT NULL,
   concept text NOT NULL,
   amount numeric NOT NULL,
+  currency text DEFAULT 'MXN'::text NOT NULL,
   invoice_date date NOT NULL,
   due_date date NOT NULL,
   status text DEFAULT 'pending' NOT NULL,
@@ -273,6 +274,7 @@ ALTER TABLE payables ADD CONSTRAINT payables_pkey PRIMARY KEY (id);
 ALTER TABLE payables ADD CONSTRAINT payables_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
 ALTER TABLE payables ADD CONSTRAINT payables_concept_not_blank CHECK ((btrim(concept) <> ''));
 ALTER TABLE payables ADD CONSTRAINT payables_amount_check CHECK ((amount > 0));
+ALTER TABLE payables ADD CONSTRAINT payables_currency_check CHECK ((currency = ANY (ARRAY['MXN'::text, 'USD'::text])));
 ALTER TABLE payables ADD CONSTRAINT payables_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'cancelled'::text])));
 ALTER TABLE suppliers ADD CONSTRAINT suppliers_payment_terms_days_check CHECK (((payment_terms_days IS NULL) OR (payment_terms_days >= 0)));
 

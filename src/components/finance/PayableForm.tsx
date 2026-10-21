@@ -33,7 +33,7 @@ import { useSuppliers } from '@/hooks/useSuppliers'
 import { useCreatePayable, useUpdatePayable, usePayableEvents } from '@/hooks/usePayables'
 import { useProfile } from '@/hooks/useProfile'
 import { useDateFormat } from '@/hooks/useDateFormat'
-import { describeAuditEvent, dueDateFrom, paymentTermsLabel, PAYABLE_STATUS_LABELS, PAYABLE_STATUSES } from '@/lib/payables'
+import { DEFAULT_PAYABLE_CURRENCY, describeAuditEvent, dueDateFrom, paymentTermsLabel, PAYABLE_CURRENCIES, PAYABLE_STATUS_LABELS, PAYABLE_STATUSES } from '@/lib/payables'
 import { formatRelative, parseNumber, todayInMexico } from '@/lib/format'
 import { ApiError } from '@/lib/fetch-json'
 import type { PayableUpdate, PayableWithSupplier } from '@/types/database'
@@ -45,6 +45,7 @@ const payableSchema = z.object({
     const n = parseNumber(v)
     return n !== null && n > 0
   }, 'Monto mayor a 0'),
+  currency: z.enum(PAYABLE_CURRENCIES),
   invoice_date: z.string().min(1, 'La fecha de factura es requerida'),
   due_date: z.string().min(1, 'El vencimiento es requerido'),
   notes: z.string(),
@@ -100,6 +101,7 @@ function PayableFormBody({
       supplier_id: payable?.supplier_id ?? '',
       concept: payable?.concept ?? '',
       amount: payable != null ? String(payable.amount) : '',
+      currency: payable?.currency ?? DEFAULT_PAYABLE_CURRENCY,
       invoice_date: payable?.invoice_date ?? todayInMexico(),
       due_date: payable?.due_date ?? '',
       notes: payable?.notes ?? '',
@@ -125,6 +127,7 @@ function PayableFormBody({
       supplier_id: values.supplier_id,
       concept: values.concept.trim(),
       amount: parseNumber(values.amount)!,
+      currency: values.currency,
       invoice_date: values.invoice_date,
       due_date: values.due_date,
       notes: values.notes.trim() || null,
@@ -205,10 +208,29 @@ function PayableFormBody({
             name="amount"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Monto (MXN)</FormLabel>
-                <FormControl>
-                  <Input inputMode="decimal" placeholder="0.00" {...field} />
-                </FormControl>
+                <FormLabel>Monto</FormLabel>
+                <div className="flex gap-2">
+                  <FormControl>
+                    <Input inputMode="decimal" placeholder="0.00" {...field} />
+                  </FormControl>
+                  {/* Pesos by default; some suppliers bill in dollars and nothing gets converted. */}
+                  <FormField
+                    control={form.control}
+                    name="currency"
+                    render={({ field: currency }) => (
+                      <Select value={currency.value} onValueChange={currency.onChange}>
+                        <SelectTrigger className="w-[88px] shrink-0" aria-label="Moneda">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYABLE_CURRENCIES.map((c) => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
                 <FormMessage />
               </FormItem>
             )}

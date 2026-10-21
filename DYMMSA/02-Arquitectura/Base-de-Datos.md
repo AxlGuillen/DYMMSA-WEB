@@ -269,6 +269,7 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `supplier_id` | uuid | No | — | FK → `suppliers` **sin cascade** | Borrar proveedor con facturas se bloquea (23503 → 400) |
 | `concept` | text | No | — | CHECK no vacío | |
 | `amount` | numeric | No | — | CHECK > 0 | |
+| `currency` | text | No | `'MXN'` | CHECK `MXN·USD` (`payables_currency_check`) | Moneda de la factura (2026-10-20). **Nunca se convierte**: el cierre del mes suma solo MXN (ADR-027 §7) |
 | `invoice_date` | date | No | — | | |
 | `due_date` | date | No | — | | Pre-llenada en UI: `invoice_date + payment_terms_days`; editable |
 | `status` | text | No | `'pending'` | CHECK `pending·paid·cancelled` | |
@@ -533,6 +534,7 @@ RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll
 | `20260930234735` | `profiles_display_name_length` | CHECK de 1–80 caracteres en `display_name` (mismo límite que la ruta) + `handle_new_user` recorta y topa a 80. Review PR #126 |
 | `20261001224650` | `owner_and_excused_days` | `profiles.is_owner` (único parcial) protegido por el trigger de campos de admin + tabla `excused_days` con RLS (lee el equipo/la persona, escribe el admin) + Diego marcado como dueño. Ajustes del 2026-10-01 |
 | `20261005165214` | `profile_hourly_rate` | `profiles.hourly_rate` (default 52, CHECK > 0) y `profiles.area` (office·workshop, default office), protegidas por el trigger de campos de admin, cuyo mensaje ahora nombra área, dueño y tarifa. Ajustes del 2026-10-05 |
+| `20261021040129` | `payables_currency` | `payables.currency` (`MXN`·`USD`, default MXN) para facturas que se pagan en dólares; nunca se convierte (meeting 2026-10-20) |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |

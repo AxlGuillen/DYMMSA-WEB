@@ -420,7 +420,8 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       inputSchema: {
         proveedor: z.string().min(1).describe('Nombre (o parte) del proveedor'),
         concepto: z.string().min(1).describe('Concepto de la factura'),
-        monto: z.number().positive().describe('Monto en MXN, mayor a 0'),
+        monto: z.number().positive().describe('Mayor a 0'),
+        moneda: z.enum(['MXN', 'USD']).optional().describe('Default MXN'),
         fecha_factura: z.string().describe('Fecha de la factura, YYYY-MM-DD'),
         vencimiento: z.string().optional().describe('Vencimiento, YYYY-MM-DD (default: fecha + plazo del proveedor)'),
         notas: z.string().optional().describe('Notas'),
@@ -440,7 +441,8 @@ export function registerDymmsaTools(server: McpServer, role: McpRole): void {
       inputSchema: {
         factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor'),
         concepto: z.string().optional(),
-        monto: z.number().positive().optional().describe('MXN, mayor a 0'),
+        monto: z.number().positive().optional().describe('Mayor a 0'),
+        moneda: z.enum(['MXN', 'USD']).optional(),
         fecha_factura: z.string().optional().describe('YYYY-MM-DD'),
         vencimiento: z.string().optional().describe('YYYY-MM-DD'),
         proveedor: z.string().optional().describe('Otro proveedor (nombre o parte)'),

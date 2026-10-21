@@ -152,6 +152,8 @@ export interface SupplierWithBrands extends Supplier {
 }
 
 export type PayableStatus = 'pending' | 'paid' | 'cancelled'
+/** MXN by default; some suppliers bill in dollars (2026-10-20). Amounts are never converted. */
+export type PayableCurrency = 'MXN' | 'USD'
 
 /** Own expense record; official invoicing lives in Odoo (#84). */
 export interface Payable {
@@ -159,6 +161,7 @@ export interface Payable {
   supplier_id: string
   concept: string
   amount: number
+  currency: PayableCurrency
   invoice_date: string
   /** Pre-filled with invoice_date + the supplier's payment_terms_days; editable. */
   due_date: string

@@ -17,9 +17,14 @@ import {
   paymentTermsLabel,
   resolvePayableFilter,
   resolvePaymentUpdate,
+  splitByCurrency,
   summarizeMonth,
+  payableTotals,
+  isPayableCurrency,
+  DEFAULT_PAYABLE_CURRENCY,
+  type PayablesMonthSummary,
 } from '@/lib/payables'
-import type { AuditEvent, PayableStatus, PayableWithSupplier } from '@/types/database'
+import type { AuditEvent, PayableCurrency, PayableStatus, PayableWithSupplier } from '@/types/database'
 
 const SELECT = '*, supplier:suppliers(id, name, payment_terms_days)'
 // Same caps as /api/payables/overview: a silent cut would lie, so the result says when it hit them.
@@ -31,6 +36,7 @@ function digest(p: PayableWithSupplier, today: string) {
     proveedor: p.supplier?.name ?? null,
     concepto: p.concept,
     monto: p.amount,
+    moneda: p.currency ?? DEFAULT_PAYABLE_CURRENCY,
     fecha_factura: p.invoice_date,
     vencimiento: p.due_date,
     dias_para_vencer: p.status === 'pending' ? daysUntilDue(p.due_date, today) : null,
@@ -41,7 +47,7 @@ function digest(p: PayableWithSupplier, today: string) {
 }
 
 const label = (p: PayableWithSupplier) =>
-  `${p.supplier?.name ?? '?'} · ${p.concept} · $${p.amount} (${PAYABLE_STATUS_LABELS[p.status]})`
+  `${p.supplier?.name ?? '?'} · ${p.concept} · $${p.amount} ${p.currency ?? DEFAULT_PAYABLE_CURRENCY} (${PAYABLE_STATUS_LABELS[p.status]})`
 
 async function findPayables(db: Db, search: string, status?: PayableStatus): Promise<PayableWithSupplier[]> {
   // Two steps instead of an embedded filter: "la de Perfiles" names the supplier, not the concept.
@@ -115,7 +121,8 @@ export async function listPayables(db: Db, input: ListPayablesInput = {}) {
     hoy: today,
     total_coincidencias: count ?? rows.length,
     mostradas: rows.length,
-    suma_mostrada: rows.reduce((sum, r) => sum + r.amount, 0),
+    // Per currency, never added together (2026-10-20).
+    suma_mostrada: payableTotals(rows).byCurrency,
     facturas: rows.map((r) => digest(r, today)),
   }
 }
@@ -153,6 +160,7 @@ export interface UpdatePayableInput {
   factura: string
   concepto?: string
   monto?: number
+  moneda?: PayableCurrency
   fecha_factura?: string
   vencimiento?: string
   /** Reassign to another supplier (name or part of it). */
@@ -178,6 +186,7 @@ export async function updatePayable(db: Db, input: UpdatePayableInput) {
   const fields: Record<string, unknown> = {
     concept: input.concepto,
     amount: input.monto,
+    currency: input.moneda,
     invoice_date: input.fecha_factura,
     due_date: input.vencimiento,
     supplier_id: supplier?.id,
@@ -188,7 +197,7 @@ export async function updatePayable(db: Db, input: UpdatePayableInput) {
   const parsed = parsePayableUpdate(Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)), today)
   if (!parsed.ok) throw new ToolError(parsed.error.replace(/invoice_date|due_date/, (f) => FIELD_NAMES[f]))
   if (Object.keys(parsed.updates).length === 0) {
-    throw new ToolError('No hay cambios: indica qué corregir (concepto, monto, fechas, proveedor o notas) o cancelar=true.')
+    throw new ToolError('No hay cambios: indica qué corregir (concepto, monto, moneda, fechas, proveedor o notas) o cancelar=true.')
   }
 
   const { data, error } = await db.from('payables').update(parsed.updates).eq('id', target.id).select(SELECT).single()
@@ -242,12 +251,23 @@ export async function getPayablesOverview(db: Db, input: { mes?: string } = {}) 
   }
   const pending = (pendingRes.data ?? []) as PayableWithSupplier[]
   const paid = (paidRes.data ?? []) as PayableWithSupplier[]
-  const summary = summarizeMonth([...pending, ...paid], month, today)
+  // The closing is in pesos; other currencies are summarized apart, never converted (2026-10-20).
+  const { mxn, foreign } = splitByCurrency([...pending, ...paid])
+  const summary = summarizeMonth(mxn, month, today)
+  const brief = (s: PayablesMonthSummary) => ({
+    pendiente_del_mes: s.pendingTotal,
+    vencido: s.overdueTotal,
+    pagado_en_el_mes: s.paidTotal,
+  })
+  const enOtrasMonedas = Object.fromEntries(
+    Object.entries(foreign).map(([currency, rows]) => [currency, brief(summarizeMonth(rows, month, today))]),
+  )
   const truncated = (pendingRes.count ?? 0) > OVERVIEW_LIMIT || (paidRes.count ?? 0) > OVERVIEW_LIMIT
 
   return {
     mes: month,
     hoy: today,
+    moneda: DEFAULT_PAYABLE_CURRENCY,
     pendiente_del_mes: { total: summary.pendingTotal, facturas: summary.pendingCount },
     vencido: {
       total: summary.overdueTotal,
@@ -257,6 +277,7 @@ export async function getPayablesOverview(db: Db, input: { mes?: string } = {}) 
     por_vencer_en_7_dias: { total: summary.dueSoonTotal, facturas: summary.dueSoonCount },
     pagado_en_el_mes: { total: summary.paidTotal, facturas: summary.paidCount },
     semanas_del_mes: summary.weeks.map((w) => ({ semana: w.label, total: w.total, facturas: w.count })),
+    ...(Object.keys(enOtrasMonedas).length ? { en_otras_monedas_sin_convertir: enOtrasMonedas } : {}),
     proximas: pending.slice(0, 15).map((p) => digest(p, today)),
     nota: truncated ? 'Lectura truncada a 1000 facturas por estado: los totales pueden quedar cortos.' : null,
   }
@@ -303,6 +324,8 @@ export interface CreatePayableInput {
   proveedor: string
   concepto: string
   monto: number
+  /** Default MXN. */
+  moneda?: PayableCurrency
   fecha_factura: string
   /** Default: invoice date + the supplier's credit days (as the app pre-fills it). */
   vencimiento?: string
@@ -315,6 +338,8 @@ export async function createPayable(db: Db, input: CreatePayableInput) {
   if (typeof input.monto !== 'number' || !Number.isFinite(input.monto) || input.monto <= 0) {
     throw new ToolError('El monto debe ser mayor a 0')
   }
+  const currency = input.moneda ?? DEFAULT_PAYABLE_CURRENCY
+  if (!isPayableCurrency(currency)) throw new ToolError('Moneda inválida: usa MXN o USD')
   if (!isRealDate(input.fecha_factura)) {
     throw new ToolError('Fecha de factura inválida — usa YYYY-MM-DD')
   }
@@ -330,6 +355,7 @@ export async function createPayable(db: Db, input: CreatePayableInput) {
       supplier_id: supplier.id,
       concept,
       amount: input.monto,
+      currency,
       invoice_date: input.fecha_factura,
       due_date: dueDate,
       status: 'pending',
