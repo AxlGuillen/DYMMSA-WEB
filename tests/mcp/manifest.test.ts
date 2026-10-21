@@ -66,17 +66,28 @@ describe('manifiesto del MCP', () => {
     expect(new Set(listed).size).toBe(listed.length)
   })
 
-  test('las escrituras son exactamente las doce aprobadas y cada una declara sus limites', () => {
+  test('las escrituras son exactamente las aprobadas y cada una declara sus limites', () => {
     const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write')
-    expect(writes.map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'record_payroll_hours', 'save_excused_day', 'save_material_presentation', 'save_payroll_employee', 'save_supplier', 'save_time_entries', 'set_inventory_location', 'update_payable', 'update_task'])
+    expect(writes.filter((t) => t.block === 'app').map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'record_payroll_hours', 'save_excused_day', 'save_material_presentation', 'save_payroll_employee', 'save_supplier', 'save_time_entries', 'set_inventory_location', 'update_payable', 'update_task'])
     for (const w of writes) expect(w.limits, w.name).toBeTruthy()
-    // Odoo is read-only by design (ADR-025): no write may ever live in that block.
-    expect(manifestFor('odoo').every((t) => t.kind === 'read' && t.name.startsWith('odoo_'))).toBe(true)
+    expect(manifestFor('odoo').every((t) => t.name.startsWith('odoo_'))).toBe(true)
     expect(manifestFor('app').every((t) => !t.name.startsWith('odoo_'))).toBe(true)
   })
 
+  test('REGLA (ADR-040): en Odoo solo escriben las tres de #144, todas de administrador y marcadas como escritura en el registro', () => {
+    const odooWrites = manifestFor('odoo').filter((t) => t.kind === 'write')
+    expect(odooWrites.map((t) => t.name).sort()).toEqual(['odoo_create_draft_invoice', 'odoo_save_product', 'odoo_save_quotation'])
+    for (const w of odooWrites) expect(w.adminOnly, w.name).toBe(true)
+    // The preview only reads, but it signs keys: admin-only as well.
+    expect(TOOL_MANIFEST.find((t) => t.name === 'odoo_preview_quotation')).toMatchObject({ kind: 'read', adminOnly: true })
+    const registeredTools = toolsFor('admin')
+    for (const t of TOOL_MANIFEST) {
+      expect(registeredTools.find((r) => r.name === t.name)?.readOnly, t.name).toBe(t.kind === 'read')
+    }
+  })
+
   test('las tools de administrador existen pero no salen en la documentacion que lee todo el equipo (#123, #133)', () => {
-    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['get_payroll_period', 'list_time_imports', 'preview_time_report', 'record_payroll_hours', 'save_excused_day', 'save_payroll_employee', 'save_time_entries'])
+    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['get_payroll_period', 'list_time_imports', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'record_payroll_hours', 'save_excused_day', 'save_payroll_employee', 'save_time_entries'])
     expect(DOCS_MANIFEST.some((t) => t.adminOnly || t.module === 'Nomina' || t.name.includes('payroll'))).toBe(false)
     expect(DOCS_MANIFEST).toHaveLength(TOOL_MANIFEST.length - ADMIN_ONLY_TOOLS.size)
   })
@@ -143,7 +154,7 @@ describe('manifiesto del MCP', () => {
   test('VISTAS (ADR-036): cada tool con vista apunta a un recurso ui:// registrado para el mismo rol; un member no recibe ninguno', async () => {
     const admin = registryFor('admin')
     const withView = admin.tools.filter((t) => t.view)
-    expect(withView.map((t) => t.name)).toEqual(['preview_time_report'])
+    expect(withView.map((t) => t.name).sort()).toEqual(['odoo_preview_quotation', 'preview_time_report'])
     for (const tool of withView) {
       expect(tool.readOnly, tool.name).toBe(true)
       const resource = admin.resources.find((r) => r.uri === tool.view)

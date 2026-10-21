@@ -1,5 +1,5 @@
 /**
- * odoo_save_product (#144, ADR-040), not registered yet. The authorization comes from the real
+ * odoo_save_product (#144, ADR-040). The authorization comes from the real
  * preview; the real facade and write catalog run over fakes: nothing reaches Odoo nor Supabase.
  */
 

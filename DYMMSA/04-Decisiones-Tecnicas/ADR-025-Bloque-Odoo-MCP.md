@@ -1,8 +1,8 @@
 # ADR-025 — Bloque Odoo en el MCP (lectura de facturación)
 
 **Fecha:** 2026-08-11
-**Estado:** Aceptado (Fases 1–5 implementadas)
-**Issue:** #65 · **Relacionado:** [[ADR-023-MCP-OAuth]] (el MCP anfitrión), [[ADR-014-Tareas-GitHub]] (precedente de tercero aislado)
+**Estado:** Aceptado (Fases 1–5 implementadas). El «jamás escribir en Odoo» queda **parcialmente superado por [[ADR-040-Escrituras-Acotadas-en-Odoo]]** (2026-10-20): 4 escrituras acotadas, solo para administradores (cotización en borrador, confirmar venta, alta de productos desde la vista y factura en borrador; nunca publicar, timbrar ni enviar). Para un member el bloque sigue siendo de solo lectura.
+**Issue:** #65 · **Relacionado:** [[ADR-023-MCP-OAuth]] (el MCP anfitrión), [[ADR-014-Tareas-GitHub]] (precedente de tercero aislado), [[ADR-040-Escrituras-Acotadas-en-Odoo]] (las escrituras acotadas)
 
 ## Contexto
 

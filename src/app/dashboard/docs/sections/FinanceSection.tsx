@@ -6,7 +6,7 @@ export function FinanceSection() {
     <DocSection id="finanzas" icon={DollarSign} title="Finanzas" description="Las facturas por pagar (gastos propios) y el cierre del mes contra los ingresos que se leen de Odoo.">
       <Note>
         La <strong>facturacion oficial</strong> de la empresa (facturas a clientes, cobros, CFDI) vive en <strong>Odoo</strong>. Aqui se registran
-        los <strong>gastos</strong> por pagar y se leen los ingresos de Odoo para ver el cierre; la app nunca escribe en Odoo.
+        los <strong>gastos</strong> por pagar y se leen los ingresos de Odoo para ver el cierre; esta pantalla nunca escribe en Odoo.
       </Note>
       <Sub>Facturas por pagar</Sub>
       <List>
