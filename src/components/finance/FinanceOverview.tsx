@@ -15,7 +15,8 @@ import { useIncomeOverview, useRefreshIncome } from '@/hooks/useIncome'
 import { useCurrency } from '@/hooks/useCurrency'
 import { formatRelative, todayInMexico } from '@/lib/format'
 import { useDateFormat } from '@/hooks/useDateFormat'
-import { currencySuffix, monthOf, payableTotals, PAYABLE_CURRENCIES, weekOfMonth } from '@/lib/payables'
+import { currencySuffix, monthOf, PAYABLE_CURRENCIES, weeksByCurrency, type PayablesMonthSummary } from '@/lib/payables'
+import type { PayableCurrency } from '@/types/database'
 import { monthClosing, totalReceivable } from '@/lib/income'
 
 const MONTH_LABELS = [
@@ -89,6 +90,7 @@ export function FinanceOverview() {
       .sort((a, b) => a.due_date.localeCompare(b.due_date)),
     [data?.payables, month],
   )
+  const monthWeeks = useMemo(() => weeksByCurrency(monthPending), [monthPending])
 
   return (
     <div className="space-y-6">
@@ -163,13 +165,13 @@ export function FinanceOverview() {
             />
           </div>
         )}
-        {data?.foreign?.USD && (
-          // Dollars never enter the peso cards or the closing: shown apart, unconverted (2026-10-20).
-          <p className="text-xs text-muted-foreground" data-testid="payables-usd">
-            En dólares, sin convertir y fuera de estos totales y del cierre: pendiente del mes {fmt(data.foreign.USD.pendingTotal)} USD ·
-            vencido {fmt(data.foreign.USD.overdueTotal)} USD · pagado en el mes {fmt(data.foreign.USD.paidTotal)} USD.
+        {/* Other currencies never enter the peso cards or the closing: shown apart, unconverted (2026-10-20). */}
+        {(Object.entries(data?.foreign ?? {}) as [PayableCurrency, PayablesMonthSummary][]).map(([currency, s]) => (
+          <p key={currency} className="text-xs text-muted-foreground" data-testid={`payables-${currency.toLowerCase()}`}>
+            En {currency === 'USD' ? 'dólares' : currency}, sin convertir y fuera de estos totales y del cierre: pendiente del mes {fmt(s.pendingTotal)} {currency} ·
+            vencido {fmt(s.overdueTotal)} {currency} · pagado en el mes {fmt(s.paidTotal)} {currency}.
           </p>
-        )}
+        ))}
         {payablesStale && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             Estos egresos son los de la última carga buena: el intento más reciente falló.
@@ -296,14 +298,11 @@ export function FinanceOverview() {
               Sin facturas pendientes con vencimiento en este mes.
             </p>
           )}
-          {[...new Set(monthPending.map((p) => weekOfMonth(p.due_date)))].sort((a, b) => a - b).map((week) => {
-            // From the rows, not summary.weeks: that one is pesos-only and would hide a dollars-only week.
-            const rows = monthPending.filter((p) => weekOfMonth(p.due_date) === week)
-            const totals = payableTotals(rows)
-            return (
+          {/* Not summary.weeks: that one is pesos-only and would hide a dollars-only week. */}
+          {monthWeeks.map(({ week, label, rows, totals }) => (
             <div key={week} className="space-y-1.5">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">Semana {week}</span>
+                <span className="font-medium">{label}</span>
                 <span className="tabular-nums text-muted-foreground">
                   {PAYABLE_CURRENCIES.filter((c) => totals.byCurrency[c] !== undefined)
                     .map((c) => `${fmt(totals.byCurrency[c])}${currencySuffix(c)}`)
@@ -325,8 +324,7 @@ export function FinanceOverview() {
                   ))}
               </div>
             </div>
-            )
-          })}
+          ))}
         </CardContent>}
       </Card>
 

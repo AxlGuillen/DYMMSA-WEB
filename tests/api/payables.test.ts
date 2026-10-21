@@ -119,6 +119,15 @@ describe('GET /api/payables', () => {
     expect(activeClient.callsTo('payables', 'select')[0].filters.some((f) => f.method === 'range')).toBe(true)
   })
 
+  test('si llegan menos filas que el conteo (max_rows de PostgREST), el total sale marcado incompleto', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'payables.select': { data: [PAYABLE_ROW], error: null, count: 1500 } },
+    })
+    const body = await readJson(await payables.GET(makeRequest(undefined, { url: 'http://x/api/payables' })))
+    expect(body.totals).toMatchObject({ count: 1, truncated: true })
+  })
+
   test('filtra por proveedor (uuid) y por rango de monto', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'payables.select': { data: [], error: null, count: 0 } } })
     const supplier = '11111111-2222-4333-8444-555555555555'

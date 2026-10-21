@@ -32,7 +32,7 @@ import { toast } from 'sonner'
 import { formatAbsolute, todayInMexico } from '@/lib/format'
 import { useProfile } from '@/hooks/useProfile'
 import { useDateFormat } from '@/hooks/useDateFormat'
-import { currencySuffix, daysUntilDue, PAYABLE_CURRENCIES, PAYABLE_STATUS_LABELS, type PayableTotals } from '@/lib/payables'
+import { currencyLabel, currencySuffix, daysUntilDue, PAYABLE_CURRENCIES, PAYABLE_STATUS_LABELS, type PayableTotals } from '@/lib/payables'
 import { ApiError } from '@/lib/fetch-json'
 import type { PayableStatus, PayableWithSupplier } from '@/types/database'
 
@@ -322,7 +322,7 @@ export function PayablesTable({
           </span>
           {/* Pesos and dollars side by side, never added together (2026-10-20). */}
           {PAYABLE_CURRENCIES.filter((c) => totals.byCurrency[c] !== undefined).map((c) => (
-            <span key={c} className="font-semibold tabular-nums">{fmt(totals.byCurrency[c])}{currencySuffix(c) || ' MXN'}</span>
+            <span key={c} className="font-semibold tabular-nums">{fmt(totals.byCurrency[c])}{currencyLabel(c)}</span>
           ))}
         </div>
       )}

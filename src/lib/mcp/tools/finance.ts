@@ -6,7 +6,7 @@
 import { ToolError, type Db } from '../shared'
 import { todayInMexico } from '@/lib/format'
 import { ISO_MONTH, monthRange } from '@/lib/month'
-import { summarizeMonth } from '@/lib/payables'
+import { DEFAULT_PAYABLE_CURRENCY, splitByCurrency, summarizeMonth } from '@/lib/payables'
 import { buildIncomeOverview, INCOME_UNAVAILABLE_MESSAGES, monthClosing, totalReceivable } from '@/lib/income'
 import { OdooError } from '@/lib/odoo/client'
 import { isOdooConfigured } from '@/lib/odoo/env'
@@ -74,7 +74,15 @@ export async function getMonthClosing(db: Db, input: { mes?: string } = {}, deps
   if (pendingRes.error || paidRes.error) {
     throw new ToolError(`Error al leer los egresos: ${(pendingRes.error ?? paidRes.error)?.message}`)
   }
-  const egresos = summarizeMonth([...(pendingRes.data ?? []), ...(paidRes.data ?? [])] as Payable[], month, today)
+  // The closing is in pesos; dollars are reported apart, never converted (ADR-027 §7).
+  const { mxn, foreign } = splitByCurrency([...(pendingRes.data ?? []), ...(paidRes.data ?? [])] as Payable[])
+  const egresos = summarizeMonth(mxn, month, today)
+  const enOtrasMonedas = Object.fromEntries(
+    Object.entries(foreign).map(([currency, rows]) => {
+      const s = summarizeMonth(rows, month, today)
+      return [currency, { pagado: s.paidTotal, pendiente_del_mes: s.pendingTotal, vencido_de_meses_anteriores: s.carryOverTotal }]
+    }),
+  )
   const egresosTruncados = (pendingRes.count ?? 0) > EGRESOS_LIMIT || (paidRes.count ?? 0) > EGRESOS_LIMIT
   const summary = incomeRes.income?.income ?? null
   const cierre = monthClosing({
@@ -87,12 +95,14 @@ export async function getMonthClosing(db: Db, input: { mes?: string } = {}, deps
   return {
     mes: month,
     hoy: today,
+    moneda: DEFAULT_PAYABLE_CURRENCY,
     egresos: {
       pagado: egresos.paidTotal,
       pendiente_del_mes: egresos.pendingTotal,
       vencido_de_meses_anteriores: egresos.carryOverTotal,
       truncado: egresosTruncados,
       nota: egresosTruncados ? `Lectura truncada a ${EGRESOS_LIMIT} facturas por estado: los egresos y el cierre pueden quedar cortos.` : null,
+      ...(Object.keys(enOtrasMonedas).length ? { en_otras_monedas_sin_convertir: enOtrasMonedas } : {}),
     },
     ingresos: summary
       ? {

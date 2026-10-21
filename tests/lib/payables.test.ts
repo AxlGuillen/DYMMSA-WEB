@@ -1,7 +1,7 @@
 /** Payables math (#84). The clock is always injected; nothing reads new Date(). */
 
 import { describe, test, expect } from 'vitest'
-import { currencySuffix, payableTotals, splitByCurrency, daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, parsePayableUpdate, paymentTermsLabel, resolvePayableFilter, resolvePaymentUpdate, summarizeMonth, weekOfMonth } from '@/lib/payables'
+import { currencyLabel, currencySuffix, payableTotals, weeksByCurrency, splitByCurrency, daysUntilDue, describeAuditEvent, dueDateFrom, monthOf, nextMonth, parseAmountFilter, parsePayableUpdate, paymentTermsLabel, resolvePayableFilter, resolvePaymentUpdate, summarizeMonth, weekOfMonth } from '@/lib/payables'
 import type { Payable } from '@/types/database'
 
 function payable(overrides: Partial<Payable> = {}): Payable {
@@ -243,8 +243,21 @@ describe('moneda (2026-10-20)', () => {
     expect(parsePayableUpdate({ currency: 'EUR' }, '2026-10-20')).toEqual({ ok: false, error: 'Moneda inválida: usa MXN o USD' })
   })
 
-  test('currencySuffix solo marca lo que no es peso', () => {
+  test('currencySuffix solo marca lo que no es peso; currencyLabel nombra las dos', () => {
     expect(currencySuffix('MXN')).toBe('')
     expect(currencySuffix('USD')).toBe(' USD')
+    expect(currencyLabel('MXN')).toBe(' MXN')
+  })
+
+  test('weeksByCurrency agrupa por semana con total por moneda; una semana solo en dólares también sale', () => {
+    const weeks = weeksByCurrency([
+      payable({ id: 'a', due_date: '2026-10-03', amount: 100, currency: 'MXN' }),
+      payable({ id: 'b', due_date: '2026-10-20', amount: 30, currency: 'USD' }),
+      payable({ id: 'c', due_date: '2026-10-05', amount: 50, currency: 'USD' }),
+    ])
+    expect(weeks.map((w) => [w.label, w.rows.map((r) => r.id), w.totals])).toEqual([
+      ['Semana 1', ['a', 'c'], { count: 2, byCurrency: { MXN: 100, USD: 50 } }],
+      ['Semana 3', ['b'], { count: 1, byCurrency: { USD: 30 } }],
+    ])
   })
 })

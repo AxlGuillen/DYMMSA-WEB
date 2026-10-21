@@ -19,6 +19,9 @@ export function isPayableCurrency(value: unknown): value is PayableCurrency {
 export const currencySuffix = (currency: PayableCurrency | null | undefined) =>
   currency && currency !== DEFAULT_PAYABLE_CURRENCY ? ` ${currency}` : ''
 
+/** ' MXN' / ' USD': for totals shown side by side, where pesos need their name too. */
+export const currencyLabel = (currency: PayableCurrency) => ` ${currency}`
+
 export interface PayableTotals {
   count: number
   /** Sum per currency, rounded to cents; only currencies present in the rows. Never converted. */
@@ -167,6 +170,29 @@ export interface PayablesWeekBucket {
   count: number
 }
 
+export const weekLabel = (week: number) => `Semana ${week}`
+
+export interface PayablesWeekRows<T> {
+  week: number
+  label: string
+  rows: T[]
+  totals: PayableTotals
+}
+
+/** Per-week groups of a month's pending rows, every currency included (a dollars-only week still shows). */
+export function weeksByCurrency<T extends Pick<Payable, 'due_date' | 'amount' | 'currency'>>(rows: readonly T[]): PayablesWeekRows<T>[] {
+  const byWeek = new Map<number, T[]>()
+  for (const r of rows) {
+    const week = weekOfMonth(r.due_date)
+    const list = byWeek.get(week)
+    if (list) list.push(r)
+    else byWeek.set(week, [r])
+  }
+  return [...byWeek.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([week, list]) => ({ week, label: weekLabel(week), rows: list, totals: payableTotals(list) }))
+}
+
 export interface PayablesMonthSummary {
   /** Pending, due inside the selected month. */
   pendingTotal: number
@@ -236,7 +262,7 @@ export function summarizeMonth(
       summary.pendingTotal += p.amount
       summary.pendingCount += 1
       const week = weekOfMonth(p.due_date)
-      const bucket = weekMap.get(week) ?? { week, label: `Semana ${week}`, total: 0, count: 0 }
+      const bucket = weekMap.get(week) ?? { week, label: weekLabel(week), total: 0, count: 0 }
       bucket.total += p.amount
       bucket.count += 1
       weekMap.set(week, bucket)

@@ -58,6 +58,25 @@ describe('getMonthClosing', () => {
     expect(result.cierre.real).toBe(-400)
   })
 
+  test('los dólares no entran al cierre: van aparte y sin convertir (2026-10-20)', async () => {
+    const client = createMockSupabase({
+      responses: {
+        payables: payables(
+          [payable('pending', 300, `${MONTH}-20`), { ...payable('pending', 40, `${MONTH}-21`), id: 'usd-p', currency: 'USD' }],
+          [payable('paid', 1000, `${MONTH}-05`, `${MONTH}-05`), { ...payable('paid', 100, `${MONTH}-06`, `${MONTH}-06`), id: 'usd', currency: 'USD' }],
+        ),
+      },
+    })
+    const result = await getMonthClosing(asDb(client), {}, noOdoo)
+    expect(result.moneda).toBe('MXN')
+    expect(result.egresos).toMatchObject({
+      pagado: 1000,
+      pendiente_del_mes: 300,
+      en_otras_monedas_sin_convertir: { USD: { pagado: 100, pendiente_del_mes: 40, vencido_de_meses_anteriores: 0 } },
+    })
+    expect(result.cierre).toMatchObject({ real: -1000, proyectado: -1300 })
+  })
+
   test('mes inválido → error claro', async () => {
     const client = createMockSupabase({ responses: { payables: payables([], []) } })
     await expect(getMonthClosing(asDb(client), { mes: '2026/09' }, noOdoo)).rejects.toThrow(/Mes inválido/)

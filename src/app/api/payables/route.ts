@@ -15,7 +15,7 @@ const sanitizeSearch = (raw: string) => raw.replace(/[,()%]/g, ' ').trim()
 
 const ISO_MONTH = /^\d{4}-\d{2}$/
 
-/** Rows summed for the footer total; far above DYMMSA's volume, and `truncated` says when it is not. */
+/** Rows summed for the footer total; `truncated` compares what arrived, since PostgREST max_rows may cut first. */
 const TOTALS_LIMIT = 5000
 const LIST_COLUMNS = '*, supplier:suppliers(id, name, payment_terms_days)'
 const TOTAL_COLUMNS = 'amount, currency'
@@ -124,7 +124,10 @@ export async function GET(request: NextRequest) {
       pageSize,
       totalPages: Math.ceil((count ?? 0) / pageSize),
       // Every filtered row, not just this page (2026-10-20).
-      totals: { ...payableTotals((totalsRes.data ?? []) as unknown as Pick<Payable, 'amount' | 'currency'>[]), truncated: (count ?? 0) > TOTALS_LIMIT },
+      totals: {
+        ...payableTotals((totalsRes.data ?? []) as unknown as Pick<Payable, 'amount' | 'currency'>[]),
+        truncated: (totalsRes.data?.length ?? 0) < (count ?? 0),
+      },
     })
   } catch (error) {
     console.error('Payables GET error:', error)
