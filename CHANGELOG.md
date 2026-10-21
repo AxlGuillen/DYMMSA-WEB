@@ -6,6 +6,13 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-10-20
 
 ### Nuevo
+- **Facturas por pagar en dólares.** Al registrar o editar una factura eliges
+  la moneda: pesos (MXN, la de siempre) o dólares (USD). Los montos nunca se
+  convierten: lo de dólares se muestra aparte en la lista, en el overview de
+  Finanzas y en los vencimientos, y el cierre del mes sigue siendo en pesos.
+- **Total de lo filtrado en Facturas por pagar.** Debajo de la tabla ahora
+  aparece cuántas facturas coinciden con tus filtros y cuánto suman (todas, no
+  solo las de la página), con pesos y dólares por separado.
 - [admin] **El asistente ya puede hacer cotizaciones en Odoo.** Desde Claude le
   pides «haz esta cotización en Odoo para…» y te muestra una vista previa con
   el cliente, los productos y los precios; solo la guarda (en borrador, sin

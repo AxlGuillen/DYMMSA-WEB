@@ -39,3 +39,25 @@ describe('PayablesTable — columna "Pagada por"', () => {
     expect(ids.indexOf('paid_by')).toBe(ids.indexOf('actions') - 1)
   })
 })
+
+describe('PayablesTable — moneda y total de lo filtrado (2026-10-20)', () => {
+  test('una factura en dólares lleva USD junto al monto', () => {
+    renderWithProviders(<PayablesTable payables={[{ ...ROW, currency: 'USD' as const }]} {...props} />)
+    expect(screen.getByText('$1,500.00 USD')).toBeInTheDocument()
+  })
+
+  test('abajo va el total de todo lo filtrado, con pesos y dólares por separado', () => {
+    renderWithProviders(
+      <PayablesTable payables={[ROW]} {...props} totals={{ count: 7, byCurrency: { MXN: 16158.89, USD: 120 }, truncated: false }} />,
+    )
+    const total = screen.getByTestId('payables-total')
+    expect(total).toHaveTextContent('Total de 7 facturas')
+    expect(total).toHaveTextContent('$16,158.89 MXN')
+    expect(total).toHaveTextContent('$120.00 USD')
+  })
+
+  test('sin facturas no hay total', () => {
+    renderWithProviders(<PayablesTable payables={[]} {...props} totals={{ count: 0, byCurrency: {}, truncated: false }} />)
+    expect(screen.queryByTestId('payables-total')).not.toBeInTheDocument()
+  })
+})

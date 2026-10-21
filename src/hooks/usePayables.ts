@@ -2,8 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
-import type { AuditEvent, PayableInsert, PayableUpdate, PayableWithSupplier } from '@/types/database'
-import type { PayablesMonthSummary } from '@/lib/payables'
+import type { AuditEvent, PayableCurrency, PayableInsert, PayableUpdate, PayableWithSupplier } from '@/types/database'
+import type { PayableTotals, PayablesMonthSummary } from '@/lib/payables'
 
 export const PAYABLES_KEY = ['payables']
 
@@ -28,6 +28,8 @@ interface PayablesListResponse {
   page: number
   pageSize: number
   totalPages: number
+  /** Footer total of every filtered row, per currency (2026-10-20). */
+  totals: PayableTotals & { truncated: boolean }
 }
 
 export function usePayables(params: PayablesListParams = {}) {
@@ -53,7 +55,10 @@ export function usePayables(params: PayablesListParams = {}) {
 
 interface PayablesOverviewResponse {
   month: string
+  /** Pesos only: the closing math never mixes currencies. */
   summary: PayablesMonthSummary
+  /** Same summary per other currency, never converted (2026-10-20). */
+  foreign: Partial<Record<PayableCurrency, PayablesMonthSummary>>
   payables: PayableWithSupplier[]
   /** The pending read hit its limit: carry-over and the projected closing may be short. */
   pendingTruncated: boolean

@@ -89,7 +89,9 @@ describe('listPayables', () => {
     expect(filterValue(call, 'concept', 'ilike')).toBe('%junio%')
     // The mock ignores ilike/supplier_id, the shape is what matters here.
     expect(result.facturas[0]).toMatchObject({ proveedor: 'Perfiles del Bajío', monto: 1500, dias_para_vencer: daysUntilDue(due1, TODAY), estado: 'Pendiente' })
-    expect(result.suma_mostrada).toBe(1700)
+    // Rows without a currency are pesos; each currency sums apart (2026-10-20).
+    expect(result.suma_mostrada).toEqual({ MXN: 1700 })
+    expect(result.facturas[0]).toMatchObject({ moneda: 'MXN' })
   })
 
   test('estado overdue: pendientes con vencimiento antes de hoy', async () => {
@@ -188,11 +190,23 @@ describe('markPayablePaid (escritura)', () => {
 })
 
 describe('createPayable (escritura)', () => {
+  test('en dólares se registra con moneda USD; una moneda desconocida no escribe nada', async () => {
+    const c = client([])
+    await createPayable(asDb(c), { proveedor: 'perfiles', concepto: 'Herramienta importada', monto: 120, moneda: 'USD', fecha_factura: TODAY })
+    expect(c.insertPayload<Record<string, unknown>>('payables')).toMatchObject({ amount: 120, currency: 'USD' })
+
+    const bad = client([])
+    await expect(
+      createPayable(asDb(bad), { proveedor: 'perfiles', concepto: 'x', monto: 1, moneda: 'EUR' as 'USD', fecha_factura: TODAY }),
+    ).rejects.toThrow(/Moneda inválida/)
+    expect(bad.callsTo('payables', 'insert')).toHaveLength(0)
+  })
+
   test('nace pendiente con el vencimiento calculado con el plazo del proveedor', async () => {
     const c = client([])
     const result = await createPayable(asDb(c), { proveedor: 'perfiles', concepto: ' Perfiles agosto ', monto: 2500, fecha_factura: TODAY })
     expect(c.insertPayload<Record<string, unknown>>('payables')).toEqual({
-      supplier_id: 's-perf', concept: 'Perfiles agosto', amount: 2500, invoice_date: TODAY,
+      supplier_id: 's-perf', concept: 'Perfiles agosto', amount: 2500, currency: 'MXN', invoice_date: TODAY,
       due_date: dueDateFrom(TODAY, 30), status: 'pending', paid_at: null, notes: null,
     })
     expect(result).toMatchObject({ estado: 'Pendiente', proveedor: 'Perfiles del Bajío' })

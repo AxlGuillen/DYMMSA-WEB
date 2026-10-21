@@ -10,17 +10,18 @@ export function FinanceSection() {
       </Note>
       <Sub>Facturas por pagar</Sub>
       <List>
-        <li>Se capturan con proveedor, concepto, monto, fecha de factura y vencimiento. El vencimiento se <strong>pre-llena</strong> con la fecha mas el plazo del proveedor y se puede editar.</li>
+        <li>Se capturan con proveedor, concepto, monto, fecha de factura y vencimiento. El monto va en <strong>pesos (MXN)</strong> por default o en <strong>dolares (USD)</strong>, y <strong>nunca se convierte</strong>. El vencimiento se <strong>pre-llena</strong> con la fecha mas el plazo del proveedor y se puede editar.</li>
         <li>Estados: <strong>Pendiente</strong> (asi nace siempre), <strong>Pagada</strong> y <strong>Cancelada</strong>.</li>
         <li>Al marcar pagada (boton ✓ o desde el popup de editar) se guarda la <strong>fecha real de pago</strong>: por default hoy, o la que captures. Esa fecha es la que manda para el mes, no el vencimiento. Regresar a pendiente la limpia.</li>
         <li>Filtros por estado (incluye <strong>Vencida</strong>: pendientes cuya fecha de vencimiento ya paso), mes de vencimiento, proveedor, rango de monto y texto del concepto. Las fechas se muestran en el formato que elijas (selector junto a los filtros).</li>
+        <li>Debajo de la tabla va el <strong>total de todo lo filtrado</strong> (no solo de la pagina), con pesos y dolares por separado.</li>
       </List>
       <Sub>Overview del mes</Sub>
       <List>
         <li><strong>Egresos:</strong> pendiente del mes por semana de vencimiento, vencido (incluye lo arrastrado de meses anteriores), por vencer en 7 dias y pagado en el mes. Las canceladas no cuentan en nada.</li>
         <li><strong>Ingresos (Odoo):</strong> lo cobrado en el mes por fecha real de pago, el por cobrar total (igual que en Odoo: incluye lo vencido) y, aparte, cuanto de eso ya esta vencido. Se refresca cada 15 minutos o con el boton de actualizar.</li>
         <li><strong>Notas de credito sin aplicar</strong> se muestran aparte como saldo a favor del cliente y <strong>nunca se restan</strong> del por cobrar: no se sabe si el cliente la usara.</li>
-        <li><strong>Cierre:</strong> real = cobrado &minus; pagado; proyectado = real &minus; pendiente del mes &minus; vencido arrastrado.</li>
+        <li><strong>Cierre:</strong> real = cobrado &minus; pagado; proyectado = real &minus; pendiente del mes &minus; vencido arrastrado. Todo en pesos: las facturas en dolares se muestran aparte, sin convertir.</li>
       </List>
       <Note>
         Si Odoo no responde, la pantalla lo dice y muestra solo egresos: nunca se queda en blanco.

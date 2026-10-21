@@ -176,6 +176,7 @@ export default function PayablesPage() {
           sortField={sortField}
           sortDir={sortDir}
           onSort={handleSort}
+          totals={data?.totals}
         />
       </div>
 

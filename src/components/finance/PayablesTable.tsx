@@ -32,7 +32,7 @@ import { toast } from 'sonner'
 import { formatAbsolute, todayInMexico } from '@/lib/format'
 import { useProfile } from '@/hooks/useProfile'
 import { useDateFormat } from '@/hooks/useDateFormat'
-import { daysUntilDue, PAYABLE_STATUS_LABELS } from '@/lib/payables'
+import { currencySuffix, daysUntilDue, PAYABLE_CURRENCIES, PAYABLE_STATUS_LABELS, type PayableTotals } from '@/lib/payables'
 import { ApiError } from '@/lib/fetch-json'
 import type { PayableStatus, PayableWithSupplier } from '@/types/database'
 
@@ -46,6 +46,8 @@ interface PayablesTableProps {
   sortField: PayableSortField
   sortDir: SortDir
   onSort: (field: PayableSortField) => void
+  /** Every row matching the filters, not just this page; absent while loading. */
+  totals?: PayableTotals & { truncated: boolean }
 }
 
 // Concepto and acciones are fixed columns (#84).
@@ -126,7 +128,7 @@ function DueDateCell({ payable, today }: { payable: PayableWithSupplier; today: 
 const dash = <span className="text-muted-foreground">—</span>
 
 export function PayablesTable({
-  payables, isLoading, onEdit, onAdd, sortField, sortDir, onSort,
+  payables, isLoading, onEdit, onAdd, sortField, sortDir, onSort, totals,
 }: PayablesTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const deletePayable = useDeletePayable()
@@ -244,7 +246,7 @@ export function PayablesTable({
                   <span className="block truncate" title={payable.concept}>{payable.concept}</span>
                 </TableCell>
                 {cols.isVisible('amount') && (
-                  <TableCell className="text-right tabular-nums">{fmt(payable.amount)}</TableCell>
+                  <TableCell className="text-right tabular-nums whitespace-nowrap">{fmt(payable.amount)}{currencySuffix(payable.currency)}</TableCell>
                 )}
                 {cols.isVisible('invoice_date') && (
                   <TableCell className="text-sm whitespace-nowrap">{fmtDay(payable.invoice_date)}</TableCell>
@@ -312,6 +314,18 @@ export function PayablesTable({
           </TableBody>
         </Table>
       </div>
+
+      {totals && totals.count > 0 && (
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 px-1 text-sm" data-testid="payables-total">
+          <span className="text-muted-foreground">
+            Total de {totals.count} factura{totals.count === 1 ? '' : 's'}{totals.truncated ? ' (incompleto)' : ''}:
+          </span>
+          {/* Pesos and dollars side by side, never added together (2026-10-20). */}
+          {PAYABLE_CURRENCIES.filter((c) => totals.byCurrency[c] !== undefined).map((c) => (
+            <span key={c} className="font-semibold tabular-nums">{fmt(totals.byCurrency[c])}{currencySuffix(c) || ' MXN'}</span>
+          ))}
+        </div>
+      )}
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
