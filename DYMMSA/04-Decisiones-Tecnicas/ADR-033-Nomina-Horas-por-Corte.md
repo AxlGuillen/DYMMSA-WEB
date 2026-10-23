@@ -1,5 +1,7 @@
 # ADR-033 — Nómina: horas por día, corte sábado→viernes y la primera escritura del MCP en un módulo sensible
 
+> **Reabierto en parte por [[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] (2026-10-22):** §9 cambia. El MCP **sí** podrá confirmar borradores y cerrar o reabrir cortes con `save_payroll_period`, en dos fases; al confirmar, la clave se ata al conjunto de borradores. Cargar borradores sigue igual.
+
 **Fecha:** 2026-09-30
 **Estado:** Aceptado · issue #123
 **Relacionado:** [[ADR-026-Perfiles-y-Permisos-por-Rol]] · [[ADR-015-MCP-Interno]] · [[ADR-030-MCP-Cobertura-y-Escrituras-Payables]] · [[ADR-029-Horas-por-MCP]] · [[ADR-031-Manifiesto-del-MCP-en-la-Documentacion]] · [[ADR-028-Bitacora-Admin-Only]]

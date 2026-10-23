@@ -1,5 +1,11 @@
 # ADR-037 — Más escrituras del MCP: proveedores, facturas, empleados de nómina y medidas de material
 
+> **Reabierto en parte por [[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] (2026-10-22):**
+> - `save_supplier` podrá crear marcas, solo con `crear_marcas: true`.
+> - `create_payable`, `update_payable` y `mark_payable_paid` se fusionan en `save_payable`.
+> - Borrar va en `delete_record`.
+> - La configuración entra con `save_app_settings`.
+
 **Fecha:** 2026-10-08
 **Estado:** Aceptado · issue #134 (bloques Proveedores, Finanzas, Nómina y Materiales)
 **Relacionado:** [[ADR-015-MCP-Interno]] · [[ADR-022-Modulo-de-Corte]] · [[ADR-028-Bitacora-Generica]] · [[ADR-030-MCP-Cobertura-y-Escrituras-Payables]] · [[ADR-033-Nomina-Horas-por-Corte]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-035-Reporte-del-Checador-por-el-MCP]]
