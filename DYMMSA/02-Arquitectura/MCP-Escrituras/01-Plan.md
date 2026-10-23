@@ -48,20 +48,22 @@ Una consecuencia para no olvidar: el token **no** queda ligado a un conector. Se
 
 ### Números
 
-| | Tools | `tools/list` (caracteres) | Instrucciones |
+Las cifras de `tools/list` van **en el cable**, la unidad que mide el test desde #158. Entre paréntesis, la cifra con el método viejo del stub, que no contaba anotaciones ni estructura JSON. Hoy, en el cable, el bloque app mide 32,891 y el de Odoo 20,272: factores ×1.147 y ×1.125 sobre el stub.
+
+| | Tools | `tools/list` (caracteres, en el cable) | Instrucciones |
 |---|---|---|---|
-| **Hoy, todo junto** | 55 | 46,692 de 47,000 (53,163 en el cable) | 7,931 de 8,000 |
-| **DYMMSA-WEB, objetivo** | **44** (24 lecturas, 20 escrituras) | ~43,800 ±15 % | ~5,500 |
-| **Odoo DYMMSA, objetivo** | **15** (11 lecturas, 4 escrituras; el modelo ve 14) | ~16,300 | ~2,800 |
+| **Hoy, todo junto** | 55 | 53,163 de 54,000 (stub: 46,692 de 47,000) | 7,931 de 8,000 |
+| **DYMMSA-WEB, objetivo** | **44** (24 lecturas, 20 escrituras) | ~50,200 ±15 % (stub: ~43,800) | ~5,500 |
+| **Odoo DYMMSA, objetivo** | **15** (11 lecturas, 4 escrituras; el modelo ve 14) | ~18,300 (stub: ~16,300) | ~2,800 |
 
 **Topes propuestos por conector:**
 
-| Conector | Tools | `tools/list` | Descripciones | Instrucciones |
+| Conector | Tools | `tools/list` (en el cable) | Descripciones | Instrucciones |
 |---|---|---|---|---|
-| DYMMSA-WEB | 45 | 46,000 | 19,000 | 6,000 |
-| Odoo DYMMSA | 16 | 19,000 | 6,500 | 3,000 |
+| DYMMSA-WEB | 45 | 53,000 (stub: 46,000) | 19,000 | 6,000 |
+| Odoo DYMMSA | 16 | 21,500 (stub: 19,000) | 6,500 | 3,000 |
 
-Con los dos prendidos, el chat paga unos 60,000 caracteres de `tools/list`, contra 46,692 de hoy, pero con 20 escrituras nuevas. Con uno solo, cada chat paga mucho menos que hoy.
+Con los dos prendidos, el chat paga unos 68,500 caracteres de `tools/list` en el cable, contra 53,163 de hoy, pero con 20 escrituras nuevas. Con uno solo, cada chat paga menos que hoy. B1 mide cada conector de verdad y fija sus topes con esa medición.
 
 ### DYMMSA-WEB: decisiones de composición
 

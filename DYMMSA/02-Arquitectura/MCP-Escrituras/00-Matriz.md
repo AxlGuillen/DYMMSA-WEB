@@ -38,7 +38,7 @@
   - El `tools/list` completo del admin mide **46,692 de 47,000** caracteres, medido el 2026-10-22 con el método de `tests/mcp/manifest.test.ts`: nombre + título + descripción + esquema + `_meta`. En el cable (con anotaciones y estructura JSON) son **53,163**, según el snapshot de #155 A1. Los 46,588 del review del PR #152 son anteriores a las escrituras con moneda de #153.
 - **Lo que propone el mapa:** 13 tools de escritura nuevas y 4 que salen por fusión, así que el bloque app queda **+9 neto → 45**.
   - Fusionar también lecturas (`list_quotations`, `list_orders`, `get_cut_plan`, `get_purchase_plan`, `get_hours_trend`, y `create_task` con `update_task`) lo deja en **~39**.
-  - Ni con todas las fusiones cabe en 36, y el `tools/list` ya está a 308 caracteres de su tope (46,692 de 47,000). **Ese es el dato duro para decidir si se separa en dos conectores.**
+  - Ni con todas las fusiones cabe en 36, y el `tools/list` ya está a ~1.6 % de su tope: 53,163 de 54,000 en el cable, o 308 caracteres con el método viejo del stub (46,692 de 47,000). **Ese es el dato duro para decidir si se separa en dos conectores.**
 
 ## Matriz
 
