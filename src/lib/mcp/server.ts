@@ -62,10 +62,7 @@ Notas de crédito (Odoo): una nota de crédito sin aplicar es SALDO A FAVOR del 
 ${BUSINESS_RULES_MD}`
 }
 
-/**
- * A member's server skips the tools the manifest marks adminOnly (#133): guarded one by one with
- * `forAdmin`, and tests/mcp/manifest.test.ts fails if a guard and the manifest ever disagree.
- */
+/** core/register.ts skips the adminOnly definitions for a member (#133); the manifest comes from the same definitions, so they cannot disagree. */
 export function registerDymmsaTools(server: McpServer, role: McpRole): void {
   // Block A, then block B (ADR-025): the order of tools/list (#155 A3).
   registerTools(server, [...DYMMSA_TOOLS, ...ODOO_TOOLS], role)

@@ -7,7 +7,7 @@ import { test, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
-const SERVER_ONLY = /from '@\/lib\/mcp\/(catalog|connectors|core|server|tools)\b/
+const SERVER_ONLY = /from ['"]@\/lib\/mcp\/(catalog|connectors|core|server|tools)\b/
 
 function clientModules(dir = join(process.cwd(), 'src'), out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
