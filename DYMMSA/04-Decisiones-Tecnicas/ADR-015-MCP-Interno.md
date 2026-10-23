@@ -1,5 +1,7 @@
 # ADR-015 — MCP interno (lectura + primera escritura)
 
+> **Reabierto en parte por [[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] (2026-10-22):** se revierte el «núcleo transaccional solo lectura» del 2026-08-20. Todos los módulos de DYMMSA-WEB tendrán escritura por MCP, por fases, y `save_task` podrá editar el título y la descripción en dos fases.
+
 **Fecha:** 2026-07-10 · **Actualizado:** 2026-07-12 (Fase 2)
 **Estado:** Aceptado · Fase 1 (lectura) ✅ · Fase 2 (`create_task`) ✅ ·
 **Capa de auth SUPERSEDED por [[ADR-023-MCP-OAuth]]** (2026-07-31): el token

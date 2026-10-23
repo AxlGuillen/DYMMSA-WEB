@@ -44,12 +44,13 @@
 | `POST` | `/api/orders/create` | ✅ | Crear orden directa sin cotización (flujo legacy) |
 | `GET` | `/api/orders/by-quotation/[quotationId]` | ✅ | `{ id, name, status }` de la orden ligada por `quotation_id`, o `null`. La usan «Ver orden» y el candado del selector de estado en `QuotationDetail` (ADR-010) |
 | `PATCH` | `/api/orders/[id]/status` | ✅ | Cambio manual entre `ordered`/`received`/`delivered`/`completed`. `cancelled` → 400 (solo por `/cancel`, que es la que restaura el stock) y una orden cancelada ya no cambia de estado → 400 (2026-10-17, ADR-010) |
+| `PATCH` | `/api/orders/[id]` | ✅ | Metadatos de la orden: hoy solo `odoo_id` (folio de la venta en Odoo; `null` lo quita). Sin otras columnas (mapeo de #155) |
 | `DELETE` | `/api/orders/[id]` | ✅ | Eliminar orden + sus ítems. Restaura el stock **solo** si sigue en tienda (`ordered`/`received`, `deleteRestoresStock()`): una cancelada ya lo devolvió y una entregada/completada ya salió con el cliente (2026-10-17, ADR-010) |
 | `POST` | `/api/orders/[id]/items` | ✅ | Agregar ítem a orden existente + stock check + deducción inventario |
 | `PATCH` | `/api/orders/[id]/items/[itemId]` | ✅ | Editar precio de un ítem. Recalcula `total_amount` de la orden |
 | `DELETE` | `/api/orders/[id]/items/[itemId]` | ✅ | Eliminar ítem + restaurar `quantity_in_stock` al inventario |
 | `POST` | `/api/orders/[id]/confirm-reception` | ✅ | Confirmar recepción: actualiza `quantity_received` + `urrea_status`; a inventario entra solo el **excedente** por delta (idempotente, clamp en 0). Respuesta `{ success, inventory_updated, warnings[] }` (ADR-019) |
-| `POST` | `/api/orders/[id]/cancel` | ✅ | Cancelar orden + restaurar `quantity_in_stock` al inventario. Status → `cancelled` |
+| `POST` | `/api/orders/[id]/cancel` | ✅ | Cancelar orden: restaura por línea `quantity_in_stock + min(recibido, pedido)` (`restoreOrderInventory`; el excedente ya entró en la recepción, ADR-019) y pasa a `cancelled`. Ya cancelada o `completed` → 400. ⚠️ Hoy deja cancelar una `delivered` y no revisa el error del update (#157) |
 | `POST` | `/api/orders/auto-learn` | ✅ | Auto-learn manual desde orden (legacy) |
 | `GET` | `/api/orders/[id]/purchase-plan` | ✅ | Plan de compra mayoreo/menudeo (ADR-018): consolida por `catalogKey`, math STD + recomendación al vuelo, casa decisiones guardadas con staleness. Catálogo/settings degradan a defaults |
 | `PUT` | `/api/orders/[id]/purchase-decisions` | ✅ | **Replace-all** del set de decisiones de la orden: normaliza code/brand, pre-flight del CHECK de cobertura, upsert `(order_id, model_code, brand)` ANTES del delete de removidas. 400 en órdenes `completed`/`cancelled` |
@@ -100,7 +101,7 @@
 
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| `POST` | `/api/quotes/lookup` | ✅ | Lookup masivo de ETMs en `etm_products`. Body: `{ etmCodes: string[], modelCodes?: string[] }`. Devuelve `{ found, notFound, catalogDescriptions }` — `catalogDescriptions` mapea `code` normalizado → descripción oficial de `urrea_catalog` (union de codes de productos encontrados + `modelCodes` del Excel) para resolver la Descripción DYMMSA ([[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]]) |
+| `POST` | `/api/quotes/lookup` | ✅ | Lookup masivo de ETMs en `etm_products`. Body: `{ etmCodes: string[], modelCodes?: string[] }`. Devuelve `{ found, notFound, catalogDescriptions }` — `catalogDescriptions` mapea `catalogKey(code, brand)` (`MARCA|CÓDIGO`, todas las marcas de esos códigos) → descripción oficial de `urrea_catalog` (union de codes de productos encontrados + `modelCodes` del Excel) para resolver la Descripción DYMMSA ([[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]]) |
 | `GET` | `/api/products` | ✅ | Lista paginada de `etm_products`. Query: `page`, `pageSize` (máx 100), `search`, `sortBy` (whitelist: `etm`/`description_es`/`model_code`/`price`), `sortDir`. El término de búsqueda se sanea de `%,()` porque se interpola en el filtro `.or()` |
 | `POST` | `/api/products` | ✅ | Crea un producto del catálogo ETM. ETM obligatorio; duplicado (`23505`) → 400 descriptivo |
 | `PATCH` | `/api/products/[id]` | ✅ | Actualiza un producto. `is_sold` es **tri-estado**: ausente = no se toca, `null` explícito **sí se persiste** (sin cambios aplicables → 400) |
@@ -136,7 +137,7 @@
 | `GET` | `/api/urrea-catalog` | ✅ | Lista paginada. Query: `page, pageSize, search (.or code/description), brand (filtro exacto normalizado), sortField (code/brand/description/std, whitelist), sortDir`. Devuelve `{ data, count, page, pageSize, totalPages }` |
 | `GET` | `/api/urrea-catalog/stats` | ✅ | `{ total, brands: [{ brand, count }] }` (desglose por marca vía RPC `urrea_catalog_brand_counts`) |
 | `POST` | `/api/urrea-catalog` | ✅ | Crear producto. Body: `{ code, brand?, description?, std? }`. `std` default 1; `brand` default `URREA` (normalizado trim+upper); `(code, brand)` duplicado → 400. `code` se **normaliza** (trim+upper — llave de cruce con `model_code`, ADR-013) |
-| `POST` | `/api/urrea-catalog/lookup` | ✅ | Batch: `{ codes: string[] }` → `{ descriptions: Record<code, desc> }` (codes normalizados; omite filas sin descripción). Lo usan `ProductModal`/`ProductForm` para resolver la Descripción DYMMSA al editar `model_code`. ⚠️ Aún cruza solo por `code` (sin marca — issue #27) |
+| `POST` | `/api/urrea-catalog/lookup` | ✅ | Batch de solo lectura: `{ codes: string[] }` → `{ descriptions: Record<catalogKey, desc> }`. Se consulta por código y se responde indexado por `catalogKey` (`MARCA|CÓDIGO`) para **todas** las marcas de esos códigos; omite filas sin descripción (`fetchCatalogDescriptionMap`, ADR-013). Lo usan `ProductModal`/`ProductForm` para resolver la Descripción DYMMSA al editar `model_code` |
 | `PATCH` | `/api/urrea-catalog/[id]` | ✅ | Editar `code`/`brand`/`description`/`std` (brand normalizado; `(code, brand)` duplicado → 400) |
 | `DELETE` | `/api/urrea-catalog/[id]` | ✅ | Eliminar producto |
 | `POST` | `/api/urrea-catalog/import` | ✅ | Importar desde Excel (`codigo, marca, descripcion, std`; sin `marca` → `URREA`). Modo `upsert` (onConflict `code,brand`) o `replace` (borra todo + inserta). `code`/`brand` normalizados (trim+upper) |
@@ -217,7 +218,7 @@
 | `PATCH` | `/api/payroll/employees/[id]` | Admin | `name`, `profile_id`, `shift`, `active`. **Sin DELETE**: la baja es desactivar. `updateEmployee()` de `payroll-store.ts` |
 | `GET` | `/api/payroll/periods/[start]` | Admin | El corte sábado→viernes (`start` debe ser sábado, si no 400): `{ start, end, dates, closed, period, rows[{ employee, days[7], totals, missedMinutes, drafts }], totals, drafts }`. Solo los días confirmados suman |
 | `PATCH` | `/api/payroll/periods/[start]` | Admin | `{ closed: boolean }`. Cerrar exige cero borradores (400 con el conteo) y sella `closed_at`/`closed_by_name`; reabrir sella `reopened_*` |
-| `POST` | `/api/payroll/periods/[start]/prefill` | Admin | "Traer de Horas": copia los minutos por día de los empleados ligados a un perfil como **borrador**. No pisa confirmados ni manuales. `{ saved, skipped[], open, linked }` (`open` = checadas sin salida, no suman) |
+| `POST` | `/api/payroll/periods/[start]/prefill` | Admin | "Traer de Horas": copia los minutos por día de los empleados ligados a un perfil como **borrador**. No pisa confirmados ni manuales. `{ saved, skipped[], open, linked, officeSaturdays }` (`open` = checadas sin salida, no suman; `officeSaturdays` = sábados de oficina creados con las horas de la jornada, #135) |
 | `POST` | `/api/payroll/periods/[start]/confirm` | Admin | Todos los borradores del corte → confirmados. `{ confirmed }` |
 | `PUT` | `/api/payroll/days` | Admin | `{ employee_id, work_date, worked_minutes, missed_minutes?, note? }` — la captura del admin: sobrescribe y queda `manual`/`confirmed`. Día vacío (0, 0, sin nota) borra la fila. Corte cerrado → 400 |
 

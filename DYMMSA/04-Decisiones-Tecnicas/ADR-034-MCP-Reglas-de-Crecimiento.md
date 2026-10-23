@@ -1,5 +1,7 @@
 # ADR-034 — Reglas para que las herramientas del MCP no crezcan sin control
 
+> **Reabierto en parte por [[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] (2026-10-22):** se permite renombrar tools, una sola vez por conector: Odoo al estrenar su conector y DYMMSA-WEB en un PR de convenciones. El presupuesto pasa a ser por conector (DYMMSA-WEB y Odoo DYMMSA). Las demás reglas siguen: una escritura por entidad, `adminOnly` en el manifiesto y la pantalla de consentimiento derivada.
+
 **Fecha:** 2026-10-05
 **Estado:** Aceptado · issue #133
 **Relacionado:** [[ADR-015-MCP-Interno]] · [[ADR-023-MCP-OAuth-Supabase]] · [[ADR-031-Manifiesto-del-MCP-en-la-Documentacion]] · [[ADR-033-Nomina-Horas-por-Corte]]

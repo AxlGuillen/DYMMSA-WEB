@@ -1,5 +1,12 @@
 # ADR-040: escrituras acotadas en Odoo (cotización → venta → factura en borrador, nunca timbrar)
 
+> **Ampliado por [[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] (2026-10-22):**
+> - Se aprueba una séptima operación: asignar la clave SAT a un producto existente, dentro de `odoo_save_product` y con el botón de la vista (#154).
+> - `product.unspsc.code` entra al catálogo de lectura.
+> - `odoo_confirm_quotation` se separa de `odoo_save_quotation`.
+> - `odoo_create_draft_invoice` pasa a dos fases.
+> - Las tools Odoo viven en su propio conector, «Odoo DYMMSA».
+
 **Fecha:** 2026-10-18
 **Estado:** Aceptado e implementado. Infraestructura en PR #149; registro de las 4 tools, vista `odoo-quotation`, manifiesto, consentimiento e instrucciones el 2026-10-20 (rama `feat/144-wire-odoo-writes`). Falta la prueba en producción.
 **Relacionado:** [[ADR-025-Bloque-Odoo-MCP]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-036-Vistas-del-MCP-con-MCP-Apps]] · issue #144
