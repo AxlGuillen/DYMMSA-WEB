@@ -38,8 +38,8 @@ que se parecen entre sí; conviene fijar las reglas antes de sumar las nuevas.
 4. **Presupuesto vigilado por test** (`TOOL_BUDGET` en `manifest.ts`, `tests/mcp/manifest.test.ts`):
    app ≤ 36 y Odoo ≤ 16 herramientas; ≤ 1,000 caracteres de descripción por herramienta (excepción
    nombrada: `record_payroll_hours` ≤ 2,600, lleva la guía); ≤ 18,000 en total; instrucciones
-   ≤ 7,500 por rol; y ≤ 36,000 de `tools/list` completa (nombre + título + descripción + esquema JSON: lo que el cliente paga de verdad). Subir un tope es un cambio explícito en el PR, con su porqué. El test registra
-   el servidor real con un stub para medir lo que el cliente recibiría, por rol.
+   ≤ 7,500 por rol; y un tope de `tools/list` completa (lo que el cliente paga de verdad). Subir un tope es un cambio explícito en el PR, con su porqué.
+   El tope de `tools/list` se mide **en el cable** desde 2026-10-23: el `tools/list` real del SDK vía el harness, con anotaciones y estructura JSON. Antes se medía con un stub que sumaba nombre, título, descripción, esquema y `_meta`. El stub queda solo para descripciones y vistas (ver la línea del 2026-10-23 abajo).
 5. **Fusionar lecturas partidas** (listar + detalle; Odoo específicas vs primitivas) queda como
    segunda etapa, una por una y cuando el presupuesto lo pida: cambia nombres que las rutinas usan.
 
@@ -55,6 +55,12 @@ que se parecen entre sí; conviene fijar las reglas antes de sumar las nuevas.
 **2026-10-07:** `listTotal` sube a 37,000 por la tool de lectura gemela de la primera vista MCP Apps ([[ADR-036-Vistas-del-MCP-con-MCP-Apps]]); el test ahora suma también `_meta`.
 
 **2026-10-08:** el punto 5 (segunda etapa) se aplicó con la #134 ([[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]]): salen `get_quotation_stats` y `get_inventory_stats` (duplicados de `get_business_summary`) y `get_order_by_quotation` se fusiona en `get_quotation`. Con eso entran cuatro escrituras sin subir el tope de herramientas (la app queda en 36 de 36); suben `descriptionsTotal` a 18,500 y `listTotal` a 40,000. `update_payable` es la excepción nombrada a la regla 1: `create_payable` y `mark_payable_paid` no se renombran.
+
+**2026-10-23 (#155 A1, PR #158):** el tope de `tools/list` pasa a medirse en el cable, sobre el `tools/list` real del SDK en memoria (`tests/mcp/harness.ts`).
+- **Tope:** de 47,000 a 54,000 (holgura ~1.6 %; la subida a 47,000 fue la de ADR-040).
+- **Por qué:** el stub no contaba anotaciones, estructura JSON ni `execution`, y subestimaba ~14 %. La misma lista medía 46,692 con el stub y mide 53,163 en el cable.
+- **Medición del 2026-10-23:** admin 55 tools y 53,163 caracteres; member 44 tools y 37,104 (`tests/mcp/__snapshots__/tools-size.*.txt`).
+- **Topes por conector:** se traducen a esta unidad al separar los conectores ([[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]], B1).
 
 El recurso duplicado (~3,100) desapareció; la guía (~1,500) solo la paga un admin.
 
