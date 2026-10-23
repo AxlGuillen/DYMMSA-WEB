@@ -1,7 +1,8 @@
 /** URREA catalog tools (read-only). The join key ALWAYS goes through normalizeCatalogCode (trim+upper). */
 
 import { normalizeCatalogCode } from '@/lib/business-rules'
-import { ToolError, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import type { UrreaCatalogItem } from '@/types/database'
 
 type CatalogRow = Pick<UrreaCatalogItem, 'code' | 'brand' | 'description' | 'std'>

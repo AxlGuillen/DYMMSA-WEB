@@ -1,6 +1,7 @@
 /** Purchase planner (ADR-018), read-only (#109): the same plan the screen builds, digested. */
 
-import { ToolError, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import { resolveOrder } from './orders'
 import { fetchCatalogEntryMap } from '@/lib/urrea-catalog'
 import {

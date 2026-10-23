@@ -16,7 +16,9 @@ import {
   type OdooProduct,
   type ProductMatch,
 } from '@/lib/odoo/quotation-plan'
-import { fold, requireSingleMatch, ToolError } from '../../shared'
+import { fold } from '@/lib/text'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { ToolError } from '@/lib/mcp/core/errors'
 
 type Row = Record<string, unknown>
 

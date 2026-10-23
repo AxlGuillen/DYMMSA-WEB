@@ -52,7 +52,9 @@ import { ORIGIN_PREFIX, originMarker } from '@/lib/odoo/write-catalog'
 import { noteHasKeyMarker, ownedSaleLines, type OdooNote, type OdooWriter } from '@/lib/odoo/writer'
 import type { AdminProof } from '@/lib/odoo/write-guard'
 import type { McpContext } from '../../core/context'
-import { requireLiveAdmin, ToolError, withResultMeta, type ResultWithMeta } from '../../shared'
+import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
+import { ToolError } from '@/lib/mcp/core/errors'
+import { withResultMeta, type ResultWithMeta } from '@/lib/mcp/core/result'
 import {
   many2oneName,
   numberOr,

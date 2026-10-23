@@ -2,7 +2,10 @@
 
 import { resolveDymmsaDescription } from '@/lib/business-rules'
 import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
-import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'
+import { normalizePagination } from '@/lib/mcp/core/schema'
+import { sanitizeSearch } from '@/lib/text'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import type { EtmProduct } from '@/types/database'
 
 export interface SearchProductsInput {

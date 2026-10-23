@@ -1,7 +1,11 @@
 /** Order tools (read). The list query lives here: there is no GET /api/orders yet. */
 
 import { calculateOrderTotal, isProductItem } from '@/lib/business-rules'
-import { isUuid, normalizePagination, requireSingleMatch, sanitizeSearch, ToolError, type Db } from '../shared'
+import { isUuid, sanitizeSearch } from '@/lib/text'
+import { normalizePagination } from '@/lib/mcp/core/schema'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import type { Order, OrderStatus, OrderWithItems } from '@/types/database'
 
 const STATUSES: OrderStatus[] = ['ordered', 'received', 'delivered', 'completed', 'cancelled']

@@ -1,7 +1,10 @@
 /** Quotation tools (read-only): same queries as /api/quotations, totals from business-rules. */
 
 import { calculateLineTotal, calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
-import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'
+import { normalizePagination } from '@/lib/mcp/core/schema'
+import { sanitizeSearch } from '@/lib/text'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import { findOrderByQuotation } from './orders'
 import type { Quotation, QuotationStatus, QuotationWithItems } from '@/types/database'
 

@@ -148,8 +148,10 @@ src/
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
 │   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores, resultado/_meta, schema, lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool) y register (registro derivado)
-│   ├── mcp/connectors/odoo/      # Las 19 tools del conector Odoo, una definición por archivo por módulo (queries, accounting, sales, operations, quotations); index.ts fija el orden de tools/list (#155 A3a)
-│   ├── mcp/catalog.ts            # Catálogo para docs y consentimiento: APP_MANIFEST + definiciones; solo servidor (#155 A3a)
+│   ├── mcp/connectors/dymmsa/    # Las 36 tools de DYMMSA-WEB, una definición por archivo por módulo (summary, quotations, orders, inventory, catalogs, suppliers, finance, hours, profiles, payroll, tasks, settings) (#155 A3b)
+│   ├── mcp/connectors/odoo/      # Las 19 tools del conector Odoo, una definición por archivo por módulo (queries, accounting, sales, operations, quotations) (#155 A3a); el index.ts de cada conector fija el orden de tools/list
+│   ├── mcp/catalog.ts            # Catálogo para docs y consentimiento derivado de las definiciones; solo servidor (#155 A3)
+│   ├── mcp/tools/                # Implementaciones de las tools (lo que corre el handler de cada definición)
 │   ├── mcp/views/generated.ts    # HTML de las vistas MCP Apps, generado por scripts/build-mcp-views.ts (ADR-036)
 │   ├── text.ts                   # sanitizeSearch, isUuid, fold — texto compartido por rutas y MCP
 │   └── utils.ts                  # cn() — class merging

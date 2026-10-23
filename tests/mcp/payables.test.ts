@@ -2,7 +2,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue, hasFilter, type CallRecord } from '../helpers/supabase-mock'
-import { type Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
 import { createPayable, getPayable, getPayablesOverview, listPayables, markPayablePaid, resolvePayable, updatePayable } from '@/lib/mcp/tools/payables'
 import { daysUntilDue, dueDateFrom } from '@/lib/payables'
 import { todayInMexico } from '@/lib/format'

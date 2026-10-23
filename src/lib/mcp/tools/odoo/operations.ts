@@ -2,7 +2,7 @@
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import { normalizeGroups, normalizeRecords } from '@/lib/odoo/normalize'
-import { ToolError } from '../../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 
 const STOCK_LIST_LIMIT = 20
 const DIRECTORY_LIMIT = 50

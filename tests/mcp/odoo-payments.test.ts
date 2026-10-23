@@ -5,7 +5,7 @@ import { describe, test, expect } from 'vitest'
 import type { OdooCaller } from '@/lib/odoo/client'
 import { odooPaymentDetail, odooRepAudit } from '@/lib/mcp/tools/odoo/payments'
 import { odooQuery } from '@/lib/mcp/tools/odoo/accounting'
-import { ToolError } from '@/lib/mcp/shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 
 type Call = { model: string; method: string; payload: Record<string, unknown> }
 

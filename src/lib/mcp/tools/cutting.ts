@@ -1,6 +1,7 @@
 /** Cut module (ADR-022): net needs per group and bars/sheets per captured presentation (#109); save_material_presentation (#134). */
 
-import { ToolError, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import { resolveOrder } from './orders'
 import {
   formatMm,

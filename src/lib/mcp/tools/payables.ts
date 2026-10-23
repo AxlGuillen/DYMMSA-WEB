@@ -4,7 +4,11 @@
  * write to the token's user, so nothing here touches audit_events.
  */
 
-import { isAdminNow, isUuid, requireSingleMatch, sanitizeSearch, ToolError, type Db } from '../shared'
+import { isAdminNow } from '@/lib/mcp/core/auth/live-admin'
+import { isUuid, sanitizeSearch } from '@/lib/text'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import { resolveSupplier } from './suppliers'
 import { todayInMexico } from '@/lib/format'
 import { ISO_MONTH, isRealDate, monthRange } from '@/lib/month'

@@ -1,7 +1,7 @@
 /** Whole-business snapshot in one call: the starter tool, crosses every module. */
 
 import { fetchGitHub, getGitHubConfig, isPullRequest, type GitHubIssue } from '@/lib/github'
-import { type Db } from '../shared'
+import type { Db } from '@/lib/mcp/core/db'
 import { getInventoryStats } from './inventory'
 import { getQuotationStats } from './quotations'
 import type { OrderStatus } from '@/types/database'

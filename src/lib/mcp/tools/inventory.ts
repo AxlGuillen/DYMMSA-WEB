@@ -1,6 +1,9 @@
 /** Inventory tools (read-only): same query and stock filters as GET /api/inventory. */
 
-import { normalizePagination, sanitizeSearch, ToolError, type Db } from '../shared'
+import { normalizePagination } from '@/lib/mcp/core/schema'
+import { sanitizeSearch } from '@/lib/text'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import type { StoreInventory } from '@/types/database'
 
 const STOCK_FILTERS = ['all', 'in_stock', 'low_stock', 'sin_stock'] as const

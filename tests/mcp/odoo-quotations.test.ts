@@ -14,7 +14,9 @@ import {
   type QuotationPreview,
   type SaveQuotationInput,
 } from '@/lib/mcp/tools/odoo/quotations'
-import { requireLiveAdmin, splitResultMeta, type Db } from '@/lib/mcp/shared'
+import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
+import { splitResultMeta } from '@/lib/mcp/core/result'
+import type { Db } from '@/lib/mcp/core/db'
 import { OdooError, OdooUncertainWriteError } from '@/lib/odoo/client'
 import {
   PREVIEW_CHANGED_MESSAGE,

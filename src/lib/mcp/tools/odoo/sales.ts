@@ -3,7 +3,7 @@
 import type { OdooCaller } from '@/lib/odoo/client'
 import type { DomainTriple } from '@/lib/odoo/catalog'
 import { daysSince, normalizeGroups, normalizeRecord, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
-import { ToolError } from '../../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 import { OPEN_CREDIT_NOTES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
 import { creditNotesByCustomer } from './accounting'
 import { CARTERA_NOTA, receivableBlock } from './receivables'

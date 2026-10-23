@@ -11,7 +11,7 @@ vi.mock('@/lib/mcp/core/auth/supabase', () => ({
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { clientForToken } from '@/lib/mcp/core/auth/supabase'
 import { contextFrom, roleFrom } from '@/lib/mcp/core/context'
-import { ToolError } from '@/lib/mcp/shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 
 const FAKE_DB = { from: vi.fn() }
 

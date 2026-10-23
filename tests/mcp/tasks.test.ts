@@ -2,7 +2,7 @@
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import { listTasks, getTask, createTask, updateTask } from '@/lib/mcp/tools/tasks'
-import { ToolError } from '@/lib/mcp/shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 
 function gh(status: number, body: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response
