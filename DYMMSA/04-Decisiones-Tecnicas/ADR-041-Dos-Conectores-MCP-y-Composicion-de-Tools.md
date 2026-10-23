@@ -10,7 +10,7 @@ Diego pidió al asistente cambiar precios y tiempos de entrega de una cotizació
 
 El 2026-10-22 se decidió que **todos los módulos de DYMMSA-WEB se podrán editar desde el MCP**. Un solo conector no da para eso:
 - **Tools:** el bloque app está en 36 de 36.
-- **`tools/list`:** completo mide 46,692 de 47,000 caracteres.
+- **`tools/list`:** completo mide 46,692 de 47,000 caracteres con el método de `manifest.test.ts`; en el cable son 53,163 (snapshot de #155 A1).
 - **Lo que pide el mapa:** 13 escrituras nuevas.
 
 El insumo de esta decisión:
@@ -26,7 +26,10 @@ El insumo de esta decisión:
    - Comparten deploy, login de Supabase y **una sola allowlist** (`MCP_OAUTH_CLIENT_IDS`).
    - El token no se liga a un conector: la separación es de contexto (qué tools ve el modelo), no de permisos.
    - `get_month_closing` y las pantallas de Finanzas y Clientes siguen leyendo Odoo por `src/lib/odoo/`, sin pasar por el conector.
-2. **Acceso.** Por ahora solo se conectan administradores. Las restricciones de «solo admin» no condicionan el diseño, y el mecanismo de roles (#133) se conserva.
+2. **Acceso.** Hoy el conector solo lo usan administradores, y por eso las restricciones de «solo admin» no condicionan el diseño de las tools nuevas. **Eso es una convención, no un control.**
+   - **Lo que hace el código:** `oauth.ts` valida la sesión de Supabase y el `client_id` de la allowlist, y luego resuelve el rol. Un member que complete el OAuth entra y recibe la lista de member, sin las tools `adminOnly`.
+   - **La barrera real:** el member no recibe las tools, y la RLS sigue siendo la barrera. En las tablas de negocio esa RLS hoy es `USING (true)` (hallazgo 2 de la matriz).
+   - **Lo que sigue igual:** el mecanismo de roles (#133). Si algún día se conecta un member, las escrituras nuevas tienen que marcar `audience` antes.
 3. **Composición (reglas R1–R12 del plan):**
    - **Una intención por tool:** un verbo, un objeto, un set de anotaciones y una forma de salida.
    - **`save_<entidad>`** crea, edita y mueve el estado de una entidad; nunca borra.
@@ -92,7 +95,7 @@ El insumo de esta decisión:
 | DYMMSA-WEB | 45 | 46,000 | 19,000 | 6,000 |
 | Odoo DYMMSA | 16 | 19,000 | 6,500 | 3,000 |
 
-Se re-miden al cerrar cada fase. Subir un tope es un cambio explícito en su PR.
+Las cifras de `tools/list` están medidas con el método de `manifest.test.ts`, que no cuenta anotaciones ni estructura JSON. A partir de #158 el tope se mide sobre el `tools/list` real en el cable, y ahí la misma lista pesa ~14 % más. Los topes se traducen a esa unidad al montar cada conector (B1). Se re-miden al cerrar cada fase, y subir un tope es un cambio explícito en su PR.
 
 ## Consecuencias
 

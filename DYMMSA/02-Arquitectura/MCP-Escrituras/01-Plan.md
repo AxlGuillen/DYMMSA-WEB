@@ -50,7 +50,7 @@ Una consecuencia para no olvidar: el token **no** queda ligado a un conector. Se
 
 | | Tools | `tools/list` (caracteres) | Instrucciones |
 |---|---|---|---|
-| **Hoy, todo junto** | 55 | 46,692 de 47,000 | 7,931 de 8,000 |
+| **Hoy, todo junto** | 55 | 46,692 de 47,000 (53,163 en el cable) | 7,931 de 8,000 |
 | **DYMMSA-WEB, objetivo** | **44** (24 lecturas, 20 escrituras) | ~43,800 ±15 % | ~5,500 |
 | **Odoo DYMMSA, objetivo** | **15** (11 lecturas, 4 escrituras; el modelo ve 14) | ~16,300 | ~2,800 |
 

@@ -35,7 +35,7 @@
 - **Hoy:**
   - El MCP tiene **15 tools de escritura**: 12 del bloque app y 3 de Odoo.
   - El bloque app tiene **36 de 36** tools.
-  - El `tools/list` completo del admin mide **46,588 de 47,000** caracteres (medido en el review del PR #152).
+  - El `tools/list` completo del admin mide **46,692 de 47,000** caracteres, medido el 2026-10-22 con el método de `tests/mcp/manifest.test.ts`: nombre + título + descripción + esquema + `_meta`. En el cable (con anotaciones y estructura JSON) son **53,163**, según el snapshot de #155 A1. Los 46,588 del review del PR #152 son anteriores a las escrituras con moneda de #153.
 - **Lo que propone el mapa:** 13 tools de escritura nuevas y 4 que salen por fusión, así que el bloque app queda **+9 neto → 45**.
   - Fusionar también lecturas (`list_quotations`, `list_orders`, `get_cut_plan`, `get_purchase_plan`, `get_hours_trend`, y `create_task` con `update_task`) lo deja en **~39**.
   - Ni con todas las fusiones cabe en 36, y el `tools/list` ya está a 400 caracteres de su tope. **Ese es el dato duro para decidir si se separa en dos conectores.**
@@ -132,6 +132,14 @@ Columnas:
     - el avatar (POST y DELETE) y la subida de imágenes de tareas.
 
 ## Tools: lo que propone el mapa
+
+> **Superado por [[02-Arquitectura/MCP-Escrituras/01-Plan]] §3** (2026-10-22). Cambios respecto de esta tabla:
+> - no se fusionan lecturas;
+> - no hay `save_brand` (las marcas se crean con `save_supplier.crear_marcas`);
+> - la recepción va en `save_order_reception`;
+> - los borrados van en `delete_record`.
+>
+> El total objetivo queda en 44 tools. Esta tabla se conserva como la propuesta original del mapa.
 
 | Módulo | Nuevas | Salen o se fusionan | Neto en escrituras | Fusión de lectura opcional |
 |---|---|---|---|---|
