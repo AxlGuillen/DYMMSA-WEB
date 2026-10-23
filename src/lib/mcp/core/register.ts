@@ -13,8 +13,12 @@ export function registerTools(server: McpServer, tools: readonly ToolDefinition[
     // The SDK types the callback per input shape; a heterogeneous list can only be bridged here, once.
     const callback = ((input: unknown, extra: { authInfo?: AuthInfo }) =>
       run(extra, (_db, ctx) => tool.handler(input as never, ctx))) as never
-    const ui = tool.view ? { resourceUri: tool.view.uri } : tool.visibility ? { visibility: [...tool.visibility] } : null
-    if (ui) registerAppTool(server, tool.name, { ...config, _meta: { ui } }, callback)
+    // Additive: a tool with its own view AND visibility ['app'] must stay hidden from the model (#144).
+    const ui = {
+      ...(tool.view ? { resourceUri: tool.view.uri } : {}),
+      ...(tool.visibility ? { visibility: [...tool.visibility] } : {}),
+    }
+    if (Object.keys(ui).length > 0) registerAppTool(server, tool.name, { ...config, _meta: { ui } }, callback)
     else server.registerTool(tool.name, config, callback)
     if (tool.view) registerView(server, tool.view)
   }
