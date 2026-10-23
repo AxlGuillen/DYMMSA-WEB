@@ -5,6 +5,8 @@
 
 ## Resumen
 
+> **Unidad de las cifras de `tools/list` de esta auditoría:** el método viejo del stub (2026-10-22), que no contaba anotaciones ni estructura JSON. Desde #158 el presupuesto se mide en el cable (~14 % más), y la conversión de estos topes y objetivos vive en [[04-Decisiones-Tecnicas/ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] § «Presupuestos por conector».
+
 Se auditaron las **19 tools `odoo_*`** del bloque `odoo` del manifiesto (15 de lectura y 4 de #144), que pasan al conector **«Odoo DYMMSA»** (`/api/odoo/mcp`). Para cada una se leyó el registro (`src/lib/mcp/server.ts`, desde «Block B»), su implementación (`src/lib/mcp/tools/odoo/*.ts`) y la forma real de su respuesta.
 
 **Medición de hoy**, con el mismo método de `tests/mcp/manifest.test.ts` (nombre + título + descripción + esquema JSON + `_meta`, sin anotaciones):
