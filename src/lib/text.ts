@@ -1,3 +1,5 @@
+// Text helpers shared by the API routes and the MCP.
+
 /** Strips characters that break PostgREST's `.or()` filter syntax. */
 export function sanitizeSearch(raw: string): string {
   return raw.replace(/[,()%]/g, ' ').trim()
@@ -8,4 +10,4 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const isUuid = (value: string) => UUID_RE.test(value)
 
 /** Accent- and case-insensitive name matching for the name lookups. */
-export const fold = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+export const fold = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
