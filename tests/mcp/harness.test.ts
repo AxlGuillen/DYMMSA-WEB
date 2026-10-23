@@ -2,7 +2,7 @@
 
 import { describe, test, expect, vi } from 'vitest'
 
-vi.mock('@/lib/mcp/supabase', async () => {
+vi.mock('@/lib/mcp/core/auth/supabase', async () => {
   const { createMockSupabase } = await import('../helpers/supabase-mock')
   const db = createMockSupabase({ responses: { app_settings: { data: [{ key: 'cut_margin_mm', value: 5 }] } } })
   return { clientForToken: vi.fn(() => db), verifierClient: vi.fn() }

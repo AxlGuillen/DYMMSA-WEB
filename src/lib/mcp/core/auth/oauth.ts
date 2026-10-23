@@ -7,9 +7,9 @@ import { createHash } from 'node:crypto'
 
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 
-import { allowedClientIds } from './env'
+import { allowedClientIds } from '../env'
 import { clientForToken, verifierClient } from './supabase'
-import type { McpRole } from './manifest'
+import type { McpRole } from '../../manifest'
 
 export type McpIdentity = {
   userId: string

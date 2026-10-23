@@ -3,14 +3,14 @@
 
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/mcp/supabase', () => ({
+vi.mock('@/lib/mcp/core/auth/supabase', () => ({
   clientForToken: vi.fn(),
   verifierClient: vi.fn(),
 }))
 
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
-import { clientForToken } from '@/lib/mcp/supabase'
-import { contextFrom, roleFrom } from '@/lib/mcp/context'
+import { clientForToken } from '@/lib/mcp/core/auth/supabase'
+import { contextFrom, roleFrom } from '@/lib/mcp/core/context'
 import { ToolError } from '@/lib/mcp/shared'
 
 const FAKE_DB = { from: vi.fn() }
