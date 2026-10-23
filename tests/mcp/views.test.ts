@@ -27,16 +27,20 @@ describe('vistas MCP generadas', () => {
   })
 
   test('con el SDK real: el admin ve la tool con _meta.ui y lee el HTML; un member no ve ni la tool ni la vista', async () => {
-    const admin = (await connectMcp('admin')).client
-    const tool = (await admin.listTools()).tools.find((t) => t.name === 'preview_time_report')
-    expect(tool?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/time-report.html' }, 'ui/resourceUri': 'ui://dymmsa/time-report.html' })
-    expect(tool?.annotations?.readOnlyHint).toBe(true)
-    const read = await admin.readResource({ uri: 'ui://dymmsa/time-report.html' })
-    expect(read.contents[0]).toMatchObject({ mimeType: 'text/html;profile=mcp-app', text: MCP_VIEWS['time-report'].html })
+    const admin = await connectMcp('admin')
+    const member = await connectMcp('member')
+    try {
+      const tool = (await admin.tools()).find((t) => t.name === 'preview_time_report')
+      expect(tool?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/time-report.html' }, 'ui/resourceUri': 'ui://dymmsa/time-report.html' })
+      expect(tool?.annotations?.readOnlyHint).toBe(true)
+      const read = await admin.client.readResource({ uri: 'ui://dymmsa/time-report.html' })
+      expect(read.contents[0]).toMatchObject({ mimeType: 'text/html;profile=mcp-app', text: MCP_VIEWS['time-report'].html })
 
-    const member = (await connectMcp('member')).client
-    expect((await member.listTools()).tools.map((t) => t.name)).not.toContain('preview_time_report')
-    await expect(member.listResources()).rejects.toThrow()
+      expect((await member.tools()).map((t) => t.name)).not.toContain('preview_time_report')
+      await expect(member.client.listResources()).rejects.toThrow()
+    } finally {
+      await Promise.all([admin.close(), member.close()])
+    }
   })
 
   test('cotización de Odoo (#144): la vista lee la autorización de la misma llave de _meta y no empaqueta código del servidor', () => {
@@ -49,21 +53,26 @@ describe('vistas MCP generadas', () => {
   })
 
   test('cotización de Odoo con el SDK real: la vista previa trae su vista, el alta de productos solo la ve la vista y un member no ve nada (#144)', async () => {
-    const { client } = await connectMcp('admin')
-    const list = (await client.listTools()).tools
-    const preview = list.find((t) => t.name === 'odoo_preview_quotation')
-    expect(preview?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/odoo-quotation.html' } })
-    expect(preview?.annotations?.readOnlyHint).toBe(true)
-    expect(list.find((t) => t.name === 'odoo_save_product')?._meta).toMatchObject({ ui: { visibility: ['app'] } })
-    for (const name of ['odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
-      expect(list.find((t) => t.name === name)?.annotations?.readOnlyHint, name).toBe(false)
-    }
-    const read = await client.readResource({ uri: 'ui://dymmsa/odoo-quotation.html' })
-    expect(read.contents[0]).toMatchObject({ mimeType: 'text/html;profile=mcp-app', text: MCP_VIEWS['odoo-quotation'].html })
+    const admin = await connectMcp('admin')
+    const member = await connectMcp('member')
+    try {
+      const list = await admin.tools()
+      const preview = list.find((t) => t.name === 'odoo_preview_quotation')
+      expect(preview?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/odoo-quotation.html' } })
+      expect(preview?.annotations?.readOnlyHint).toBe(true)
+      expect(list.find((t) => t.name === 'odoo_save_product')?._meta).toMatchObject({ ui: { visibility: ['app'] } })
+      for (const name of ['odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
+        expect(list.find((t) => t.name === name)?.annotations?.readOnlyHint, name).toBe(false)
+      }
+      const read = await admin.client.readResource({ uri: 'ui://dymmsa/odoo-quotation.html' })
+      expect(read.contents[0]).toMatchObject({ mimeType: 'text/html;profile=mcp-app', text: MCP_VIEWS['odoo-quotation'].html })
 
-    const member = (await (await connectMcp('member')).tools()).map((t) => t.name)
-    for (const name of ['odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
-      expect(member, name).not.toContain(name)
+      const memberTools = (await member.tools()).map((t) => t.name)
+      for (const name of ['odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
+        expect(memberTools, name).not.toContain(name)
+      }
+    } finally {
+      await Promise.all([admin.close(), member.close()])
     }
   })
 
