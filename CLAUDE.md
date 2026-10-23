@@ -189,11 +189,12 @@ tests/
     └── helpers/ # render (QueryClientProvider), stores (resetStores), fixtures
 ```
 
-- **Comando:** `bun run test` (1861 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
+- **Comando:** `bun run test` (1863 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
 - **Verificación completa: `bun run check`** (tsc + eslint + vitest) — el mismo comando que corre el CI (`.github/workflows/ci.yml`) en cada PR. **El lint se mantiene en CERO findings**: si un warning es inevitable (ej. `react-hooks/incompatible-library` de react-hook-form), se suprime con `eslint-disable` + comentario del porqué; nunca se deja ruido permanente.
 - ⚠️ **Usar `bun run test`, NO `bun test`** — `bun test` invoca el runner integrado de Bun y falla al toparse con imports de `vitest`.
 - **Backend = unit con mock de Supabase** (sin BD real). El mock reproduce el query builder chainable y registra llamadas para assertions de auth, validación, rollback y side effects de inventario. Valida las columnas del `.select()` de las tablas en `SCHEMA_CHECKED_TABLES` (hoy `quotations`) contra `supabase/schema.sql` y responde 42703 como PostgREST si una no existe. Se agregó porque el mock aceptaba `quotations.quotation_number`, una columna inexistente, y `cut-candidates` llegó a producción con ella. El resto de las tablas acepta cualquier columna; la red real es la integración.
 - **Patrón backend:** `vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))` + `injectSupabaseServer(() => activeClient)` (helper que registra el `beforeEach`; la variable se intercambia por test). `/approve/[token]` mockea `@/lib/supabase/admin`.
+- **MCP con el SDK real (#155):** `tests/mcp/harness.ts` (`connectMcp(rol)`) conecta cliente y servidor en memoria con el mismo registro e instrucciones de `/api/mcp`. `tests/mcp/snapshot.test.ts` guarda en `tests/mcp/__snapshots__/` el `tools/list`, las instrucciones y los tamaños por rol: un refactor no los cambia; un cambio a propósito se regenera con `bun run test:mcp-snapshot` y el PR explica el diff.
 - **Componentes:** jsdom + Testing Library. Hooks de TanStack se mockean a nivel de módulo (`vi.mock('@/hooks/*')` → `{ mutateAsync: vi.fn(), isPending: false }`); los stores Zustand se resetean con `resetStores()`. DnD (drag&drop) y flujos completos quedan para E2E.
 - **Al agregar/cambiar lógica de negocio o un route handler, agregar o actualizar su test.**
 

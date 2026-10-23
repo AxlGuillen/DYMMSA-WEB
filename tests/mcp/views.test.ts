@@ -1,18 +1,14 @@
 /** MCP App views (ADR-036): the committed HTML must be rebuilt whenever its sources change. */
 
 import { describe, test, expect } from 'vitest'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { MCP_VIEWS } from '@/lib/mcp/views/generated'
-import { registerDymmsaTools } from '@/lib/mcp/server'
-import type { McpRole } from '@/lib/mcp/manifest'
 import { PRODUCTS_AUTHORIZATION_META } from '@/lib/odoo/preview-token'
 import { VIEWS, viewDir, viewSourceHash } from '../../scripts/mcp-views'
 import { readdirSync, readFileSync } from 'node:fs'
 import { applyToolResult, AUTHORIZATION_META, initialState } from '@/mcp-views/odoo-quotation/state'
 import type { QuotationPreview } from '@/lib/mcp/tools/odoo/quotations'
 import { join } from 'node:path'
+import { connectMcp } from './harness'
 
 describe('vistas MCP generadas', () => {
   test('cada vista está generada y al día con su código (si falla: bun run build:mcp-views)', () => {
@@ -31,23 +27,14 @@ describe('vistas MCP generadas', () => {
   })
 
   test('con el SDK real: el admin ve la tool con _meta.ui y lee el HTML; un member no ve ni la tool ni la vista', async () => {
-    async function connect(role: McpRole) {
-      const server = new McpServer({ name: 'dymmsa', version: 'test' })
-      registerDymmsaTools(server, role)
-      const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
-      const client = new Client({ name: 'test', version: '1' })
-      await Promise.all([server.connect(serverSide), client.connect(clientSide)])
-      return client
-    }
-
-    const admin = await connect('admin')
+    const admin = (await connectMcp('admin')).client
     const tool = (await admin.listTools()).tools.find((t) => t.name === 'preview_time_report')
     expect(tool?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/time-report.html' }, 'ui/resourceUri': 'ui://dymmsa/time-report.html' })
     expect(tool?.annotations?.readOnlyHint).toBe(true)
     const read = await admin.readResource({ uri: 'ui://dymmsa/time-report.html' })
     expect(read.contents[0]).toMatchObject({ mimeType: 'text/html;profile=mcp-app', text: MCP_VIEWS['time-report'].html })
 
-    const member = await connect('member')
+    const member = (await connectMcp('member')).client
     expect((await member.listTools()).tools.map((t) => t.name)).not.toContain('preview_time_report')
     await expect(member.listResources()).rejects.toThrow()
   })
@@ -62,16 +49,8 @@ describe('vistas MCP generadas', () => {
   })
 
   test('cotización de Odoo con el SDK real: la vista previa trae su vista, el alta de productos solo la ve la vista y un member no ve nada (#144)', async () => {
-    async function tools(role: McpRole) {
-      const server = new McpServer({ name: 'dymmsa', version: 'test' })
-      registerDymmsaTools(server, role)
-      const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
-      const client = new Client({ name: 'test', version: '1' })
-      await Promise.all([server.connect(serverSide), client.connect(clientSide)])
-      return { client, list: (await client.listTools()).tools }
-    }
-
-    const { client, list } = await tools('admin')
+    const { client } = await connectMcp('admin')
+    const list = (await client.listTools()).tools
     const preview = list.find((t) => t.name === 'odoo_preview_quotation')
     expect(preview?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/odoo-quotation.html' } })
     expect(preview?.annotations?.readOnlyHint).toBe(true)
@@ -82,7 +61,7 @@ describe('vistas MCP generadas', () => {
     const read = await client.readResource({ uri: 'ui://dymmsa/odoo-quotation.html' })
     expect(read.contents[0]).toMatchObject({ mimeType: 'text/html;profile=mcp-app', text: MCP_VIEWS['odoo-quotation'].html })
 
-    const member = (await tools('member')).list.map((t) => t.name)
+    const member = (await (await connectMcp('member')).tools()).map((t) => t.name)
     for (const name of ['odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
       expect(member, name).not.toContain(name)
     }
