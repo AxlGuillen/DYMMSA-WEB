@@ -90,12 +90,16 @@ El insumo de esta decisión:
 
 ## Presupuestos por conector
 
-| Conector | Tools | `tools/list` | Descripciones | Instrucciones |
+| Conector | Tools | `tools/list` (en el cable) | Descripciones | Instrucciones |
 |---|---|---|---|---|
-| DYMMSA-WEB | 45 | 46,000 | 19,000 | 6,000 |
-| Odoo DYMMSA | 16 | 19,000 | 6,500 | 3,000 |
+| DYMMSA-WEB | 45 | 53,000 | 19,000 | 6,000 |
+| Odoo DYMMSA | 16 | 21,500 | 6,500 | 3,000 |
 
-Las cifras de `tools/list` están medidas con el método de `manifest.test.ts`, que no cuenta anotaciones ni estructura JSON. A partir de #158 el tope se mide sobre el `tools/list` real en el cable, y ahí la misma lista pesa ~14 % más. Los topes se traducen a esa unidad al montar cada conector (B1). Se re-miden al cerrar cada fase, y subir un tope es un cambio explícito en su PR.
+**Unidad de `tools/list`.**
+- **Desde #158** se mide el `tools/list` real en el cable, con anotaciones y estructura JSON.
+- **Conversión:** los topes salieron de 46,000 y 19,000 con el método viejo del stub, convertidos con los factores medidos ese día: ×1.147 para el bloque app (32,891 contra 28,674) y ×1.125 para Odoo (20,272 contra 18,019).
+- **En B1** se mide cada conector de verdad y se fijan los topes con esa medición.
+- **Después:** se re-miden al cerrar cada fase, y subir un tope es un cambio explícito en su PR.
 
 ## Consecuencias
 
