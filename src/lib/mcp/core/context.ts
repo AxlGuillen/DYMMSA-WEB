@@ -2,10 +2,11 @@
 
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 
-import type { McpIdentity } from './oauth'
-import type { McpRole } from './manifest'
-import { clientForToken } from './supabase'
-import { ToolError, type Db } from './shared'
+import type { McpIdentity } from './auth/oauth'
+import type { McpRole } from '../manifest'
+import { clientForToken } from './auth/supabase'
+import type { Db } from './db'
+import { ToolError } from './errors'
 
 export type McpContext = McpIdentity & { db: Db }
 

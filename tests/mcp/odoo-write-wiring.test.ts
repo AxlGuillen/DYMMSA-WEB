@@ -3,7 +3,7 @@
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('@/lib/mcp/supabase', () => ({
+vi.mock('@/lib/mcp/core/auth/supabase', () => ({
   clientForToken: vi.fn(() => ({ from: vi.fn() })),
   verifierClient: vi.fn(),
 }))
@@ -12,7 +12,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
-import { run } from '@/lib/mcp/server'
+import { run } from '@/lib/mcp/core/run'
 import { splitResultMeta, withResultMeta } from '@/lib/mcp/shared'
 import { OdooError, OdooUncertainWriteError } from '@/lib/odoo/client'
 import { issueProductsAuthorization, PRODUCTS_AUTHORIZATION_META } from '@/lib/odoo/preview-token'

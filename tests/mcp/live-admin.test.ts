@@ -105,7 +105,7 @@ describe('requireLiveAdmin en las tools (#144)', () => {
       '{ ...ctx, userId }',
       'other',
     ])
-    for (const file of sources().filter((f) => f.path !== 'src/lib/mcp/shared.ts')) {
+    for (const file of sources().filter((f) => f.path !== 'src/lib/mcp/core/auth/live-admin.ts')) {
       for (const arg of argsOf(file.text)) expect(arg, file.path).toBe('ctx')
     }
   })

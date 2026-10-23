@@ -4,13 +4,13 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 
-vi.mock('@/lib/mcp/supabase', () => ({
+vi.mock('@/lib/mcp/core/auth/supabase', () => ({
   verifierClient: vi.fn(),
   clientForToken: vi.fn(),
 }))
 
-import { clientForToken, verifierClient } from '@/lib/mcp/supabase'
-import { verifyToken, resetIdentityCache } from '@/lib/mcp/oauth'
+import { clientForToken, verifierClient } from '@/lib/mcp/core/auth/supabase'
+import { verifyToken, resetIdentityCache } from '@/lib/mcp/core/auth/oauth'
 
 const b64 = (obj: unknown) => Buffer.from(JSON.stringify(obj)).toString('base64url')
 

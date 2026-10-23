@@ -147,7 +147,9 @@ src/
 │   ├── customers.ts              # Cartera y estado de cuenta: rango por vencimiento, líneas, totales (issue #145, ADR-039)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
+│   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores, resultado/_meta, schema, lookup, context, env, routes, auth/ (oauth, supabase, live-admin)
 │   ├── mcp/views/generated.ts    # HTML de las vistas MCP Apps, generado por scripts/build-mcp-views.ts (ADR-036)
+│   ├── text.ts                   # sanitizeSearch, isUuid, fold — texto compartido por rutas y MCP
 │   └── utils.ts                  # cn() — class merging
 │
 ├── mcp-views/                    # Vistas MCP Apps (ADR-036): main.ts + styles.css por vista; bun run build:mcp-views

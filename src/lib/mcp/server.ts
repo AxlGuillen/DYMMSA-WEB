@@ -3,11 +3,9 @@
 import { z } from 'zod'
 import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from '@modelcontextprotocol/ext-apps/server'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
-import { GitHubError } from '@/lib/github'
-import { OdooError, callOdoo } from '@/lib/odoo/client'
-import { splitResultMeta, ToolError, type Db, type ResultMeta } from './shared'
-import { contextFrom, type McpContext } from './context'
+import { callOdoo } from '@/lib/odoo/client'
+import { run } from './core/run'
+import { pagination, readOnly } from './core/schema'
 import { odooQuery, odooAggregate, odooOverdueInvoices, odooInvoicesSummary } from './tools/odoo/accounting'
 import { odooSalesSummary, odooCustomerProfile } from './tools/odoo/sales'
 import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from './tools/odoo/operations'
@@ -38,42 +36,12 @@ import { getPurchasePlan } from './tools/purchase'
 import { getAppSettings } from './tools/settings'
 import type { McpRole } from './manifest'
 
-export type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean; _meta?: ResultMeta }
-
-/** The SDK hands the AuthInfo validated by withMcpAuth in each call's extra. */
-type ToolExtra = { authInfo?: AuthInfo }
-
-/** Runs the tool with the token's db (RLS applies); expected errors surface their message, the rest go generic.
- *  The context carries the caller's identity for tools that mean "me" (hours, #101). */
-export async function run(extra: ToolExtra, fn: (db: Db, ctx: McpContext) => Promise<unknown>): Promise<ToolResult> {
-  try {
-    const ctx = contextFrom(extra.authInfo)
-    // Only a withResultMeta() result fills _meta: the view reads it, the text never carries it (#144).
-    const { data, meta } = splitResultMeta(await fn(ctx.db, ctx))
-    return { content: [{ type: 'text', text: JSON.stringify(data) }], ...(meta ? { _meta: meta } : {}) }
-  } catch (e) {
-    if (e instanceof ToolError || e instanceof GitHubError || e instanceof OdooError) {
-      return { content: [{ type: 'text', text: e.message }], isError: true }
-    }
-    console.error('MCP tool error:', e)
-    return { content: [{ type: 'text', text: 'Error interno al ejecutar la herramienta' }], isError: true }
-  }
-}
-
-/** Read-only — every tool except the scoped writes of ADR-015. */
-const readOnly = { readOnlyHint: true, openWorldHint: false } as const
-
 /** MCP App views (ADR-036): HTML bundled by scripts/build-mcp-views.ts. */
 const TIME_REPORT_VIEW = 'ui://dymmsa/time-report.html'
 const ODOO_QUOTATION_VIEW = 'ui://dymmsa/odoo-quotation.html'
 
 /** The Odoo writes (#144, ADR-040): the read-only caller plus the closed facade, never the raw transport. */
 const odooWriteDeps = { reader: callOdoo, writer: odooWriter }
-
-const pagination = {
-  page: z.number().int().min(1).optional().describe('Página (1-indexada, default 1)'),
-  pageSize: z.number().int().min(1).max(100).optional().describe('Resultados por página (default 20, máx 100)'),
-}
 
 export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el asistente)
 

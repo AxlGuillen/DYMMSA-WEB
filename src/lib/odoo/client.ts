@@ -43,7 +43,7 @@ export class OdooUncertainWriteError extends OdooError {
   }
 }
 
-/** Signature the tools receive (injectable in tests, like `Db` in shared.ts). */
+/** Signature the tools receive (injectable in tests, like `Db` in mcp/core/db.ts). */
 export type OdooCaller = (
   model: string,
   method: string,

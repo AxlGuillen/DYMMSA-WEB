@@ -51,7 +51,7 @@ import {
 import { ORIGIN_PREFIX, originMarker } from '@/lib/odoo/write-catalog'
 import { noteHasKeyMarker, ownedSaleLines, type OdooNote, type OdooWriter } from '@/lib/odoo/writer'
 import type { AdminProof } from '@/lib/odoo/write-guard'
-import type { McpContext } from '../../context'
+import type { McpContext } from '../../core/context'
 import { requireLiveAdmin, ToolError, withResultMeta, type ResultWithMeta } from '../../shared'
 import {
   many2oneName,

@@ -16,7 +16,7 @@ import {
   type ReadinessSale,
 } from '@/lib/odoo/quotation-plan'
 import { noteHasTrail } from '@/lib/odoo/writer'
-import type { McpContext } from '../../context'
+import type { McpContext } from '../../core/context'
 import { requireLiveAdmin, ToolError } from '../../shared'
 import { errorName, noteOf, parseInput, type OdooQuotationDeps } from './quotations'
 import { isId, many2oneName, numberOr, requireExactSale, rowsOf, type SaleRecord } from './resolve'

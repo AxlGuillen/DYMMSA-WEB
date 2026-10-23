@@ -2,8 +2,8 @@
 
 import { metadataCorsOptionsRequestHandler, protectedResourceHandler } from 'mcp-handler'
 
-import { appUrl } from '@/lib/mcp/env'
-import { mcpResourceUrl, supabaseAuthIssuer } from '@/lib/mcp/routes'
+import { appUrl } from '@/lib/mcp/core/env'
+import { mcpResourceUrl, supabaseAuthIssuer } from '@/lib/mcp/core/routes'
 
 export const runtime = 'nodejs'
 

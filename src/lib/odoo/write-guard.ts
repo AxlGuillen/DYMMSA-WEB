@@ -21,7 +21,7 @@ export const ADMIN_ONLY_MESSAGE =
 // Identity, not shape: a copied or hand-built object never passes.
 const issued = new WeakSet<object>()
 
-/** Only requireLiveAdmin (src/lib/mcp/shared.ts) calls this, after reading profiles without cache. */
+/** Only requireLiveAdmin (src/lib/mcp/core/auth/live-admin.ts) calls this, after reading profiles without cache. */
 export function issueAdminProof(input: { userId: string; displayName: string }, now: number = Date.now()): AdminProof {
   const userId = input.userId.trim()
   const displayName = input.displayName.trim()

@@ -3,7 +3,7 @@
  * diff of an edit, what confirming does and whether a sale can be invoiced. No Odoo calls here.
  */
 
-import { fold } from '@/lib/mcp/shared'
+import { fold } from '@/lib/text'
 import type { DomainTriple } from './catalog'
 import { OdooError } from './client'
 import { escapeLike } from './domains'
