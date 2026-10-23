@@ -3,7 +3,8 @@
  * be typed by hand and said the assistant could only create tasks.
  */
 
-import { groupByModule, manifestForRole, type McpRole } from './manifest'
+import { manifestForRole } from './catalog'
+import { groupByModule, type McpRole } from './manifest'
 
 export interface ConsentSummary {
   /** Modules the assistant can read, in manifest order. */

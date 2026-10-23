@@ -1,7 +1,6 @@
 /**
- * What the assistant can do, in one place (#118). The docs page renders this and
- * tests/mcp/manifest.test.ts fails when server.ts registers a tool that is not listed here —
- * so the in-app documentation of the MCP cannot go stale.
+ * Manifest types, the budget and the app tools still registered inline (#118). Tools defined with
+ * defineTool (#155 A3) bring their own docs; src/lib/mcp/catalog.ts joins both for docs and consent.
  */
 
 export type ToolBlock = 'app' | 'odoo'
@@ -27,8 +26,8 @@ export interface ToolManifestEntry {
 
 export type McpRole = 'admin' | 'member'
 
-export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
-  // Block A — the app
+/** App tools still registered inline in server.ts; each moves to its definition in #155 A3b. */
+export const APP_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'get_business_summary', block: 'app', module: 'Panorama', kind: 'read', title: 'Resumen del negocio', example: '¿Como vamos? Dame el panorama general.' },
   { name: 'list_quotations', block: 'app', module: 'Cotizaciones', kind: 'read', title: 'Listar cotizaciones', example: '¿Que cotizaciones esperan aprobacion?' },
   { name: 'get_quotation', block: 'app', module: 'Cotizaciones', kind: 'read', title: 'Detalle de cotizacion', example: '¿Que aprobo el cliente de la cotizacion de Andritz y ya tiene orden?' },
@@ -66,38 +65,7 @@ export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [
   { name: 'update_task', block: 'app', module: 'Tareas', kind: 'write', title: 'Actualizar tarea', example: 'Cierra la tarea 45 y comenta que ya quedo.', limits: 'Comenta, cambia prioridad, cierra o reabre. Nunca reescribe el titulo ni la descripcion.' },
   { name: 'get_app_settings', block: 'app', module: 'Configuracion', kind: 'read', title: 'Configuracion de la app', example: '¿Que umbrales tiene el planificador de compra?' },
 
-  // Block B — Odoo (the company's official invoicing): reads, plus the admin-only writes of ADR-040
-  { name: 'odoo_query', block: 'odoo', module: 'Consultas libres', kind: 'read', title: 'Consulta generica en Odoo', example: 'Facturas de GE de agosto con su estado de pago.' },
-  { name: 'odoo_aggregate', block: 'odoo', module: 'Consultas libres', kind: 'read', title: 'Agregados en Odoo', example: 'Total facturado por cliente este año.' },
-  { name: 'odoo_overdue_invoices', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Cartera y estado de cuenta', example: 'Estado de cuenta de Andritz: lo vencido y lo que vence este mes.' },
-  { name: 'odoo_invoices_summary', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Resumen de facturacion', example: '¿Como cerro julio en facturacion?' },
-  { name: 'odoo_invoice_detail', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Detalle de factura', example: 'El detalle de la factura F00167, con su timbrado.' },
-  { name: 'odoo_payment_detail', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Detalle de pago con su REP', example: '¿El pago PAY00068 ya tiene su complemento?' },
-  { name: 'odoo_rep_audit', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Auditoria de complementos de pago', example: '¿Que pagos del mes se quedaron sin REP?' },
-  { name: 'odoo_invoice_link_check', block: 'odoo', module: 'Contabilidad', kind: 'read', title: 'Facturas sin orden de venta', example: '¿Que facturas del mes no estan ligadas a su orden de venta?' },
-  { name: 'odoo_sales_summary', block: 'odoo', module: 'Ventas y cobranza', kind: 'read', title: 'Resumen de ventas', example: 'Ventas confirmadas por vendedor este mes.' },
-  { name: 'odoo_customer_profile', block: 'odoo', module: 'Ventas y cobranza', kind: 'read', title: 'Perfil de cliente', example: 'El expediente completo de FieldCore.' },
-  { name: 'odoo_receivables_ranking', block: 'odoo', module: 'Ventas y cobranza', kind: 'read', title: 'Ranking de cobranza', example: '¿A quien le cobro primero? ¿Quien paga mas lento?' },
-  { name: 'odoo_sale_detail', block: 'odoo', module: 'Ventas y cobranza', kind: 'read', title: 'Detalle de venta', example: '¿Ya se entrego y facturo todo lo de la venta S00247?' },
-  { name: 'odoo_stock_check', block: 'odoo', module: 'Operacion', kind: 'read', title: 'Existencias en Odoo', example: '¿Cuantas puntas de cobre hay en el almacen de Odoo?' },
-  { name: 'odoo_employee_directory', block: 'odoo', module: 'Operacion', kind: 'read', title: 'Directorio de empleados', example: '¿Cual es el correo de trabajo de Diego?' },
-  { name: 'odoo_fleet_status', block: 'odoo', module: 'Operacion', kind: 'read', title: 'Estado de la flotilla', example: '¿Que vehiculos tienen servicio reciente?' },
-  { name: 'odoo_preview_quotation', block: 'odoo', module: 'Cotizar y facturar', kind: 'read', title: 'Vista previa de cotizacion', example: 'Haz esta cotizacion en Odoo para GE Power con estos 6 aerosoles a $56.03.', adminOnly: true },
-  { name: 'odoo_save_quotation', block: 'odoo', module: 'Cotizar y facturar', kind: 'write', title: 'Guardar cotizacion en Odoo', example: 'Si, guardala. / Confirma la S00912 como venta.', limits: 'Solo lo que mostro la vista previa: cotizacion en borrador, editarla o confirmarla como venta. Nunca la envia al cliente, no publica, no timbra ni crea clientes.', adminOnly: true },
-  { name: 'odoo_save_product', block: 'odoo', module: 'Cotizar y facturar', kind: 'write', title: 'Alta de productos en Odoo', example: '(Boton "Dar de alta" de la vista previa.)', limits: 'Solo desde el boton de la vista previa y solo bienes con IVA 16; nunca inventa la clave SAT ni duplica un producto.', adminOnly: true },
-  { name: 'odoo_create_draft_invoice', block: 'odoo', module: 'Cotizar y facturar', kind: 'write', title: 'Factura en borrador en Odoo', example: 'Haz la factura de la S00912.', limits: 'Factura completa en borrador de una venta confirmada y entregada. Nunca publica, timbra ni envia; sin anticipos ni parciales.', adminOnly: true },
 ]
-
-export const manifestFor = (block: ToolBlock) => TOOL_MANIFEST.filter((t) => t.block === block)
-
-/** What a caller of this role gets registered (#133): a member never sees the admin-only tools. */
-export const manifestForRole = (role: McpRole) =>
-  role === 'admin' ? TOOL_MANIFEST : TOOL_MANIFEST.filter((t) => !t.adminOnly)
-
-export const ADMIN_ONLY_TOOLS: ReadonlySet<string> = new Set(TOOL_MANIFEST.filter((t) => t.adminOnly).map((t) => t.name))
-
-/** What the docs page shows: everything except the admin-only modules. */
-export const DOCS_MANIFEST: readonly ToolManifestEntry[] = manifestForRole('member')
 
 /**
  * Budget every tool must fit in (#133, ADR-034). Raising a cap is an explicit decision in the

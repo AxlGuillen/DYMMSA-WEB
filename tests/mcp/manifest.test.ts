@@ -1,29 +1,16 @@
 /**
- * Anti-drift (#118): every tool registered in server.ts is in the manifest the docs page renders, and
- * vice versa. Since #133 it also holds the role split and the budget (ADR-034): a member's list never
+ * Anti-drift (#118): every registered tool is in the manifest the docs page renders, and vice versa
+ * (compared against the real registry since #155 A3, no longer a regex over server.ts). Since #133 it also holds the role split and the budget (ADR-034): a member's list never
  * carries an admin-only tool, and every tool has to fit in the caps or raise them on purpose.
  */
 
 import { describe, test, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import {
-  ADMIN_ONLY_TOOLS,
-  DOCS_MANIFEST,
-  TOOL_BUDGET,
-  TOOL_MANIFEST,
-  groupByModule,
-  manifestFor,
-  manifestForRole,
-  type McpRole,
-} from '@/lib/mcp/manifest'
+import { TOOL_BUDGET, groupByModule, type McpRole } from '@/lib/mcp/manifest'
+import { ADMIN_ONLY_TOOLS, DOCS_MANIFEST, TOOL_MANIFEST, manifestFor, manifestForRole } from '@/lib/mcp/catalog'
 import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
 import { connectMcp } from './harness'
-
-const serverSrc = readFileSync(join(process.cwd(), 'src/lib/mcp/server.ts'), 'utf8')
-const registered = [...serverSrc.matchAll(/register(?:App)?Tool\(\s*(?:server,\s*)?'([a-z_]+)'/g)].map((m) => m[1])
 
 interface Registered { name: string; description: string; readOnly: boolean; view?: string }
 
@@ -55,8 +42,8 @@ const toolsFor = (role: McpRole) => registryFor(role).tools
 
 describe('manifiesto del MCP', () => {
   test('cada tool registrada esta en el manifiesto, y el manifiesto no inventa tools', () => {
-    // A registerTool with double quotes or a computed name would slip past the regex unseen (review PR #119).
-    expect(registered.length).toBe([...serverSrc.matchAll(/register(?:App)?Tool\(/g)].length)
+    const registered = toolsFor('admin').map((t) => t.name)
+    expect(new Set(registered).size).toBe(registered.length)
     const listed = TOOL_MANIFEST.map((t) => t.name)
     expect(registered.filter((n) => !listed.includes(n)), 'registradas sin manifiesto').toEqual([])
     expect(listed.filter((n) => !registered.includes(n)), 'en el manifiesto sin registrar').toEqual([])
@@ -136,7 +123,7 @@ describe('manifiesto del MCP', () => {
     }
     expect(list, `tools/list: ${list} caracteres, tope ${TOOL_BUDGET.listTotal}`).toBeLessThanOrEqual(TOOL_BUDGET.listTotal)
     // The exception list only names tools that exist, so it cannot hide a dead entry.
-    for (const name of Object.keys(TOOL_BUDGET.descriptionExceptions)) expect(registered).toContain(name)
+    for (const name of Object.keys(TOOL_BUDGET.descriptionExceptions)) expect(tools.map((t) => t.name)).toContain(name)
 
     for (const role of ['admin', 'member'] as const) {
       const len = serverInstructions(role).length

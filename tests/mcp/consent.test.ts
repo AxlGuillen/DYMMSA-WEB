@@ -2,7 +2,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { consentSummary } from '@/lib/mcp/consent'
-import { ADMIN_ONLY_TOOLS, TOOL_MANIFEST } from '@/lib/mcp/manifest'
+import { ADMIN_ONLY_TOOLS, TOOL_MANIFEST } from '@/lib/mcp/catalog'
 
 describe('consentSummary', () => {
   test('un admin ve todas las escrituras con su limite; un member no ve las de administrador', () => {
