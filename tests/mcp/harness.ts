@@ -4,18 +4,16 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
 import type { McpRole } from '@/lib/mcp/manifest'
-
-export type CallResult = { content: { type: string; text: string }[]; isError?: boolean; _meta?: Record<string, unknown> }
 
 export interface McpHarness {
   client: Client
   /** Instructions as the client receives them in initialize. */
   instructions: string | undefined
   tools(): Promise<Tool[]>
-  call(name: string, args?: Record<string, unknown>): Promise<CallResult>
+  call(name: string, args?: Record<string, unknown>): Promise<CallToolResult>
   close(): Promise<void>
 }
 
@@ -24,7 +22,16 @@ export function authAs(role: McpRole, userId = `${role}-1`): AuthInfo {
   return { token: `token-${userId}`, clientId: 'c1', scopes: [], extra: { userId, email: null, clientId: 'c1', role } }
 }
 
-/** Same registry and instructions as the /api/mcp route. Calls carry `authInfo`, as the route does. */
+/** The text of a result's first block, which is all our tools return today. */
+export function textOf(result: CallToolResult): string {
+  const block = result.content[0]
+  return block?.type === 'text' ? block.text : ''
+}
+
+/**
+ * Same registry and instructions as the /api/mcp route. Calls carry `authInfo`, as the route does.
+ * serverInfo stays out on purpose: the route's depends on appUrl() (env); B1 moves it into the connector.
+ */
 export async function connectMcp(role: McpRole, authInfo: AuthInfo = authAs(role)): Promise<McpHarness> {
   const server = new McpServer({ name: 'dymmsa', version: 'test' }, { instructions: serverInstructions(role) })
   registerDymmsaTools(server, role)
@@ -37,7 +44,7 @@ export async function connectMcp(role: McpRole, authInfo: AuthInfo = authAs(role
     client,
     instructions: client.getInstructions(),
     tools: async () => (await client.listTools()).tools,
-    call: async (name, args = {}) => (await client.callTool({ name, arguments: args })) as CallResult,
+    call: async (name, args = {}) => (await client.callTool({ name, arguments: args })) as CallToolResult,
     close: () => client.close(),
   }
 }

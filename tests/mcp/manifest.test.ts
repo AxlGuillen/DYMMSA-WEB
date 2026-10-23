@@ -20,11 +20,12 @@ import {
   type McpRole,
 } from '@/lib/mcp/manifest'
 import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
+import { connectMcp } from './harness'
 
 const serverSrc = readFileSync(join(process.cwd(), 'src/lib/mcp/server.ts'), 'utf8')
 const registered = [...serverSrc.matchAll(/register(?:App)?Tool\(\s*(?:server,\s*)?'([a-z_]+)'/g)].map((m) => m[1])
 
-interface Registered { name: string; description: string; readOnly: boolean; view?: string; /** name + title + description + JSON schema + _meta */ size: number }
+interface Registered { name: string; description: string; readOnly: boolean; view?: string }
 
 /** What a connector of this role would get in tools/list, captured from the real registry. */
 function registryFor(role: McpRole): { tools: Registered[]; resources: { uri: string; mimeType?: string; html: () => Promise<unknown> }[] } {
@@ -38,15 +39,11 @@ function registryFor(role: McpRole): { tools: Registered[]; resources: { uri: st
       name: string,
       cfg: { title?: string; description?: string; inputSchema?: Record<string, z.ZodTypeAny>; annotations?: { readOnlyHint?: boolean }; _meta?: { ui?: { resourceUri?: string } } },
     ) {
-      // The schema is half of what the client pays (review PR #136): measured as the JSON the SDK would send.
-      const schema = JSON.stringify(z.toJSONSchema(z.object(cfg.inputSchema ?? {})))
-      const description = cfg.description ?? ''
       out.push({
         name,
-        description,
+        description: cfg.description ?? '',
         readOnly: cfg.annotations?.readOnlyHint !== false,
         view: cfg._meta?.ui?.resourceUri,
-        size: name.length + (cfg.title ?? '').length + description.length + schema.length + JSON.stringify(cfg._meta ?? {}).length,
       })
     },
   }
@@ -115,7 +112,7 @@ describe('manifiesto del MCP', () => {
     expect(toolsFor('admin').find((t) => t.name === 'record_payroll_hours')?.description).toContain('CÓMO LEER LA HOJA')
   })
 
-  test('PRESUPUESTO (ADR-034): numero de tools por bloque, largo de descripciones e instrucciones', () => {
+  test('PRESUPUESTO (ADR-034): numero de tools por bloque, largo de descripciones e instrucciones', async () => {
     const app = manifestFor('app').length
     const odoo = manifestFor('odoo').length
     expect(app, `app: ${app} tools, tope ${TOOL_BUDGET.tools.app}`).toBeLessThanOrEqual(TOOL_BUDGET.tools.app)
@@ -129,7 +126,10 @@ describe('manifiesto del MCP', () => {
     }
     const total = tools.reduce((n, t) => n + t.description.length, 0)
     expect(total, `descripciones: ${total} caracteres, tope ${TOOL_BUDGET.descriptionsTotal}`).toBeLessThanOrEqual(TOOL_BUDGET.descriptionsTotal)
-    const list = tools.reduce((n, t) => n + t.size, 0)
+    // The schema is half of what the client pays (review PR #136): measured on the real wire, as the snapshot does.
+    const mcp = await connectMcp('admin')
+    const list = (await mcp.tools()).reduce((n, t) => n + JSON.stringify(t).length, 0)
+    await mcp.close()
     expect(list, `tools/list: ${list} caracteres, tope ${TOOL_BUDGET.listTotal}`).toBeLessThanOrEqual(TOOL_BUDGET.listTotal)
     // The exception list only names tools that exist, so it cannot hide a dead entry.
     for (const name of Object.keys(TOOL_BUDGET.descriptionExceptions)) expect(registered).toContain(name)
