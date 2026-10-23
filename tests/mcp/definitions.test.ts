@@ -23,6 +23,11 @@ describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (nam
     expect(tool.annotations.readOnlyHint === true).toBe(tool.kind === 'read')
     if (tool.kind === 'write') expect(tool.docs.limits?.length).toBeGreaterThan(0)
     expect(tool.docs.example.length).toBeGreaterThan(0)
+    expect(tool.annotations.openWorldHint).toBe(false)
+  })
+
+  test('REGLA (ADR-040): toda escritura de Odoo es de administrador', () => {
+    if (tool.connector === 'odoo' && tool.kind === 'write') expect(tool.adminOnly).toBe(true)
   })
 })
 
