@@ -236,7 +236,7 @@ Una cotización convertida ya **no es editable** (ni por ruta ni desde el chat) 
 - **Total de tools nuevas: 1** (`save_quotation`). El bloque app está en 36/36:
   - **Opción A (recomendada):** fusionar `list_quotations` dentro de `get_quotation` (sin cotización o con varias coincidencias = listado paginado; con una = detalle, como `get_profiles` sin persona) → impacto neto 0.
   - **Opción B:** subir el tope a 37.
-  - En los dos casos el esquema de `cambios` es grande (estimado 2.5–3.5 k caracteres) y presiona `listTotal` (47,000), como pasó con las líneas de Odoo (ADR-040).
+  - En los dos casos el esquema de `cambios` es grande (estimado 2.5–3.5 k caracteres) y presiona `listTotal` (54,000 en el cable desde #158; 47,000 con el stub al escribir esta ficha), como pasó con las líneas de Odoo (ADR-040).
 - **Opcional, no incluida en el total:** `preview_quotation` como vista MCP Apps (tabla con botón "Guardar") para crear desde un Excel largo transcrito (precedente `preview_time_report`, ADR-036) → +1 tool. Si se quisiera "alto" con clave HMAC, ojo: `src/lib/odoo/preview-token.ts` deriva su secreto de `ODOO_WRITE_API_KEY` (llave por ventanas, solo en Production); un secreto propio de la app sería requisito.
 
 ## Fuera a propósito

@@ -212,7 +212,7 @@ Prerrequisitos comunes (antes de cablear cualquier tool que mueva stock):
 - `list_orders` → `get_order` (sin `orden` lista; con `orden` detalle): libera 1.
 - `get_purchase_plan` y `get_cut_plan` → `get_order` con `incluir: ['compra','corte']`: libera hasta 2 (ver [[02-Arquitectura/MCP-Escrituras/Ordenes-compra-y-corte]]).
 
-Las dos tools nuevas llevan esquemas largos (líneas, recepción): cuidan los topes de 1,000 caracteres por descripción y de `tools/list` (47,000).
+Las dos tools nuevas llevan esquemas largos (líneas, recepción): cuidan los topes de 1,000 caracteres por descripción y de `tools/list` (54,000 en el cable desde #158; 47,000 con el stub al escribir esta ficha).
 
 ## Fuera a propósito
 
