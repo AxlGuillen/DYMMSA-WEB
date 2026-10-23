@@ -81,7 +81,7 @@ describe('manifiesto del MCP', () => {
     const member = toolsFor('member').map((t) => t.name)
     expect(admin.sort()).toEqual(TOOL_MANIFEST.map((t) => t.name).sort())
     expect(member.sort()).toEqual(manifestForRole('member').map((t) => t.name).sort())
-    // The guards in server.ts and the flags in the manifest must say the same thing.
+    // core/register.ts skips the adminOnly definitions for a member (#133): the member list must lack exactly those.
     for (const name of ADMIN_ONLY_TOOLS) expect(member, name).not.toContain(name)
     expect(member).toHaveLength(admin.length - ADMIN_ONLY_TOOLS.size)
   })
