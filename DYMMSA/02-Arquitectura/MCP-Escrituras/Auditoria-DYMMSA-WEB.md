@@ -6,6 +6,8 @@
 
 ## Resumen
 
+> **Unidad de las cifras de `tools/list` de esta auditoría:** el método viejo del stub (2026-10-22), que no contaba anotaciones ni estructura JSON. Desde #158 el presupuesto se mide en el cable (~14 % más), y la conversión de estos topes y objetivos vive en [[04-Decisiones-Tecnicas/ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] § «Presupuestos por conector».
+
 **Lo medido el 2026-10-22.** Se registró el servidor real con un stub que mide lo mismo que `tests/mcp/manifest.test.ts:42-49`: nombre, título, descripción, esquema JSON y `_meta`. Las anotaciones no entran en la cuenta.
 - **36 tools**: 12,925 caracteres de descripción y 28,674 de `tools/list`.
 - **24 lecturas**: 14,580 caracteres, unos 608 por tool.
@@ -390,6 +392,8 @@ Prerrequisitos de las dos escrituras de órdenes (ficha de Órdenes): `orders-st
 9. **`save_cut_plan` no absorbe `save_material_presentation`:** son dos entidades (ADR-034) con anotaciones distintas: E(1,0) contra E(0,1).
 
 ### Total y tamaño
+
+> **Unidad de las cifras de `tools/list` de esta auditoría:** el método viejo del stub (2026-10-22), que no contaba anotaciones ni estructura JSON. Desde #158 el presupuesto se mide en el cable (~14 % más), y la conversión de estos topes y objetivos vive en [[04-Decisiones-Tecnicas/ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] § «Presupuestos por conector».
 - **44 tools:** 24 lecturas (igual que hoy) y 20 escrituras (12 hoy, −6 por fusión, +14 nuevas).
 - **`tools/list` estimado:** unos 43,800 caracteres, ±15 %.
   - Lecturas: unos 15,350 (640 por tool).

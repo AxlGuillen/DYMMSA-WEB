@@ -111,8 +111,9 @@ export const TOOL_BUDGET = {
   descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
   /** 18,000 → 18,500 for the #134 writes (ADR-037); → 20,000 for the four Odoo tools of #144 (ADR-040). */
   descriptionsTotal: 20_000,
-  /** Characters of the whole tools/list an admin receives (name + title + description + schema + _meta). 37,000 → 40,000 for the #134 writes (ADR-037); → 47,000 for #144, whose line schema rides in both preview and save (ADR-040). */
-  listTotal: 47_000,
+  /** Characters of the admin's tools/list on the wire, every field included (#155 A1). The 47,000 of #144 measured a proxy
+   *  without annotations or JSON structure; on the wire the same list is 53,163, and 54,000 leaves ~1.6% of slack. */
+  listTotal: 54_000,
   /** Characters of the server instructions, per role. 7,500 → 8,000 for the admin's Odoo write flow (#144). */
   instructions: 8000,
 } as const

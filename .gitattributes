@@ -1,0 +1,2 @@
+tests/mcp/__snapshots__/*.json linguist-generated=true
+tests/mcp/__snapshots__/** text eol=lf
