@@ -1,5 +1,3 @@
-'use client'
-
 import Link from 'next/link'
 import {
   FileSpreadsheet,
@@ -42,6 +40,7 @@ import {
 import { DocsTabs } from '@/components/docs/DocsTabs'
 import { TutorialButton } from '@/components/tutorials/TutorialButton'
 import { tutorialsForDocs } from '@/lib/tutorials'
+import { DOCS_MANIFEST } from '@/lib/mcp/catalog'
 import {
   Card,
   CardContent,
@@ -1271,7 +1270,7 @@ export default function DocsPage() {
       </div>
 
       <ShortcutsSection />
-      <AssistantSection />
+      <AssistantSection tools={DOCS_MANIFEST} />
 
       <div id="flujo" className="login-card-border">
       <Card className="docs-card-inner border-0">
