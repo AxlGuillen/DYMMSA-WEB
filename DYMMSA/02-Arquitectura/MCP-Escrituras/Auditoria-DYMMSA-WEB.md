@@ -400,7 +400,7 @@ Prerrequisitos de las dos escrituras de órdenes (ficha de Órdenes): `orders-st
 - **Ahorro ya contado:** unos 1,300 caracteres de texto repetido que se quitan (H8).
 - **Descripciones:** unas 17,700 (lecturas unos 6,500; escrituras unos 11,200, incluida la excepción de la hoja del taller).
 - **Instrucciones del conector:** unas 5,500 (mapa por módulo unos 2,500, con las convenciones de dos fases y de borrado; reglas de negocio sin las líneas de Odoo unos 1,900; flujos unos 600; regla de los dos mundos unos 500).
-- **Comparación:** con los dos conectores prendidos, el cliente paga unos 43,800 + 18,000 de `tools/list`, contra los 46,588 de hoy. Con solo DYMMSA-WEB, unos 43,800.
+- **Comparación:** con los dos conectores prendidos, el cliente paga unos 43,800 + 18,000 de `tools/list`, contra los 46,692 de hoy (método de `manifest.test.ts`). Con solo DYMMSA-WEB, unos 43,800.
 - **Topes propuestos** (`TOOL_BUDGET` del conector): `tools` 45, `listTotal` 46,000, `descriptionsTotal` 19,000, `descriptionExceptions.save_payroll_hours` 2,800 e `instructions` 6,000.
 
 ---
