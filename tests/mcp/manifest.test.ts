@@ -128,8 +128,7 @@ describe('manifiesto del MCP', () => {
     expect(total, `descripciones: ${total} caracteres, tope ${TOOL_BUDGET.descriptionsTotal}`).toBeLessThanOrEqual(TOOL_BUDGET.descriptionsTotal)
     // The schema is half of what the client pays (review PR #136): measured on the real wire, as the snapshot does.
     const mcp = await connectMcp('admin')
-    const list = (await mcp.tools()).reduce((n, t) => n + JSON.stringify(t).length, 0)
-    await mcp.close()
+    const list = await mcp.tools().then((tools) => tools.reduce((n, t) => n + JSON.stringify(t).length, 0)).finally(() => mcp.close())
     expect(list, `tools/list: ${list} caracteres, tope ${TOOL_BUDGET.listTotal}`).toBeLessThanOrEqual(TOOL_BUDGET.listTotal)
     // The exception list only names tools that exist, so it cannot hide a dead entry.
     for (const name of Object.keys(TOOL_BUDGET.descriptionExceptions)) expect(registered).toContain(name)
