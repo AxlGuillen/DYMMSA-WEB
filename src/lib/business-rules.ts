@@ -165,7 +165,8 @@ export function receivedForCustomer<T extends ReceptionLike>(item: T): number {
   return Math.min(item.quantity_received, item.quantity_to_order)
 }
 
-/** Excess = max(0, received − ordered): the ONLY thing that enters inventory, by delta. */
+/** Excess = max(0, received − ordered): the ONLY thing that enters inventory, by delta.
+ *  The SQL receive_order_items() applies the same formula when it persists a reception (#157). */
 export function receptionExcess<T extends ReceptionLike>(item: T): number {
   return Math.max(0, item.quantity_received - item.quantity_to_order)
 }
@@ -199,6 +200,39 @@ export function allocateInventory(
   const inStock = Math.max(0, Math.min(needed, available))
   const toOrder = needed - inStock
   return { inStock, toOrder }
+}
+
+/** Key store_inventory matches by (exact model_code); blank = the line draws no stock. */
+export function stockKey(modelCode: string | null | undefined): string | null {
+  return modelCode && modelCode.trim() !== '' ? modelCode : null
+}
+
+/** What an order asks of each model_code, summed across its lines: one reservation per code (#157). */
+export function stockDemand(
+  lines: ReadonlyArray<{ model_code?: string | null; quantity: number }>,
+): Array<{ model_code: string; quantity: number }> {
+  const demand = new Map<string, number>()
+  for (const line of lines) {
+    const key = stockKey(line.model_code)
+    if (key && line.quantity > 0) demand.set(key, (demand.get(key) ?? 0) + line.quantity)
+  }
+  return [...demand].map(([model_code, quantity]) => ({ model_code, quantity }))
+}
+
+/** Running allocation (#157): lines sharing a model_code draw from ONE pool in order — stock 6
+ *  and two lines of 5 split 5 + 1, never 5 + 5. */
+export function allocateLines(
+  lines: ReadonlyArray<{ model_code?: string | null; quantity: number }>,
+  available: ReadonlyMap<string, number>,
+): Array<{ inStock: number; toOrder: number }> {
+  const left = new Map(available)
+  return lines.map((line) => {
+    const key = stockKey(line.model_code)
+    const pool = key ? left.get(key) ?? 0 : 0
+    const allocation = allocateInventory(line.quantity, pool)
+    if (key) left.set(key, pool - allocation.inStock)
+    return allocation
+  })
 }
 
 /** Invariant check for routes that mutate order_items. */
