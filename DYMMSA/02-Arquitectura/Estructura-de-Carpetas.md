@@ -137,7 +137,9 @@ src/
 │   ├── business-rules.ts         # isProductItem, calculateQuotationTotal, allocateInventory, etc.
 │   ├── approval-filters.ts       # Filtros de la página de aprobación: secciones/marcas (issue #24)
 │   ├── purchase-plan.ts          # Planificador de compra: consolidación, math STD, recomendación (ADR-018)
-│   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers
+│   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers; apiError() traduce un DomainError (#155 C1)
+│   ├── domain-error.ts           # DomainError(kind): base de los errores de los stores, status por kind (#155 C1, #157)
+│   ├── order-status.ts           # ORDER_STATUSES (el enum del MCP, #155 C1)
 │   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
 │   ├── github.ts                 # Cliente GitHub Issues (módulo Tareas): fetchGitHub + mapeos puros
@@ -147,7 +149,7 @@ src/
 │   ├── customers.ts              # Cartera y estado de cuenta: rango por vencimiento, líneas, totales (issue #145, ADR-039)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145); sat-keys.ts ordena las claves SAT sugeridas (#154)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
-│   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores, resultado/_meta, schema, lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool, ConnectorDefinition), register (registro derivado) y http (connectorRoute: la ruta de cada conector)
+│   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores (toToolResult), resultado/_meta, schema (primitivas zod y strictInput), input-error (el mensaje en español de una entrada inválida, #155 C1), lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool, ConnectorDefinition), register (registro derivado) y http (connectorRoute: la ruta de cada conector)
 │   ├── mcp/connectors/dymmsa/    # Las 36 tools de DYMMSA-WEB, una definición por archivo por módulo (summary, quotations, orders, inventory, catalogs, suppliers, finance, hours, profiles, payroll, tasks, settings) (#155 A3b)
 │   ├── mcp/connectors/*/connector.ts # Definición de cada conector: ruta, serverInfo, tools, instrucciones y presupuesto (#155 B1; desde B3 cada uno sirve solo las suyas)
 │   ├── mcp/connectors/odoo/      # Las 15 tools del conector Odoo, una definición por archivo por módulo (queries, accounting, sales, operations, quotations) (#155 A3a, nombres finales en B2a, odoo_confirm_quotation en B2b); el index.ts de cada conector fija el orden de tools/list
