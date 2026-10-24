@@ -11,7 +11,7 @@ export const listTimeImportsTool = defineTool({
   description:
     'Bitácora de los reportes semanales del checador cargados a la app: periodo, archivo, checadas insertadas/actualizadas y las saltadas por edición manual. Solo un administrador ve filas.',
   input: {
-    limit: limit(50, 10, 'cargas'),
+    limite: limit(50, 10, 'cargas'),
   },
   hints: dymmsaRead,
   adminOnly: true,

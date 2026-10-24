@@ -77,7 +77,7 @@ export function resolvePaymentUpdate(
 export type PayableUpdateResult = { ok: true; updates: PayableUpdate } | { ok: false; error: string }
 
 /**
- * The PATCH rules, shared with the MCP's update_payable (#134): sparse, dates that exist
+ * The PATCH rules, shared with the MCP's save_payable (#134, #155 C6): sparse, dates that exist
  * (2026-02-30 is a 22008 in Postgres), and status/paid_at through resolvePaymentUpdate with
  * the row's `current` status. Whether supplier_id exists is the caller's check: it needs the database.
  */

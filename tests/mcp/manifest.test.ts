@@ -63,7 +63,7 @@ describe('manifiesto del MCP', () => {
 
   test('las escrituras son exactamente las aprobadas y cada una declara sus limites', () => {
     const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write')
-    expect(writes.filter((t) => t.connector === 'dymmsa').map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'record_payroll_hours', 'save_excused_day', 'save_material_presentation', 'save_payroll_employee', 'save_supplier', 'save_time_entries', 'set_inventory_location', 'update_payable', 'update_task'])
+    expect(writes.filter((t) => t.connector === 'dymmsa').map((t) => t.name).sort()).toEqual(['save_excused_day', 'save_inventory_item', 'save_material_presentation', 'save_payable', 'save_payroll_employee', 'save_payroll_hours', 'save_supplier', 'save_task', 'save_time_entries'])
     for (const w of writes) expect(w.limits, w.name).toBeTruthy()
     expect(manifestFor('odoo').every((t) => t.name.startsWith('odoo_'))).toBe(true)
     expect(manifestFor('dymmsa').every((t) => !t.name.startsWith('odoo_'))).toBe(true)
@@ -84,7 +84,7 @@ describe('manifiesto del MCP', () => {
   })
 
   test('las tools de administrador existen pero no salen en la documentacion que lee todo el equipo (#123, #133)', () => {
-    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['get_payroll_period', 'list_time_imports', 'odoo_confirm_quotation', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'record_payroll_hours', 'save_excused_day', 'save_payroll_employee', 'save_time_entries'])
+    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['get_payroll_period', 'list_time_imports', 'odoo_confirm_quotation', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'save_excused_day', 'save_payroll_employee', 'save_payroll_hours', 'save_time_entries'])
     expect(DOCS_MANIFEST.some((t) => t.adminOnly || t.module === 'Nomina' || t.name.includes('payroll'))).toBe(false)
     expect(DOCS_MANIFEST).toHaveLength(TOOL_MANIFEST.length - ADMIN_ONLY_TOOLS.size)
   })
@@ -113,9 +113,9 @@ describe('manifiesto del MCP', () => {
     const member = dymmsaConnector.instructions('member')
     const admin = dymmsaConnector.instructions('admin')
     expect(member).not.toMatch(/N[oó]mina/)
-    // The sheet guide rides with record_payroll_hours, not with every conversation.
+    // The sheet guide rides with save_payroll_hours, not with every conversation.
     expect(admin).not.toContain('Hoja de asistencia')
-    expect(registryFor(dymmsaConnector, 'admin').tools.find((t) => t.name === 'record_payroll_hours')?.description).toContain('CÓMO LEER LA HOJA')
+    expect(registryFor(dymmsaConnector, 'admin').tools.find((t) => t.name === 'save_payroll_hours')?.description).toContain('CÓMO LEER LA HOJA')
     for (const { name } of manifestFor('odoo')) {
       expect(admin, name).not.toContain(name)
       expect(member, name).not.toContain(name)

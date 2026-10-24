@@ -30,11 +30,12 @@ import {
   reportMismatches,
   shiftProgress,
   SHIFT_HOURS,
-  SHIFT_LABELS,
+  SHIFT_TOKENS,
+  EXCUSE_TOKENS,
   weekBounds,
   shiftWeek,
 } from '@/lib/timesheet'
-import type { ExcusedDay, Profile, TimeEntry, TimeEntryUpdate } from '@/types/database'
+import type { ExcuseKind, ExcusedDay, Profile, TimeEntry, TimeEntryUpdate } from '@/types/database'
 
 type Target = Pick<Profile, 'id' | 'display_name' | 'shift'>
 
@@ -78,7 +79,7 @@ const DAY_STATUS_LABELS: Record<DayStatus, string | null> = {
 
 function shiftBlock(target: Target) {
   return {
-    jornada: target.shift ? SHIFT_LABELS[target.shift] : null,
+    jornada: target.shift ? SHIFT_TOKENS.toToken(target.shift) : null,
     objetivo_semanal_h: target.shift ? SHIFT_HOURS[target.shift].weekly : null,
   }
 }
@@ -120,7 +121,7 @@ export async function getWeekHours(db: Db, callerId: string, input: WeekHoursInp
       fecha: d.date,
       horas: formatDuration(d.minutes),
       estado: DAY_STATUS_LABELS[points[i].status],
-      justificado: points[i].excuse ? EXCUSE_LABELS[points[i].excuse] : null,
+      justificado: points[i].excuse ? EXCUSE_TOKENS.toToken(points[i].excuse as ExcuseKind) : null,
       checadas: d.punches.map((p) => ({ entrada: p.entry.clock_in, salida: p.entry.clock_out, nota: p.entry.note })),
       sin_salida: d.open,
     })),
@@ -170,8 +171,8 @@ export async function getHoursTrend(db: Db, callerId: string, input: HoursTrendI
   }
 }
 
-export async function listTimeImports(db: Db, input: { limit?: number } = {}) {
-  const limit = Math.min(50, Math.max(1, Math.floor(input.limit ?? 10)))
+export async function listTimeImports(db: Db, input: { limite?: number } = {}) {
+  const limit = Math.min(50, Math.max(1, Math.floor(input.limite ?? 10)))
   const { data, error } = await db
     .from('time_imports')
     .select('period_start, period_end, file_name, inserted, updated, skipped_edited, created_at')

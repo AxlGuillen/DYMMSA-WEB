@@ -286,6 +286,60 @@ describe('sin secreto o con bloqueos', () => {
     }
   })
 
+  test('una herramienta que declara `direct` escribe de inmediato lo de bajo riesgo, aun sin secreto; lo demás pide el sí', async () => {
+    const mixed = defineTool({
+      connector: 'dymmsa',
+      name: 'prueba_mixta',
+      kind: 'write',
+      title: 'Prueba mixta',
+      description: 'Herramienta de prueba del núcleo: unas llamadas son directas y otras piden confirmación.',
+      input: { nombre: z.string(), delicado: z.boolean().optional() },
+      hints: { destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      adminOnly: true,
+      confirm: 'two_phase',
+      direct: true,
+      docs: { module: 'Prueba', title: 'Prueba', example: 'Haz la prueba.', limits: 'Solo prueba.' },
+      plan: async (input): Promise<WritePlan<null>> => ({
+        entity: { key: 'prueba', value: { nombre: input.nombre } },
+        directo: !input.delicado,
+        bloqueos: world.blocked,
+        fingerprint: { version: world.version },
+        subject: `La prueba ${input.nombre}`,
+        carry: null,
+      }),
+      commit: async (input, ctx) => {
+        world.commits.push(`${ctx.userId}:${input.nombre}`)
+        return { accion: 'creado', escrito: true }
+      },
+    })
+    const mcp = await connect([mixed])
+    try {
+      vi.stubEnv('MCP_PREVIEW_SECRET', '')
+      // Low risk: written at once, with no key and no secret.
+      const direct = await mcp.call('prueba_mixta', { nombre: 'uno' })
+      expect(direct.isError, textOf(direct)).toBeFalsy()
+      expect(parse(textOf(direct))).toMatchObject({ accion: 'creado', escrito: true })
+      expect(world.commits).toEqual(['admin-1:uno'])
+      // Sensitive: it fails closed until the secret exists.
+      const sensitive = await mcp.call('prueba_mixta', { nombre: 'dos', delicado: true })
+      expect(sensitive.isError).toBe(true)
+      expect(textOf(sensitive)).toMatch(/no está disponible/)
+      expect(world.commits).toEqual(['admin-1:uno'])
+
+      // With the secret it asks for the yes, and a block is always shown first, even on a low-risk call.
+      vi.stubEnv('MCP_PREVIEW_SECRET', TEST_PREVIEW_SECRET)
+      const asked = parse(textOf(await mcp.call('prueba_mixta', { nombre: 'dos', delicado: true })))
+      expect(asked).toMatchObject({ accion: 'simulado', escrito: false })
+      expect(asked.clave).toBeTruthy()
+      world.blocked = ['Falta algo.']
+      const blocked = parse(textOf(await mcp.call('prueba_mixta', { nombre: 'tres' })))
+      expect(blocked).toMatchObject({ accion: 'simulado', escrito: false, bloqueos: ['Falta algo.'] })
+      expect(world.commits).toEqual(['admin-1:uno'])
+    } finally {
+      await mcp.close()
+    }
+  })
+
   test('un member no ve la herramienta', async () => {
     const mcp = await connectMcp('member', authAs('member'), { ...dymmsaConnector, tools: [twoPhaseTool('prueba_a'), getAppSettingsTool] })
     try {

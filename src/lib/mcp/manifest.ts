@@ -33,7 +33,7 @@ export type McpRole = 'admin' | 'member'
 export const TOOL_BUDGET = {
   /** Characters of description per tool; the exceptions carry a guide the model needs in full. */
   description: 1000,
-  descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
+  descriptionExceptions: { save_payroll_hours: 2600 } as Record<string, number>,
 } as const
 
 /**

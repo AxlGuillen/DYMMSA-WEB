@@ -51,7 +51,7 @@ describe('rutas MCP con mcp-handler', () => {
     const odooMember = names((await rpc(odooPost as Handler, '/api/odoo/mcp', 'member')).body)
     expect(odooMember).not.toContain('odoo_save_quotation')
     expect(odooMember).not.toContain('odoo_confirm_quotation')
-    expect(names((await rpc(dymmsaPost as Handler, '/api/mcp', 'member')).body)).not.toContain('record_payroll_hours')
+    expect(names((await rpc(dymmsaPost as Handler, '/api/mcp', 'member')).body)).not.toContain('save_payroll_hours')
   })
 
   test('sin token responde 401 con el metadata de su propio conector', async () => {

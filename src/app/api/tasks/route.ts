@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest } from '@/lib/api-helpers'
+import { requireAuth } from '@/lib/api-helpers'
 import {
   fetchGitHub,
   mapIssueToTask,
   isPullRequest,
-  buildIssueBody,
   priorityToLabel,
   isTaskPriority,
   handleGitHubError,
   type GitHubIssue,
 } from '@/lib/github'
+import { createTask } from '@/lib/tasks-store'
 
 // GET /api/tasks?state=&priority=&page= — issue list; state=closed is the history.
 export async function GET(request: NextRequest) {
@@ -52,21 +52,15 @@ export async function POST(request: NextRequest) {
     const { user } = auth
 
     const body = (await request.json()) as { title?: string; description?: string; priority?: string }
-    const title = body.title?.trim()
-    if (!title) return badRequest('El título es obligatorio')
-
-    const reporter = user.email ?? 'DYMMSA'
-    const labels = body.priority && isTaskPriority(body.priority) ? [priorityToLabel(body.priority)] : []
-
-    const issue = await fetchGitHub<GitHubIssue>('/issues', {
-      method: 'POST',
-      body: JSON.stringify({
-        title,
-        body: buildIssueBody(body.description ?? '', reporter),
-        labels,
-      }),
-    })
-    return NextResponse.json(mapIssueToTask(issue), { status: 201 })
+    const task = await createTask(
+      {
+        title: body.title ?? '',
+        description: body.description,
+        priority: body.priority && isTaskPriority(body.priority) ? body.priority : undefined,
+      },
+      user.email ?? 'DYMMSA',
+    )
+    return NextResponse.json(task, { status: 201 })
   } catch (e) {
     return handleGitHubError(e)
   }

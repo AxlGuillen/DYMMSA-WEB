@@ -98,7 +98,7 @@ const COVERAGE: Record<string, Decision> = {
 
   // Inventario
   'POST inventory': { fuera: `${PHASE_D}save_inventory_item (alta con cantidad)` },
-  'PATCH inventory/[id]': { fuera: `${PHASE_D}save_inventory_item (cantidades; la gaveta ya la escribe set_inventory_location)` },
+  'PATCH inventory/[id]': { fuera: `${PHASE_D}save_inventory_item (cantidades; la gaveta ya la escribe save_inventory_item)` },
   'DELETE inventory/[id]': { fuera: 'borrar inventario queda en la app (decisión 4 de ADR-041)' },
   'POST inventory/import': { fuera: 'carga masiva por Excel: se hace en la app' },
 
@@ -121,8 +121,8 @@ const COVERAGE: Record<string, Decision> = {
   'DELETE brands/[id]': { fuera: DELETE_PENDING },
 
   // Finanzas
-  'POST payables': { tool: 'create_payable' },
-  'PATCH payables/[id]': { tool: ['update_payable', 'mark_payable_paid'] },
+  'POST payables': { tool: 'save_payable' },
+  'PATCH payables/[id]': { tool: 'save_payable' },
   'DELETE payables/[id]': { fuera: DELETE_PENDING },
 
   // Horas
@@ -140,17 +140,17 @@ const COVERAGE: Record<string, Decision> = {
   'DELETE profile/avatar': { fuera: 'la foto es un archivo binario: se quita desde Mi perfil' },
 
   // Nómina
-  'PUT payroll/days': { tool: 'record_payroll_hours' },
-  'POST payroll/periods/[start]/prefill': { tool: 'record_payroll_hours' },
+  'PUT payroll/days': { tool: 'save_payroll_hours' },
+  'POST payroll/periods/[start]/prefill': { tool: 'save_payroll_hours' },
   'POST payroll/periods/[start]/confirm': { fuera: `${PHASE_D}save_payroll_period (confirmar_borradores)` },
   'PATCH payroll/periods/[start]': { fuera: `${PHASE_D}save_payroll_period (cerrar y reabrir)` },
   'POST payroll/employees': { tool: 'save_payroll_employee' },
   'PATCH payroll/employees/[id]': { tool: 'save_payroll_employee' },
 
   // Tareas
-  'POST tasks': { tool: 'create_task' },
-  'PATCH tasks/[number]': { tool: 'update_task' },
-  'POST tasks/[number]/comments': { tool: 'update_task' },
+  'POST tasks': { tool: 'save_task' },
+  'PATCH tasks/[number]': { tool: 'save_task' },
+  'POST tasks/[number]/comments': { tool: 'save_task' },
   'POST tasks/upload': { fuera: 'las imágenes de una tarea se adjuntan desde la app' },
 }
 

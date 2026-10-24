@@ -27,7 +27,9 @@ export type TwoPhaseInput = Record<string, unknown> & { clave?: string }
 
 export async function runTwoPhase(tool: string, spec: TwoPhaseSpec, raw: TwoPhaseInput, ctx: McpContext): Promise<unknown> {
   // Fail closed before reading anything: without the secret no phase can be honest (MCP_PREVIEW_SECRET).
-  if (!previewSecret()) throw new ToolError(CONFIRM_UNAVAILABLE_MESSAGE)
+  // A tool that may answer some calls directly (low risk) plans first and only needs the secret for the rest.
+  const confirmable = previewSecret() !== null
+  if (!confirmable && !spec.direct) throw new ToolError(CONFIRM_UNAVAILABLE_MESSAGE)
   const { clave, ...args } = raw
   const key = typeof clave === 'string' ? clave.trim() : ''
   const scope = { userId: ctx.userId, tool, args }
@@ -39,6 +41,9 @@ export async function runTwoPhase(tool: string, spec: TwoPhaseSpec, raw: TwoPhas
   if (!signed) {
     if (plan.sinCambios) return writeResult('sin_cambios', plan.entity.key, plan.entity.value, { avisos: plan.avisos, nota: plan.nota })
     const blocked = (plan.bloqueos?.length ?? 0) > 0
+    // Low risk (the tool says so per call): it writes now, with no key. Blocks are always shown first.
+    if (plan.directo && !blocked) return spec.commit(args, ctx, plan)
+    if (!blocked && !confirmable) throw new ToolError(CONFIRM_UNAVAILABLE_MESSAGE)
     const issued = blocked ? null : issuePreviewKey({ ...scope, fingerprint: plan.fingerprint })
     return writeResult('simulado', plan.entity.key, plan.entity.value, {
       cambios: plan.cambios,

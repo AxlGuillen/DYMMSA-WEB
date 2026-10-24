@@ -159,6 +159,31 @@ describe('ref y version', () => {
   })
 })
 
+describe('verbos y parámetros de DYMMSA-WEB (ADR-041 §6-§7)', () => {
+  const ENGLISH_PARAMS = ['query', 'search', 'page', 'pageSize', 'limit', 'status', 'state', 'priority', 'id', 'number', 'model_code', 'location', 'comment', 'title', 'description', 'task_number', 'stockFilter']
+
+  test('cada tool arranca con uno de los verbos del catálogo: nunca set_, mark_, create_, update_ ni record_', () => {
+    for (const tool of dymmsaConnector.tools) {
+      expect(tool.name, tool.name).toMatch(/^(get|list|search|preview|save)_[a-z_]+$|^delete_record$/)
+    }
+  })
+
+  test('los parámetros van en español, snake_case y sin acentos', () => {
+    for (const tool of dymmsaConnector.tools) {
+      for (const key of Object.keys(tool.input)) {
+        expect(key, `${tool.name}.${key}`).toMatch(/^[a-z][a-z0-9_]*$/)
+        expect(ENGLISH_PARAMS, `${tool.name}.${key} está en inglés`).not.toContain(key)
+      }
+    }
+  })
+
+  test('una lectura o escritura que lista paginado usa pagina y por_pagina', () => {
+    for (const tool of dymmsaConnector.tools.filter((t) => 'pagina' in t.input)) {
+      expect(Object.keys(tool.input), tool.name).not.toContain('page')
+    }
+  })
+})
+
 describe('serverInfo (#155 B3, C6)', () => {
   test.each([
     ['dymmsa', dymmsaConnector],

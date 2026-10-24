@@ -50,7 +50,7 @@ describe('get_week_hours', () => {
     expect(result.semana).toEqual({ inicio: '2026-08-31', fin: '2026-09-06' })
     expect(result.total).toBe('04:00')
     expect(result.sin_salida).toBe(1)
-    expect(result).toMatchObject({ jornada: 'Medio tiempo · 4 h', objetivo_semanal_h: 20, cumplimiento_pct: 20, faltante: '16:00' })
+    expect(result).toMatchObject({ jornada: 'media', objetivo_semanal_h: 20, cumplimiento_pct: 20, faltante: '16:00' })
     expect(result.dias[0]).toMatchObject({ dia: 'Lun', horas: '04:00', checadas: [{ entrada: '09:00', salida: '13:00' }] })
     // The read is scoped to the resolved person, never to whatever the model asked for.
     const read = client.callsTo('time_entries', 'select')[0]
@@ -63,7 +63,7 @@ describe('get_week_hours', () => {
     })
     const result = await getWeekHours(asDb(client), 'u-tania', { persona: 'die' })
     expect(result.persona).toBe('Diego')
-    expect(result).toMatchObject({ jornada: 'Tiempo completo · 8 h', objetivo_semanal_h: 40, total: '00:00' })
+    expect(result).toMatchObject({ jornada: 'completa', objetivo_semanal_h: 40, total: '00:00' })
     expect(filterValue(client.callsTo('time_entries', 'select')[0], 'user_id')).toBe('u-diego')
   })
 
@@ -81,7 +81,7 @@ describe('get_week_hours', () => {
     expect(result.dias.slice(0, 3).map((d) => [d.estado, d.justificado])).toEqual([
       ['cumplió', null],
       ['no cumplió', null],
-      ['justificado', 'Día feriado'],
+      ['justificado', 'feriado'],
     ])
     expect(client.callsTo('excused_days', 'select')[0].filters.find((f) => f.method === 'or')?.args[0]).toBe('user_id.is.null,user_id.eq.u-tania')
   })
@@ -166,7 +166,7 @@ describe('list_time_imports', () => {
         },
       },
     })
-    const result = await listTimeImports(asDb(client), { limit: 5 })
+    const result = await listTimeImports(asDb(client), { limite: 5 })
     expect(result.nota).toBeNull()
     expect(result.cargas[0]).toMatchObject({ periodo: { inicio: '2026-08-31', fin: '2026-09-06' }, insertadas: 20, saltadas_por_edicion: 1 })
     const read = client.callsTo('time_imports', 'select')[0]

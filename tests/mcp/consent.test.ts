@@ -21,7 +21,7 @@ describe('consentSummary', () => {
     for (const w of admin.writes) expect(w.limits.length).toBeGreaterThan(10)
     expect(member.writes).toHaveLength(writes.filter((t) => !t.adminOnly).length)
     expect(member.writes.map((w) => w.title)).not.toContain('Cargar horas de nomina')
-    expect(ADMIN_ONLY_TOOLS.has('record_payroll_hours')).toBe(true)
+    expect(ADMIN_ONLY_TOOLS.has('save_payroll_hours')).toBe(true)
   })
 
   test('los modulos de lectura salen en el orden del manifiesto, cada uno en su conector y sin duplicados', () => {

@@ -77,7 +77,7 @@ describe('conector DYMMSA-WEB', () => {
     expect(textOf(month)).toMatch(/^Entrada inválida en get_payables_overview: «mes»: no es un mes \(YYYY-MM\)/)
 
     const nested = await withMcp(dymmsa(), (mcp) =>
-      mcp.call('record_payroll_hours', { dias: [{ empleado: 'Juan', fecha: '2026-10-20', horas: 8, hora_extra: 2 }] }),
+      mcp.call('save_payroll_hours', { dias: [{ empleado: 'Juan', fecha: '2026-10-20', horas: 8, hora_extra: 2 }] }),
     )
     expect(nested.isError).toBe(true)
     expect(textOf(nested)).toMatch(/el campo «hora_extra» no existe en «dias\.0»/)

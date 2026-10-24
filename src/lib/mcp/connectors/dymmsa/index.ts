@@ -10,7 +10,7 @@ import { getCutPlanTool } from './orders/get-cut-plan'
 import { saveMaterialPresentationTool } from './orders/save-material-presentation'
 import { getPurchasePlanTool } from './orders/get-purchase-plan'
 import { searchInventoryTool } from './inventory/search-inventory'
-import { setInventoryLocationTool } from './inventory/set-inventory-location'
+import { saveInventoryItemTool } from './inventory/save-inventory-item'
 import { searchProductsTool } from './catalogs/search-products'
 import { searchUrreaCatalogTool } from './catalogs/search-urrea-catalog'
 import { listSuppliersTool } from './suppliers/list-suppliers'
@@ -18,9 +18,7 @@ import { saveSupplierTool } from './suppliers/save-supplier'
 import { listPayablesTool } from './finance/list-payables'
 import { getPayableTool } from './finance/get-payable'
 import { getPayablesOverviewTool } from './finance/get-payables-overview'
-import { markPayablePaidTool } from './finance/mark-payable-paid'
-import { createPayableTool } from './finance/create-payable'
-import { updatePayableTool } from './finance/update-payable'
+import { savePayableTool } from './finance/save-payable'
 import { getMonthClosingTool } from './finance/get-month-closing'
 import { getWeekHoursTool } from './hours/get-week-hours'
 import { getHoursTrendTool } from './hours/get-hours-trend'
@@ -28,14 +26,13 @@ import { listTimeImportsTool } from './hours/list-time-imports'
 import { previewTimeReportTool } from './hours/preview-time-report'
 import { saveTimeEntriesTool } from './hours/save-time-entries'
 import { saveExcusedDayTool } from './hours/save-excused-day'
-import { getProfilesTool } from './profiles/get-profiles'
+import { listProfilesTool } from './profiles/list-profiles'
 import { getPayrollPeriodTool } from './payroll/get-payroll-period'
-import { recordPayrollHoursTool } from './payroll/record-payroll-hours'
+import { savePayrollHoursTool } from './payroll/save-payroll-hours'
 import { savePayrollEmployeeTool } from './payroll/save-payroll-employee'
 import { listTasksTool } from './tasks/list-tasks'
 import { getTaskTool } from './tasks/get-task'
-import { createTaskTool } from './tasks/create-task'
-import { updateTaskTool } from './tasks/update-task'
+import { saveTaskTool } from './tasks/save-task'
 import { getAppSettingsTool } from './settings/get-app-settings'
 
 export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
@@ -48,7 +45,7 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   saveMaterialPresentationTool,
   getPurchasePlanTool,
   searchInventoryTool,
-  setInventoryLocationTool,
+  saveInventoryItemTool,
   searchProductsTool,
   searchUrreaCatalogTool,
   listSuppliersTool,
@@ -56,9 +53,7 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   listPayablesTool,
   getPayableTool,
   getPayablesOverviewTool,
-  markPayablePaidTool,
-  createPayableTool,
-  updatePayableTool,
+  savePayableTool,
   getMonthClosingTool,
   getWeekHoursTool,
   getHoursTrendTool,
@@ -66,13 +61,12 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   previewTimeReportTool,
   saveTimeEntriesTool,
   saveExcusedDayTool,
-  getProfilesTool,
+  listProfilesTool,
   getPayrollPeriodTool,
-  recordPayrollHoursTool,
+  savePayrollHoursTool,
   savePayrollEmployeeTool,
   listTasksTool,
   getTaskTool,
-  createTaskTool,
-  updateTaskTool,
+  saveTaskTool,
   getAppSettingsTool,
 ]

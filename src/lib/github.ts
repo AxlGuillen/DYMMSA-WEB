@@ -2,6 +2,7 @@
  *  `import type` — next/server must never reach the bundle. */
 
 import { NextResponse } from 'next/server'
+import { DomainError } from '@/lib/domain-error'
 import { tokenMap } from '@/lib/tokens'
 
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'highest'] as const
@@ -175,6 +176,8 @@ export function explainGitHubStatus(status: number): string {
 
 /** GitHubError → NextResponse (explainPgError pattern); anything else → 500. */
 export function handleGitHubError(e: unknown): NextResponse {
+  // A rule of tasks-store (#155 C6) answers its own status and message.
+  if (e instanceof DomainError) return NextResponse.json(e.body, { status: e.status })
   if (e instanceof GitHubError) {
     const status = e.status >= 400 && e.status < 600 ? e.status : 502
     return NextResponse.json({ message: e.message }, { status })

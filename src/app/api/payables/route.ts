@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DEFAULT_PAYABLE_CURRENCY, isPayableCurrency, nextMonth, payableTotals, resolvePayableFilter } from '@/lib/payables'
+import { nextMonth, payableTotals, resolvePayableFilter } from '@/lib/payables'
+import { createPayable } from '@/lib/payables-store'
 import { createClient } from '@/lib/supabase/server'
 import { todayInMexico } from '@/lib/format'
-import { isRealDate } from '@/lib/month'
-import { requireAuth, requireRole, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
-import type { Payable, PayableInsert, PayableWithSupplier } from '@/types/database'
+import { requireAuth, requireRole, apiError, badRequest, serverError, isUuid } from '@/lib/api-helpers'
+import type { Payable, PayableWithSupplier } from '@/types/database'
 
 const SORT_FIELDS = ['due_date', 'invoice_date', 'amount', 'created_at'] as const
 type SortField = (typeof SORT_FIELDS)[number]
@@ -142,58 +142,8 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as Partial<PayableInsert>
-
-    const supplierId = typeof body.supplier_id === 'string' ? body.supplier_id : ''
-    if (!supplierId) return badRequest('Elige el proveedor de la factura')
-
-    const concept = typeof body.concept === 'string' ? body.concept.trim() : ''
-    if (!concept) return badRequest('El concepto es obligatorio')
-
-    const amount = typeof body.amount === 'number' ? body.amount : NaN
-    if (!Number.isFinite(amount) || amount <= 0) return badRequest('El monto debe ser mayor a 0')
-
-    const currency = body.currency ?? DEFAULT_PAYABLE_CURRENCY
-    if (!isPayableCurrency(currency)) return badRequest('Moneda inválida: usa MXN o USD')
-
-    if (!isRealDate(body.invoice_date)) {
-      return badRequest('Fecha de factura inválida')
-    }
-    if (!isRealDate(body.due_date)) {
-      return badRequest('Fecha de vencimiento inválida')
-    }
-
-    // Check the supplier BEFORE the insert: precise 404 instead of an FK 23503.
-    const { data: supplier } = await supabase
-      .from('suppliers').select('id').eq('id', supplierId).single()
-    if (!supplier) return notFound('El proveedor no existe')
-
-    const payload: PayableInsert = {
-      supplier_id: supplierId,
-      concept,
-      amount,
-      currency,
-      invoice_date: body.invoice_date,
-      due_date: body.due_date,
-      status: 'pending',
-      paid_at: null,
-      notes: typeof body.notes === 'string' ? body.notes.trim() || null : null,
-    }
-
-    const { data, error } = await supabase
-      .from('payables')
-      .insert(payload)
-      .select('*, supplier:suppliers(id, name, payment_terms_days)')
-      .single()
-
-    if (error || !data) {
-      console.error('Error creating payable:', error)
-      return serverError('Error al registrar la factura')
-    }
-
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json(await createPayable(supabase, await request.json()), { status: 201 })
   } catch (error) {
-    console.error('Payables POST error:', error)
-    return serverError('Error al registrar la factura')
+    return apiError(error, 'Error al registrar la factura', 'Payables POST error:')
   }
 }

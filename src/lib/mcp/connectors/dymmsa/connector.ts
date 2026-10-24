@@ -17,8 +17,8 @@ export const dymmsaConnector: ConnectorDefinition = {
   serverInfo: {
     name: 'dymmsa',
     title: CONNECTOR_NAMES.dymmsa,
-    // Major bump: B3 dropped the odoo_* tools from this endpoint.
-    version: '3.0.0',
+    // Major bumps: B3 dropped the odoo_* tools from this endpoint; C6 renamed and merged tools.
+    version: '4.0.0',
     websiteUrl: appUrl(),
     icons: [{ src: `${appUrl()}/dymmsa-logo.webp`, mimeType: 'image/webp' }],
   },

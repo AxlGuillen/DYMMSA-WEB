@@ -55,7 +55,25 @@ export function listResult<K extends string, T>(key: Exclude<K, ListKey>, items:
   return { total, pagina, por_pagina, hay_mas, ...said('nota', note), [key]: [...items] } as ListResult<K, T>
 }
 
-export const RECORD_KEYS = ['ref', 'avisos', 'nota'] as const
+export interface OpenPage {
+  readonly pagina: number
+  readonly por_pagina: number
+  readonly hay_mas: boolean
+}
+
+/** A collection whose source has no total (GitHub's list): the page says whether there is more, never how many. */
+export function pageResult<K extends string, T>(key: Exclude<K, ListKey>, items: readonly T[], page: OpenPage, nota?: string | null) {
+  assertFree(key, LIST_KEYS, 'pageResult')
+  const note = nota ?? (page.hay_mas ? `Hay más: pide pagina=${page.pagina + 1}.` : null)
+  return { pagina: page.pagina, por_pagina: page.por_pagina, hay_mas: page.hay_mas, ...said('nota', note), [key]: [...items] } as {
+    pagina: number
+    por_pagina: number
+    hay_mas: boolean
+    nota?: string
+  } & { [P in K]: T[] }
+}
+
+export const RECORD_KEYS =['ref', 'avisos', 'nota'] as const
 type RecordKey = (typeof RECORD_KEYS)[number]
 
 export interface RecordDetails {
@@ -129,7 +147,7 @@ export function writeResult<K extends string, E>(accion: WriteAction, key: Exclu
 
 const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b)
 
-/** antes/ahora of every field that changed between two presented records (generalizes update_payable). */
+/** antes/ahora of every field that changed between two presented records (generalizes the old update_payable). */
 export function diff(before: object, after: object, ignore: readonly string[] = []): Changes {
   const was = before as Record<string, unknown>
   const now = after as Record<string, unknown>

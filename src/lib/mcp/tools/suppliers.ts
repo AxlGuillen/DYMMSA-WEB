@@ -1,8 +1,9 @@
 /** Suppliers module (#21): the list, the name lookup the payables tools reuse (#109) and save_supplier (#134). */
 
 import { ToolError } from '@/lib/mcp/core/errors'
-import { writeResult } from '@/lib/mcp/core/envelope'
-import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { listResult, refOf, writeResult } from '@/lib/mcp/core/envelope'
+import { resolveByName } from '@/lib/mcp/core/lookup'
+import { normalizePagination } from '@/lib/mcp/core/schema'
 import { sanitizeSearch } from '@/lib/text'
 import type { Db } from '@/lib/mcp/core/db'
 import { normalizeBrandTag } from '@/lib/business-rules'
@@ -16,7 +17,7 @@ const SELECT = '*, supplier_brands(brands(name))'
 
 function digest(row: SupplierRow) {
   return {
-    id: row.id,
+    ref: refOf(row.id),
     nombre: row.name,
     telefono: row.phone,
     whatsapp: row.whatsapp,
@@ -35,53 +36,52 @@ function digest(row: SupplierRow) {
 export interface ListSuppliersInput {
   buscar?: string
   marca?: string
-  limit?: number
+  pagina?: number
+  por_pagina?: number
 }
 
 // With a brand filter the cut happens AFTER filtering in JS, so the read is wide on purpose.
 const BRAND_SCAN_LIMIT = 1000
 
 export async function listSuppliers(db: Db, input: ListSuppliersInput = {}) {
-  const limit = Math.min(100, Math.max(1, Math.floor(input.limit ?? 50)))
+  const { pagina, por_pagina, from, to } = normalizePagination(input, 50)
   const search = sanitizeSearch(input.buscar ?? '')
   const brand = (input.marca ?? '').trim().toUpperCase()
-  let query = db
-    .from('suppliers')
-    .select(SELECT)
-    .order('name', { ascending: true })
-    .limit(brand ? BRAND_SCAN_LIMIT : limit)
+  let query = db.from('suppliers').select(SELECT, { count: 'exact' }).order('name', { ascending: true })
+  query = brand ? query.limit(BRAND_SCAN_LIMIT) : query.range(from, to)
   if (search) {
     query = query.or(
       `name.ilike.%${search}%,phone.ilike.%${search}%,whatsapp.ilike.%${search}%,email.ilike.%${search}%`,
     )
   }
-  const { data, error } = await query
+  const { data, error, count } = await query
   if (error) throw new ToolError(`Error al leer proveedores: ${error.message}`)
 
   const rows = (data ?? []) as SupplierRow[]
-  const matching = rows.map(digest).filter((s) => !brand || s.marcas.some((m) => m.includes(brand)))
-  const scanCut = Boolean(brand) && rows.length >= BRAND_SCAN_LIMIT
-  return {
-    total: matching.length,
-    mostrados: Math.min(matching.length, limit),
-    nota: scanCut ? `Se revisaron solo los primeros ${BRAND_SCAN_LIMIT} proveedores: puede haber más con esa marca.` : null,
-    proveedores: matching.slice(0, limit),
-  }
+  if (!brand) return listResult('proveedores', rows.map(digest), { total: count ?? rows.length, pagina, por_pagina })
+
+  const matching = rows.map(digest).filter((s) => s.marcas.some((m) => m.includes(brand)))
+  const scanCut = rows.length >= BRAND_SCAN_LIMIT
+  return listResult(
+    'proveedores',
+    matching.slice(from, to + 1),
+    { total: matching.length, pagina, por_pagina },
+    scanCut ? `Se revisaron solo los primeros ${BRAND_SCAN_LIMIT} proveedores: puede haber más con esa marca.` : undefined,
+  )
 }
 
 export type SupplierRef = Pick<Supplier, 'id' | 'name' | 'payment_terms_days'>
 
-/** The one supplier whose name contains `name`; with several matches the error lists them. */
-export async function resolveSupplier(db: Db, name: string): Promise<SupplierRef> {
-  const query = sanitizeSearch(name)
-  if (!query) throw new ToolError('Indica el nombre del proveedor')
-  const { data, error } = await db
-    .from('suppliers')
-    .select('id, name, payment_terms_days')
-    .ilike('name', `%${query}%`)
-    .limit(6)
-  if (error) throw new ToolError(`Error al buscar el proveedor: ${error.message}`)
-  return requireSingleMatch((data ?? []) as SupplierRef[], (s) => s.name, 'proveedor', query)
+/** The one supplier whose ref or name matches; with several matches the error lists them. */
+export function resolveSupplier(db: Db, reference: string): Promise<SupplierRef> {
+  return resolveByName<SupplierRef>(db, {
+    table: 'suppliers',
+    select: 'id, name, payment_terms_days',
+    what: 'proveedor',
+    article: 'el',
+    label: (s) => s.name,
+    nameColumns: ['name'],
+  }, reference)
 }
 
 export interface SaveSupplierInput {

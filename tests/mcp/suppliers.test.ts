@@ -6,6 +6,9 @@ import type { Db } from '@/lib/mcp/core/db'
 import { listSuppliers, resolveSupplier, saveSupplier } from '@/lib/mcp/tools/suppliers'
 import { createSupplier } from '@/lib/suppliers-store'
 
+const S1 = '5a1b2c3d-0000-4000-8000-000000000001'
+const S2 = '6b2c3d4e-0000-4000-8000-000000000002'
+
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
 const supplier = (id: string, name: string, terms: number | null, brands: string[]) => ({
@@ -18,20 +21,20 @@ describe('listSuppliers', () => {
   test('aplana marcas, traduce el plazo y filtra por marca en JS', async () => {
     const client = createMockSupabase({
       responses: {
-        suppliers: { data: [supplier('s1', 'Perfiles del Bajío', 30, ['SURTEK', 'FOY']), supplier('s2', 'Tornillos MX', null, [])] },
+        suppliers: { data: [supplier(S1, 'Perfiles del Bajío', 30, ['SURTEK', 'FOY']), supplier(S2, 'Tornillos MX', null, [])] },
       },
     })
     const all = await listSuppliers(asDb(client), {})
     expect(all.total).toBe(2)
-    expect(all.proveedores[0]).toMatchObject({ nombre: 'Perfiles del Bajío', plazo_pago: '1 mes', marcas: ['FOY', 'SURTEK'] })
+    expect(all.proveedores[0]).toMatchObject({ ref: '5a1b2c3d', nombre: 'Perfiles del Bajío', plazo_pago: '1 mes', marcas: ['FOY', 'SURTEK'] })
     expect(all.proveedores[1]).toMatchObject({ plazo_pago: 'Contado', dias_credito: null })
 
     const surtek = await listSuppliers(asDb(client), { marca: 'surtek' })
     expect(surtek.proveedores.map((s) => s.nombre)).toEqual(['Perfiles del Bajío'])
-    expect(surtek).toMatchObject({ total: 1, mostrados: 1, nota: null })
+    expect(surtek).toMatchObject({ total: 1, pagina: 1, hay_mas: false })
     // With a brand the SQL limit is wide: the cut happens after filtering (review PR #111).
     expect(client.callsTo('suppliers', 'select')[1].filters.find((f) => f.method === 'limit')?.args[0]).toBe(1000)
-    expect(client.callsTo('suppliers', 'select')[0].filters.find((f) => f.method === 'limit')?.args[0]).toBe(50)
+    expect(client.callsTo('suppliers', 'select')[0].filters.find((f) => f.method === 'range')?.args).toEqual([0, 49])
   })
 
   test('buscar aplica el or sobre nombre/teléfono/email', async () => {
@@ -43,26 +46,26 @@ describe('listSuppliers', () => {
 
 describe('resolveSupplier', () => {
   test('una coincidencia la devuelve; ninguna o varias → error que guía', async () => {
-    const one = createMockSupabase({ responses: { suppliers: { data: [{ id: 's1', name: 'Perfiles del Bajío', payment_terms_days: 30 }] } } })
-    expect(await resolveSupplier(asDb(one), 'perfiles')).toMatchObject({ id: 's1' })
+    const one = createMockSupabase({ responses: { suppliers: { data: [{ id: S1, name: 'Perfiles del Bajío', payment_terms_days: 30 }] } } })
+    expect(await resolveSupplier(asDb(one), 'perfiles')).toMatchObject({ id: S1 })
 
     const none = createMockSupabase({ responses: { suppliers: { data: [] } } })
     await expect(resolveSupplier(asDb(none), 'zzz')).rejects.toThrow(/No hay proveedor que coincida con "zzz"/)
 
     const many = createMockSupabase({
-      responses: { suppliers: { data: [{ id: 's1', name: 'Perfiles A', payment_terms_days: 0 }, { id: 's2', name: 'Perfiles B', payment_terms_days: 0 }] } },
+      responses: { suppliers: { data: [{ id: S1, name: 'Perfiles A', payment_terms_days: 0 }, { id: S2, name: 'Perfiles B', payment_terms_days: 0 }] } },
     })
-    await expect(resolveSupplier(asDb(many), 'perfiles')).rejects.toThrow(/2 coincidencias \(Perfiles A, Perfiles B\)/)
-    await expect(resolveSupplier(asDb(many), '  ')).rejects.toThrow(/Indica el nombre/)
+    await expect(resolveSupplier(asDb(many), 'perfiles')).rejects.toThrow(/2 coincidencias \(Perfiles A \[ref 5a1b2c3d\], Perfiles B \[ref 6b2c3d4e\]\)/)
+    await expect(resolveSupplier(asDb(many), '  ')).rejects.toThrow(/Indica el proveedor/)
   })
 })
 
 describe('saveSupplier (#134)', () => {
   const BRANDS = { data: [{ id: 'b-foy', name: 'FOY' }, { id: 'b-surtek', name: 'SURTEK' }], error: null }
-  const saved = supplier('s1', 'Tornillos MX', 30, ['SURTEK'])
+  const saved = supplier(S1, 'Tornillos MX', 30, ['SURTEK'])
   // resolveSupplier reads a list; reading the saved row back is a .single().
   const suppliersSelect = (rec: CallRecord) =>
-    rec.single ? { data: saved, error: null } : { data: [{ id: 's1', name: 'Tornillos MX', payment_terms_days: 30 }], error: null }
+    rec.single ? { data: saved, error: null } : { data: [{ id: S1, name: 'Tornillos MX', payment_terms_days: 30 }], error: null }
 
   test('alta: mismos defaults que la app, marcas por nombre normalizado y devuelve el proveedor guardado', async () => {
     const client = createMockSupabase({
@@ -77,7 +80,7 @@ describe('saveSupplier (#134)', () => {
     expect(client.insertPayload('suppliers')).toEqual({
       name: 'Tornillos MX', phone: null, whatsapp: null, email: null, address: null, notes: null, payment_terms_days: 30,
     })
-    expect(client.insertPayload('supplier_brands')).toEqual([{ supplier_id: 's1', brand_id: 'b-surtek' }])
+    expect(client.insertPayload('supplier_brands')).toEqual([{ supplier_id: S1, brand_id: 'b-surtek' }])
     expect(result).toMatchObject({ accion: 'creado', escrito: true, proveedor: { nombre: 'Tornillos MX', dias_credito: 30, marcas: ['SURTEK'] } })
   })
 
@@ -93,7 +96,7 @@ describe('saveSupplier (#134)', () => {
       responses: {
         brands: BRANDS,
         'suppliers.select': suppliersSelect,
-        'suppliers.update': { data: { id: 's1' }, error: null },
+        'suppliers.update': { data: { id: S1 }, error: null },
         'supplier_brands.select': { data: [{ brand_id: 'b-surtek' }], error: null },
         'supplier_brands.insert': { data: null, error: null },
         'supplier_brands.delete': { data: null, error: null },
@@ -101,8 +104,8 @@ describe('saveSupplier (#134)', () => {
     })
     const result = await saveSupplier(asDb(client), { proveedor: 'tornillos', telefono: '', agregar_marcas: ['FOY'], quitar_marcas: ['SURTEK'] })
     expect(client.updatePayload('suppliers')).toEqual({ phone: null })
-    expect(filterValue(client.callsTo('suppliers', 'update')[0], 'id')).toBe('s1')
-    expect(client.insertPayload('supplier_brands')).toEqual([{ supplier_id: 's1', brand_id: 'b-foy' }])
+    expect(filterValue(client.callsTo('suppliers', 'update')[0], 'id')).toBe(S1)
+    expect(client.insertPayload('supplier_brands')).toEqual([{ supplier_id: S1, brand_id: 'b-foy' }])
     expect(filterValue(client.callsTo('supplier_brands', 'delete')[0], 'brand_id', 'in')).toEqual(['b-surtek'])
     expect(result.accion).toBe('actualizado')
   })

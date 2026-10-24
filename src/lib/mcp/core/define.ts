@@ -100,6 +100,8 @@ export interface WritePlan<P = null> {
   readonly bloqueos?: readonly string[]
   /** Nothing to do (already done): answered as sin_cambios, with no key. */
   readonly sinCambios?: boolean
+  /** Low risk for THIS call: phase 1 writes now, with no key. Only for tools declared `direct` (R10: low risk writes directly). */
+  readonly directo?: boolean
   /** What the write depends on (versions, stock read, the set of drafts…); JSON. A change between the phases voids the key. */
   readonly fingerprint: unknown
   /** «la venta S00912»: «<subject> cambió desde el resumen». */
@@ -111,6 +113,8 @@ export interface WritePlan<P = null> {
 
 /** The erased pair the core runs; tools write the typed one. */
 export interface TwoPhaseSpec {
+  /** The tool may mark a call `directo`: it then needs no MCP_PREVIEW_SECRET for those. */
+  direct: boolean
   plan(input: Record<string, unknown>, ctx: McpContext): Promise<WritePlan<unknown>>
   commit(input: Record<string, unknown>, ctx: McpContext, plan: WritePlan<unknown>): Promise<unknown>
 }
@@ -120,6 +124,8 @@ export type TwoPhaseDefinition<S extends z.ZodRawShape, O extends ToolOutput | u
   kind: 'write'
   hints: WriteHints
   confirm: 'two_phase'
+  /** Some calls are low risk and write directly (plan returns `directo`): the tool is only two-phase for the rest. */
+  direct?: true
   plan(input: z.infer<z.ZodObject<S>>, ctx: McpContext): Promise<WritePlan<P>>
   commit(input: z.infer<z.ZodObject<S>>, ctx: McpContext, plan: WritePlan<P>): Promise<HandlerResult<O>>
 }
@@ -134,8 +140,8 @@ export function defineTool<S extends z.ZodRawShape, O extends ToolOutput | undef
 ): ToolDefinition<S & ClaveShape, O>
 export function defineTool(definition: ToolDefinition | TwoPhaseDefinition<z.ZodRawShape, ToolOutput | undefined, unknown>): ToolDefinition {
   if (definition.confirm !== 'two_phase') return definition as ToolDefinition
-  const { plan, commit, input, ...rest } = definition as TwoPhaseDefinition<z.ZodRawShape, ToolOutput | undefined, unknown>
-  const spec = { plan, commit } as TwoPhaseSpec
+  const { plan, commit, input, direct, ...rest } = definition as TwoPhaseDefinition<z.ZodRawShape, ToolOutput | undefined, unknown>
+  const spec = { plan, commit, direct: direct === true } as TwoPhaseSpec
   return {
     ...rest,
     input: { ...input, clave: claveField },
