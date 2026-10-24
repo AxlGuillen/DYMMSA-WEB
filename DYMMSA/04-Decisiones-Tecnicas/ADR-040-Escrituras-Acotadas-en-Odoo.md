@@ -6,6 +6,8 @@
 > - `odoo_confirm_quotation` se separa de `odoo_save_quotation`.
 > - `odoo_create_draft_invoice` pasa a dos fases.
 > - Las tools Odoo viven en su propio conector, «Odoo DYMMSA».
+>
+> **2026-10-24 (ADR-041 B2b, #155):** confirmar ya es `odoo_confirm_quotation` (`folio` + `clave` de la revisión, misma firma y mismo `confirmSale` de la fachada) y `odoo_save_quotation` perdió `confirmar`. `odoo_create_draft_invoice` sin `confirmar` solo devuelve el resumen y con `confirmar: true` crea el borrador como antes. Las 6 operaciones y la lista negra no cambian.
 
 **Fecha:** 2026-10-18
 **Estado:** Aceptado e implementado. Infraestructura en PR #149; registro de las 4 tools, vista `odoo-quotation`, manifiesto, consentimiento e instrucciones el 2026-10-20 (rama `feat/144-wire-odoo-writes`). Falta la prueba en producción.
