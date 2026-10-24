@@ -27,12 +27,19 @@ Envía Excel con ETMs
 Recibe link público
 Aprueba/rechaza
 cada ítem
-                    → Sistema recibe decisiones
+                    → Sistema recibe decisiones (todo o nada, #157)
                       actualiza is_approved por ítem
                       status → approved / rejected
+                      approved_at = la PRIMERA aprobación (nunca cambia)
+                      si DYMMSA quitó un producto que el cliente
+                      tenía marcado → 409, no guarda nada y su
+                      página le pide recargar
 
                     → DYMMSA revisa cotización aprobada
-                      puede editar (Fase 5.5)
+                      puede editar (Fase 5.5); también mientras
+                      está en aprobación: guardar conserva los
+                      productos (mismos ids) y, en revisión, lo que
+                      el cliente ya decidió
                       
                     → Crear Orden
                       solo ítems is_approved=true
@@ -121,6 +128,8 @@ Ver [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]].
 | Cancelar restaura inventario | `quantity_in_stock` vuelve al store al cancelar la orden | [[03-Modulos/Inventario#Movimientos automáticos de inventario]] |
 | Reabrir o eliminar convertida exige eliminar la orden | Para regresar una `converted_to_order` a un estado editable, o para eliminarla, su orden vinculada debe eliminarse antes (400 si existe, aunque esté cancelada). Eliminar la orden devuelve el stock solo si sigue en tienda (`ordered`/`received`); garantiza ≤1 orden por cotización | [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]] |
 | Cambiar de estado regenera el link de aprobación | Cada `PATCH /status` regenera `approval_token`; el link compartido antes queda muerto (404) | [[03-Modulos/Aprobacion-por-Token#Seguridad y acceso]] |
+| Editar no rompe el link abierto del cliente | `update` conserva los ids de las líneas (una transacción, `update_quotation`); en `sent_for_approval` respeta el `is_approved` que guardó el cliente; si el cliente manda una línea que ya no existe → 409 sin escribir (#157) | [[02-Arquitectura/Base-de-Datos#Funciones de cotizaciones (#157, migración `atomic_quotation_writes`)]] |
+| Fecha de aprobación = la primera | `approved_at` se sella una vez y no cambia al re-aprobar ni al rechazar (decisión 2026-10-24, #157) | [[04-Decisiones-Tecnicas/ADR-011-Guardar-Avance-Aprobacion]] |
 | Auto-learn solo actualiza con datos no vacíos | No sobreescribe datos buenos con campos vacíos | [[03-Modulos/Catalogo-ETM#Auto-learn]] |
 | Excel URREA = decisiones de mayoreo guardadas | Criterio: pertenencia a `urrea_catalog` (cualquier línea, ya no `brand=URREA`); piezas en múltiplos de STD; menudeo y sin-catálogo van a la lista de compra local | [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]] |
 | Comunicación URREA fuera del sistema | WhatsApp — el sistema solo genera el Excel | [[01-Negocio/Decisiones-de-Negocio#Por qué la comunicación con URREA sigue siendo por WhatsApp]] |

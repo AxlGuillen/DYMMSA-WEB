@@ -125,6 +125,34 @@ describe('QuotationDetail — aprobación de items', () => {
   })
 })
 
+describe('QuotationDetail — refresco tras guardar (#157)', () => {
+  beforeEach(() => {
+    resetStores()
+    vi.clearAllMocks()
+  })
+
+  test('los ids ya no cambian al guardar: un updated_at nuevo basta para mostrar lo guardado', () => {
+    const { rerender } = renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
+    expect(counter('Aprobados')).toBe('0')
+
+    const saved = approvedQuotation()
+    saved.updated_at = '2026-10-24T18:00:00Z'
+    saved.quotation_items = saved.quotation_items.map((i) => (i.id === 'p1' ? { ...i, is_approved: true } : i))
+    rerender(<QuotationDetail quotation={saved} />)
+    expect(counter('Aprobados')).toBe('1')
+  })
+
+  test('sin escritura nueva (mismo updated_at y mismos ids) no pisa lo que el usuario lleva editado', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderWithProviders(<QuotationDetail quotation={approvedQuotation()} />)
+    await user.click(screen.getAllByRole('button', { name: 'Aprobar' })[0])
+    expect(counter('Aprobados')).toBe('1')
+
+    rerender(<QuotationDetail quotation={approvedQuotation()} />)
+    expect(counter('Aprobados')).toBe('1')
+  })
+})
+
 describe('QuotationDetail — columnas redimensionables (issue #55)', () => {
   beforeEach(() => resetStores())
 

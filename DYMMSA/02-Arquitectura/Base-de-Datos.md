@@ -101,7 +101,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `customer_name` | text | No | — | | Nombre del cliente |
 | `status` | text | No | `'draft'` | CHECK | Ver estados abajo |
 | `approval_token` | uuid | Sí | `gen_random_uuid()` | UNIQUE | Token para link público |
-| `approved_at` | timestamptz | Sí | — | | Fecha/hora de aprobación (cliente finaliza o staff marca `approved`) |
+| `approved_at` | timestamptz | Sí | — | | Fecha/hora de la **primera** aprobación (cliente finaliza o staff marca `approved`); una vez sellada nunca cambia: ni al re-aprobar ni si el cliente rechaza después (#157, 2026-10-24) |
 | `total_amount` | numeric | No | `0` | `>= 0` | Total en MXN |
 | `notes` | text | Sí | — | | Notas internas |
 | `original_file_url` | text | Sí | — | | URL del Excel original del cliente |
@@ -123,7 +123,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 |---------|------|----------|---------|-----------|-------------|
 | `id` | uuid | No | `gen_random_uuid()` | PK | |
 | `quotation_id` | uuid | No | — | FK → `quotations.id` | |
-| `item_type` | text | No | `'product'` | | `product` o `separator` |
+| `item_type` | text | No | `'product'` | CHECK `NOT VALID` | `product` o `separator` (`quotation_items_item_type_check`, #157) |
 | `section_label` | text | Sí | — | | Etiqueta del separador |
 | `separator_color` | text | Sí | — | | Override del color de sección (issue #73); NULL = automático; CHECK solo en separadores |
 | `sort_order` | integer | No | `0` | | Orden de visualización |
@@ -138,8 +138,19 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `is_approved` | boolean | Sí | — | | null=pendiente, true=aprobado, false=rechazado |
 | `is_sold` | boolean | Sí | — | | Snapshot de `etm_products.is_sold`. null=sin definir, true=lo vendemos, false=no lo vendemos |
 | `notes` | text | Sí | — | | |
-| `delivery_time` | text | Sí | `'immediate'` | | Ver valores en [[Glosario]] |
+| `delivery_time` | text | Sí | `'immediate'` | CHECK `NOT VALID` | Los 6 valores de [[Glosario]]; NULL en separadores (`quotation_items_delivery_time_check`, #157) |
 | `created_at` | timestamptz | Sí | `now()` | | |
+
+**CHECK `NOT VALID` (#157, decisión 2026-10-24):** los de `delivery_time` e `item_type` validan toda fila **nueva o actualizada**, no la historia (`pg_constraint.convalidated = false`). Al 2026-10-24 ninguna fila de la nube los viola, así que un `VALIDATE CONSTRAINT` posterior pasaría. A propósito **no** hay CHECK ni NOT NULL de `quantity` para productos: 16 líneas históricas sin cantidad en 4 cotizaciones convertidas se quedan como están; la cantidad se valida en el server (`quotation-validation`).
+
+### Funciones de cotizaciones (#157, migración `atomic_quotation_writes`)
+
+Las dos bloquean primero la fila de la cotización (`FOR UPDATE`), así que la edición y la aprobación pública se serializan. `SECURITY INVOKER`, `search_path = ''`, errores de regla como P0001 con llaves cortas que traduce `src/lib/quotations-store.ts` / `src/lib/approval-store.ts`.
+
+| Función | EXECUTE | Qué hace |
+|---|---|---|
+| `update_quotation(p_quotation_id uuid, p_header jsonb, p_items jsonb) → jsonb` | `authenticated` (sin `anon`) | Edición en una transacción: `name`/`customer_name`/`total_amount` del encabezado; cada línea de `p_items` con `id` de esta cotización se actualiza **en su lugar** (conserva el id), las que no vienen se borran y las demás se insertan con id nuevo; `sort_order` = posición. En `sent_for_approval` el `is_approved` de una línea existente se queda el de la BD (lo decide el cliente). Separadores → `is_approved` NULL. Devuelve `{ updated, inserted, deleted }`. Errores: `quotation_not_found`, `quotation_not_editable`, `duplicate_item` |
+| `submit_quotation_approval(p_token uuid, p_approved_ids jsonb, p_finalize boolean) → jsonb` | solo `service_role` (se revoca de `PUBLIC`, `anon` y `authenticated`) | La respuesta del cliente desde `/approve/[token]`, todo o nada: cada id debe ser un producto aprobable (`is_sold` distinto de `false`) de esa cotización, si no → `stale_items` sin escribir. Aprobados = true, resto NULL (avance) o false (enviar); al enviar, status `approved`/`rejected` y `approved_at = coalesce(approved_at, now())` solo si aprueba. Devuelve `{ quotation_id, finalized, status, approved_count }`. Errores: `quotation_not_found`, `quotation_processed`, `stale_items` |
 
 ---
 
@@ -547,3 +558,4 @@ RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll
 | `add_finance_payables` | (2026-09-02) | Columna `payment_terms_days` en `suppliers` y tabla `payables` (facturas por pagar: FK a suppliers sin cascade, concept/amount/fechas, status pending·paid·cancelled, `paid_at` fecha real). Índice (status, due_date), RLS + policy. Issue #84 |
 | `20261001052530` | `add_payroll` | Nómina (#123): `payroll_employees`, `payroll_days`, `payroll_periods`, trigger del corte cerrado y RLS solo admin |
 | `20261007035652` | `profile_pay_admin_only` | `profiles.hourly_rate` → tabla `profile_pay` (solo admin); el trigger de campos de admin deja de nombrar la tarifa (review PR #137) |
+| `20261024120000` (pendiente en la nube) | `atomic_quotation_writes` | #157: funciones `update_quotation` y `submit_quotation_approval` (ver arriba) y CHECK `NOT VALID` de `delivery_time` e `item_type` en `quotation_items`. Aditiva: no toca datos. Se aplica **antes** del deploy del código que la llama |
