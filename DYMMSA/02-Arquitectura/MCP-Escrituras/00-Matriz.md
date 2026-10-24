@@ -197,13 +197,13 @@ Están verificados en el código. Los primeros de la lista (stock y aprobación)
 
 | Severidad | Módulo | Bug |
 |---|---|---|
-| Alta | Órdenes | create-order y orden manual: un `model_code` repetido en varias líneas se aparta contra el mismo stock; gana el último write y se aparta más de lo que hay |
-| Alta | Órdenes | `/cancel` y `DELETE` de orden restauran stock y luego ignoran el error del update/delete; un reintento duplica el stock |
-| Alta | Órdenes | `/cancel` restaura stock de órdenes `delivered`, y `DELETE` de ítem en una `delivered` regresa stock ya entregado |
-| Alta | Órdenes | confirm-reception busca el ítem solo por `id`, sin `order_id`: puede tocar líneas de otra orden |
+| Alta | Órdenes | create-order y orden manual: un `model_code` repetido en varias líneas se aparta contra el mismo stock; gana el último write y se aparta más de lo que hay. **Arreglado el 2026-10-23 (#157, rama `fix/157-order-stock`).** |
+| Alta | Órdenes | `/cancel` y `DELETE` de orden restauran stock y luego ignoran el error del update/delete; un reintento duplica el stock. **Arreglado el 2026-10-23 (#157, rama `fix/157-order-stock`).** |
+| Alta | Órdenes | `/cancel` restaura stock de órdenes `delivered`, y `DELETE` de ítem en una `delivered` regresa stock ya entregado. **Arreglado el 2026-10-23 (#157): decisión del usuario, una entregada ya no se cancela ni gana o pierde líneas (400).** |
+| Alta | Órdenes | confirm-reception busca el ítem solo por `id`, sin `order_id`: puede tocar líneas de otra orden. **Arreglado el 2026-10-23 (#157, rama `fix/157-order-stock`).** |
 | Alta | Aprobación | Si DYMMSA edita mientras el cliente tiene la página abierta, «Enviar» deja la cotización `approved` con 0 líneas aprobadas y «Guardar avance» borra las aprobaciones (ids viejos) |
 | Alta | Catálogo URREA | El import en modo replace borra todo y hace un solo insert: si falla, el catálogo queda vacío. **Arreglado el 2026-10-24 (#157, rama `fix/157-imports`): el archivo se valida completo antes de escribir y el replace es la RPC `replace_urrea_catalog`, en una transacción.** |
-| Media | Órdenes | `POST /items` descuenta stock antes del insert y no lo devuelve si falla; `PATCH /items` responde éxito aunque falle |
+| Media | Órdenes | `POST /items` descuenta stock antes del insert y no lo devuelve si falla; `PATCH /items` responde éxito aunque falle. **Arreglado el 2026-10-23 (#157, rama `fix/157-order-stock`).** |
 | Media | Cotizaciones | `update` no es transaccional (0 ítems entre el delete y el insert) y no revisa el error del UPDATE del encabezado |
 | Media | Cotizaciones | La validación de líneas solo corre en el cliente: hay 16 líneas sin cantidad en 4 cotizaciones convertidas. `quotation_items` no tiene CHECK de `delivery_time` ni de `item_type` |
 | Media | Cotizaciones | `approved_at` se borra al rechazar y se re-sella al re-aprobar, al contrario de lo que dice CLAUDE.md (el test fija el comportamiento actual) |
@@ -222,7 +222,7 @@ Están verificados en el código. Los primeros de la lista (stock y aprobación)
 Las decisiones de arquitectura (ADR-041):
 
 1. **¿Uno o dos conectores?** Ver «Números»: con un solo conector no cabe sin subir topes, y el `tools/list` ya está al 99%.
-2. **¿Stock atómico en la BD (RPC) antes de abrir Órdenes e Inventario?**
+2. ~~¿Stock atómico en la BD (RPC) antes de abrir Órdenes e Inventario?~~ **Resuelto el 2026-10-23 (#157):** sí, migración `atomic_order_stock` (ver [[02-Arquitectura/Base-de-Datos]]).
 3. ~~¿«Solo admin» es regla de producto o de seguridad?~~ **Resuelto el 2026-10-22: por ahora solo el admin se conecta al MCP**, así que las restricciones de «solo admin» no condicionan el diseño. El mecanismo de roles (#133) se queda como está, sin trabajo extra.
 4. ~~¿Las 7 escrituras que hoy usan los members pasan a adminOnly?~~ Resuelto con la anterior.
 5. **¿Secreto propio para las vistas previas de DYMMSA?** Por ejemplo, una variable `MCP_PREVIEW_SECRET`.

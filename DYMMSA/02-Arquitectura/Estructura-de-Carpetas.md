@@ -139,7 +139,7 @@ src/
 │   ├── approval-filters.ts       # Filtros de la página de aprobación: secciones/marcas (issue #24)
 │   ├── purchase-plan.ts          # Planificador de compra: consolidación, math STD, recomendación (ADR-018)
 │   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers
-│   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
+│   ├── inventory.ts              # computeRestoration y estados en tienda (puras) + envoltorios de las funciones atómicas de stock (#157)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
 │   ├── domain-error.ts           # DomainError: base de los errores de los stores (kind → 400/404/409/500) (#157)
 │   ├── products-store.ts         # Escrituras de etm_products: validación, guarda ADR-013 en el servidor, import con las reglas del auto-learn (#157)

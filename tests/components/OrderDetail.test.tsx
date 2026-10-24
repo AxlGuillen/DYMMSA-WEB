@@ -313,3 +313,33 @@ describe('OrderDetail — eliminar orden según su estado (ADR-010)', () => {
     expect(within(dialog).getByText(/el inventario no cambia/)).toBeInTheDocument()
   })
 })
+
+describe('OrderDetail — orden entregada (#157)', () => {
+  beforeEach(() => resetStores())
+
+  test('REGLA: sin Cancelar, Agregar ni Eliminar producto; precio y recepción siguen editables', () => {
+    renderWithProviders(<OrderDetail order={order([orderItem()], { status: 'delivered' })} />)
+    expect(screen.queryByRole('button', { name: /Cancelar Orden/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Agregar/ })).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Eliminar producto')).not.toBeInTheDocument()
+    expect(screen.getByTitle('Editar precio')).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton')).toBeInTheDocument() // received input
+  })
+
+  test('REGLA: el selector de estado ya no ofrece regresar a Pedido ni a Recibido', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<OrderDetail order={order([orderItem()], { status: 'delivered' })} />)
+    const statusSelect = screen.getAllByRole('combobox').find((c) => c.textContent?.includes('Entregado')) as HTMLElement
+    await user.click(statusSelect)
+    expect(screen.getByRole('option', { name: 'Pedido' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('option', { name: 'Recibido' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('option', { name: 'Completado' })).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('una orden recibida conserva las tres acciones', () => {
+    renderWithProviders(<OrderDetail order={order([orderItem()], { status: 'received' })} />)
+    expect(screen.getByRole('button', { name: /Cancelar Orden/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Agregar/ })).toBeInTheDocument()
+    expect(screen.getByTitle('Eliminar producto')).toBeInTheDocument()
+  })
+})

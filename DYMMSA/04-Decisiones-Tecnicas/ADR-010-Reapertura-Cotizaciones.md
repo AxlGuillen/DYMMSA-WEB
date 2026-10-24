@@ -33,7 +33,7 @@ Si el estado actual es `converted_to_order`, la guarda consulta `orders` por
 `quotation_id`; si existe **cualquier** orden vinculada → 400
 ("Elimina la orden vinculada…"). Se eligió exigir **eliminación** (no solo
 cancelación) por dos razones:
-- Eliminar la orden ya restaura el inventario (`restoreOrderInventory`), igual que
+- Eliminar la orden ya restaura el inventario (`delete_order_restock`, desde #157 en una transacción), igual que
   cancelar → sin doble manejo de stock. **Corrección 2026-10-17** (`fix/quotation-bugs`):
   eso solo era cierto para órdenes activas. Al ligar las órdenes (`quotation_id`), la
   guarda manda a eliminar también las canceladas, y `DELETE /api/orders/[id]` volvía a
