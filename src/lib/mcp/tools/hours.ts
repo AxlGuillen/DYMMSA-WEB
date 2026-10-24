@@ -3,6 +3,7 @@
  * purpose: the db comes from the caller's token, so RLS decides — a member sees only their own rows.
  */
 
+import { z } from 'zod'
 import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
@@ -266,8 +267,37 @@ function periodDays(start: string, end: string) {
   return { days, truncated }
 }
 
+const text = z.string()
+const textList = z.array(text)
+
+/** preview_time_report's outputSchema (#155 C3): complete and strict, so every call proves what the view renders. */
+export const previewTimeReportOutput = z.strictObject({
+  periodo: z.strictObject({ inicio: text, fin: text }),
+  nombre_archivo: text.nullable(),
+  cuadra: z.boolean(),
+  problemas: textList,
+  dias: z.array(z.strictObject({ fecha: text, dia: text })),
+  personas: z.array(
+    z.strictObject({
+      nombre: text,
+      id_checador: z.number().nullable(),
+      perfil: text.nullable(),
+      por_dia: z.array(z.strictObject({ fecha: text, horas: text.nullable(), checadas: textList, sin_salida: z.boolean() })),
+      total: text,
+      total_reporte: text.nullable(),
+      cuadra: z.boolean(),
+    }),
+  ),
+  sin_perfil: textList,
+  no_vinieron_en_el_reporte: textList,
+  avisos: textList,
+  siguiente_paso: text,
+})
+
+export type TimeReportPreview = z.infer<typeof previewTimeReportOutput>
+
 /** Read-only twin of save_time_entries (ADR-034: never read and write in one tool); the MCP App view renders it (ADR-036). */
-export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>) {
+export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>): Promise<TimeReportPreview> {
   if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador')
   const report = parseNgtecoReport(input.filas)
   if (!report.period) throw new ToolError('Las filas no traen "Período de pago": ¿es el reporte del checador?')

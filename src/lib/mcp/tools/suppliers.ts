@@ -1,6 +1,7 @@
 /** Suppliers module (#21): the list, the name lookup the payables tools reuse (#109) and save_supplier (#134). */
 
 import { ToolError } from '@/lib/mcp/core/errors'
+import { writeResult } from '@/lib/mcp/core/envelope'
 import { requireSingleMatch } from '@/lib/mcp/core/lookup'
 import { sanitizeSearch } from '@/lib/text'
 import type { Db } from '@/lib/mcp/core/db'
@@ -141,7 +142,7 @@ export async function saveSupplier(db: Db, input: SaveSupplierInput) {
 
   if (!editing) {
     const created = await createSupplier(db, parsed.value, add)
-    return { accion: 'creado', proveedor: await readSupplier(db, created.id) }
+    return writeResult('creado', 'proveedor', await readSupplier(db, created.id))
   }
   const target = await resolveSupplier(db, input.proveedor as string)
   let brandIds: string[] | undefined
@@ -154,5 +155,6 @@ export async function saveSupplier(db: Db, input: SaveSupplierInput) {
     brandIds = [...current]
   }
   await updateSupplier(db, target.id, parsed.value, brandIds)
-  return { accion: 'actualizado', proveedor: await readSupplier(db, target.id) }
+  // Already the write envelope (#155 C3): it only gains escrito.
+  return writeResult('actualizado', 'proveedor', await readSupplier(db, target.id))
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineTool, type ToolView } from '@/lib/mcp/core/define'
 import { dymmsaRead } from '../shared'
-import { previewTimeReport } from '@/lib/mcp/tools/hours'
+import { previewTimeReport, previewTimeReportOutput } from '@/lib/mcp/tools/hours'
 import { MCP_VIEWS } from '@/lib/mcp/views/generated'
 
 const TIME_REPORT_VIEW: ToolView = {
@@ -22,6 +22,7 @@ export const previewTimeReportTool = defineTool({
     filas: z.array(z.array(z.string().max(200)).max(20)).min(1).max(1000),
     nombre_archivo: z.string().max(200).optional(),
   },
+  output: previewTimeReportOutput,
   hints: dymmsaRead,
   adminOnly: true,
   view: TIME_REPORT_VIEW,

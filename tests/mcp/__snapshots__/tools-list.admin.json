@@ -950,6 +950,194 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
     },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "periodo": {
+          "type": "object",
+          "properties": {
+            "inicio": {
+              "type": "string"
+            },
+            "fin": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "inicio",
+            "fin"
+          ],
+          "additionalProperties": false
+        },
+        "nombre_archivo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cuadra": {
+          "type": "boolean"
+        },
+        "problemas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dias": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "fecha": {
+                "type": "string"
+              },
+              "dia": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fecha",
+              "dia"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "personas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "nombre": {
+                "type": "string"
+              },
+              "id_checador": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "perfil": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "por_dia": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fecha": {
+                      "type": "string"
+                    },
+                    "horas": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "checadas": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sin_salida": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "fecha",
+                    "horas",
+                    "checadas",
+                    "sin_salida"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "total": {
+                "type": "string"
+              },
+              "total_reporte": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cuadra": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "nombre",
+              "id_checador",
+              "perfil",
+              "por_dia",
+              "total",
+              "total_reporte",
+              "cuadra"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "sin_perfil": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "no_vinieron_en_el_reporte": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "avisos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "siguiente_paso": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "periodo",
+        "nombre_archivo",
+        "cuadra",
+        "problemas",
+        "dias",
+        "personas",
+        "sin_perfil",
+        "no_vinieron_en_el_reporte",
+        "avisos",
+        "siguiente_paso"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,

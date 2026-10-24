@@ -1,7 +1,13 @@
 /** Keys a view reads from a result's _meta; namespaced so they never collide with the protocol's. */
 export type ResultMeta = Readonly<Record<`dymmsa/${string}`, string>>
 
-export type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean; _meta?: ResultMeta }
+export type ToolResult = {
+  content: { type: 'text'; text: string }[]
+  /** The text's own JSON, parsed (#155 C3): the text stays the model's source of truth (plan §9). */
+  structuredContent?: Record<string, unknown>
+  isError?: boolean
+  _meta?: ResultMeta
+}
 
 declare const resultDataType: unique symbol
 
@@ -30,4 +36,22 @@ export function splitResultMeta<T>(value: T | ResultWithMeta<T>): { data: T; met
   const entry = typeof value === 'object' && value !== null ? resultMeta.get(value) : undefined
   if (!entry) return { data: value as T, meta: null }
   return { data: entry.data as T, meta: Object.keys(entry.meta).length > 0 ? entry.meta : null }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * What the client receives for a handler's value. structuredContent is parsed back from the text, so it is the
+ * same JSON byte for byte; the spec only allows an object there, so a list or a scalar stays text alone.
+ */
+export function toolResultOf(value: unknown): ToolResult {
+  const { data, meta } = splitResultMeta(value)
+  const text = JSON.stringify(data) ?? 'null'
+  const structured: unknown = JSON.parse(text)
+  return {
+    content: [{ type: 'text', text }],
+    ...(isRecord(structured) ? { structuredContent: structured } : {}),
+    ...(meta ? { _meta: meta } : {}),
+  }
 }

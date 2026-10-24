@@ -30,7 +30,8 @@ export interface LineRequest {
 
 export type LineKind = 'producto' | 'nota' | 'seccion'
 /** Confirming is not a mode: odoo_confirm_quotation takes only the folio and the review key (#155 B2b). */
-export type QuotationMode = 'crear' | 'editar' | 'revisar'
+export const QUOTATION_MODES = ['crear', 'editar', 'revisar'] as const
+export type QuotationMode = (typeof QUOTATION_MODES)[number]
 
 export interface ModeInput {
   readonly cliente?: string

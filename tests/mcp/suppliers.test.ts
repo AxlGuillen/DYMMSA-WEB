@@ -78,7 +78,7 @@ describe('saveSupplier (#134)', () => {
       name: 'Tornillos MX', phone: null, whatsapp: null, email: null, address: null, notes: null, payment_terms_days: 30,
     })
     expect(client.insertPayload('supplier_brands')).toEqual([{ supplier_id: 's1', brand_id: 'b-surtek' }])
-    expect(result).toMatchObject({ accion: 'creado', proveedor: { nombre: 'Tornillos MX', dias_credito: 30, marcas: ['SURTEK'] } })
+    expect(result).toMatchObject({ accion: 'creado', escrito: true, proveedor: { nombre: 'Tornillos MX', dias_credito: 30, marcas: ['SURTEK'] } })
   })
 
   test('REGLA: una marca que no existe no se crea: error con el catálogo y nada escrito', async () => {

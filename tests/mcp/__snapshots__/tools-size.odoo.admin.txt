@@ -1,5 +1,5 @@
-# tools/list (admin): 15 tools, 20565 caracteres en el cable
-  2939  odoo_preview_quotation
+# tools/list (admin): 15 tools, 21369 caracteres en el cable
+  3743  odoo_preview_quotation
   2655  odoo_save_quotation
   1798  odoo_save_product
   1675  odoo_search_records

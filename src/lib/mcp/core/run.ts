@@ -2,7 +2,7 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { contextFrom, type McpContext } from './context'
 import type { Db } from './db'
 import { toToolResult } from './errors'
-import { splitResultMeta, type ToolResult } from './result'
+import { toolResultOf, type ToolResult } from './result'
 
 /** The SDK hands the AuthInfo validated by withMcpAuth in each call's extra. */
 type ToolExtra = { authInfo?: AuthInfo }
@@ -14,8 +14,7 @@ export async function run(tool: string, extra: ToolExtra, fn: (db: Db, ctx: McpC
   try {
     const ctx = contextFrom(extra.authInfo)
     // Only a withResultMeta() result fills _meta: the view reads it, the text never carries it (#144).
-    const { data, meta } = splitResultMeta(await fn(ctx.db, ctx))
-    return { content: [{ type: 'text', text: JSON.stringify(data) }], ...(meta ? { _meta: meta } : {}) }
+    return toolResultOf(await fn(ctx.db, ctx))
   } catch (e) {
     return toToolResult(e, tool, startedAt)
   }

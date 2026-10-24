@@ -8,6 +8,7 @@ import { isAdminNow } from '@/lib/mcp/core/auth/live-admin'
 import { isUuid, sanitizeSearch } from '@/lib/text'
 import { requireSingleMatch } from '@/lib/mcp/core/lookup'
 import { ToolError } from '@/lib/mcp/core/errors'
+import { diff } from '@/lib/mcp/core/envelope'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolveSupplier } from './suppliers'
 import { formatMoney, todayInMexico } from '@/lib/format'
@@ -206,13 +207,9 @@ export async function updatePayable(db: Db, input: UpdatePayableInput) {
 
   const { data, error } = await db.from('payables').update(parsed.updates).eq('id', target.id).select(SELECT).single()
   if (error || !data) throw new ToolError(`Error al actualizar la factura: ${error?.message ?? 'sin datos'}`)
-  const before: Record<string, unknown> = digest(target, today)
   const after = digest(data as PayableWithSupplier, today)
-  const cambios = Object.fromEntries(
-    Object.entries(after)
-      .filter(([key, value]) => key !== 'id' && key !== 'dias_para_vencer' && before[key] !== value)
-      .map(([key, value]) => [key, { antes: before[key], ahora: value }]),
-  )
+  // Same answer as before #155 C3; the writeResult envelope arrives when C6 merges it into save_payable.
+  const cambios = diff(digest(target, today), after, ['id', 'dias_para_vencer'])
   const dueKept = input.fecha_factura !== undefined && input.vencimiento === undefined
   return {
     ...after,

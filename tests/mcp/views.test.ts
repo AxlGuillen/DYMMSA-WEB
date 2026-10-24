@@ -12,6 +12,7 @@ import {
   assignChoiceKey,
   assignedSummary,
   AUTHORIZATION_META,
+  dataOf,
   NOTHING_CHOSEN,
   defaultSatChoice,
   initialState,
@@ -60,6 +61,17 @@ describe('vistas MCP generadas', () => {
     }
   })
 
+  test('ninguna vista empaqueta código del servidor: de src/lib solo toma tipos, como el z.infer de su output (#155 C3)', () => {
+    for (const name of VIEWS) {
+      for (const file of readdirSync(viewDir(name)).filter((f) => f.endsWith('.ts'))) {
+        const source = readFileSync(join(viewDir(name), file), 'utf8')
+        expect(source, `${name}/${file}`).not.toMatch(/^import (?!type )[^\n]*(@\/lib\/|'zod')/m)
+      }
+    }
+    const timeReport = readFileSync(join(viewDir('time-report'), 'main.ts'), 'utf8')
+    expect(timeReport).toMatch(/type Preview = z\.infer<typeof previewTimeReportOutput>/)
+  })
+
   test('cotización de Odoo (#144): la vista lee la autorización de la misma llave de _meta y no empaqueta código del servidor', () => {
     expect(AUTHORIZATION_META).toBe(PRODUCTS_AUTHORIZATION_META)
     expect(VIEW_SAT_PLACEHOLDER).toBe(SAT_PLACEHOLDER)
@@ -106,6 +118,13 @@ describe('vistas MCP generadas', () => {
       expect(state.preview).toEqual(preview)
       expect(state.autorizacion).toBe('firma')
       expect(applyToolResult(initialState(), { content: ok.content }).autorizacion).toBeNull()
+    })
+
+    test('lee el structuredContent cuando el host lo pasa, y el texto cuando no (#155 C3)', () => {
+      const structured = { ...ok, content: [{ type: 'text' as const, text: '{"modo":' }], structuredContent: preview as unknown as Record<string, unknown> }
+      expect(applyToolResult(initialState(), structured)).toMatchObject({ preview, autorizacion: 'firma', error: null })
+      expect(dataOf(structured)).toEqual(preview)
+      expect(dataOf({ content: ok.content })).toEqual(preview)
     })
 
     test('un error después de una vista previa buena la quita y deja ver el error (con su botón de alta fuera)', () => {

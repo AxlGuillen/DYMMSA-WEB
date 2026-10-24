@@ -535,6 +535,88 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
     },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "modo": {
+          "type": "string",
+          "enum": [
+            "crear",
+            "editar",
+            "revisar"
+          ]
+        },
+        "puede_guardar": {
+          "type": "boolean"
+        },
+        "bloqueos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "avisos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "clave": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "siguiente_paso": {
+          "type": "string"
+        },
+        "lineas": {
+          "type": "array",
+          "items": {}
+        },
+        "productos_nuevos": {
+          "type": "array",
+          "items": {}
+        },
+        "productos_para_alta": {
+          "type": "array",
+          "items": {}
+        },
+        "sin_clave_sat": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "required": [
+        "modo",
+        "puede_guardar",
+        "bloqueos",
+        "avisos",
+        "clave",
+        "vence",
+        "siguiente_paso",
+        "lineas",
+        "productos_nuevos",
+        "productos_para_alta",
+        "sin_clave_sat"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
