@@ -61,14 +61,14 @@ describe('vistas MCP generadas', () => {
       expect(preview?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/odoo-quotation.html' } })
       expect(preview?.annotations?.readOnlyHint).toBe(true)
       expect(list.find((t) => t.name === 'odoo_save_product')?._meta).toMatchObject({ ui: { visibility: ['app'] } })
-      for (const name of ['odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
+      for (const name of ['odoo_save_quotation', 'odoo_confirm_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
         expect(list.find((t) => t.name === name)?.annotations?.readOnlyHint, name).toBe(false)
       }
       const read = await admin.client.readResource({ uri: 'ui://dymmsa/odoo-quotation.html' })
       expect(read.contents[0]).toMatchObject({ mimeType: 'text/html;profile=mcp-app', text: MCP_VIEWS['odoo-quotation'].html })
 
       const memberTools = (await member.tools()).map((t) => t.name)
-      for (const name of ['odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
+      for (const name of ['odoo_preview_quotation', 'odoo_save_quotation', 'odoo_confirm_quotation', 'odoo_save_product', 'odoo_create_draft_invoice']) {
         expect(memberTools, name).not.toContain(name)
       }
     } finally {

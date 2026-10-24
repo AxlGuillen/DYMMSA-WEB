@@ -1,12 +1,17 @@
 /**
- * odoo_create_draft_invoice (#144, ADR-040). The real facade and write catalog
+ * odoo_create_draft_invoice (#144, ADR-040; two phases since #155 B2b). The real facade and write catalog
  * run over fakes: nothing reaches Odoo nor Supabase, and account.move is only ever read.
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createMockSupabase } from '../helpers/supabase-mock'
 import { fakeOdoo, fakeWriter, throwingWriter, type OdooScript } from '../helpers/fake-odoo'
-import { odooCreateDraftInvoice, type DraftInvoiceInput } from '@/lib/mcp/tools/odoo/draft-invoice'
+import {
+  odooCreateDraftInvoice,
+  SUMMARY_LINES_MAX,
+  type DraftInvoiceInput,
+  type DraftInvoiceSummary,
+} from '@/lib/mcp/tools/odoo/draft-invoice'
 import type { Db } from '@/lib/mcp/core/db'
 import { OdooUncertainWriteError } from '@/lib/odoo/client'
 import { trailNote } from '@/lib/odoo/writer'
@@ -39,7 +44,10 @@ function context(opts: { role?: McpRole; profileRole?: string } = {}) {
 
 const COMPANY_NAME = 'DISTRIBUCIONES Y MANUFACTURAS DE MICHOACAN'
 const ORIGINAL_NOTE = '<p>Confirmada por el asistente a petición de Ana Admin · 2026-10-17 16:50 · clave 0123456789</p>'
+/** The summary phase: no confirmar. */
 const INPUT: DraftInvoiceInput = { folio: 'S00912' }
+/** The write phase, after the admin's yes. */
+const CONFIRM = { folio: 'S00912', confirmar: true } as const
 const ALREADY_REMINDER =
   'La venta ya tiene una factura en borrador: no creé otra. Revisarla, publicarla y timbrarla se hace en Odoo; el asistente nunca timbra.'
 const MISSING_TRAIL =
@@ -51,6 +59,7 @@ function saleRow(overrides: Record<string, unknown> = {}) {
     name: 'S00912',
     state: 'sale',
     invoice_status: 'to invoice',
+    amount_untaxed: 2,
     amount_total: 2.32,
     currency_id: [33, 'MXN'],
     partner_id: [1, COMPANY_NAME],
@@ -69,7 +78,7 @@ const NOTE_LINE = {
 function lineRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 7002, name: 'Re pintado', display_type: false, product_id: [30888, 'Re pintado'], is_downpayment: false,
-    product_uom_qty: 2, qty_delivered: 0, qty_invoiced: 0, qty_to_invoice: 2, price_unit: 1,
+    product_uom_qty: 2, qty_delivered: 0, qty_invoiced: 0, qty_to_invoice: 2, price_unit: 1, price_subtotal: 2,
     ...overrides,
   }
 }
@@ -103,14 +112,20 @@ const readyScript = (overrides: OdooScript = {}): OdooScript => ({
   ...overrides,
 })
 
-/** Preconditions only: whatever is read, nothing may be written. */
-async function refused(script: OdooScript, input: DraftInvoiceInput = INPUT) {
-  const { odoo, calls } = fakeOdoo(script)
-  const { writer, attempts } = throwingWriter()
-  const error = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, input).catch((e: unknown) => e)
-  expect(attempts).toEqual([])
-  expect(error).toBeInstanceOf(Error)
-  return { message: (error as Error).message, calls }
+/** Preconditions only, in BOTH phases (#155 B2b): the same refusal, and nothing may be written. */
+async function refused(script: OdooScript, folio = INPUT.folio) {
+  const outcomes = []
+  for (const input of [{ folio }, { folio, confirmar: true as const }]) {
+    const { odoo, calls } = fakeOdoo(script)
+    const { writer, attempts } = throwingWriter()
+    const error = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, input).catch((e: unknown) => e)
+    expect(attempts).toEqual([])
+    expect(error).toBeInstanceOf(Error)
+    outcomes.push({ message: (error as Error).message, calls })
+  }
+  expect(outcomes[1].message).toBe(outcomes[0].message)
+  expect(outcomes[1].calls).toEqual(outcomes[0].calls)
+  return outcomes[0]
 }
 
 const WIZARD_CONTEXT = { active_model: 'sale.order', active_ids: [912], active_id: 912 }
@@ -121,6 +136,7 @@ describe('rechazos', () => {
       const { odoo, calls } = fakeOdoo({})
       const { writer, attempts } = throwingWriter()
       await expect(odooCreateDraftInvoice({ reader: odoo, writer }, who.ctx, INPUT)).rejects.toThrow(ADMIN_ONLY_MESSAGE)
+      await expect(odooCreateDraftInvoice({ reader: odoo, writer }, who.ctx, CONFIRM)).rejects.toThrow(ADMIN_ONLY_MESSAGE)
       expect(calls).toEqual([])
       expect(attempts).toEqual([])
     }
@@ -136,7 +152,7 @@ describe('rechazos', () => {
   test('solo desde una venta confirmada', async () => {
     for (const state of ['draft', 'sent']) {
       const { message, calls } = await refused({ 'sale.order.search_read': [[saleRow({ state })]] })
-      expect(message).toBe('La S00912 sigue como cotización: primero confírmala (con tu sí, odoo_save_quotation con confirmar).')
+      expect(message).toBe('La S00912 sigue como cotización: primero confírmala (vista previa con el folio y, con tu sí, odoo_confirm_quotation).')
       // Nothing else is read: the wizard is never reached.
       expect(calls).toHaveLength(1)
     }
@@ -203,12 +219,12 @@ describe('rechazos', () => {
   })
 
   test('el folio debe ser exacto', async () => {
-    const near = await refused({ 'sale.order.search_read': [[], [{ id: 912, name: 'S00912' }]] }, { folio: 'S000912' })
+    const near = await refused({ 'sale.order.search_read': [[], [{ id: 912, name: 'S00912' }]] }, 'S000912')
     expect(near.message).toBe('No hay ninguna venta S000912 en Odoo. ¿Quisiste decir S00912? Pásame el folio completo.')
     // The exact folio first, a near one only suggested.
     expect(near.calls[0].payload.domain).toEqual([['name', '=', 'S000912']])
 
-    const malformed = await refused({}, { folio: '912' })
+    const malformed = await refused({}, '912')
     expect(malformed.message).toMatch(/^Entrada inválida en folio: folio de venta de Odoo, ej\. S00912/)
     expect(malformed.calls).toEqual([])
   })
@@ -220,7 +236,91 @@ describe('rechazos', () => {
   })
 })
 
-describe('borrador', () => {
+describe('resumen sin confirmar (#155 B2b)', () => {
+  test('lee lo mismo que la escritura y no escribe nada: cliente, total, líneas, entrega y que no hay borrador', async () => {
+    const delivered = { ...MANGO_LINE, qty_delivered: 2, qty_to_invoice: 2, price_subtotal: 1901.96 }
+    const script = readyScript({
+      'sale.order.search_read': [[saleRow({ picking_ids: [650], amount_untaxed: 1903.96, amount_total: 2208.59 })]],
+      'sale.order.line.search_read': [[NOTE_LINE, lineRow(), delivered]],
+      'product.product.search_read': [[REPINTADO, MANGO]],
+      'stock.picking.search_read': [[{ id: 650, name: 'OFI/OUT/00650', state: 'done' }]],
+    })
+    const { odoo, calls } = fakeOdoo(script)
+    const { writer, ops, calls: writes } = fakeWriter()
+    const result = (await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)) as DraftInvoiceSummary
+
+    expect(ops).toEqual([])
+    expect(writes).toEqual([])
+    expect(calls.every((c) => c.method === 'search_read')).toBe(true)
+    expect(calls.map((c) => c.model)).toEqual(['sale.order', 'sale.order.line', 'product.product', 'stock.picking'])
+    expect(result).toEqual({
+      venta: { folio: 'S00912', id: 912, cliente: COMPANY_NAME },
+      a_facturar: { subtotal: 1903.96, total: 2208.59, moneda: 'MXN' },
+      lineas: [
+        { producto: 'Re pintado', cantidad: 2, importe: 2 },
+        { producto: MANGO.name, cantidad: 2, importe: 1901.96 },
+      ],
+      truncado: false,
+      entrega: 'Bienes entregados: la entrega está validada en Odoo.',
+      entregas: [{ folio: 'OFI/OUT/00650', estado: 'Hecha' }],
+      borrador_existente: null,
+      siguiente_paso:
+        'Nada se ha escrito. Muestra el resumen (cliente, total, líneas, entrega) y, tras el sí, repite con el mismo folio y confirmar: true: quedará en BORRADOR, sin folio ni timbre.',
+    })
+    // The yes writes; the summary never does (sin_clave_sat waits for #154: the read catalog lacks unspsc_code_id).
+    expect(result).not.toHaveProperty('sin_clave_sat')
+    expect(result).not.toHaveProperty('factura')
+  })
+
+  test('con borrador ya existente lo dice, sin líneas por facturar ni escritura', async () => {
+    const { odoo } = fakeOdoo(
+      readyScript({
+        'sale.order.search_read': [[saleRow({ invoice_ids: [1300] })]],
+        'account.move.search_read': [[{ id: 1300, name: false, state: 'draft', move_type: 'out_invoice', amount_total: 2.32 }]],
+      }),
+    )
+    const { writer, attempts } = throwingWriter()
+    const result = (await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)) as DraftInvoiceSummary
+    expect(result).toMatchObject({
+      a_facturar: null,
+      lineas: [],
+      borrador_existente: { id: 1300, total: 2.32, moneda: 'MXN' },
+      entrega: 'Solo servicios: no lleva entrega.',
+      siguiente_paso:
+        'Nada que crear: la venta ya tiene una factura en borrador. Revisarla, publicarla y timbrarla se hace en Odoo; el asistente nunca timbra.',
+    })
+    expect(attempts).toEqual([])
+  })
+
+  test('bienes por pedido sin entregar: el resumen avisa que van en la factura', async () => {
+    const byOrder = { ...MANGO, invoice_policy: 'order', unspsc_code_id: [70, '27111700 Llaves'] }
+    const { odoo } = fakeOdoo(
+      readyScript({
+        'sale.order.search_read': [[saleRow({ picking_ids: [650] })]],
+        'sale.order.line.search_read': [[{ ...MANGO_LINE, qty_to_invoice: 2 }]],
+        'product.product.search_read': [[byOrder]],
+        'stock.picking.search_read': [[{ id: 650, name: 'OFI/OUT/00650', state: 'assigned' }]],
+      }),
+    )
+    const { writer, attempts } = throwingWriter()
+    const result = (await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)) as DraftInvoiceSummary
+    expect(result.entrega).toBe('1 de 1 bienes sin entregar se facturan por pedido: van en la factura aunque la entrega siga abierta.')
+    expect(result.entregas).toEqual([{ folio: 'OFI/OUT/00650', estado: 'Lista' }])
+    expect(attempts).toEqual([])
+  })
+
+  test(`más de ${SUMMARY_LINES_MAX} líneas: el resumen se trunca, el total no`, async () => {
+    const many = Array.from({ length: SUMMARY_LINES_MAX + 3 }, (_, i) => lineRow({ id: 9000 + i, name: `Servicio ${i + 1}` }))
+    const { odoo } = fakeOdoo(readyScript({ 'sale.order.line.search_read': [many] }))
+    const { writer, attempts } = throwingWriter()
+    const result = (await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)) as DraftInvoiceSummary
+    expect(result.lineas).toHaveLength(SUMMARY_LINES_MAX)
+    expect(result).toMatchObject({ truncado: true, a_facturar: { total: 2.32 } })
+    expect(attempts).toEqual([])
+  })
+})
+
+describe('borrador con confirmar: true', () => {
   test('ya tiene borrador → lo reporta y no crea otro', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     // The real trail text, as the writer leaves it after creating a draft.
@@ -232,7 +332,7 @@ describe('borrador', () => {
       }),
     )
     const { writer, attempts } = throwingWriter()
-    const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)
+    const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM)
     expect(result).toEqual({
       venta: { folio: 'S00912', id: 912, cliente: COMPANY_NAME },
       factura: { id: 1300, folio: '(borrador, sin folio)', estado: 'borrador', total: 2.32, moneda: 'MXN' },
@@ -256,7 +356,7 @@ describe('borrador', () => {
         }),
       )
       const { writer, attempts } = throwingWriter()
-      const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)
+      const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM)
       expect(result).toMatchObject({ ya_existia: true, aviso_rastro: MISSING_TRAIL, recordatorio: ALREADY_REMINDER })
       expect(attempts).toEqual([])
     }
@@ -267,7 +367,7 @@ describe('borrador', () => {
     const { odoo, calls } = fakeOdoo(readyScript())
     const { writer, calls: writes, logs } = fakeWriter({ 'sale.advance.payment.inv.create': [[55]] })
 
-    const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)
+    const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM)
 
     expect(writes.map((w) => `${w.model}.${w.method}`)).toEqual([
       'sale.advance.payment.inv.create',
@@ -321,7 +421,7 @@ describe('borrador', () => {
       }),
     )
     const { writer } = fakeWriter({ 'sale.advance.payment.inv.create': [[55]] })
-    const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)
+    const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM)
     expect(result.sin_clave_sat).toEqual([MANGO.name])
   })
 
@@ -338,7 +438,7 @@ describe('borrador', () => {
     for (const [label, overrides, fields] of cases) {
       const { odoo } = fakeOdoo(readyScript({ 'account.move.search_read': [[invoiceRow(overrides)]] }))
       const { writer } = fakeWriter({ 'sale.advance.payment.inv.create': [[55]] })
-      await expect(odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT), label).rejects.toThrow(alerta)
+      await expect(odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM), label).rejects.toThrow(alerta)
       expect(error, label).toHaveBeenLastCalledWith('[odoo-write] draft invoice failed verification', { saleId: 912, invoiceId: 1300, fields })
     }
 
@@ -346,7 +446,7 @@ describe('borrador', () => {
     for (const ids of [[], [1300, 1301]]) {
       const { odoo } = fakeOdoo(readyScript({ 'sale.order.search_read': [[saleRow()], [{ id: 912, invoice_ids: ids }]] }))
       const { writer } = fakeWriter({ 'sale.advance.payment.inv.create': [[55]] })
-      await expect(odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)).rejects.toThrow(/^ALERTA: /)
+      await expect(odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM)).rejects.toThrow(/^ALERTA: /)
     }
   })
 
@@ -354,7 +454,7 @@ describe('borrador', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const { odoo } = fakeOdoo(readyScript({ 'account.move.search_read': [new Error('red caída')] }))
     const { writer } = fakeWriter({ 'sale.advance.payment.inv.create': [[55]] })
-    await expect(odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)).rejects.toThrow(
+    await expect(odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM)).rejects.toThrow(
       /^Odoo creó la factura en borrador de la S00912, pero no pude releerla para comprobar que sigue en borrador/,
     )
     expect(error).toHaveBeenCalledWith('[odoo-write] draft invoice could not be verified', { saleId: 912, error: 'Error' })
@@ -367,7 +467,7 @@ describe('borrador', () => {
       'sale.advance.payment.inv.create': [[55]],
       'sale.order.write': [new OdooUncertainWriteError('sale.order.write', 'quotation', 504)],
     })
-    const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)
+    const result = await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM)
     expect(calls.map((c) => c.method)).toEqual(['create', 'create_invoices', 'write'])
     expect(result.aviso_rastro).toBe(
       'La factura en borrador de la S00912 se creó, pero no pude anotar en la nota interna de la venta quién la pidió.',
@@ -381,7 +481,7 @@ describe('borrador', () => {
       'sale.advance.payment.inv.create': [[55]],
       'sale.advance.payment.inv.create_invoices': [new OdooUncertainWriteError('sale.advance.payment.inv.create_invoices', 'invoice', 504)],
     })
-    const failure = await odooCreateDraftInvoice({ reader: fakeOdoo(readyScript()).odoo, writer }, context().ctx, INPUT).catch(
+    const failure = await odooCreateDraftInvoice({ reader: fakeOdoo(readyScript()).odoo, writer }, context().ctx, CONFIRM).catch(
       (e: unknown) => e,
     )
     expect(failure).toBeInstanceOf(OdooUncertainWriteError)
@@ -398,7 +498,7 @@ describe('borrador', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const { writer: never, attempts } = throwingWriter()
     // Its trail never ran: the retry says who-asked is missing instead of a silent "ya existía".
-    await expect(odooCreateDraftInvoice({ reader: odoo, writer: never }, context().ctx, INPUT)).resolves.toMatchObject({
+    await expect(odooCreateDraftInvoice({ reader: odoo, writer: never }, context().ctx, CONFIRM)).resolves.toMatchObject({
       ya_existia: true,
       aviso_rastro: MISSING_TRAIL,
       recordatorio: ALREADY_REMINDER,
@@ -410,7 +510,7 @@ describe('borrador', () => {
   test('account.move solo se lee', async () => {
     const { odoo, calls } = fakeOdoo(readyScript())
     const { writer, calls: writes } = fakeWriter({ 'sale.advance.payment.inv.create': [[55]] })
-    await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, INPUT)
+    await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, CONFIRM)
     // The invoice comes from the sale's wizard; the assistant never writes an account.* model.
     expect(writes.map((w) => w.model)).toEqual(['sale.advance.payment.inv', 'sale.advance.payment.inv', 'sale.order'])
     expect(calls.filter((c) => c.model.startsWith('account.')).map((c) => `${c.model}.${c.method}`)).toEqual([

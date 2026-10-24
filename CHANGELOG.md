@@ -14,6 +14,12 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   empleados y la flotilla siguen disponibles con la búsqueda general. Si
   tenías permisos guardados para estas herramientas en Claude, te los volverá
   a pedir.
+- [admin] **Confirmar y facturar en Odoo desde el asistente piden tu sí con
+  datos.** Confirmar una cotización como venta ahora es un paso aparte: el
+  asistente te muestra qué pasará (la entrega que se crea) y solo confirma
+  con tu sí. Antes de hacer una factura en borrador te enseña un resumen con
+  el cliente, el total, las líneas y si ya se entregó; la crea hasta que le
+  dices que sí.
 
 ## 2026-10-23
 
