@@ -45,7 +45,9 @@ describe('rutas MCP con mcp-handler', () => {
   })
 
   test('un member no recibe las tools de administrador en ninguna de las dos rutas', async () => {
-    expect(names((await rpc(odooPost as Handler, '/api/odoo/mcp', 'member')).body)).not.toContain('odoo_save_quotation')
+    const odooMember = names((await rpc(odooPost as Handler, '/api/odoo/mcp', 'member')).body)
+    expect(odooMember).not.toContain('odoo_save_quotation')
+    expect(odooMember).not.toContain('odoo_confirm_quotation')
     expect(names((await rpc(dymmsaPost as Handler, '/api/mcp', 'member')).body)).not.toContain('record_payroll_hours')
   })
 
