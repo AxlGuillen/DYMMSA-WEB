@@ -145,7 +145,7 @@ src/
 │   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); describeAuditEvent (#100); re-exporta month.ts
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
 │   ├── customers.ts              # Cartera y estado de cuenta: rango por vencimiento, líneas, totales (issue #145, ADR-039)
-│   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145)
+│   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145); sat-keys.ts ordena las claves SAT sugeridas (#154)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
 │   ├── quotations-store.ts       # Crear y editar cotizaciones (validación server-side + update_quotation), listo para save_quotation del MCP (#157)
 │   ├── approval-store.ts         # La respuesta del cliente en /approve/[token] (submit_quotation_approval); solo la ruta pública, nunca el MCP (#157)

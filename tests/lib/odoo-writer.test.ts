@@ -96,7 +96,7 @@ const recordTimeout = (seen: number[]) => (ms: number) => {
 
 type GrantFor = (kind: QuotationKeyKind) => PreviewGrant
 
-/** Every facade operation with valid arguments, to prove a rule holds for all six. */
+/** Every facade operation with valid arguments, to prove a rule holds for all seven. */
 function everyOperation(
   writer: OdooWriter,
   proof: AdminProof,
@@ -109,6 +109,7 @@ function everyOperation(
     ['confirmSale', () => writer.confirmSale(proof, grantFor('confirmar'), 912, dl)],
     ['appendSaleTrail', () => writer.appendSaleTrail(proof, 912, '', 'Confirmada', dl)],
     ['createProducts', () => writer.createProducts(proof, [{ name: 'ZZTEST144 X PRUEBA', list_price: 1, type: 'consu', sale_ok: true }], dl)],
+    ['assignSatKey', () => writer.assignSatKey(proof, [16971], 5432, dl)],
     ['createDraftInvoice', () => writer.createDraftInvoice(proof, 912, dl)],
   ]
 }
@@ -121,12 +122,12 @@ afterEach(() => {
 })
 
 describe('fachada del escritor (#144)', () => {
-  test('el escritor expone exactamente seis operaciones', () => {
-    const six = ['appendSaleTrail', 'confirmSale', 'createDraftInvoice', 'createProducts', 'createQuotation', 'updateQuotation']
-    expect(Object.keys(odooWriter).sort()).toEqual(six)
+  test('el escritor expone exactamente siete operaciones', () => {
+    const seven = ['appendSaleTrail', 'assignSatKey', 'confirmSale', 'createDraftInvoice', 'createProducts', 'createQuotation', 'updateQuotation']
+    expect(Object.keys(odooWriter).sort()).toEqual(seven)
     expect(Object.isFrozen(odooWriter)).toBe(true)
-    expect(Object.keys(fakeWriter().writer).sort()).toEqual(six)
-    expect(Object.keys(throwingWriter().writer).sort()).toEqual(six)
+    expect(Object.keys(fakeWriter().writer).sort()).toEqual(seven)
+    expect(Object.keys(throwingWriter().writer).sort()).toEqual(seven)
   })
 
   test('sin prueba de administrador vigente no escribe (falsa, vencida)', async () => {
@@ -450,6 +451,22 @@ describe('fachada del escritor (#144)', () => {
     const error = await writer.createProducts(testAdminProof(), products, fixedDeadline()).catch((e) => e)
     expect(error).toBeInstanceOf(OdooUncertainWriteError)
     expect(error.retry).toBe('products')
+  })
+
+  test('assignSatKey manda solo los ids y unspsc_code_id, sin contexto; un resultado incierto pide repetir el clic (#154)', async () => {
+    const { writer, calls, logs } = fakeWriter({ 'product.product.write': [true, new OdooUncertainWriteError('product.product.write', 'sat-keys', 504)] })
+    await writer.assignSatKey(testAdminProof(), [16971, 32300], 5432, fixedDeadline())
+    expect(calls.map(({ model, method, payload }) => ({ model, method, payload }))).toEqual([
+      { model: 'product.product', method: 'write', payload: { ids: [16971, 32300], vals: { unspsc_code_id: 5432 } } },
+    ])
+    expect(logs).toEqual([{ op: 'product.product.write', ids: [16971, 32300], actor: 'admin-1' }])
+    const error = await writer.assignSatKey(testAdminProof(), [16971], 5432, fixedDeadline()).catch((e) => e)
+    expect(error).toBeInstanceOf(OdooUncertainWriteError)
+    expect(error.message).toMatch(/Repite el mismo clic: los productos que ya tengan su clave SAT salen como ya asignados/)
+    // More than the catalog takes is refused like production would.
+    await expect(
+      writer.assignSatKey(testAdminProof(), Array.from({ length: 41 }, (_, i) => i + 1), 5432, fixedDeadline()),
+    ).rejects.toThrow(OdooError)
   })
 
   test('el catálogo real valida lo que arma la fachada: un producto de servicio no pasa', async () => {
@@ -842,7 +859,7 @@ describe('helpers de prueba (#144)', () => {
     for (const [name, run] of everyOperation(writer, testAdminProof(), fixedDeadline())) {
       await expect(run(), name).rejects.toThrow(/no se debía escribir/)
     }
-    expect(attempts).toHaveLength(6)
+    expect(attempts).toHaveLength(7)
   })
 
   test('fakeRawWriter aplica el catálogo real', async () => {

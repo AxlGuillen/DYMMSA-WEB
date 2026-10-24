@@ -20,7 +20,7 @@ export class OdooError extends Error {
 }
 
 /** Each write retries differently: only quotations carry a preview key (#144, ADR-040). */
-export type UncertainRetry = 'quotation' | 'invoice' | 'products'
+export type UncertainRetry = 'quotation' | 'invoice' | 'products' | 'sat-keys'
 
 // An aborted request keeps running in Odoo: a retry right away could miss a create still committing (#144).
 const UNCERTAIN_RETRY_WAIT = 'Odoo puede seguir guardando: espera 2 minutos antes de repetir.'
@@ -29,6 +29,7 @@ const UNCERTAIN_RETRY_HINT: Readonly<Record<UncertainRetry, string>> = Object.fr
   quotation: `${UNCERTAIN_RETRY_WAIT} Repite exactamente la misma llamada (o el mismo clic): con la misma clave no se duplica. No pidas otra vista previa antes de repetirla.`,
   invoice: `${UNCERTAIN_RETRY_WAIT} Repite exactamente la misma llamada con el mismo folio: si el borrador ya se creó, te lo reporto y no creo otro.`,
   products: `${UNCERTAIN_RETRY_WAIT} Repite el mismo clic: los productos que ya se hayan creado salen como existentes y no se duplican.`,
+  'sat-keys': `${UNCERTAIN_RETRY_WAIT} Repite el mismo clic: los productos que ya tengan su clave SAT salen como ya asignados y no se tocan.`,
 })
 
 /** Odoo may have committed before the failure: never retried, the caller repeats the SAME call (#144). */

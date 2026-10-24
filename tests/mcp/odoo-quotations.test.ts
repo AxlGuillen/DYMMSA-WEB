@@ -95,6 +95,15 @@ const ZZTEST = productRow(32300, 'ZZTEST144 Producto de prueba del asistente PRU
 
 const NOTE_LINE = { nota: 'PRUEBA #144 — no procesar' }
 
+/** product.unspsc.code as Odoo answers the one suggestion search (#154); H87 is a UoM code. */
+const SAT_ROWS = [
+  { id: 900, code: '31211507', name: 'Pinturas en aerosol' },
+  { id: 901, code: '31211500', name: 'Pinturas' },
+  { id: 902, code: '27112003', name: 'Brochas de pintura' },
+  { id: 903, code: '31211508', name: 'Pinturas acrílicas' },
+  { id: 904, code: 'H87', name: 'Pieza' },
+]
+
 const CREATE_INPUT: PreviewQuotationInput = {
   cliente: '#1',
   lineas: [NOTE_LINE, { producto_id: 30888, cantidad: 1, precio: 1 }],
@@ -148,6 +157,8 @@ const createPreviewScript = (): OdooScript => ({
   'res.partner.search_read': [[COMPANY]],
   'product.product.search_read': [[REPINTADO]],
   'sale.order.search_read': [[]],
+  // Read only when a product lacks its SAT key (#154).
+  'product.unspsc.code.search_read': [SAT_ROWS],
 })
 
 async function createKey(input: PreviewQuotationInput = CREATE_INPUT): Promise<string> {
@@ -377,6 +388,10 @@ describe('rol y vista previa', () => {
         precio: 1,
         clave_sat: null,
         nombre_en_odoo: 'ZZTEST144 Producto de prueba del asistente PRUEBA',
+        // No SAT name has these words: the one read came back empty-handed for it.
+        categoria_sat: null,
+        clave_sat_propuesta: null,
+        sugerencias_sat: [],
       },
     ])
     expect(data.lineas[2]).toMatchObject({ estado: 'nuevo', propuesto: { nombre: 'ZZTEST144 Producto de prueba del asistente PRUEBA' } })
@@ -389,6 +404,178 @@ describe('rol y vista previa', () => {
     const proof = await requireLiveAdmin(context().ctx)
     expect(() => verifyProductsAuthorization(proof, autorizacion, data.productos_para_alta)).not.toThrow()
     expect(JSON.stringify(data)).not.toContain(String(autorizacion))
+  })
+})
+
+/** The products authorization's signed claims, read back from its payload (#154). */
+const claimsOf = (autorizacion: unknown) =>
+  JSON.parse(Buffer.from(String(autorizacion).split('.')[0], 'base64url').toString('utf8')) as { ks: string[][]; a: [number, string[]][] }
+
+const unspscCalls = (calls: { model: string }[]) => calls.filter((c) => c.model === 'product.unspsc.code')
+
+describe('clave SAT en la vista previa (#154)', () => {
+  const SAT_INPUT: PreviewQuotationInput = {
+    cliente: '#1',
+    lineas: [
+      { codigo: 'ZZBROCHA', descripcion: 'Brocha de 4 pulgadas', cantidad: 2, precio: 30 },
+      { codigo: 'ZZAEROSOL', descripcion: 'Aerosol negro mate', categoria_sat: 'pinturas en aerosol', cantidad: 6, precio: 56.03 },
+      { producto_id: 32300, cantidad: 1, precio: 1 },
+      { producto_id: 30888, cantidad: 1, precio: 1 },
+    ],
+  }
+  const satScript = (overrides: OdooScript = {}): OdooScript => ({
+    ...createPreviewScript(),
+    'product.product.search_read': [[REPINTADO, ZZTEST]],
+    ...overrides,
+  })
+
+  test('sin productos sin clave no hay lectura extra: ni al crear ni al revisar', async () => {
+    const created = await preview(CREATE_INPUT, createPreviewScript())
+    expect(unspscCalls(created.calls)).toEqual([])
+    expect(created.data.sin_clave_sat).toEqual([])
+    expect(created.meta).toBeNull()
+
+    const keyed = SALE_LINES.slice(0, 2)
+    const reviewed = await preview({ folio: 'S00912' }, editPreviewScript(saleRow(), keyed))
+    expect(unspscCalls(reviewed.calls)).toEqual([])
+    expect(reviewed.data.sin_clave_sat).toEqual([])
+  })
+
+  test('UNA lectura del catálogo SAT para todos: OR de ilike sobre sus palabras, ordenada en memoria', async () => {
+    const { data, meta, calls } = await preview(SAT_INPUT, satScript())
+    expect(calls.map((c) => c.model)).toEqual(['res.partner', 'product.product', 'sale.order', 'product.unspsc.code'])
+    expect(unspscCalls(calls)[0]).toMatchObject({
+      method: 'search_read',
+      payload: {
+        domain: [
+          '|', '|', '|', '|', '|',
+          ['name', 'ilike', 'brocha'],
+          ['name', 'ilike', 'pintura'],
+          ['name', 'ilike', 'aerosol'],
+          ['name', 'ilike', 'producto'],
+          ['name', 'ilike', 'prueba'],
+          ['name', 'ilike', 'asistente'],
+        ],
+        fields: ['code', 'name'],
+        limit: 400,
+        order: 'code asc',
+      },
+    })
+
+    expect(data.productos_nuevos.map((p) => [p.nombre_en_odoo, p.sugerencias_sat.map((s) => s.clave), p.clave_sat_propuesta])).toEqual([
+      ['ZZBROCHA Brocha de 4 pulgadas', ['27112003'], null],
+      // By categoria_sat, the one with every word is proposed; the UoM code never shows up.
+      ['ZZAEROSOL Aerosol negro mate', ['31211507', '31211500', '31211508'], '31211507'],
+    ])
+    expect(data.sin_clave_sat).toEqual([
+      {
+        producto_id: 32300,
+        nombre: ZZTEST.name,
+        lineas: [3],
+        clave_sat: null,
+        categoria_sat: null,
+        clave_sat_propuesta: null,
+        sugerencias_sat: [],
+      },
+    ])
+    expect(data.avisos).toContain(
+      '«ZZAEROSOL Aerosol negro mate»: «pinturas en aerosol» → clave SAT 31211507 (Pinturas en aerosol): confírmala en la vista o elige otra.',
+    )
+    // productos_para_alta never carries a suggestion: the key is the admin's click.
+    expect(data.productos_para_alta.map((p) => p.clave_sat)).toEqual([undefined, undefined])
+
+    // The authorization signs exactly the offered keys, per new and per existing product.
+    expect(claimsOf(meta?.[PRODUCTS_AUTHORIZATION_META])).toMatchObject({
+      ks: [['27112003'], ['31211507', '31211500', '31211508']],
+      a: [[32300, []]],
+    })
+  })
+
+  test('categoria_sat con varias o ninguna coincidencia lo dice; la clave de la línea se ofrece tal cual', async () => {
+    const input: PreviewQuotationInput = {
+      cliente: '#1',
+      lineas: [
+        { codigo: 'ZZUNO', descripcion: 'Uno', categoria_sat: 'pinturas', cantidad: 1, precio: 1 },
+        { codigo: 'ZZDOS', descripcion: 'Dos', categoria_sat: 'tornillos', cantidad: 1, precio: 1 },
+        { producto_id: 32300, clave_sat: '31211507', cantidad: 1, precio: 1 },
+      ],
+    }
+    const { data, meta, calls } = await preview(input, satScript())
+    expect(data.avisos).toEqual(
+      expect.arrayContaining([
+        '«ZZUNO Uno»: «pinturas» coincide con varias claves SAT: elige una en la vista.',
+        '«ZZDOS Dos»: «tornillos» no coincide con ninguna clave SAT: prueba con otras palabras.',
+      ]),
+    )
+    // The existing product brought its own key: offered, not searched.
+    expect(unspscCalls(calls)[0].payload.domain).toEqual(['|', ['name', 'ilike', 'pintura'], ['name', 'ilike', 'tornillo']])
+    expect(data.sin_clave_sat[0]).toMatchObject({ producto_id: 32300, clave_sat: '31211507', sugerencias_sat: [] })
+    expect(claimsOf(meta?.[PRODUCTS_AUTHORIZATION_META]).a).toEqual([[32300, ['31211507']]])
+  })
+
+  test('revisar (solo el folio): los productos de la venta sin clave se marcan, con sugerencias por su nombre', async () => {
+    const named = { ...ZZTEST, name: 'ZZTEST144 Pintura en aerosol PRUEBA' }
+    const lines = SALE_LINES.map((l) => (l.id === 7003 ? { ...l, name: named.name, product_id: [32300, named.name] } : l))
+    const { data, meta, calls } = await preview({ folio: 'S00912' }, {
+      ...editPreviewScript(saleRow(), lines),
+      'product.product.search_read': [[REPINTADO, named]],
+    })
+    expect(unspscCalls(calls)).toHaveLength(1)
+    expect(data.modo).toBe('revisar')
+    expect(data.sin_clave_sat).toEqual([
+      expect.objectContaining({ producto_id: 32300, lineas: [3], sugerencias_sat: expect.arrayContaining([{ clave: '31211507', nombre: 'Pinturas en aerosol' }]) }),
+    ])
+    // Not by categoria_sat: nothing is preselected.
+    expect(data.sin_clave_sat[0].clave_sat_propuesta).toBeNull()
+    expect(claimsOf(meta?.[PRODUCTS_AUTHORIZATION_META])).toMatchObject({ ks: [], a: [[32300, expect.arrayContaining(['31211507'])]] })
+  })
+
+  test('una vista previa bloqueada no gasta la lectura ni firma nada', async () => {
+    // No quantity: blocked, yet the new product still shows (it has its price).
+    const blocked = { ...SAT_INPUT, lineas: [{ codigo: 'ZZBROCHA', descripcion: 'Brocha de 4 pulgadas', precio: 30 }] }
+    const { data, meta, calls } = await preview(blocked, satScript())
+    expect(data.puede_guardar).toBe(false)
+    expect(unspscCalls(calls)).toEqual([])
+    expect(data.productos_nuevos[0].sugerencias_sat).toEqual([])
+    expect(meta).toBeNull()
+  })
+
+  test('si el catálogo SAT falla, la vista previa sale igual: sin sugerencias y con aviso', async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { data, meta } = await preview(SAT_INPUT, satScript({ 'product.unspsc.code.search_read': [new OdooError('Odoo tardó')] }))
+    expect(data.puede_guardar).toBe(true)
+    expect(data.productos_nuevos.every((p) => p.sugerencias_sat.length === 0)).toBe(true)
+    expect(data.avisos).toContain('No pude leer el catálogo del SAT para sugerir claves: tecléala en la vista o captúrala en Odoo.')
+    // The admin can still type a key: the authorization goes out with nothing offered.
+    expect(claimsOf(meta?.[PRODUCTS_AUTHORIZATION_META])).toMatchObject({ ks: [[], []], a: [[32300, []]] })
+    expect(quiet).toHaveBeenCalled()
+  })
+
+  test('si las palabras no caben en la búsqueda, avisa de cuántos productos se quedaron cortos (review PR #167)', async () => {
+    // 16 products with 4 words each: 64 terms, and the search takes 60.
+    const letters = 'abcdefghijklmnop'.split('')
+    const input: PreviewQuotationInput = {
+      cliente: '#1',
+      lineas: letters.map((l) => ({ codigo: `ZZ${l.toUpperCase()}`, descripcion: `alfa${l}k beta${l}k gama${l}k delta${l}k`, cantidad: 1, precio: 1 })),
+    }
+    const { data, calls } = await preview(input, satScript({ 'product.unspsc.code.search_read': [[]] }))
+    const domain = unspscCalls(calls)[0].payload.domain as unknown[]
+    expect(domain.filter((item) => Array.isArray(item))).toHaveLength(60)
+    expect(domain).not.toContainEqual(['name', 'ilike', 'alfapk'])
+    expect(data.avisos).toContain(
+      'No alcancé a buscar todas las palabras de 1 producto: su clave SAT puede no estar entre las sugeridas (precisa con categoria_sat o tecléala).',
+    )
+    // Under the cap nobody is warned.
+    const { data: few } = await preview(SAT_INPUT, satScript())
+    expect(few.avisos.some((a) => a.startsWith('No alcancé a buscar'))).toBe(false)
+  })
+
+  test('el catálogo SAT topado lo avisa', async () => {
+    const many = Array.from({ length: 400 }, (_, i) => ({ id: 2000 + i, code: String(27000000 + i), name: `Brochas ${i}` }))
+    const { data } = await preview(SAT_INPUT, satScript({ 'product.unspsc.code.search_read': [many] }))
+    expect(data.avisos).toContain(
+      'El catálogo del SAT trajo demasiadas coincidencias: puede faltar una clave mejor entre las sugeridas (precisa con categoria_sat).',
+    )
   })
 })
 
@@ -599,6 +786,8 @@ const editPreviewScript = (sale = saleRow(), lines: unknown[] = SALE_LINES): Odo
   'sale.order.search_read': [[sale]],
   'sale.order.line.search_read': [lines],
   'product.product.search_read': [[REPINTADO, ZZTEST]],
+  // ZZTEST has no SAT key: a clean preview suggests one (#154).
+  'product.unspsc.code.search_read': [SAT_ROWS],
 })
 
 async function editKey(input: PreviewQuotationInput = EDIT_INPUT, sale = saleRow()): Promise<string> {
