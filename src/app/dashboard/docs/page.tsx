@@ -187,7 +187,7 @@ const flowSteps: FlowStep[] = [
     description: 'Avanza el estado de la orden hasta completarla o cancelarla.',
     variants: [
       { label: 'Completada', description: 'Pedido → Recibido → Entregado → Completado. Cada transicion actualiza el estado en el sistema.', color: 'green' },
-      { label: 'Cancelada', description: 'Si la orden se cancela en cualquier punto, el inventario apartado se restaura automaticamente (sin volver a sumar el excedente, que ya entro al recibir).', color: 'red' },
+      { label: 'Cancelada', description: 'Si la orden se cancela antes de entregarse (Pedido o Recibido), el inventario apartado se restaura automaticamente (sin volver a sumar el excedente, que ya entro al recibir). Una orden Entregada ya no se cancela: si hubo devolucion, ajusta el inventario a mano.', color: 'red' },
     ],
   },
 ]
@@ -991,9 +991,10 @@ export default function DocsPage() {
                 de la BD de ETM (o la de Translate si no hay), Comments lleva la marca y todos los montos van con signo de pesos.
               </li>
               <li>
-                <strong className="text-foreground">Cancelar Orden</strong> {'\u2014'} disponible mientras la orden no este
-                Completada ni Cancelada. Al confirmar, <strong>restaura automaticamente el inventario</strong> apartado
-                al cancelar.
+                <strong className="text-foreground">Cancelar Orden</strong> {'\u2014'} disponible mientras la orden siga
+                en tienda (Pedido o Recibido). Al confirmar, <strong>restaura automaticamente el inventario</strong> apartado
+                al cancelar. Una orden Entregada ya no se cancela: el material salio con el cliente, y una devolucion se
+                ajusta a mano en el inventario.
               </li>
             </ul>
           </div>
@@ -1078,7 +1079,10 @@ export default function DocsPage() {
 
           <div className="space-y-3 text-sm">
             <p className="font-medium text-base">Acciones sobre productos individuales</p>
-            <p className="text-muted-foreground text-xs mb-1">Disponibles solo cuando la orden no esta Completada ni Cancelada.</p>
+            <p className="text-muted-foreground text-xs mb-1">
+              Disponibles solo cuando la orden no esta Completada ni Cancelada. En una orden Entregada solo se edita
+              el precio: agregar o eliminar productos moveria inventario que ya salio con el cliente.
+            </p>
             <div className="space-y-3">
               <div className="rounded-md border px-4 py-3 space-y-1">
                 <p className="font-medium flex items-center gap-1.5"><Plus className="size-3.5" /> Agregar producto</p>
@@ -1136,7 +1140,7 @@ export default function DocsPage() {
               <span className="rounded-full border px-2.5 py-0.5 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 font-medium">Completado</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Desde cualquier estado activo (excepto Completado) tambien se puede pasar a{' '}
+              Mientras sigue en tienda (Pedido o Recibido) tambien se puede pasar a{' '}
               <span className="rounded-full border px-2 py-0.5 bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-medium text-xs">Cancelado</span>{' '}
               usando el boton de cancelar, lo que restaura el inventario apartado.
               Eliminar la orden solo devuelve el stock si sigue en tienda (Pedido o Recibido): una
@@ -1186,10 +1190,10 @@ export default function DocsPage() {
                     { action: 'Cambiar estado', vals: [true, true, true, false, false] },
                     { action: 'Formato de Entrega / Imprimir', vals: [true, true, true, true, true] },
                     { action: 'Planificar compra / corte', vals: [true, true, true, true, true] },
-                    { action: 'Cancelar orden', vals: [true, true, true, false, false] },
-                    { action: 'Agregar producto', vals: [true, true, true, false, false] },
+                    { action: 'Cancelar orden', vals: [true, true, false, false, false] },
+                    { action: 'Agregar producto', vals: [true, true, false, false, false] },
                     { action: 'Editar precio', vals: [true, true, true, false, false] },
-                    { action: 'Eliminar producto', vals: [true, true, true, false, false] },
+                    { action: 'Eliminar producto', vals: [true, true, false, false, false] },
                     { action: 'Editar cantidad recibida / estado URREA', vals: [true, true, true, false, false] },
                     { action: 'Confirmar recepcion', vals: [true, true, true, false, false] },
                     { action: 'Editar tiempo de entrega', vals: [true, true, true, false, false] },

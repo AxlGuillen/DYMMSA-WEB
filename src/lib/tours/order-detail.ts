@@ -6,7 +6,7 @@ export const ORDER_DETAIL_TOUR: OverviewStep[] = [
     selector: '[data-tour="od-status"]',
     title: 'La etapa de la orden',
     description:
-      'Ordenada → Recibida → Entregada → Completada. Cancelar <b>devuelve al inventario</b> lo que la orden había descontado. Completada o cancelada, la orden queda de solo lectura.',
+      'Ordenada → Recibida → Entregada → Completada. Mientras sigue en tienda, cancelar <b>devuelve al inventario</b> lo que la orden había descontado; entregada ya no se cancela ni cambia de productos. Completada o cancelada, la orden queda de solo lectura.',
     side: 'bottom',
   },
   {

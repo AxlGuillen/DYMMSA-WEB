@@ -62,6 +62,21 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `location` | text | Sí | — | | Ubicación física (gaveta), texto libre. Se conserva aunque `quantity=0` |
 | `updated_at` | timestamptz | Sí | `now()` | | |
 
+### Funciones de stock atómico (#157, migración `atomic_order_stock`)
+
+Las órdenes **nunca** leen la cantidad, calculan y escriben un absoluto: mueven `quantity` con estas funciones, que bloquean la fila. Todas son `SECURITY INVOKER` (la RLS `FOR ALL TO authenticated` de `store_inventory`/`orders`/`order_items` aplica al que llama), con `search_path = ''`, y `EXECUTE` solo para `authenticated` (se revoca de `PUBLIC` y `anon`). Las llama `src/lib/inventory.ts` / `src/lib/orders-store.ts`.
+
+| Función | Devuelve | Qué garantiza |
+|---|---|---|
+| `reserve_inventory(p_lines jsonb)` | `jsonb` `[{model_code, reserved, location}]` | Aparta `least(quantity, pedido)` por `model_code` bajo `FOR UPDATE`. Suma los códigos repetidos y bloquea en orden de código (evita interbloqueos entre dos órdenes simultáneas; la segunda espera y aparta de lo que quedó). Sin fila → `reserved: 0`, no la crea. La gaveta sirve de snapshot para `order_items.location` |
+| `release_inventory(p_lines jsonb)` | `integer` (códigos tocados) | Devuelve sumando (`INSERT … ON CONFLICT (model_code) DO UPDATE SET quantity = quantity + …`); crea la fila si falta. Ignora códigos vacíos y cantidades ≤ 0 |
+| `adjust_inventory(p_model_code text, p_delta integer)` | `jsonb` `{quantity, clamped, missing}` | Delta de la recepción (ADR-019): positivo suma y crea la fila; negativo resta con tope en 0 (`clamped`) o avisa que no hay fila (`missing`) |
+| `cancel_order_restock(p_order_id uuid, p_expected_status text, p_lines jsonb)` | `boolean` | `status → 'cancelled'` **solo si** la orden sigue en `p_expected_status`, y en la misma transacción `release_inventory(p_lines)`. `false` = ya cambió (reintento, otro clic): no devuelve nada |
+| `delete_order_restock(p_order_id uuid, p_expected_status text, p_lines jsonb)` | `boolean` | Igual con `DELETE` de la orden (ítems, corte y decisiones por CASCADE) |
+| `remove_order_item_restock(p_order_id uuid, p_item_id uuid, p_expected_status text, p_lines jsonb)` | `boolean` | Bloquea la orden `FOR SHARE` en el estado leído, borra la línea (acotada a la orden) y devuelve su stock |
+
+Qué devolver (`computeRestoration`/`restorationLines`) y cuándo (`goodsInStore`, `deleteRestoresStock`) sigue siendo regla del código, no de la BD: las funciones solo mueven lo que se les pasa.
+
 ---
 
 ## Tabla: `urrea_catalog`
@@ -547,3 +562,4 @@ RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll
 | `add_finance_payables` | (2026-09-02) | Columna `payment_terms_days` en `suppliers` y tabla `payables` (facturas por pagar: FK a suppliers sin cascade, concept/amount/fechas, status pending·paid·cancelled, `paid_at` fecha real). Índice (status, due_date), RLS + policy. Issue #84 |
 | `20261001052530` | `add_payroll` | Nómina (#123): `payroll_employees`, `payroll_days`, `payroll_periods`, trigger del corte cerrado y RLS solo admin |
 | `20261007035652` | `profile_pay_admin_only` | `profiles.hourly_rate` → tabla `profile_pay` (solo admin); el trigger de campos de admin deja de nombrar la tarifa (review PR #137) |
+| _pendiente_ (archivo `20261023170000`) | `atomic_order_stock` | Seis funciones de stock atómico para las órdenes (#157): `reserve_inventory`, `release_inventory`, `adjust_inventory`, `cancel_order_restock`, `delete_order_restock`, `remove_order_item_restock`. Sin cambios de datos. Pendiente de aplicar en la nube (ver `supabase/migrations-log.md`) |
