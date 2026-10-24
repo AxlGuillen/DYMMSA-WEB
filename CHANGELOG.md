@@ -15,6 +15,32 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   tenías permisos guardados para estas herramientas en Claude, te los volverá
   a pedir.
 
+## 2026-10-23
+
+### Corregido
+- **El stock ya no se aparta dos veces cuando un producto se repite en la
+  orden.** Si la cotización trae el mismo código en dos secciones, ahora las
+  dos líneas comparten el stock que hay. Por ejemplo, con 6 en tienda y dos
+  líneas de 5, la primera toma 5, la segunda 1 y el resto se pide a URREA.
+  Antes las dos tomaban 5.
+- **Cancelar o eliminar una orden dos veces ya no devuelve el stock dos
+  veces.** Si la orden ya había cambiado, la app te pide recargar la página y
+  no toca el inventario.
+- **Una orden entregada ya no se puede cancelar ni quitarle o agregarle
+  productos**, porque el material ya salió con el cliente. Tampoco puede
+  regresar a Pedida ni a Recibida (entre Entregada y Completada sí puedes
+  moverla). Sí puedes seguir corrigiendo precios, tiempos de entrega y la
+  recepción. Si hubo una devolución, ajusta el inventario a mano.
+- **La recepción solo toca los productos de esa orden** y ya no acepta
+  recibidos en líneas que salieron completas de stock (sin pedido a URREA).
+  Además se guarda completa o nada: si algo falla a la mitad, no queda una
+  parte guardada y el inventario no se descuadra.
+- **Si agregar un producto a una orden falla, ya no se aparta nada** del
+  inventario. Y si falla cambiar el precio o el tiempo de entrega de una línea,
+  la app ahora te avisa en vez de decir que se guardó.
+- **Dos órdenes creadas al mismo tiempo ya no se pisan el inventario**: entre
+  las dos nunca apartan más de lo que hay en tienda.
+
 ## 2026-10-20
 
 ### Nuevo
