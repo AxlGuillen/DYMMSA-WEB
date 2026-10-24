@@ -51,6 +51,11 @@ export function textOf(result: CallToolResult): string {
   return block && 'text' in block ? block.text : ''
 }
 
+/** structuredContent when the host passes it (#155 C3), else the same JSON from the text; throws if it came cut. */
+export function dataOf<T>(result: CallToolResult): T {
+  return (result.structuredContent ?? JSON.parse(textOf(result))) as T
+}
+
 /**
  * A new result starts clean: an earlier save or choice says nothing about it, and a failed one drops
  * the old preview too, whose badge and button would otherwise hide the error (review PR #152).
@@ -60,7 +65,8 @@ export function applyToolResult(state: ViewState, result: CallToolResult): ViewS
   const failed = (message: string): ViewState => ({ ...fresh, preview: null, autorizacion: null, error: message })
   if (result.isError) return failed(textOf(result) || 'No se pudo armar la vista previa')
   try {
-    const preview = JSON.parse(textOf(result)) as QuotationPreview
+    // Not z.infer of the outputSchema: that one is minimal (ODOO_BUDGET) and binds QuotationPreview at compile time.
+    const preview = dataOf<QuotationPreview>(result)
     const meta = result._meta?.[AUTHORIZATION_META]
     return { ...fresh, preview, autorizacion: typeof meta === 'string' ? meta : null }
   } catch {

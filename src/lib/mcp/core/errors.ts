@@ -11,7 +11,8 @@ export class ToolError extends Error {
   }
 }
 
-/** The one error mapping of the MCP (#155 C1): a store's DomainError needs no per-tool translator. */
+/** The one error mapping of the MCP (#155 C1): a store's DomainError needs no per-tool translator.
+ *  Text only, never structuredContent (#155 C3): the SDK skips the outputSchema check on an error. */
 export function toToolResult(error: unknown, tool: string, startedAt: number): ToolResult {
   if (error instanceof ToolError || error instanceof DomainError || error instanceof GitHubError || error instanceof OdooError) {
     return { content: [{ type: 'text', text: error.message }], isError: true }

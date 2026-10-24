@@ -12,6 +12,7 @@ import {
   assignArguments,
   assignChoiceKey,
   assignedSummary,
+  dataOf,
   defaultSatChoice,
   initialState,
   newChoiceKey,
@@ -170,7 +171,7 @@ async function createProducts() {
     if (result.isError) {
       state.saveError = textOf(result) || 'No se pudieron dar de alta'
     } else {
-      state.saved = JSON.parse(textOf(result)) as ProductsSaveResult
+      state.saved = dataOf<ProductsSaveResult>(result)
       const s = state.saved
       const names = [...s.creados, ...s.ya_existian].map((p) => `${p.nombre} (#${p.id})`).join(', ')
       await tellModel(
@@ -196,7 +197,7 @@ async function assignKeys() {
     if (result.isError) {
       state.assignError = textOf(result) || 'No se pudo asignar la clave SAT'
     } else {
-      state.assigned = JSON.parse(textOf(result)) as SatAssignResult
+      state.assigned = dataOf<SatAssignResult>(result)
       await tellModel(assignedSummary(state.assigned))
     }
   } catch {

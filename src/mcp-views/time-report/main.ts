@@ -5,9 +5,11 @@
 
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { previewTimeReport, saveTimeEntries } from '@/lib/mcp/tools/hours'
+import type { z } from 'zod'
+import type { previewTimeReportOutput, saveTimeEntries } from '@/lib/mcp/tools/hours'
 
-type Preview = Awaited<ReturnType<typeof previewTimeReport>>
+// The output contract the SDK checks on every call (#155 C3), not the handler's return type.
+type Preview = z.infer<typeof previewTimeReportOutput>
 type Saved = Extract<Awaited<ReturnType<typeof saveTimeEntries>>, { insertadas: number }>
 
 const state: {
@@ -32,6 +34,11 @@ function el(tag: string, className?: string, text?: string | null): HTMLElement 
 function textOf(result: CallToolResult): string {
   const block = result.content?.find((c) => c.type === 'text')
   return block && 'text' in block ? block.text : ''
+}
+
+/** structuredContent when the host passes it (#155 C3), else the same JSON from the text; throws if it came cut. */
+function dataOf<T>(result: CallToolResult): T {
+  return (result.structuredContent ?? JSON.parse(textOf(result))) as T
 }
 
 const shortDate = (iso: string) => {
@@ -101,7 +108,7 @@ async function save() {
     if (result.isError) {
       state.error = textOf(result) || 'No se pudo guardar'
     } else {
-      state.saved = JSON.parse(textOf(result)) as Saved
+      state.saved = dataOf<Saved>(result)
       const s = state.saved
       // The model did not make this call: tell it, so it does not offer to save again.
       await app
@@ -180,7 +187,7 @@ app.ontoolresult = (result) => {
   else {
     // A truncated payload must not leave the view stuck on "Leyendo el reporte…" (review PR #138).
     try {
-      state.preview = JSON.parse(text) as Preview
+      state.preview = dataOf<Preview>(result)
     } catch {
       state.error = 'La respuesta del servidor llegó incompleta: vuelve a pedir la vista previa'
     }

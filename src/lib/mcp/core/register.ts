@@ -12,7 +12,13 @@ export function registerTools(server: McpServer, tools: readonly ToolDefinition[
     if (tool.adminOnly && role !== 'admin') continue
     // SDK 1.26 and ext-apps take a whole schema, not only a raw shape: strict without patching (#155 C1, ADR-041).
     const inputSchema = strictInput(tool.name, tool.input)
-    const config = { title: tool.title, description: tool.description, inputSchema, annotations: toolAnnotations(tool) }
+    const config = {
+      title: tool.title,
+      description: tool.description,
+      inputSchema,
+      annotations: toolAnnotations(tool),
+      ...(tool.output ? { outputSchema: tool.output } : {}),
+    }
     // The SDK types the callback per input schema; a heterogeneous list can only be bridged here, once.
     const callback = ((input: unknown, extra: { authInfo?: AuthInfo }) =>
       run(tool.name, extra, (_db, ctx) => tool.handler(input as never, ctx))) as never

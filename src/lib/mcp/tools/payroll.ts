@@ -5,6 +5,7 @@
  */
 
 import { ToolError } from '@/lib/mcp/core/errors'
+import { writeResult } from '@/lib/mcp/core/envelope'
 import { fold } from '@/lib/text'
 import { requireSingleMatch } from '@/lib/mcp/core/lookup'
 import type { Db } from '@/lib/mcp/core/db'
@@ -215,13 +216,13 @@ export async function savePayrollEmployee(db: Db, callerId: string, input: SaveP
     const { data } = await db.from('profiles').select('display_name').eq('id', saved.profile_id).maybeSingle()
     linked = (data as { display_name: string } | null)?.display_name ?? null
   }
-  return {
-    accion: target ? 'actualizado' : 'creado',
-    empleado: { nombre: saved.name, jornada: SHIFT_LABELS[saved.shift], perfil_ligado: linked, activo: saved.active },
+  // Already the write envelope (#155 C3): it only gains escrito.
+  const empleado = { nombre: saved.name, jornada: SHIFT_LABELS[saved.shift], perfil_ligado: linked, activo: saved.active }
+  return writeResult(target ? 'actualizado' : 'creado', 'empleado', empleado, {
     nota: !saved.active
       ? 'Dado de baja: sus horas guardadas se conservan y ya no recibe horas nuevas de la hoja.'
       : target
         ? 'Guardado.'
         : 'Dado de alta: ya puede recibir horas con record_payroll_hours.',
-  }
+  })
 }

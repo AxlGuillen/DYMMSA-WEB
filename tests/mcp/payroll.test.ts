@@ -207,7 +207,7 @@ describe('save_payroll_employee (#134)', () => {
     const client = createMockSupabase({ responses: { profiles, 'payroll_employees.insert': echo } })
     const result = await savePayrollEmployee(asDb(client), 'u-admin', { nombre: '  Pedro   Gómez ', jornada: 'media', perfil: 'tania' })
     expect(client.insertPayload('payroll_employees')).toEqual({ name: 'Pedro Gómez', shift: 'part_time', profile_id: TANIA.id })
-    expect(result).toMatchObject({ accion: 'creado', empleado: { nombre: 'Pedro Gómez', jornada: 'Medio tiempo · 4 h', perfil_ligado: 'Tania López', activo: true } })
+    expect(result).toMatchObject({ accion: 'creado', escrito: true, empleado: { nombre: 'Pedro Gómez', jornada: 'Medio tiempo · 4 h', perfil_ligado: 'Tania López', activo: true } })
   })
 
   test('baja = activo false sobre el empleado por nombre exacto; nunca un delete', async () => {

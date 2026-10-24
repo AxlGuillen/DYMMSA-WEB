@@ -6,6 +6,7 @@
 import type { z } from 'zod'
 import type { Implementation, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import type { McpContext } from './context'
+import type { ResultWithMeta } from './result'
 import type { ConnectorBudget, McpRole } from '../manifest'
 
 export type ConnectorId = 'dymmsa' | 'odoo'
@@ -43,13 +44,32 @@ export interface WriteHints {
   openWorldHint: boolean
 }
 
+/** An output contract (#155 C3): any zod object. The SDK checks structuredContent against it on every call. */
+export type ToolOutput = z.ZodObject<z.core.$ZodShape, z.core.$ZodObjectConfig>
+
+/** The JSON a schema accepts as a handler builds it: readonly arrays welcome, no index signature to satisfy. */
+type Buildable<T> = T extends readonly (infer U)[]
+  ? readonly Buildable<U>[]
+  : T extends object
+    ? { readonly [K in keyof T as string extends K ? never : K]: Buildable<T[K]> }
+    : T
+
+export type OutputOf<O extends ToolOutput> = Buildable<z.input<O>>
+
+/** With `output`, the handler must return what the schema accepts, bare or wrapped by withResultMeta. */
+export type HandlerResult<O extends ToolOutput | undefined> = [O] extends [ToolOutput]
+  ? OutputOf<O> | ResultWithMeta<OutputOf<O>>
+  : unknown
+
 // No `annotations` and no readOnlyHint here: both come from `kind` in toolAnnotations(), so they cannot contradict it.
-interface ToolDefinitionBase<S extends z.ZodRawShape> {
+interface ToolDefinitionBase<S extends z.ZodRawShape, O extends ToolOutput | undefined> {
   connector: ConnectorId
   name: string
   title: string
   description: string
   input: S
+  /** Only where a consumer reads it (§3.5): it travels in tools/list as outputSchema and costs budget. */
+  output?: O
   /** Not registered for a member (#133); the RLS is still the barrier. */
   adminOnly?: true
   view?: ToolView
@@ -57,13 +77,13 @@ interface ToolDefinitionBase<S extends z.ZodRawShape> {
   visibility?: readonly ('model' | 'app')[]
   docs: ToolDocs
   // Method syntax on purpose: a list of definitions with different inputs stays assignable.
-  handler(input: z.infer<z.ZodObject<S>>, ctx: McpContext): Promise<unknown>
+  handler(input: z.infer<z.ZodObject<S>>, ctx: McpContext): Promise<HandlerResult<O>>
 }
 
-export type ToolDefinition<S extends z.ZodRawShape = z.ZodRawShape> = ToolDefinitionBase<S> &
+export type ToolDefinition<S extends z.ZodRawShape = z.ZodRawShape, O extends ToolOutput | undefined = ToolOutput | undefined> = ToolDefinitionBase<S, O> &
   ({ kind: 'read'; hints: ReadHints } | { kind: 'write'; hints: WriteHints })
 
-export function defineTool<S extends z.ZodRawShape>(definition: ToolDefinition<S>): ToolDefinition<S> {
+export function defineTool<S extends z.ZodRawShape, O extends ToolOutput | undefined = undefined>(definition: ToolDefinition<S, O>): ToolDefinition<S, O> {
   return definition
 }
 

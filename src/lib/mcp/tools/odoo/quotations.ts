@@ -37,6 +37,7 @@ import {
   planQuotationLines,
   priceDifferences,
   productsWithoutSat,
+  QUOTATION_MODES,
   quotationMode,
   SALE_STATE_LABEL,
   unechoableWarnings,
@@ -48,6 +49,7 @@ import {
   type PriceDifference,
   type ProductForCreation,
   type ProductWithoutSat,
+  type QuotationMode,
 } from '@/lib/odoo/quotation-plan'
 import { proposedSatKey } from '@/lib/odoo/sat-keys'
 import { ORIGIN_PREFIX, originMarker } from '@/lib/odoo/write-catalog'
@@ -58,6 +60,7 @@ import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
 import { ToolError } from '@/lib/mcp/core/errors'
 import { isoDate, parseInput, withSample, type InputOf } from '@/lib/mcp/core/schema'
 import { withResultMeta, type ResultWithMeta } from '@/lib/mcp/core/result'
+import { previewEnvelope } from '@/lib/mcp/core/envelope'
 import {
   many2oneName,
   numberOr,
@@ -161,7 +164,7 @@ export interface PreviewQuote {
 
 /** odoo_preview_quotation's result; the view (src/mcp-views/odoo-quotation) renders it. */
 export interface QuotationPreview {
-  readonly modo: 'crear' | 'editar' | 'revisar'
+  readonly modo: QuotationMode
   readonly cliente: PreviewClient
   readonly cotizacion: PreviewQuote | null
   readonly lineas: readonly PreviewLine[]
@@ -183,6 +186,19 @@ export interface QuotationPreview {
   readonly vence: string | null
   readonly siguiente_paso: string
 }
+
+const items = z.array(z.unknown())
+
+/** outputSchema (#155 C3): the preview envelope and the lists the view walks. Minimal for ODOO_BUDGET: each
+ *  line stays typed by QuotationPreview, which defineTool makes keep satisfying this. */
+export const previewQuotationOutput = z.looseObject({
+  modo: z.enum(QUOTATION_MODES),
+  ...previewEnvelope,
+  lineas: items,
+  productos_nuevos: items,
+  productos_para_alta: items,
+  sin_clave_sat: items,
+})
 
 export interface SaleView {
   readonly folio: string | null
