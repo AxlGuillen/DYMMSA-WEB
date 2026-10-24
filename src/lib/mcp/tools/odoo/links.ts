@@ -35,9 +35,9 @@ const DIAGNOSIS_TEXT: Record<LinkDiagnosis, string> = {
 
 export interface AuditInvoiceLinksInput {
   /** YYYY-MM-DD over invoice_date; default = 30 days ago. */
-  date_from?: string
+  desde?: string
   /** YYYY-MM-DD; default = today. */
-  date_to?: string
+  hasta?: string
   /** Partial customer name. */
   cliente?: string
   /** Also list the linked invoices (default: only the problematic ones). */
@@ -50,10 +50,10 @@ const FIELDS = [
 ]
 
 export async function odooAuditInvoiceLinks(odoo: OdooCaller, input: AuditInvoiceLinksInput = {}) {
-  assertDateRange(input.date_from, input.date_to)
+  assertDateRange(input.desde, input.hasta)
   const today = todayIso()
-  const from = input.date_from ?? daysAgo(DEFAULT_DAYS, today)
-  const to = input.date_to ?? today
+  const from = input.desde ?? daysAgo(DEFAULT_DAYS, today)
+  const to = input.hasta ?? today
   const cliente = input.cliente?.trim()
 
   const domain: DomainTriple[] = [

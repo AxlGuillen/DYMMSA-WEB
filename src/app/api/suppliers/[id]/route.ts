@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import { parseSupplierInput, SupplierError, updateSupplier } from '@/lib/suppliers-store'
+import { requireAuth, apiError, badRequest, serverError } from '@/lib/api-helpers'
+import { parseSupplierInput, updateSupplier } from '@/lib/suppliers-store'
 
 // PATCH /api/suppliers/[id] — sparse updates + brandIds (replace by diff)
 export async function PATCH(
@@ -24,12 +24,7 @@ export async function PATCH(
     await updateSupplier(supabase, id, parsed.value, body.brandIds as string[] | undefined)
     return NextResponse.json({ ok: true })
   } catch (error) {
-    if (error instanceof SupplierError) {
-      if (error.kind === 'not_found') return notFound(error.message)
-      return error.kind === 'failed' ? serverError(error.message) : badRequest(error.message)
-    }
-    console.error('Supplier update error:', error)
-    return serverError('Error al actualizar el proveedor')
+    return apiError(error, 'Error al actualizar el proveedor', 'Supplier update error:')
   }
 }
 

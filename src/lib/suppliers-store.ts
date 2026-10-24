@@ -4,12 +4,13 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { DomainError } from '@/lib/domain-error'
 import type { Supplier, SupplierInsert, SupplierUpdate } from '@/types/database'
 
 /** A rule the user broke (→ 400 / 404) or a write that failed (→ 500); routes and tools map it. */
-export class SupplierError extends Error {
-  constructor(message: string, readonly kind: 'invalid' | 'not_found' | 'failed' = 'invalid') {
-    super(message)
+export class SupplierError extends DomainError {
+  constructor(message: string, kind: 'invalid' | 'not_found' | 'failed' = 'invalid') {
+    super(message, kind)
     this.name = 'SupplierError'
   }
 }

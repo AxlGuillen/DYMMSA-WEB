@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import type { createClient } from '@/lib/supabase/server'
+import { DomainError } from '@/lib/domain-error'
 import type { Profile } from '@/types/database'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
@@ -65,3 +66,10 @@ export const forbidden = (msg = 'Acción no permitida') =>
 
 export const serverError = (msg = 'Error interno') =>
   NextResponse.json({ message: msg }, { status: 500 })
+
+/** A store's DomainError answers its own status and message (#155 C1); anything else is logged and is a 500. */
+export function apiError(error: unknown, fallback = 'Error interno', log = 'API error:'): NextResponse {
+  if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
+  console.error(log, error)
+  return serverError(fallback)
+}

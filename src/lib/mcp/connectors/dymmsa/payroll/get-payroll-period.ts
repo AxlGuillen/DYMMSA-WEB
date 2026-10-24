@@ -1,6 +1,5 @@
-import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { isoDate, readOnly } from '@/lib/mcp/core/schema'
 import { getPayrollPeriod } from '@/lib/mcp/tools/payroll'
 
 export const getPayrollPeriodTool = defineTool({
@@ -11,7 +10,7 @@ export const getPayrollPeriodTool = defineTool({
   description:
     'Horas de nómina del corte sábado→viernes que contiene `fecha` (default: el corte actual): por empleado, cada día con sus horas, si es borrador o confirmado y de dónde salió (hoja, checador, manual), más los totales normal / extra / sábado extra (×2) / domingo (×3) y el equivalente. Solo los días confirmados suman. SOLO administradores: a un miembro le llega vacío. Son horas, no montos.',
   input: {
-    fecha: z.string().optional().describe('Cualquier día del corte, YYYY-MM-DD (default hoy)'),
+    fecha: isoDate.optional().describe('Cualquier día del corte (default hoy)'),
   },
   annotations: readOnly,
   adminOnly: true,

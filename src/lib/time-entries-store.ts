@@ -4,13 +4,14 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { DomainError } from '@/lib/domain-error'
 import { isRealDate, normalizeEntryTimes, normalizeTime, type ParsedReport } from '@/lib/timesheet'
 import type { Profile, TimeEntry, TimeEntryUpdate, TimeImportResult } from '@/types/database'
 
 /** A rule the user broke (→ 400 / 404 / 403, or a ToolError); anything else is a real failure. */
-export class TimeEntryError extends Error {
-  constructor(message: string, readonly kind: 'invalid' | 'not_found' | 'forbidden' = 'invalid') {
-    super(message)
+export class TimeEntryError extends DomainError {
+  constructor(message: string, kind: 'invalid' | 'not_found' | 'forbidden' = 'invalid') {
+    super(message, kind)
     this.name = 'TimeEntryError'
   }
 }

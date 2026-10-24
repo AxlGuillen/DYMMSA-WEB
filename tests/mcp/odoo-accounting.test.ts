@@ -22,16 +22,16 @@ describe('odoo_search_records', () => {
   test('modelo fuera del catálogo → error claro con los disponibles', async () => {
     const { odoo } = fakeOdoo({})
     // hr.payslip (payroll) is the canonical example of what NEVER gets in (ADR-025).
-    await expect(odooSearchRecords(odoo, { model: 'hr.payslip' })).rejects.toThrow(/no está en el catálogo.*account\.move/)
+    await expect(odooSearchRecords(odoo, { modelo: 'hr.payslip' })).rejects.toThrow(/no está en el catálogo.*account\.move/)
   })
 
   test('campo fuera de la whitelist → error (también en el dominio)', async () => {
     const { odoo } = fakeOdoo({})
     await expect(
-      odooSearchRecords(odoo, { model: 'account.move', fields: ['line_ids'] }),
+      odooSearchRecords(odoo, { modelo: 'account.move', campos: ['line_ids'] }),
     ).rejects.toThrow(/line_ids.*no está en el catálogo/)
     await expect(
-      odooSearchRecords(odoo, { model: 'account.move', domain: [['company_id', '=', 1]] }),
+      odooSearchRecords(odoo, { modelo: 'account.move', filtros: [['company_id', '=', 1]] }),
     ).rejects.toThrow(/No se puede filtrar/)
   })
 
@@ -40,23 +40,23 @@ describe('odoo_search_records', () => {
     // field (inference oracle) — verified that Odoo does filter by it.
     const { odoo } = fakeOdoo({})
     await expect(
-      odooSearchRecords(odoo, { model: 'account.move', domain: [['partner_id.vat', 'ilike', 'AHY']] }),
+      odooSearchRecords(odoo, { modelo: 'account.move', filtros: [['partner_id.vat', 'ilike', 'AHY']] }),
     ).rejects.toThrow(/traversal por relación/)
   })
 
   test('order multi-columna: valida TODAS las columnas, no solo la primera (PR #66)', async () => {
     const { odoo } = fakeOdoo({ 'account.move.search_read': [[INVOICE_RAW]] })
     await expect(
-      odooSearchRecords(odoo, { model: 'account.move', order: 'invoice_date asc, partner_id.vat desc' }),
+      odooSearchRecords(odoo, { modelo: 'account.move', orden: 'invoice_date asc, partner_id.vat desc' }),
     ).rejects.toThrow(/traversal por relación/)
     await expect(
-      odooSearchRecords(odoo, { model: 'account.move', order: 'invoice_date asc, name desc' }),
+      odooSearchRecords(odoo, { modelo: 'account.move', orden: 'invoice_date asc, name desc' }),
     ).resolves.toMatchObject({ count: 1 })
   })
 
   test('normaliza: many2one → nombre, false → null; sin campos usa la whitelist', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.move.search_read': [[INVOICE_RAW]] })
-    const result = await odooSearchRecords(odoo, { model: 'account.move', limit: 5 })
+    const result = await odooSearchRecords(odoo, { modelo: 'account.move', limite: 5 })
 
     expect(calls[0].payload.fields).toContain('payment_state')
     expect(result.items[0].partner_id).toBe('Andritz')
@@ -66,7 +66,7 @@ describe('odoo_search_records', () => {
 
   test('cuando llena el límite avisa que hay más', async () => {
     const { odoo } = fakeOdoo({ 'account.move.search_read': [[INVOICE_RAW, { ...INVOICE_RAW, id: 781 }]] })
-    const result = await odooSearchRecords(odoo, { model: 'account.move', limit: 2 })
+    const result = await odooSearchRecords(odoo, { modelo: 'account.move', limite: 2 })
     expect(result.nota).toMatch(/máximo/)
   })
 })
@@ -84,14 +84,14 @@ describe('odoo_aggregate_records', () => {
       ]],
     })
     const result = await odooAggregateRecords(odoo, {
-      model: 'account.move',
-      group_by: 'payment_state',
-      metrics: ['amount_total:sum'],
+      modelo: 'account.move',
+      agrupar_por: 'payment_state',
+      metricas: ['amount_total:sum'],
     })
     expect(result.grupos[0]).toEqual({ payment_state: 'not_paid', count: 150, amount_total: 2255512.43 })
 
     await expect(
-      odooAggregateRecords(odoo, { model: 'account.move', group_by: 'payment_state', metrics: ['amount_total:median'] }),
+      odooAggregateRecords(odoo, { modelo: 'account.move', agrupar_por: 'payment_state', metricas: ['amount_total:median'] }),
     ).rejects.toThrow(/Métrica inválida/)
   })
 })
@@ -108,12 +108,12 @@ describe('odoo_summarize_invoices', () => {
       ],
     })
 
-    await expect(odooSummarizeInvoices(odoo, { date_from: '11/08/2026' })).rejects.toThrow(/YYYY-MM-DD/)
+    await expect(odooSummarizeInvoices(odoo, { desde: '11/08/2026' })).rejects.toThrow(/YYYY-MM-DD/)
 
     const result = await odooSummarizeInvoices(odoo, {
-      date_from: '2026-07-01',
-      date_to: '2026-08-31',
-      group_by: 'mes',
+      desde: '2026-07-01',
+      hasta: '2026-08-31',
+      agrupar_por: 'mes',
     })
 
     expect(calls).toHaveLength(2)

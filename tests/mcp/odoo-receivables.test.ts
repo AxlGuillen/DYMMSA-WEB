@@ -123,11 +123,11 @@ describe('odoo_list_receivables', () => {
 describe('catálogo fase 8', () => {
   test('total_due/DSO se leen pidiéndolos explícito; filtrar u ordenar por ellos se rechaza', async () => {
     const { odoo } = fakeOdoo({ 'res.partner.search_read': [[{ id: 17, name: 'GE', total_due: 1451917.94, days_sales_outstanding: 109.61 }]] })
-    const result = await odooSearchRecords(odoo, { model: 'res.partner', fields: ['name', 'total_due', 'days_sales_outstanding'], limit: 1 })
-    await expect(odooSearchRecords(odoo, { model: 'res.partner', fields: ['credit'] })).rejects.toThrow(/no está en el catálogo/)
+    const result = await odooSearchRecords(odoo, { modelo: 'res.partner', campos: ['name', 'total_due', 'days_sales_outstanding'], limite: 1 })
+    await expect(odooSearchRecords(odoo, { modelo: 'res.partner', campos: ['credit'] })).rejects.toThrow(/no está en el catálogo/)
     expect(result.items[0].total_due).toBe(1451917.94)
 
-    await expect(odooSearchRecords(odoo, { model: 'res.partner', domain: [['total_overdue', '>', 0]] })).rejects.toThrow(/computado sin almacenar/)
-    await expect(odooSearchRecords(odoo, { model: 'res.partner', order: 'days_sales_outstanding desc' })).rejects.toThrow(/computado sin almacenar/)
+    await expect(odooSearchRecords(odoo, { modelo: 'res.partner', filtros: [['total_overdue', '>', 0]] })).rejects.toThrow(/computado sin almacenar/)
+    await expect(odooSearchRecords(odoo, { modelo: 'res.partner', orden: 'days_sales_outstanding desc' })).rejects.toThrow(/computado sin almacenar/)
   })
 })

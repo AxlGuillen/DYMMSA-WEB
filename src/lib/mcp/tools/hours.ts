@@ -7,7 +7,7 @@ import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
-import { correctTimeEntry, createManualEntry, importTimeReport, loadClockProfiles, TimeEntryError } from '@/lib/time-entries-store'
+import { correctTimeEntry, createManualEntry, importTimeReport, loadClockProfiles } from '@/lib/time-entries-store'
 import {
   buildWeekView,
   buildWeeklyTrend,
@@ -229,9 +229,7 @@ async function importReport(db: Db, input: SaveTimeEntriesInput) {
     )
   }
   const name = input.nombre_archivo?.trim()
-  const { result, absent } = await asTool(() =>
-    importTimeReport(db, report, name ? `${ASSISTANT_FILE}: ${name.slice(0, 120)}` : ASSISTANT_FILE),
-  )
+  const { result, absent } = await importTimeReport(db, report, name ? `${ASSISTANT_FILE}: ${name.slice(0, 120)}` : ASSISTANT_FILE)
   return {
     periodo: { inicio: result.period.start, fin: result.period.end },
     insertadas: result.inserted,
@@ -275,7 +273,7 @@ export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput
   if (!report.period) throw new ToolError('Las filas no traen "Período de pago": ¿es el reporte del checador?')
   if (report.employees.length === 0) throw new ToolError('Las filas no traen bloques de empleado')
 
-  const profiles = await asTool(() => loadClockProfiles(db))
+  const profiles = await loadClockProfiles(db)
   const byClockId = new Map(profiles.map((p) => [p.clock_employee_id, p.display_name]))
   const reported = new Set(report.employees.map((e) => e.clockId))
   const { days, truncated } = periodDays(report.period.start, report.period.end)
@@ -331,9 +329,7 @@ async function savePunch(db: Db, callerId: string, input: PunchInput) {
   let corrected = false
   if (input.entrada_actual === undefined) {
     if (input.entrada === undefined) throw new ToolError('Para registrar una checada nueva manda `entrada`; para corregir una, `entrada_actual`')
-    entry = await asTool(() =>
-      createManualEntry(db, { user_id: person.id, work_date: input.fecha, clock_in: input.entrada, clock_out: input.salida, note: input.nota }),
-    )
+    entry = await createManualEntry(db, { user_id: person.id, work_date: input.fecha, clock_in: input.entrada, clock_out: input.salida, note: input.nota })
   } else {
     const day = await entriesBetween(db, person.id, input.fecha, input.fecha)
     const wanted = normalizeTime(input.entrada_actual)
@@ -346,7 +342,7 @@ async function savePunch(db: Db, callerId: string, input: PunchInput) {
     if (input.entrada !== undefined) update.clock_in = input.entrada
     if (input.salida !== undefined) update.clock_out = input.salida
     if (input.nota !== undefined) update.note = input.nota
-    entry = await asTool(() => correctTimeEntry(db, target.id, update, callerId))
+    entry = await correctTimeEntry(db, target.id, update, callerId)
     corrected = true
   }
   const minutes = minutesBetween(entry.clock_in, entry.clock_out)
@@ -359,15 +355,6 @@ async function savePunch(db: Db, callerId: string, input: PunchInput) {
     horas: minutes === null ? null : formatDuration(minutes),
     nota: entry.note,
     lo_que_dijo_el_checador: entry.original ? { entrada: entry.original.clock_in, salida: entry.original.clock_out } : null,
-  }
-}
-
-async function asTool<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn()
-  } catch (error) {
-    if (error instanceof TimeEntryError) throw new ToolError(error.message)
-    throw error
   }
 }
 

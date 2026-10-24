@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireRole, requireAdmin, badRequest, forbidden, serverError, isUuid } from '@/lib/api-helpers'
-import { createManualEntry, TimeEntryError } from '@/lib/time-entries-store'
+import { requireRole, requireAdmin, apiError, badRequest, serverError, isUuid } from '@/lib/api-helpers'
+import { createManualEntry } from '@/lib/time-entries-store'
 import { todayInMexico } from '@/lib/format'
 import { buildWeekView, isRealDate, normalizeEntryTimes, weekBounds } from '@/lib/timesheet'
 import type { ExcusedDay, TimeEntry } from '@/types/database'
@@ -82,8 +82,6 @@ export async function POST(request: NextRequest) {
     const entry = await createManualEntry(supabase, { ...body, user_id: body.user_id })
     return NextResponse.json(entry, { status: 201 })
   } catch (error) {
-    if (error instanceof TimeEntryError) return error.kind === 'forbidden' ? forbidden() : badRequest(error.message)
-    console.error('Time entries POST error:', error)
-    return serverError('Error al registrar la checada')
+    return apiError(error, 'Error al registrar la checada', 'Time entries POST error:')
   }
 }

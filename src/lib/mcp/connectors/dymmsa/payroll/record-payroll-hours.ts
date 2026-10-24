@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { isoDate } from '@/lib/mcp/core/schema'
 import { recordPayrollHours } from '@/lib/mcp/tools/payroll'
 import { SHEET_GUIDE } from './sheet-guide'
 
@@ -14,9 +15,9 @@ export const recordPayrollHoursTool = defineTool({
   input: {
     dias: z
       .array(
-        z.object({
+        z.strictObject({
           empleado: z.string().min(1).describe('Nombre (o parte) del empleado de nómina'),
-          fecha: z.string().describe('Día trabajado, YYYY-MM-DD'),
+          fecha: isoDate.describe('Día trabajado'),
           horas: z.number().min(0).max(24).describe('Horas trabajadas ese día, con decimales (11.5)'),
           horas_no_trabajadas: z.number().min(0).max(24).optional().describe('HRS NO TRABAJADAS de ese día (solo registro)'),
           nota: z.string().max(300).optional().describe('Nota del día'),
@@ -27,7 +28,7 @@ export const recordPayrollHoursTool = defineTool({
       .optional()
       .describe('Un elemento por empleado y día (la hoja del taller)'),
     traer_de_horas: z.boolean().optional(),
-    fecha: z.string().optional().describe('YYYY-MM-DD'),
+    fecha: isoDate.optional(),
   },
   // Scoped write (#123, ADR-033): drafts only; the admin confirms in the app.
   annotations: { readOnlyHint: false, openWorldHint: false },

@@ -5,7 +5,6 @@
 
 import { z } from 'zod'
 import { todayInMexico } from '@/lib/format'
-import { isRealDate } from '@/lib/month'
 import { OdooError, type OdooCaller } from '@/lib/odoo/client'
 import { startDeadline, type Deadline } from '@/lib/odoo/deadline'
 import { escapeLike } from '@/lib/odoo/domains'
@@ -57,6 +56,7 @@ import type { AdminProof } from '@/lib/odoo/write-guard'
 import type { McpContext } from '../../core/context'
 import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
 import { ToolError } from '@/lib/mcp/core/errors'
+import { isoDate, parseInput, withSample, type InputOf } from '@/lib/mcp/core/schema'
 import { withResultMeta, type ResultWithMeta } from '@/lib/mcp/core/result'
 import {
   many2oneName,
@@ -107,14 +107,13 @@ export const quotationLine = z.strictObject({
 
 export type QuotationLineInput = z.infer<typeof quotationLine>
 
-const folio = z.string().regex(/^S\d{5,}$/i, 'folio de venta de Odoo, ej. S00912')
-const isoDate = z.string().refine((value) => isRealDate(value), 'fecha inválida (YYYY-MM-DD)')
+export const saleFolio = withSample(z.string().regex(/^S\d{5,}$/i, 'folio de venta de Odoo, ej. S00912'), 'S00912')
 
 export const previewQuotationShape = {
   cliente: z.string().min(1).max(120).optional().describe('Crear: nombre, RFC o #id del cliente'),
-  folio: folio.optional().describe('Cotización existente: revisar (solo folio) o editar (con lineas)'),
+  folio: saleFolio.optional().describe('Cotización existente: revisar (solo folio) o editar (con lineas)'),
   lineas: z.array(quotationLine).min(1).max(MAX_QUOTATION_LINES).optional().describe('La lista COMPLETA deseada'),
-  vigencia: isoDate.optional().describe('Vence el (YYYY-MM-DD)'),
+  vigencia: isoDate.optional().describe('Vence el'),
 }
 
 const previewKey = z.string().min(1).max(4000)
@@ -126,17 +125,13 @@ export const saveQuotationShape = {
 
 // Minimal on purpose (#155 B2b): confirming never carries lines, so it doesn't load their schema.
 export const confirmQuotationShape = {
-  folio: folio.describe('Folio que revisó la vista previa'),
+  folio: saleFolio.describe('Folio que revisó la vista previa'),
   clave: previewKey.describe('La clave de esa revisión'),
 }
 
-const previewSchema = z.strictObject(previewQuotationShape)
-const saveSchema = z.strictObject(saveQuotationShape)
-const confirmSchema = z.strictObject(confirmQuotationShape)
-
-export type PreviewQuotationInput = z.infer<typeof previewSchema>
-export type SaveQuotationInput = z.infer<typeof saveSchema>
-export type ConfirmQuotationInput = z.infer<typeof confirmSchema>
+export type PreviewQuotationInput = InputOf<typeof previewQuotationShape>
+export type SaveQuotationInput = InputOf<typeof saveQuotationShape>
+export type ConfirmQuotationInput = InputOf<typeof confirmQuotationShape>
 
 /** What the handler injects: the read-only caller and the closed writer facade. */
 export interface OdooQuotationDeps {
@@ -213,33 +208,6 @@ export interface QuotationSaveResult {
 
 const TAX_NOTE = 'Montos sin IVA: los impuestos los calcula Odoo al guardar.'
 const NOTHING_SAVED = 'Nada se ha guardado.'
-
-/** 'debe ser al menos 0' / 'lleva hasta 80 líneas'. */
-function boundReason(origin: string, limit: number | bigint, side: 'min' | 'max', inclusive: boolean): string {
-  const count = (one: string, many: string) => `${limit} ${limit === 1 ? one : many}`
-  if (origin === 'string') return `lleva ${side === 'min' ? 'al menos' : 'hasta'} ${count('carácter', 'caracteres')}`
-  if (origin === 'array') return `lleva ${side === 'min' ? 'al menos' : 'hasta'} ${count('línea', 'líneas')}`
-  if (side === 'min') return `debe ser ${inclusive ? 'al menos' : 'mayor que'} ${limit}`
-  return `debe ser ${inclusive ? 'a lo más' : 'menor que'} ${limit}`
-}
-
-/** zod's own messages are English: the reasons the model can act on, in Spanish. */
-function issueReason(issue: z.core.$ZodIssue): string | null {
-  if (issue.code === 'custom' || issue.code === 'invalid_format') return issue.message
-  if (issue.code === 'too_small') return boundReason(issue.origin, issue.minimum, 'min', issue.inclusive !== false)
-  if (issue.code === 'too_big') return boundReason(issue.origin, issue.maximum, 'max', issue.inclusive !== false)
-  return null
-}
-
-/** The SDK already parsed with zod; this keeps direct calls (tests, scripts) to the same contract. */
-export function parseInput<S extends z.ZodType>(schema: S, raw: unknown): z.infer<S> {
-  const parsed = schema.safeParse(raw)
-  if (parsed.success) return parsed.data
-  const issue = parsed.error.issues[0]
-  const at = issue.path.length ? ` en ${issue.path.map(String).join('.')}` : ''
-  const reason = issueReason(issue)
-  throw new ToolError(`Entrada inválida${at}${reason ? `: ${reason}` : ''}. Revisa el formato y repite.`)
-}
 
 function writeDisabledReason(): string | null {
   try {
@@ -619,7 +587,7 @@ export async function odooPreviewQuotation(
 ): Promise<QuotationPreview | ResultWithMeta<QuotationPreview>> {
   // It signs keys: a member or a demoted admin never reaches Odoo.
   const proof = await requireLiveAdmin(ctx)
-  const input = parseInput(previewSchema, raw)
+  const input = parseInput('odoo_preview_quotation', previewQuotationShape, raw)
   const mode = quotationMode(input)
   const lines = input.lineas ?? []
   assertQuotationLines(lines, mode)
@@ -912,7 +880,7 @@ export async function odooSaveQuotation(
   const dl = startDeadline()
   const proof = await requireLiveAdmin(ctx)
   requireKey(raw)
-  const input = parseInput(saveSchema, raw)
+  const input = parseInput('odoo_save_quotation', saveQuotationShape, raw)
   // Throws the precise reason (no key, bad URL) before anything is read.
   odooWriteEnv()
   const mode = quotationMode(input)
@@ -941,7 +909,7 @@ export async function odooConfirmQuotation(
   const dl = startDeadline()
   const proof = await requireLiveAdmin(ctx)
   requireKey(raw)
-  const input = parseInput(confirmSchema, raw)
+  const input = parseInput('odoo_confirm_quotation', confirmQuotationShape, raw)
   odooWriteEnv()
   const verified = verifyQuotationKey(proof, input.clave, { kind: 'confirmar', input })
   return confirmReviewed({ reader: deps.reader, writer: deps.writer, proof, verified, folio: input.folio, dl })
