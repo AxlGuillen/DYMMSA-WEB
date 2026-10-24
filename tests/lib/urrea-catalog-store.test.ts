@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import {
   CatalogError,
+  createCatalogItem,
   importCatalog,
   parseCatalogItemInput,
   parseCatalogSheet,
@@ -96,10 +97,24 @@ describe('parseCatalogItemInput', () => {
 
 describe('parseCatalogSheet', () => {
   test('normaliza código y marca; STD vacío → 1; descripción recortada', () => {
-    expect(parseCatalogSheet([{ codigo: ' ab-1 ', marca: ' foy ', descripcion: '  Llave  ' }, { code: 6954, std: '12' }])).toEqual([
-      { code: 'AB-1', brand: 'FOY', description: 'Llave', std: 1 },
-      { code: '6954', brand: 'URREA', description: null, std: 12 },
+    expect(parseCatalogSheet([{ codigo: ' ab-1 ', marca: ' foy ', descripcion: '  Llave  ' }, { code: 6954, std: '12' }])).toEqual({
+      rows: [
+        { code: 'AB-1', brand: 'FOY', description: 'Llave', std: 1 },
+        { code: '6954', brand: 'URREA', description: null, std: 12 },
+      ],
+      columns: { description: true, std: true },
+    })
+  })
+
+  test('encabezados con espacios o mayúsculas cuentan ("Codigo ", " STD")', () => {
+    expect(parseCatalogSheet([{ 'Codigo ': 'C1', ' STD': 4 }]).rows).toEqual([
+      { code: 'C1', brand: 'URREA', description: null, std: 4 },
     ])
+  })
+
+  test('REGLA: reporta qué columnas trae el archivo (un upsert no toca las que faltan)', () => {
+    expect(parseCatalogSheet([{ codigo: 'C1', descripcion: 'x' }]).columns).toEqual({ description: true, std: false })
+    expect(parseCatalogSheet([{ codigo: 'C1', std: 2 }]).columns).toEqual({ description: false, std: true })
   })
 
   test('sin columna de código → 400', () => {
@@ -120,7 +135,7 @@ describe('parseCatalogSheet', () => {
   })
 
   test('el mismo código en dos marcas NO es repetido (identidad = código + marca)', () => {
-    expect(parseCatalogSheet([{ codigo: 'C1', marca: 'URREA' }, { codigo: 'C1', marca: 'SURTEK' }])).toHaveLength(2)
+    expect(parseCatalogSheet([{ codigo: 'C1', marca: 'URREA' }, { codigo: 'C1', marca: 'SURTEK' }]).rows).toHaveLength(2)
   })
 
   test('REGLA: código vacío y STD inválido → 400 con su número de fila (aunque SheetJS salte filas en blanco)', () => {
@@ -149,20 +164,27 @@ describe('importCatalog', () => {
     { code: 'C1', brand: 'URREA', description: 'Uno', std: 1 },
     { code: 'C2', brand: 'SURTEK', description: null, std: 6 },
   ]
+  const full = { rows, columns: { description: true, std: true } }
 
   test('REGLA: replace va en UNA llamada a replace_urrea_catalog, nunca delete + insert sueltos', async () => {
     const mock = createMockSupabase({ responses: { 'rpc.replace_urrea_catalog': { data: 2, error: null } } })
-    expect(await importCatalog(asDb(mock), rows, 'replace')).toEqual({ imported: 2 })
+    expect(await importCatalog(asDb(mock), full, 'replace')).toEqual({ imported: 2 })
     expect(mock._rpcCalls).toEqual([{ fn: 'replace_urrea_catalog', params: { p_rows: rows } }])
     expect(mock.didCall('urrea_catalog', 'delete')).toBe(false)
     expect(mock.didCall('urrea_catalog', 'insert')).toBe(false)
+  })
+
+  test('replace es el catálogo completo: aunque falten columnas, manda los defaults', async () => {
+    const mock = createMockSupabase({ responses: { 'rpc.replace_urrea_catalog': { data: 2, error: null } } })
+    await importCatalog(asDb(mock), { rows, columns: { description: false, std: false } }, 'replace')
+    expect(mock._rpcCalls[0].params).toEqual({ p_rows: rows })
   })
 
   test('replace que falla en la BD → 500 que dice que el catálogo quedó como estaba', async () => {
     const mock = createMockSupabase({
       responses: { 'rpc.replace_urrea_catalog': { data: null, error: { code: '57014', message: 'canceling statement' } } },
     })
-    const error = await rejection(importCatalog(asDb(mock), rows, 'replace'))
+    const error = await rejection(importCatalog(asDb(mock), full, 'replace'))
     expect(error.status).toBe(500)
     expect(error.message).toContain('quedó como estaba')
   })
@@ -174,25 +196,59 @@ describe('importCatalog', () => {
     [{ code: '23514', message: 'urrea_catalog_std_check' }],
   ])('replace rechazado por una regla de la BD (%j) → 400', async (dbError) => {
     const mock = createMockSupabase({ responses: { 'rpc.replace_urrea_catalog': { data: null, error: dbError } } })
-    expect((await rejection(importCatalog(asDb(mock), rows, 'replace'))).status).toBe(400)
+    expect((await rejection(importCatalog(asDb(mock), full, 'replace'))).status).toBe(400)
   })
 
   test('upsert por (code, brand) en una sola sentencia', async () => {
     const mock = createMockSupabase({ responses: { 'urrea_catalog.upsert': { data: null, error: null } } })
-    expect(await importCatalog(asDb(mock), rows, 'upsert')).toEqual({ imported: 2 })
+    expect(await importCatalog(asDb(mock), full, 'upsert')).toEqual({ imported: 2 })
     const [call] = mock.callsTo('urrea_catalog', 'upsert')
     expect(call.options).toEqual({ onConflict: 'code,brand' })
+    expect(call.payload).toEqual(rows)
     expect(mock._rpcCalls).toHaveLength(0)
+  })
+
+  test('REGLA ADR-018: un upsert sin columna std ni descripcion NO las manda (no pisa el STD guardado con 1)', async () => {
+    const mock = createMockSupabase({ responses: { 'urrea_catalog.upsert': { data: null, error: null } } })
+    await importCatalog(asDb(mock), { rows, columns: { description: false, std: false } }, 'upsert')
+    expect(mock.upsertPayload('urrea_catalog')).toEqual([
+      { code: 'C1', brand: 'URREA' },
+      { code: 'C2', brand: 'SURTEK' },
+    ])
+  })
+
+  test('upsert con std pero sin descripcion: solo omite la descripción', async () => {
+    const mock = createMockSupabase({ responses: { 'urrea_catalog.upsert': { data: null, error: null } } })
+    await importCatalog(asDb(mock), { rows, columns: { description: false, std: true } }, 'upsert')
+    expect(mock.upsertPayload('urrea_catalog')[1]).toEqual({ code: 'C2', brand: 'SURTEK', std: 6 })
   })
 
   test('upsert que falla → 500', async () => {
     const mock = createMockSupabase({ responses: { 'urrea_catalog.upsert': { data: null, error: { code: 'XX000' } } } })
-    expect((await rejection(importCatalog(asDb(mock), rows, 'upsert'))).status).toBe(500)
+    expect((await rejection(importCatalog(asDb(mock), full, 'upsert'))).status).toBe(500)
   })
 
   test('sin filas no escribe nada', async () => {
     const mock = createMockSupabase()
-    expect((await rejection(importCatalog(asDb(mock), [], 'replace'))).status).toBe(400)
+    expect((await rejection(importCatalog(asDb(mock), { ...full, rows: [] }, 'replace'))).status).toBe(400)
     expect(mock._rpcCalls).toHaveLength(0)
+  })
+})
+
+describe('createCatalogItem', () => {
+  test.each([
+    [{ code: '  ', brand: 'URREA', description: null, std: 1 }],
+    [{ code: 'C1', brand: 'URREA', description: null, std: 0 }],
+    [{ code: 'C1', brand: 'URREA', description: null, std: 2.5 }],
+  ])('REGLA: aunque el llamador se salte el parser, no inserta un código vacío ni un STD inválido (%j)', async (item) => {
+    const mock = createMockSupabase()
+    expect((await rejection(createCatalogItem(asDb(mock), item))).status).toBe(400)
+    expect(mock.didCall('urrea_catalog', 'insert')).toBe(false)
+  })
+
+  test('inserta normalizado', async () => {
+    const mock = createMockSupabase({ responses: { 'urrea_catalog.insert': { data: { id: '1' }, error: null } } })
+    await createCatalogItem(asDb(mock), { code: ' c1 ', brand: ' foy ', description: '  ', std: 3 })
+    expect(mock.insertPayload('urrea_catalog')).toEqual({ code: 'C1', brand: 'FOY', description: null, std: 3 })
   })
 })

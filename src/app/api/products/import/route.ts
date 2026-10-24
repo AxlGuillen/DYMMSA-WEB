@@ -3,7 +3,8 @@ import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/api-helpers'
 import { DomainError } from '@/lib/domain-error'
-import { importProducts, parseProductSheet, type ProductImportMode } from '@/lib/products-store'
+import { importProducts, parseProductSheet } from '@/lib/products-store'
+import type { ProductImportMode, ProductImportResult } from '@/types/database'
 
 // POST /api/products/import — multipart `file` + `mode` (upsert | insert = only new ETMs)
 export async function POST(request: NextRequest) {
@@ -26,9 +27,10 @@ export async function POST(request: NextRequest) {
 
     // The whole file is checked before anything is written (#157).
     const { rows, withoutEtm } = parseProductSheet(sheet)
-    const result = await importProducts(supabase, auth.user.id, rows, mode)
+    const written = await importProducts(supabase, auth.user.id, rows, mode)
 
-    return NextResponse.json({ ...result, errors: result.errors + withoutEtm, total: sheet.length })
+    const result: ProductImportResult = { ...written, errors: written.errors + withoutEtm, total: sheet.length }
+    return NextResponse.json(result)
   } catch (error) {
     if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
     console.error('Import error:', error)

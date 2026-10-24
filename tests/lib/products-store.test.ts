@@ -2,11 +2,13 @@ import { describe, test, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   assertCuratedAllowed,
+  createProduct,
   importProducts,
   parseProductInput,
   parseProductSheet,
   priceIssue,
   ProductError,
+  updateProduct,
   type ProductImportRow,
 } from '@/lib/products-store'
 import { createMockSupabase, type MockSupabaseClient } from '../helpers/supabase-mock'
@@ -110,10 +112,34 @@ describe('assertCuratedAllowed (ADR-013 en el servidor)', () => {
   })
 })
 
+describe('createProduct / updateProduct', () => {
+  test('aunque el llamador se salte el parser, no inserta un ETM vacío', async () => {
+    const mock = createMockSupabase()
+    expect((await rejection(createProduct(asDb(mock), { etm: '  ', price: 1 }))).status).toBe(400)
+    expect(mock.didCall('etm_products', 'insert')).toBe(false)
+  })
+
+  test('la edición no manda updated_at: lo pone el trigger', async () => {
+    const mock = createMockSupabase({ responses: { 'etm_products.update': { data: { id: '1' }, error: null } } })
+    await updateProduct(asDb(mock), '1', { price: 10 })
+    expect(mock.updatePayload('etm_products')).toEqual({ price: 10 })
+  })
+})
+
 describe('parseProductSheet', () => {
   test('columnas obligatorias ETM y MODEL_CODE (aunque la primera fila traiga la celda vacía)', () => {
     expect(productError(() => parseProductSheet([{ ETM: 'E1' }])).message).toBe('Columnas faltantes: MODEL_CODE')
     expect(parseProductSheet([{ ETM: 'E1' }, { ETM: 'E2', MODEL_CODE: 'MC2' }]).rows).toHaveLength(2)
+  })
+
+  test.each([
+    ['ETM ', 'MODEL_CODE '],
+    ['etm', 'model_code'],
+    [' Etm', 'Model_Code'],
+  ])('REGLA: encabezados "%s" / "%s" se leen igual que ETM / MODEL_CODE (antes: 200 con 0 importados)', (etm, model) => {
+    const { rows, withoutEtm } = parseProductSheet([{ [etm]: 'E1', [model]: 'MC1', 'price ': 12, Brand: 'Foy' }])
+    expect(withoutEtm).toBe(0)
+    expect(rows).toEqual([{ etm: 'E1', description: '', description_es: '', model_code: 'MC1', brand: 'Foy', price: 12 }])
   })
 
   test('precio vacío → null (no pisa); filas sin ETM se cuentan aparte', () => {
@@ -182,12 +208,8 @@ describe('importProducts (reglas del auto-learn)', () => {
     const mock = createMockSupabase({ responses: { 'etm_products.select': { data: [EXISTING], error: null } } })
     const result = await importProducts(asDb(mock), 'user-2', [row({ description_es: 'Nueva', price: 95 })], 'upsert')
     expect(result).toEqual({ imported: 0, updated: 1, skipped: 0, errors: 0 })
-    const update = mock.updatePayload('etm_products')
-    expect(update).toMatchObject({ description_es: 'Nueva', price: 95 })
-    // Blank cells, the curated text, is_sold and created_by are never written.
-    for (const key of ['description', 'model_code', 'brand', 'dymmsa_description', 'is_sold', 'created_by']) {
-      expect(update).not.toHaveProperty(key)
-    }
+    // Blank cells, the curated text, is_sold, created_by and updated_at (the trigger's) are never written.
+    expect(mock.updatePayload('etm_products')).toEqual({ description_es: 'Nueva', price: 95 })
   })
 
   test('sin nada nuevo no escribe (sin cambios)', async () => {

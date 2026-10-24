@@ -69,6 +69,23 @@ describe('POST /urrea-catalog/import (integración local)', () => {
     )
     expect(row).toMatchObject({ description: 'ACTUALIZADA', std: 8 })
   })
+
+  test('REGLA ADR-018: upsert de un archivo sin columna std conserva el STD guardado; los nuevos quedan en 1', async () => {
+    // Fixture 60001|URREA has std 10.
+    const res = await catImport.POST(
+      makeExcelRequest([{ codigo: '60001', descripcion: 'SOLO DESCRIPCION' }, { codigo: '70009', descripcion: 'NUEVO' }], {
+        mode: 'upsert',
+      }),
+    )
+    expect(res.status).toBe(200)
+    const rows = await sql<{ code: string; description: string; std: number }>(
+      "SELECT code, description, std FROM urrea_catalog WHERE code IN ('60001', '70009') AND brand = 'URREA' ORDER BY code",
+    )
+    expect(rows).toEqual([
+      { code: '60001', description: 'SOLO DESCRIPCION', std: 10 },
+      { code: '70009', description: 'NUEVO', std: 1 },
+    ])
+  })
 })
 
 const catalogRows = () =>

@@ -59,14 +59,36 @@ describe('POST /urrea-catalog/import', () => {
     expect(payload[0].brand).toBe('SURTEK')
   })
 
-  test('std vacío cae a 1', async () => {
+  test('una celda std vacía en una columna presente cae a 1', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.upsert': { data: null, error: null } },
+    })
+    await catalogImport.POST(makeExcelRequest([{ codigo: 'C1', std: 6 }, { codigo: 'C2', descripcion: 'X' }]))
+    const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
+    expect(payload[1].std).toBe(1)
+  })
+
+  test('REGLA ADR-018: un archivo sin columna std no pisa los STD guardados (el upsert no la manda)', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'urrea_catalog.upsert': { data: null, error: null } },
     })
     await catalogImport.POST(makeExcelRequest([{ codigo: 'C2', descripcion: 'X' }]))
-    const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
-    expect(payload[0].std).toBe(1)
+    expect(activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')).toEqual([
+      { code: 'C2', brand: 'URREA', description: 'X' },
+    ])
+  })
+
+  test('un archivo sin columna descripcion no borra las descripciones guardadas', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.upsert': { data: null, error: null } },
+    })
+    await catalogImport.POST(makeExcelRequest([{ codigo: 'C2', std: 12 }]))
+    expect(activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')).toEqual([
+      { code: 'C2', brand: 'URREA', std: 12 },
+    ])
   })
 
   test('REGLA: modo replace va en UNA llamada transaccional (replace_urrea_catalog), sin delete suelto', async () => {

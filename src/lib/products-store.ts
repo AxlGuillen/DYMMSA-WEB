@@ -12,9 +12,18 @@ import {
 } from '@/lib/auto-learn'
 import { normalizeCatalogBrand, normalizeCatalogCode } from '@/lib/business-rules'
 import { DomainError, type DomainErrorKind } from '@/lib/domain-error'
-import { cellText, isBlankCell, listIssues, sheetHeaders, sheetRowNumber, type SheetRow } from '@/lib/excel/sheet-rows'
+import {
+  cellText,
+  hasColumn,
+  isBlankCell,
+  listIssues,
+  pick,
+  sheetHeaders,
+  sheetRowNumber,
+  type SheetRow,
+} from '@/lib/excel/sheet-rows'
 import { fetchCatalogDescriptionMapOrNull } from '@/lib/urrea-catalog'
-import type { EtmProduct, EtmProductUpdate } from '@/types/database'
+import type { EtmProduct, EtmProductUpdate, ProductImportMode, ProductImportResult } from '@/types/database'
 
 export class ProductError extends DomainError {
   constructor(message: string, kind: DomainErrorKind = 'invalid') {
@@ -22,8 +31,6 @@ export class ProductError extends DomainError {
     this.name = 'ProductError'
   }
 }
-
-export type ProductImportMode = 'upsert' | 'insert'
 
 // numeric(10,2): 10^8 overflows (22003).
 const PRICE_LIMIT = 100_000_000
@@ -90,8 +97,8 @@ export function parseProductInput(body: unknown, opts: { create: boolean }): Etm
 }
 
 /**
- * ADR-013 on the server: a product whose (model_code, brand) has an official catalog description never stores
- * a curated one (400); an unreadable catalog is a 500, never taken for "no match".
+ * ADR-013 on the server: no new copy enters through the curated field — with an official description for the
+ * product's (model_code, brand) it is a 400; an unreadable catalog is a 500, never taken for "no match".
  */
 export async function assertCuratedAllowed(
   db: SupabaseClient,
@@ -110,6 +117,8 @@ export async function assertCuratedAllowed(
 }
 
 export async function createProduct(db: SupabaseClient, value: EtmProductUpdate): Promise<EtmProduct> {
+  // A caller that skipped parseProductInput must not insert a blank ETM.
+  if (!value.etm?.trim()) throw new ProductError('El ETM es obligatorio')
   const row = {
     etm: '',
     description: '',
@@ -145,6 +154,7 @@ export async function updateProduct(db: SupabaseClient, id: string, value: EtmPr
     const product = current as EtmProduct
 
     // A resent stored value is not an edit (ProductForm resends it when the catalog wins), as in auto-learn.
+    // Changing only model_code/brand into a match keeps it too: harmless, reads prefer the official one.
     if (product.dymmsa_description && updates.dymmsa_description === product.dymmsa_description.trim()) {
       delete updates.dymmsa_description
       if (Object.keys(updates).length === 0) return product
@@ -157,12 +167,8 @@ export async function updateProduct(db: SupabaseClient, id: string, value: EtmPr
     }
   }
 
-  const { data, error } = await db
-    .from('etm_products')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
+  // updated_at comes from the update_etm_products_updated_at trigger.
+  const { data, error } = await db.from('etm_products').update(updates).eq('id', id).select().single()
   if (error || !data) {
     if (!error || error.code === 'PGRST116') throw new ProductError('Producto no encontrado', 'not_found')
     if (error.code === '23505') throw new ProductError('Ya existe un producto con ese ETM')
@@ -182,7 +188,17 @@ export interface ProductImportRow {
   price: number | null
 }
 
-const REQUIRED_COLUMNS = ['ETM', 'MODEL_CODE']
+// Headers match ignoring case and stray spaces (pick), as in the catalog import.
+const COLUMNS = {
+  etm: ['ETM'],
+  description: ['DESCRIPTION'],
+  description_es: ['DESCRIPTION_ES'],
+  model_code: ['MODEL_CODE'],
+  brand: ['BRAND'],
+  price: ['PRICE'],
+} as const
+
+const REQUIRED_COLUMNS = ['etm', 'model_code'] as const
 
 /**
  * The rows of a products file. A row without ETM is left out (`withoutEtm`, reported as an error); a bad or
@@ -191,50 +207,45 @@ const REQUIRED_COLUMNS = ['ETM', 'MODEL_CODE']
 export function parseProductSheet(rows: readonly SheetRow[]): { rows: ProductImportRow[]; withoutEtm: number } {
   if (rows.length === 0) throw new ProductError('El archivo no contiene datos')
   const headers = sheetHeaders(rows)
-  const missing = REQUIRED_COLUMNS.filter((column) => !headers.has(column))
-  if (missing.length > 0) throw new ProductError(`Columnas faltantes: ${missing.join(', ')}`)
+  const missing = REQUIRED_COLUMNS.filter((column) => !hasColumn(headers, COLUMNS[column]))
+  if (missing.length > 0) {
+    throw new ProductError(`Columnas faltantes: ${missing.map((column) => COLUMNS[column][0]).join(', ')}`)
+  }
 
   const parsed: ProductImportRow[] = []
   const issues: string[] = []
   let withoutEtm = 0
 
   rows.forEach((row, index) => {
-    const etm = cellText(row.ETM)
+    const etm = cellText(pick(row, COLUMNS.etm))
     if (!etm) {
       withoutEtm++
       return
     }
+    const priceCell = pick(row, COLUMNS.price)
     let price: number | null = null
-    if (!isBlankCell(row.PRICE)) {
-      const amount = typeof row.PRICE === 'number' ? row.PRICE : Number(cellText(row.PRICE))
+    if (!isBlankCell(priceCell)) {
+      const amount = typeof priceCell === 'number' ? priceCell : Number(cellText(priceCell))
       const issue = priceIssue(amount)
       if (issue) {
         const reason = issue.charAt(0).toLowerCase() + issue.slice(1)
-        issues.push(`Fila ${sheetRowNumber(row, index)} (ETM ${etm}): ${reason} («${cellText(row.PRICE)}»).`)
+        issues.push(`Fila ${sheetRowNumber(row, index)} (ETM ${etm}): ${reason} («${cellText(priceCell)}»).`)
         return
       }
       price = amount
     }
     parsed.push({
       etm,
-      description: cellText(row.DESCRIPTION),
-      description_es: cellText(row.DESCRIPTION_ES),
-      model_code: cellText(row.MODEL_CODE),
-      brand: cellText(row.BRAND),
+      description: cellText(pick(row, COLUMNS.description)),
+      description_es: cellText(pick(row, COLUMNS.description_es)),
+      model_code: cellText(pick(row, COLUMNS.model_code)),
+      brand: cellText(pick(row, COLUMNS.brand)),
       price,
     })
   })
 
   if (issues.length > 0) throw new ProductError(listIssues('No se importó nada: corrige el archivo.', issues))
   return { rows: parsed, withoutEtm }
-}
-
-export interface ProductImportResult {
-  imported: number
-  updated: number
-  /** Existing rows left as they were: nothing new in upsert, or "only add new ones". */
-  skipped: number
-  errors: number
 }
 
 // .in() travels in the URL: chunks keep it short.
@@ -254,8 +265,8 @@ export async function importProducts(
   userId: string,
   rows: readonly ProductImportRow[],
   mode: ProductImportMode,
-): Promise<ProductImportResult> {
-  const result: ProductImportResult = { imported: 0, updated: 0, skipped: 0, errors: 0 }
+): Promise<Omit<ProductImportResult, 'total'>> {
+  const result = { imported: 0, updated: 0, skipped: 0, errors: 0 }
 
   const existing = new Map<string, ExistingEtm>()
   const etms = [...new Set(rows.map((row) => row.etm))]
@@ -297,10 +308,7 @@ export async function importProducts(
       result.skipped++
       continue
     }
-    const { error } = await db
-      .from('etm_products')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('etm', row.etm)
+    const { error } = await db.from('etm_products').update(updates).eq('etm', row.etm)
     if (error) {
       console.error(`Products import update error etm=${row.etm}:`, error)
       result.errors++

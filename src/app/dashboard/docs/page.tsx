@@ -897,12 +897,12 @@ export default function DocsPage() {
                 <TableRow>
                   <TableCell><code className="rounded bg-muted px-1">descripcion</code></TableCell>
                   <TableCell className="text-muted-foreground">No</TableCell>
-                  <TableCell>Descripcion oficial de URREA. Acepta el alias <code className="rounded bg-muted px-1">description</code>.</TableCell>
+                  <TableCell>Descripcion oficial de URREA. Acepta el alias <code className="rounded bg-muted px-1">description</code>. Si el archivo no trae la columna, <strong>Actualizar</strong> conserva la descripcion guardada.</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell><code className="rounded bg-muted px-1">std</code></TableCell>
                   <TableCell className="text-muted-foreground">No</TableCell>
-                  <TableCell>Unidades por paquete. Si viene vacio se asume 1; si viene, debe ser un entero mayor que 0 (2.5 o 0 no se aceptan).</TableCell>
+                  <TableCell>Unidades por paquete; si viene, debe ser un entero mayor que 0 (2.5 o 0 no se aceptan). Una celda vacia es 1. Si el archivo no trae la columna, <strong>Actualizar</strong> conserva el STD guardado de cada codigo (los nuevos quedan en 1) y <strong>Reemplazar</strong> pone 1.</TableCell>
                 </TableRow>
               </TableBody>
             </Table>

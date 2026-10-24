@@ -194,7 +194,24 @@ describe('POST /products/import', () => {
       ]),
     )
     expect(res.status).toBe(200)
-    expect(activeClient.updatePayload('etm_products')).toEqual({ description_es: 'Nueva', updated_at: expect.any(String) })
+    expect(activeClient.updatePayload('etm_products')).toEqual({ description_es: 'Nueva' })
+  })
+
+  test('REGLA: encabezados con espacios o en minúsculas ("ETM ", "model_code") se leen (#157)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'etm_products.select': { data: [], error: null },
+        'etm_products.insert': { data: null, error: null },
+      },
+    })
+    const res = await productsImport.POST(makeExcelRequest([{ 'ETM ': 'E5', model_code: 'MC5', ' price': 7 }]))
+    expect(await res.json()).toMatchObject({ imported: 1, errors: 0 })
+    expect(activeClient.insertPayload<Record<string, unknown>>('etm_products')).toMatchObject({
+      etm: 'E5',
+      model_code: 'MC5',
+      price: 7,
+    })
   })
 
   test('REGLA: un ETM nuevo sin MODEL_CODE no recibe marca URREA (#157)', async () => {

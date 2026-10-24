@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Upload, FileSpreadsheet, X, RefreshCw, Plus, Loader2 } from '@/components/icons'
+import { ImportErrorAlert } from '@/components/ImportErrorAlert'
 import { useImportProducts } from '@/hooks/useProducts'
 import { toast } from 'sonner'
 
@@ -24,8 +25,14 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [mode, setMode] = useState<'upsert' | 'insert'>('upsert')
+  const [importError, setImportError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importProducts = useImportProducts()
+
+  const chooseFile = (chosen: File | null) => {
+    setFile(chosen)
+    setImportError(null)
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -41,7 +48,7 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
     setIsDragging(false)
     const droppedFile = e.dataTransfer.files[0]
     if (droppedFile && isValidFile(droppedFile)) {
-      setFile(droppedFile)
+      chooseFile(droppedFile)
     } else {
       toast.error('Archivo no valido', {
         description: 'Solo se permiten archivos Excel (.xlsx, .xls, .xlsm)',
@@ -52,7 +59,7 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile && isValidFile(selectedFile)) {
-      setFile(selectedFile)
+      chooseFile(selectedFile)
     }
   }
 
@@ -71,6 +78,7 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
 
   const handleImport = async () => {
     if (!file) return
+    setImportError(null)
 
     const formData = new FormData()
     formData.append('file', file)
@@ -79,21 +87,20 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
     try {
       const result = await importProducts.mutateAsync(formData)
       toast.success('Importacion completada', {
-        description: `${result.imported} productos importados, ${result.updated} actualizados, ${result.skipped ?? 0} sin cambios, ${result.errors} errores`,
+        description: `${result.imported} productos importados, ${result.updated} actualizados, ${result.skipped} sin cambios, ${result.errors} errores`,
       })
       onOpenChange(false)
       setFile(null)
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
-      toast.error('Error en la importacion', {
-        description: errorMessage,
-      })
+      // The row list can be long: it stays in the dialog, the toast only signals it.
+      setImportError(error instanceof Error ? error.message : 'Error desconocido')
+      toast.error('Error en la importacion', { description: 'El detalle está en la ventana de importación.' })
     }
   }
 
   const handleClose = () => {
     onOpenChange(false)
-    setFile(null)
+    chooseFile(null)
   }
 
   return (
@@ -131,7 +138,7 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
                   variant="ghost"
                   size="icon"
                   className="ml-2"
-                  onClick={() => setFile(null)}
+                  onClick={() => chooseFile(null)}
                 >
                   <X className="size-4" />
                 </Button>
@@ -203,6 +210,8 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
               </label>
             </RadioGroup>
           </div>
+
+          <ImportErrorAlert message={importError} />
 
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={handleClose}>
