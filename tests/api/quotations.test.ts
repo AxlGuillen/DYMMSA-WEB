@@ -9,6 +9,7 @@ import * as update from '@/app/api/quotations/[id]/update/route'
 import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
 import * as status from '@/app/api/quotations/[id]/status/route'
 import * as autoLearnModule from '@/lib/auto-learn'
+import { quotationDb, lineId, Q_ID, type FakeLine } from '../helpers/quotation-rpc'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
@@ -152,18 +153,12 @@ describe('POST /quotations/save', () => {
     expect(activeClient.didCall('quotations', 'delete')).toBe(true)
   })
 
-  test('REGLA: constraint quantity_check → 400 con offendingEtm y mensaje específico', async () => {
+  test('REGLA (#157): la validación de líneas corre en el server — cantidad 0 → 400 con offendingEtm, sin insertar nada', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
         'quotations.insert': { data: { id: 'q1' }, error: null },
-        'quotation_items.insert': {
-          data: null,
-          error: {
-            code: '23514',
-            message: 'new row violates check constraint "quotation_items_quantity_check"',
-          },
-        },
+        'quotation_items.insert': { data: null, error: null },
       },
     })
     const res = await save.POST(makeRequest({
@@ -171,6 +166,7 @@ describe('POST /quotations/save', () => {
       items: [
         product({ etm: 'OK-1', quantity: 5 }),
         product({ etm: 'BAD-1', quantity: 0 }), // offender
+        product({ etm: 'BAD-2', quantity: null }),
       ],
     }))
     expect(res.status).toBe(400) // rule violation, not a 500
@@ -178,10 +174,61 @@ describe('POST /quotations/save', () => {
     expect(body.offendingEtm).toBe('BAD-1')
     expect(body.message).toContain('BAD-1')
     expect(body.message).toMatch(/cantidad/i)
-    expect(activeClient.didCall('quotations', 'delete')).toBe(true) // rollback anyway
+    expect(body.message).toMatch(/1 problema más/)
+    expect(activeClient.didCall('quotations', 'insert')).toBe(false)
   })
 
-  test('REGLA: constraint price_check → 400 con offendingEtm', async () => {
+  test('REGLA (#157): precio negativo y cantidad con decimales también se rechazan en el server', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const negative = await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [product({ etm: 'NEG-1', unit_price: -5, quantity: 1 })],
+    }))
+    expect(negative.status).toBe(400)
+    const body = await negative.json()
+    expect(body.offendingEtm).toBe('NEG-1')
+    expect(body.message).toMatch(/precio no puede ser negativo/i)
+
+    const decimal = await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [product({ etm: 'DEC-1', quantity: 2.5 })],
+    }))
+    expect(decimal.status).toBe(400)
+    expect((await decimal.json()).message).toMatch(/DEC-1.*entero/)
+    expect(activeClient.didCall('quotations', 'insert')).toBe(false)
+  })
+
+  test('REGLA (#157): tiempo de entrega o tipo de línea fuera del enum → 400 antes de escribir', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const badDelivery = await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME', items: [product({ etm: 'E-9', delivery_time: 'tomorrow' })],
+    }))
+    expect(badDelivery.status).toBe(400)
+    expect(await badDelivery.json()).toMatchObject({ offendingEtm: 'E-9', message: expect.stringMatching(/tiempo de entrega/) })
+
+    const badType = await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME', items: [product(), { _id: 'x', item_type: 'note' }],
+    }))
+    expect(badType.status).toBe(400)
+    expect(activeClient.didCall('quotations', 'insert')).toBe(false)
+  })
+
+  test('REGLA: "no lo vendemos" sin cantidad ni precio sigue exento de la validación', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.insert': { data: { id: 'q1' }, error: null },
+        'quotation_items.insert': { data: null, error: null },
+      },
+    })
+    const res = await save.POST(makeRequest({
+      name: 'Q', customer_name: 'ACME',
+      items: [product(), product({ etm: 'NO', is_sold: false, quantity: null, unit_price: null }), separator()],
+    }))
+    expect(res.status).toBe(200)
+  })
+
+  test('REGLA: una violación de CHECK en la BD → 400 descriptivo + rollback de la cotización', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
@@ -190,19 +237,15 @@ describe('POST /quotations/save', () => {
           data: null,
           error: {
             code: '23514',
-            message: 'new row violates check constraint "quotation_items_price_check"',
+            message: 'new row for relation "quotation_items" violates check constraint "quotation_items_delivery_time_check"',
           },
         },
       },
     })
-    const res = await save.POST(makeRequest({
-      name: 'Q', customer_name: 'ACME',
-      items: [product({ etm: 'NEG-1', unit_price: -5, quantity: 1 })],
-    }))
+    const res = await save.POST(makeRequest({ name: 'Q', customer_name: 'ACME', items: [product()] }))
     expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.offendingEtm).toBe('NEG-1')
-    expect(body.message).toMatch(/precio negativo/i)
+    expect((await res.json()).message).toMatch(/tiempo de entrega/i)
+    expect(activeClient.didCall('quotations', 'delete')).toBe(true)
   })
 
   test('REGLA: save sobrevive a fallo de auto-learn (warning, NO 500)', async () => {
@@ -315,280 +358,293 @@ describe('POST /quotations/save', () => {
 })
 
 describe('PATCH /quotations/[id]/update', () => {
+  const patchUpdate = (body: unknown, id = Q_ID) =>
+    update.PATCH(makeRequest(body, { method: 'PATCH' }), makeParams({ id }))
+  const body = (items: unknown[]) => ({ name: 'Q', customer_name: 'ACME', items })
+
   test('404 si la cotización no existe', async () => {
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: { 'quotations.select': { data: null, error: { message: 'nf' } } },
-    })
-    const res = await update.PATCH(
-      makeRequest({ name: 'Q', customer_name: 'ACME', items: [product()] }),
-      makeParams({ id: 'q1' }),
-    )
+    const db = quotationDb()
+    activeClient = db.client
+    const res = await patchUpdate(body([product()]), '99999999-9999-4999-8999-999999999999')
     expect(res.status).toBe(404)
+    expect(db.rpcParams('update_quotation')).toHaveLength(0)
   })
 
   test('400 si el estado no es editable (converted_to_order)', async () => {
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: { 'quotations.select': { data: { id: 'q1', status: 'converted_to_order' }, error: null } },
-    })
-    const res = await update.PATCH(
-      makeRequest({ name: 'Q', customer_name: 'ACME', items: [product()] }),
-      makeParams({ id: 'q1' }),
-    )
+    const db = quotationDb({ quotation: { status: 'converted_to_order' } })
+    activeClient = db.client
+    const res = await patchUpdate(body([product()]))
     expect(res.status).toBe(400)
+    expect(db.rpcParams('update_quotation')).toHaveLength(0)
+  })
+
+  test('si la cotización deja de ser editable entre la lectura y el lock → 400 (P0001 de la función)', async () => {
+    const db = quotationDb({ quotation: { status: 'draft' } })
+    activeClient = db.client
+    db.client.rpc = async () => ({ data: null, error: { code: 'P0001', message: 'quotation_not_editable' } })
+    const res = await patchUpdate(body([product()]))
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toMatch(/solo se pueden editar/i)
   })
 
   test('sent_for_approval es editable (200) — el API lo permite aunque el UI canEdit no', async () => {
-    // The UI's canEdit is isDraft || isApproved, but the route also allows sent_for_approval.
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: {
-        'quotations.select': { data: { id: 'q1', status: 'sent_for_approval' }, error: null },
-        'quotation_items.select': { data: [], error: null },
-        'quotation_items.delete': { data: null, error: null },
-        'quotation_items.insert': { data: null, error: null },
-        'quotations.update': { data: null, error: null },
-      },
-    })
-    const res = await update.PATCH(
-      makeRequest({ name: 'Q', customer_name: 'ACME', items: [product()] }),
-      makeParams({ id: 'q1' }),
-    )
+    activeClient = quotationDb({ quotation: { status: 'sent_for_approval' } }).client
+    const res = await patchUpdate(body([product()]))
     expect(res.status).toBe(200)
+  })
+
+  test('REGLA (#157): conserva el id de las líneas que siguen, borra las quitadas e inserta las nuevas; sort_order = índice', async () => {
+    const db = quotationDb({
+      quotation: { status: 'approved' },
+      lines: [
+        { etm: 'A', is_approved: true },
+        { etm: 'B', is_approved: true },
+        { etm: 'C', is_approved: false },
+      ],
+    })
+    activeClient = db.client
+    const res = await patchUpdate(body([
+      product({ _id: lineId(3), _dbId: lineId(3), etm: 'C', is_approved: false }),
+      product({ etm: 'NUEVA', is_approved: null }),
+      product({ _id: lineId(1), _dbId: lineId(1), etm: 'A', unit_price: 120, is_approved: true }),
+    ]))
+    expect(res.status).toBe(200)
+
+    const lines = db.lines()
+    expect(lines.map((l) => [l.etm, l.id === lineId(3) ? 'C' : l.id === lineId(1) ? 'A' : 'nuevo'])).toEqual([
+      ['C', 'C'], ['NUEVA', 'nuevo'], ['A', 'A'],
+    ])
+    expect(lines.map((l) => l.sort_order)).toEqual([0, 1, 2])
+    expect(lines.find((l) => l.etm === 'A')?.unit_price).toBe(120)
+    expect(lines.some((l) => l.id === lineId(2))).toBe(false) // B was removed
+
+    // Only real line ids travel; a new row goes with id null.
+    const [params] = db.rpcParams('update_quotation')
+    expect((params.p_items as Array<{ id: string | null }>).map((i) => i.id)).toEqual([lineId(3), null, lineId(1)])
+    expect(params.p_header).toEqual({ name: 'Q', customer_name: 'ACME', total_amount: 640 })
+  })
+
+  test('un _dbId que no es línea de esta cotización (o repetido) entra como línea nueva', async () => {
+    const db = quotationDb({ lines: [{ etm: 'A' }] })
+    activeClient = db.client
+    await patchUpdate(body([
+      product({ _dbId: lineId(1), etm: 'A' }),
+      product({ _dbId: lineId(1), etm: 'A-copia' }),
+      product({ _dbId: '44444444-4444-4444-8444-444444444444', etm: 'AJENA' }),
+      product({ _dbId: 'temp-1', etm: 'NO-UUID' }),
+    ]))
+    const ids = (db.rpcParams('update_quotation')[0].p_items as Array<{ id: string | null }>).map((i) => i.id)
+    expect(ids).toEqual([lineId(1), null, null, null])
   })
 
   test('persiste separator_color del separador al reescribir los ítems (issue #73)', async () => {
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: {
-        'quotations.select': { data: { id: 'q1', status: 'draft' }, error: null },
-        'quotation_items.select': { data: [], error: null },
-        'quotation_items.delete': { data: null, error: null },
-        'quotation_items.insert': { data: null, error: null },
-        'quotations.update': { data: null, error: null },
-      },
-    })
-    const res = await update.PATCH(
-      makeRequest({
-        name: 'Q', customer_name: 'ACME',
-        items: [separator({ separator_color: 'amber' }), product({ separator_color: 'teal' })],
-      }),
-      makeParams({ id: 'q1' }),
-    )
+    const db = quotationDb()
+    activeClient = db.client
+    const res = await patchUpdate(body([separator({ separator_color: 'amber' }), product({ separator_color: 'teal' })]))
     expect(res.status).toBe(200)
-    const items = activeClient.insertPayload('quotation_items')
-    expect(items[0].separator_color).toBe('amber')
-    expect(items[1].separator_color).toBeNull()   // product: always null
+    const [sep, prod] = db.lines()
+    expect(sep.separator_color).toBe('amber')
+    expect(sep.is_approved).toBeNull()
+    expect(prod.separator_color).toBeNull()   // product: always null
   })
 
   test('REGLA: en aprobada, preserva is_approved del item (true/false) y deja null a los nuevos', async () => {
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: {
-        'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
-        'quotation_items.select': { data: [], error: null },
-        'quotation_items.delete': { data: null, error: null },
-        'quotation_items.insert': { data: null, error: null },
-        'quotations.update': { data: null, error: null },
-      },
-    })
-    await update.PATCH(
-      makeRequest({
-        name: 'Q', customer_name: 'ACME',
-        items: [
-          product({ is_approved: true }),
-          product({ is_approved: false }),
-          product({ is_approved: null }), // new / pending
-        ],
-      }),
-      makeParams({ id: 'q1' }),
-    )
-    const items = activeClient.insertPayload('quotation_items')
-    expect(items.map((i) => i.is_approved)).toEqual([true, false, null])
-    expect(items.map((i) => i.sort_order)).toEqual([0, 1, 2])
+    const db = quotationDb({ quotation: { status: 'approved' } })
+    activeClient = db.client
+    await patchUpdate(body([
+      product({ is_approved: true }),
+      product({ is_approved: false }),
+      product({ is_approved: null }), // new / pending
+    ]))
+    expect(db.lines().map((l) => l.is_approved)).toEqual([true, false, null])
+    expect(db.lines().map((l) => l.sort_order)).toEqual([0, 1, 2])
   })
 
   test('REGLA: preserva is_approved también en draft (reabierta) — no solo en aprobada', async () => {
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: {
-        'quotations.select': { data: { id: 'q1', status: 'draft' }, error: null },
-        'quotation_items.select': { data: [], error: null },
-        'quotation_items.delete': { data: null, error: null },
-        'quotation_items.insert': { data: null, error: null },
-        'quotations.update': { data: null, error: null },
-      },
-    })
-    await update.PATCH(
-      makeRequest({
-        name: 'Q', customer_name: 'ACME',
-        items: [
-          product({ is_approved: true }),  // approved before reopening → preserved
-          product({ is_approved: null }),  // added after reopening → pending
-        ],
-      }),
-      makeParams({ id: 'q1' }),
-    )
-    const items = activeClient.insertPayload('quotation_items')
-    expect(items.map((i) => i.is_approved)).toEqual([true, null])
+    const db = quotationDb({ quotation: { status: 'draft' } })
+    activeClient = db.client
+    await patchUpdate(body([
+      product({ is_approved: true }),  // approved before reopening → preserved
+      product({ is_approved: null }),  // added after reopening → pending
+    ]))
+    expect(db.lines().map((l) => l.is_approved)).toEqual([true, null])
   })
 
-  test('REGLA: rollback — si falla insert, re-inserta los items originales', async () => {
-    const existing = [{ id: 'db1', quotation_id: 'q1', item_type: 'product', is_approved: true }]
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: {
-        'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
-        'quotation_items.select': { data: existing, error: null },
-        'quotation_items.delete': { data: null, error: null },
-        'quotation_items.insert': { data: null, error: { message: 'fail' } },
-      },
+  test('REGLA: si la UI no manda is_approved/is_sold, cae al valor guardado por _dbId', async () => {
+    const db = quotationDb({ quotation: { status: 'approved' }, lines: [{ etm: 'A', is_approved: true, is_sold: true }] })
+    activeClient = db.client
+    const resent = product({ _dbId: lineId(1), etm: 'A' })
+    await patchUpdate(body([resent]))
+    const [params] = db.rpcParams('update_quotation')
+    expect((params.p_items as Array<Record<string, unknown>>)[0]).toMatchObject({ is_approved: true, is_sold: true })
+  })
+
+  test('REGLA (#157): en revisión gana la decisión que guardó el cliente, no la del editor abierto antes', async () => {
+    // The client saved progress (A approved) after DYMMSA opened the detail with A pending.
+    const db = quotationDb({ quotation: { status: 'sent_for_approval' }, lines: [{ etm: 'A', is_approved: true }] })
+    activeClient = db.client
+    await patchUpdate(body([product({ _dbId: lineId(1), etm: 'A', unit_price: 90, is_approved: null })]))
+    const [line] = db.lines()
+    expect(line.id).toBe(lineId(1))
+    expect(line.is_approved).toBe(true)
+    expect(line.unit_price).toBe(90)
+  })
+
+  test('REGLA (#157): si la escritura falla, la cotización queda intacta (una sola transacción) → 500', async () => {
+    const db = quotationDb({
+      quotation: { status: 'approved', name: 'Original' },
+      lines: [{ etm: 'A', is_approved: true, quantity: 2 }],
+      updateError: { message: 'connection reset' },
     })
-    const res = await update.PATCH(
-      makeRequest({ name: 'Q', customer_name: 'ACME', items: [product()] }),
-      makeParams({ id: 'q1' }),
-    )
+    activeClient = db.client
+    const res = await patchUpdate(body([product({ etm: 'B' })]))
     expect(res.status).toBe(500)
-    // two inserts: the failed one + the restore
-    expect(activeClient.callsTo('quotation_items', 'insert')).toHaveLength(2)
-    const restored = activeClient.callsTo('quotation_items', 'insert')[1].payload
-    expect(restored).toEqual(existing)
+    expect(db.lines()).toEqual([expect.objectContaining({ id: lineId(1), etm: 'A', is_approved: true, quantity: 2 })])
+    expect(db.quotation.name).toBe('Original')
+    // No auto-learn after a failed write.
+    expect(db.client.didCall('etm_products', 'select')).toBe(false)
+  })
+
+  test('REGLA: una violación de regla en la BD → 400 descriptivo (explainPgError)', async () => {
+    activeClient = quotationDb({
+      updateError: { code: '23514', message: 'new row for relation "quotation_items" violates check constraint "quotation_items_delivery_time_check"' },
+    }).client
+    const res = await patchUpdate(body([product()]))
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toMatch(/tiempo de entrega/i)
+  })
+
+  test('si falla la lectura de las líneas guardadas → 500 sin escribir (antes se ignoraba)', async () => {
+    const db = quotationDb({
+      responses: { 'quotation_items.select': { data: null, error: { message: 'timeout' } } },
+    })
+    activeClient = db.client
+    const res = await patchUpdate(body([product()]))
+    expect(res.status).toBe(500)
+    expect(db.rpcParams('update_quotation')).toHaveLength(0)
+  })
+
+  test('REGLA (#157): valida las líneas en el server — sin cantidad → 400 con offendingEtm y no escribe', async () => {
+    const db = quotationDb()
+    activeClient = db.client
+    const res = await patchUpdate(body([product({ etm: 'OK-1' }), product({ etm: 'BAD-1', quantity: null })]))
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.offendingEtm).toBe('BAD-1')
+    expect(json.message).toMatch(/BAD-1.*cantidad/)
+    expect(db.rpcParams('update_quotation')).toHaveLength(0)
+  })
+
+  test('REGLA: "no lo vendemos" y separadores quedan exentos de la validación', async () => {
+    const db = quotationDb()
+    activeClient = db.client
+    const res = await patchUpdate(body([
+      product({ etm: 'VENDE' }),
+      product({ etm: 'NO-VENDE', is_sold: false, quantity: null, unit_price: null }),
+      separator(),
+    ]))
+    expect(res.status).toBe(200)
+  })
+
+  test('el update sobrevive a un fallo de auto-learn (warning, NO 500)', async () => {
+    const spy = vi.spyOn(autoLearnModule, 'processAutoLearn').mockRejectedValueOnce(new Error('auto-learn boom'))
+    try {
+      const db = quotationDb()
+      activeClient = db.client
+      const res = await patchUpdate(body([product()]))
+      expect(res.status).toBe(200)
+      expect((await res.json()).warning).toBe('auto_learn_failed')
+      expect(db.lines()).toHaveLength(1)
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   test('REGLA: update re-resuelve dymmsa_description (catálogo gana; fallback a BD si la UI no la manda)', async () => {
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: {
-        'quotations.select': { data: { id: 'q1', status: 'draft' }, error: null },
-        'quotation_items.select': {
-          data: [
-            { id: 'db1', is_approved: null, is_sold: null, dymmsa_description: 'curada guardada' },
-          ],
-          error: null,
-        },
-        'quotation_items.delete': { data: null, error: null },
-        'quotation_items.insert': { data: null, error: null },
-        'quotations.update': { data: null, error: null },
-        'urrea_catalog.select': { data: [{ code: 'MC1', description: 'Oficial URREA' }], error: null },
-      },
+    const db = quotationDb({
+      lines: [
+        { etm: 'ETM-1', dymmsa_description: 'curada guardada' },
+        { etm: 'ETM-2', dymmsa_description: 'curada guardada 2' },
+      ],
+      responses: { 'urrea_catalog.select': { data: [{ code: 'MC1', description: 'Oficial URREA' }], error: null } },
     })
-    const res = await update.PATCH(
-      makeRequest({
-        name: 'Q', customer_name: 'ACME',
-        items: [
-          // catalog match: the official one overrides any curated
-          product({ _dbId: 'db1', model_code: 'MC1', dymmsa_description: 'curada UI' }),
-          // no match and NO field (old client): falls back to the DB snapshot
-          (() => { const it = product({ _dbId: 'db1', etm: 'ETM-2', model_code: 'MC2' }); delete it.dymmsa_description; return it })(),
-        ],
-      }, { method: 'PATCH' }),
-      makeParams({ id: 'q1' })
-    )
+    activeClient = db.client
+    const res = await patchUpdate(body([
+      // catalog match: the official one overrides any curated
+      product({ _dbId: lineId(1), model_code: 'MC1', dymmsa_description: 'curada UI' }),
+      // no match and NO field (old client): falls back to the DB snapshot
+      (() => { const it = product({ _dbId: lineId(2), etm: 'ETM-2', model_code: 'MC2' }); delete (it as Record<string, unknown>).dymmsa_description; return it })(),
+    ]))
     expect(res.status).toBe(200)
-    const rows = activeClient.insertPayload('quotation_items')
-    expect(rows[0].dymmsa_description).toBe('Oficial URREA')
-    expect(rows[1].dymmsa_description).toBe('curada guardada')
+    expect(db.lines().map((l) => l.dymmsa_description)).toEqual(['Oficial URREA', 'curada guardada 2'])
+  })
+
+  const etmRow = (etm: string, model_code: string, dymmsa_description: string | null) => ({
+    etm, model_code, dymmsa_description, description: 'Producto', description_es: 'Producto',
+    price: 100, brand: 'URREA', is_sold: null,
   })
 
   test('REGLA: el snapshot oficial que reenvía el detalle no se aprende como curada en etm_products', async () => {
-    const etm = (etm: string, model_code: string, dymmsa_description: string | null) => ({
-      etm, model_code, dymmsa_description, description: 'Producto', description_es: 'Producto',
-      price: 100, brand: 'URREA', is_sold: null,
-    })
-    activeClient = createMockSupabase({
-      user: AUTH,
+    const db = quotationDb({
+      quotation: { status: 'approved' },
       responses: {
-        'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
-        'quotation_items.select': { data: [], error: null },
-        'quotation_items.delete': { data: null, error: null },
-        'quotation_items.insert': { data: null, error: null },
-        'quotations.update': { data: null, error: null },
         'urrea_catalog.select': { data: [{ code: 'MC1', brand: 'URREA', description: 'Oficial URREA' }], error: null },
-        'etm_products.select': { data: [etm('ETM-1', 'MC1', null), etm('ETM-2', 'MC2', 'Vieja')], error: null },
+        'etm_products.select': { data: [etmRow('ETM-1', 'MC1', null), etmRow('ETM-2', 'MC2', 'Vieja')], error: null },
       },
     })
-    const res = await update.PATCH(
-      makeRequest({
-        name: 'Q', customer_name: 'ACME',
-        items: [
-          // QuotationDetail sends the resolved snapshot back as if it were curated.
-          product({ etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA' }),
-          product({ etm: 'ETM-2', model_code: 'MC2', dymmsa_description: 'Martillo curado' }),
-        ],
-      }, { method: 'PATCH' }),
-      makeParams({ id: 'q1' }),
-    )
+    activeClient = db.client
+    const res = await patchUpdate(body([
+      // QuotationDetail sends the resolved snapshot back as if it were curated.
+      product({ etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA' }),
+      product({ etm: 'ETM-2', model_code: 'MC2', dymmsa_description: 'Martillo curado' }),
+    ]))
     expect(res.status).toBe(200)
 
-    const updates = new Map(activeClient.callsTo('etm_products', 'update')
-      .map((c) => [filterValue(c, 'etm'), c.payload]))
+    const updates = new Map(db.client.callsTo('etm_products', 'update').map((c) => [filterValue(c, 'etm'), c.payload]))
     expect(updates.get('ETM-1')).toEqual({ price: 120 })
     expect(updates.get('ETM-2')).toEqual({ dymmsa_description: 'Martillo curado' })
   })
 
-  const updateClient = (responses: Record<string, ResponseValue>) => createMockSupabase({
-    user: AUTH,
+  const learnClient = (lines: Array<Partial<FakeLine>>, responses: Record<string, ResponseValue>) => quotationDb({
+    quotation: { status: 'approved' },
+    lines,
     responses: {
-      'quotations.select': { data: { id: 'q1', status: 'approved' }, error: null },
-      'quotation_items.delete': { data: null, error: null },
-      'quotation_items.insert': { data: null, error: null },
-      'quotations.update': { data: null, error: null },
-      'etm_products.select': {
-        data: [
-          { etm: 'ETM-1', model_code: 'MC1', dymmsa_description: null, description: 'Producto', description_es: 'Producto', price: 100, brand: 'URREA', is_sold: null },
-          { etm: 'ETM-2', model_code: 'MC2', dymmsa_description: null, description: 'Producto', description_es: 'Producto', price: 100, brand: 'URREA', is_sold: null },
-        ],
-        error: null,
-      },
+      'etm_products.select': { data: [etmRow('ETM-1', 'MC1', null), etmRow('ETM-2', 'MC2', null)], error: null },
       ...responses,
     },
   })
 
   test('REGLA: si urrea_catalog falla al editar, la oficial reenviada no se copia a etm_products', async () => {
-    activeClient = updateClient({
-      'quotation_items.select': { data: [], error: null },
+    const db = learnClient([], {
       'urrea_catalog.select': { data: null, error: { message: 'canceling statement due to statement timeout' } },
     })
-    const res = await update.PATCH(
-      makeRequest({
-        name: 'Q', customer_name: 'ACME',
-        items: [product({ etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA' })],
-      }, { method: 'PATCH' }),
-      makeParams({ id: 'q1' }),
-    )
+    activeClient = db.client
+    const res = await patchUpdate(body([
+      product({ etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA' }),
+    ]))
     expect(res.status).toBe(200)
-    expect(activeClient.updatePayload('etm_products')).toEqual({ price: 120 })
+    expect(db.client.updatePayload('etm_products')).toEqual({ price: 120 })
   })
 
   test('REGLA: el snapshot reenviado sin cambios no se aprende aunque el catálogo ya no lo tenga; lo editado sí', async () => {
-    activeClient = updateClient({
-      'quotation_items.select': {
-        data: [
-          { id: 'db1', is_approved: true, is_sold: null, dymmsa_description: 'Oficial URREA vieja' },
-          { id: 'db2', is_approved: true, is_sold: null, dymmsa_description: 'Curada vieja' },
-        ],
-        error: null,
-      },
+    const db = learnClient(
+      [
+        { etm: 'ETM-1', is_approved: true, dymmsa_description: 'Oficial URREA vieja' },
+        { etm: 'ETM-2', is_approved: true, dymmsa_description: 'Curada vieja' },
+      ],
       // A catalog reimport dropped MC1: the old official text no longer resolves to the catalog.
-      'urrea_catalog.select': { data: [], error: null },
-    })
-    const res = await update.PATCH(
-      makeRequest({
-        name: 'Q', customer_name: 'ACME',
-        items: [
-          product({ _dbId: 'db1', etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA vieja' }),
-          product({ _dbId: 'db2', etm: 'ETM-2', model_code: 'MC2', dymmsa_description: 'Curada editada' }),
-        ],
-      }, { method: 'PATCH' }),
-      makeParams({ id: 'q1' }),
+      { 'urrea_catalog.select': { data: [], error: null } },
     )
+    activeClient = db.client
+    const res = await patchUpdate(body([
+      product({ _dbId: lineId(1), etm: 'ETM-1', model_code: 'MC1', unit_price: 120, dymmsa_description: 'Oficial URREA vieja' }),
+      product({ _dbId: lineId(2), etm: 'ETM-2', model_code: 'MC2', dymmsa_description: 'Curada editada' }),
+    ]))
     expect(res.status).toBe(200)
     // The quotation keeps its frozen snapshot (ADR-013 rule 2).
-    expect(activeClient.insertPayload('quotation_items')[0].dymmsa_description).toBe('Oficial URREA vieja')
+    expect(db.lines()[0].dymmsa_description).toBe('Oficial URREA vieja')
 
-    const updates = new Map(activeClient.callsTo('etm_products', 'update')
-      .map((c) => [filterValue(c, 'etm'), c.payload]))
+    const updates = new Map(db.client.callsTo('etm_products', 'update').map((c) => [filterValue(c, 'etm'), c.payload]))
     expect(updates.get('ETM-1')).toEqual({ price: 120 })
     expect(updates.get('ETM-2')).toEqual({ dymmsa_description: 'Curada editada' })
   })
