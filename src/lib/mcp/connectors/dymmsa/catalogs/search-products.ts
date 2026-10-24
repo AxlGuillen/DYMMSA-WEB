@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { pagination, readOnly } from '@/lib/mcp/core/schema'
+import { pagination } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { searchProducts } from '@/lib/mcp/tools/products'
 
 export const searchProductsTool = defineTool({
@@ -14,7 +15,7 @@ export const searchProductsTool = defineTool({
     query: z.string().describe('Texto a buscar (ETM, model_code o descripción)'),
     ...pagination,
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Catalogos',
     title: 'Buscar productos ETM',

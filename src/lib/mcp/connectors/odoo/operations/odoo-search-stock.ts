@@ -14,7 +14,7 @@ export const odooSearchStockTool = defineTool({
   input: {
     producto: z.string().min(1).describe('Nombre o código del producto, p. ej. "punta de cobre" o "510023782"'),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Operacion',
     title: 'Existencias en Odoo',

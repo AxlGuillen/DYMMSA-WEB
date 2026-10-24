@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { isoDate, readOnly } from '@/lib/mcp/core/schema'
+import { isoDate } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getWeekHours } from '@/lib/mcp/tools/hours'
 
 export const getWeekHoursTool = defineTool({
@@ -14,7 +15,7 @@ export const getWeekHoursTool = defineTool({
     persona: z.string().optional().describe('Nombre (o parte) de la persona; solo un administrador ve a otros'),
     fecha: isoDate.optional().describe('Cualquier día de la semana (default hoy)'),
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Horas',
     title: 'Horas de la semana',

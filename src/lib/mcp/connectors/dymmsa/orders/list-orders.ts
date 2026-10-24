@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { pagination, readOnly } from '@/lib/mcp/core/schema'
+import { pagination } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { listOrders } from '@/lib/mcp/tools/orders'
 import { ORDER_STATUSES } from '@/lib/order-status'
 
@@ -16,7 +17,7 @@ export const listOrdersTool = defineTool({
     search: z.string().optional().describe('Busca en nombre de orden y nombre del cliente'),
     ...pagination,
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Ordenes',
     title: 'Listar ordenes',

@@ -1,5 +1,6 @@
 import { defineTool } from '@/lib/mcp/core/define'
-import { limit, readOnly } from '@/lib/mcp/core/schema'
+import { limit } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { listTimeImports } from '@/lib/mcp/tools/hours'
 
 export const listTimeImportsTool = defineTool({
@@ -12,7 +13,7 @@ export const listTimeImportsTool = defineTool({
   input: {
     limit: limit(50, 10).describe('Cuántas cargas listar (default 10)'),
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   adminOnly: true,
   docs: {
     module: 'Horas',

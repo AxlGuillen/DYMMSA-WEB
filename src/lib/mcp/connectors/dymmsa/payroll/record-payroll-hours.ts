@@ -31,7 +31,8 @@ export const recordPayrollHoursTool = defineTool({
     fecha: isoDate.optional(),
   },
   // Scoped write (#123, ADR-033): drafts only; the admin confirms in the app.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // It overwrites its own drafts with absolute hours: a repeat is a no-op (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   adminOnly: true,
   docs: {
     module: 'Nomina',

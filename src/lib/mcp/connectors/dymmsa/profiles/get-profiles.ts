@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getProfiles } from '@/lib/mcp/tools/profiles'
 
 export const getProfilesTool = defineTool({
@@ -13,7 +13,7 @@ export const getProfilesTool = defineTool({
   input: {
     persona: z.string().optional().describe('Nombre (o parte) de la persona; solo un administrador ve a otros'),
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Perfil',
     title: 'Perfiles del equipo',

@@ -3,9 +3,6 @@ import { isRealDate } from '@/lib/month'
 import { inputErrorMessage, SAMPLES, type InputIssue } from './input-error'
 import { ToolError } from './errors'
 
-/** Read-only — every tool except the scoped writes of ADR-015. */
-export const readOnly = { readOnlyHint: true, openWorldHint: false } as const
-
 /** The value the input error's example uses when the type alone can't make a valid one (a regex, a folio). */
 export function withSample<S extends z.ZodType>(schema: S, sample: unknown): S {
   SAMPLES.add(schema, { sample })

@@ -1,5 +1,5 @@
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getAppSettings } from '@/lib/mcp/tools/settings'
 
 export const getAppSettingsTool = defineTool({
@@ -10,7 +10,7 @@ export const getAppSettingsTool = defineTool({
   description:
     'Parámetros que usan los planificadores: umbrales del planificador de compra (dinero parado en MXN y % parado) y margen por corte en mm. Indica cuáles están guardados y cuáles corren con el default del código.',
   input: {},
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Configuracion',
     title: 'Configuracion de la app',

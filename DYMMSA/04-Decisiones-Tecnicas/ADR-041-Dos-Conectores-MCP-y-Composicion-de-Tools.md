@@ -1,7 +1,7 @@
 # ADR-041: dos conectores MCP (DYMMSA-WEB y Odoo DYMMSA) y reglas de composición de tools
 
 **Fecha:** 2026-10-22
-**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector». **C1 hecho (2026-10-24):** entrada estricta, errores en español y `DomainError`; ver § «C1: contrato de entrada y errores».
+**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector». **C1 hecho (2026-10-24):** entrada estricta, errores en español y `DomainError`; ver § «C1: contrato de entrada y errores». **C2 hecho (2026-10-24):** las cuatro anotaciones en cada tool de los dos conectores, derivadas del tipo; ver § «C2: anotaciones».
 **Relacionado:** [[ADR-015-MCP-Interno]] · [[ADR-023-MCP-OAuth]] · [[ADR-025-Bloque-Odoo-MCP]] · [[ADR-033-Nomina-Horas-por-Corte]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]] · [[ADR-040-Escrituras-Acotadas-en-Odoo]] · issue #155
 
 ## Contexto
@@ -168,6 +168,59 @@ Un nombre viejo es error con los campos nuevos: no se aceptan alias. La vista `o
 | Odoo DYMMSA | member | 10 | 10,672 | 4,179 | 2,113 |
 
 `additionalProperties: false` en cada objeto y los enums cuestan bytes. Quitar las listas de valores de las descripciones y el «YYYY-MM-DD» de las fechas, que ya anuncian `format: date`, compensa una parte.
+
+## C2: anotaciones (2026-10-24)
+
+Cumple la decisión 10 y R8 del plan: **siempre las cuatro, explícitas**, en las 51 tools de los dos conectores.
+
+**Cómo se hizo imposible equivocarse** ([[02-Arquitectura/MCP-Escrituras/Auditoria-codigo]] §3.3):
+- **La definición ya no lleva `annotations`, sino `hints` tipados por `kind`.** `ToolDefinition` es una unión:
+  - `{ kind: 'read'; hints: ReadHints }`, con `ReadHints = { openWorldHint }`;
+  - `{ kind: 'write'; hints: WriteHints }`, con `WriteHints = { destructiveHint, idempotentHint, openWorldHint }`, los tres obligatorios.
+- **No compila** una definición que escribe `annotations` o `readOnlyHint`, una lectura con `destructiveHint` o una escritura a la que le falta un hint. Se comprobó con `@ts-expect-error` contra `tsc`. Los tests no pasan por `tsc` (`tsconfig.json` excluye `tests/`), así que la prueba del tipo no se quedó en el repo: la garantía es que `tsc` revisa cada definición real de `src/`.
+- **`toolAnnotations(tool)`** (`core/define.ts`) arma las cuatro en el orden de la spec y `core/register.ts` las registra. `readOnlyHint` sale de `kind`.
+- **Red de tests:** `definitions.test.ts` revisa cada tool (las cuatro booleanas, una lectura nunca destructiva y siempre idempotente, `openWorldHint` según el conector, sin `annotations` en la definición) y fija en `WRITE_HINTS` el `E(d,i)` de cada escritura: cambiar uno es una decisión del PR. `connectors.test.ts` compara el cable con la definición.
+- **Se eligió el tipo sobre «`annotations` + tests»:** con el tipo, el error aparece al escribir la definición y no al correr la suite. `ReadHints` no admite `idempotentHint` (la §3.3 lo dejaba opcional): ninguna lectura tiene efectos, así que no hay caso.
+
+**Valores de las 12 escrituras de DYMMSA-WEB** (d = destructiva, i = idempotente). La fuente es [[02-Arquitectura/MCP-Escrituras/Auditoria-DYMMSA-WEB]] H7, los veredictos de su §2 y la tabla de su §4.8:
+
+| Tool | E(d,i) | Por qué |
+|---|---|---|
+| `save_material_presentation` | E(0,1) | Upsert por medida: solo agrega o refresca (H7) |
+| `create_task` | E(0,0) | Solo agrega un issue; repetir abre otro (H7) |
+| `create_payable` | E(0,0) | Solo inserta, sin llave natural. **Decidido aquí** |
+| `update_task` | E(1,0) | Prioridad y estado pisan; cada comentario se suma. **Decidido aquí** |
+| `set_inventory_location` | E(1,1) | Pisa o borra la gaveta; valor absoluto (H7) |
+| `save_supplier` | E(1,1) | Una edición pisa y `quitar_marcas` desliga; nombre UNIQUE (H7) |
+| `save_payroll_employee` | E(1,1) | Edición y baja pisan; nombre UNIQUE (H7) |
+| `save_time_entries` | E(1,1) | Una corrección pisa; llave del import y checada UNIQUE (H7) |
+| `save_excused_day` | E(1,1) | `quitar` borra; UNIQUE (fecha, persona) (H7) |
+| `mark_payable_paid` | E(1,1) | Regresar a pendiente limpia `paid_at`; repetir no re-sella (H7) |
+| `record_payroll_hours` | E(1,1) | Pisa sus propios borradores con horas absolutas (§2) |
+| `update_payable` | E(1,1) | Pisa y puede cancelar; valores absolutos. **Decidido aquí** |
+
+**Lo que la auditoría dejaba abierto, y cómo se decidió:**
+1. **`create_payable` no destructiva.** La lista de H7 («las que solo agregan») no la nombra, pero cumple su criterio: solo inserta una factura `pending`. No es idempotente: repetirla registra otra.
+2. **`update_payable` idempotente.** H7 no la nombra, pero cae en la fila «edita con valores absolutos» de la §4.8. Cancelar dos veces es error, no un segundo efecto.
+3. **`update_task` E(1,0).** La auditoría solo da el valor del `save_task` objetivo, que es el mismo. Comentar no es idempotente.
+4. **`set_inventory_location` destructiva.** Sin `location`, borra la gaveta (§2), y con una nueva pisa la anterior. H7 la deja fuera de «solo agregan».
+5. **Lecturas con las cuatro.** La §4.8 deja `destructiveHint` e `idempotentHint` con «—» en las lecturas; el plan (§4) pide siempre las cuatro. Van `false` y `true`, que es lo que una lectura es. Las 11 lecturas de Odoo también las ganaron, para que la regla valga en los dos conectores.
+6. **`openWorldHint: false` en tareas y en `get_month_closing`.** La leyenda de la §3 de la auditoría lo fija: GitHub es el repo propio y Odoo solo se lee dentro del cierre, como cifras de la app (decisión 1). Si un día una tool de DYMMSA-WEB habla con un tercero que otros editan, el test que ata `openWorldHint` al conector tendrá que cambiar en ese PR.
+
+**Snapshots:** solo cambian las líneas de anotaciones. En los cuatro `tools-list.*.json` se agregan 172 líneas `destructiveHint`/`idempotentHint` (36 + 29 tools de DYMMSA-WEB y 11 + 10 de Odoo, dos líneas cada una) y no se borra ninguna. Las instrucciones no cambian.
+
+**Medidas** (en el cable; los topes no cambian):
+
+| Conector | Rol | Tools | `tools/list` | Descripciones | Instrucciones |
+|---|---|---|---|---|---|
+| DYMMSA-WEB | admin | 36 de 45 | 35,554 de 53,000 (+1,650) | 12,567 de 19,000 | 5,978 de 6,000 |
+| DYMMSA-WEB | member | 29 | 26,035 | 8,100 | 5,371 |
+| Odoo DYMMSA | admin | 15 de 16 | 20,548 de 21,500 (+506) | 6,333 de 6,500 | 2,891 de 3,000 |
+| Odoo DYMMSA | member | 10 | 11,132 | 4,179 | 2,113 |
+
+Cada tool paga unos 46 caracteres por las dos llaves nuevas. La auditoría estimaba unos 2,600 en el cable para DYMMSA-WEB contando las 44 tools del catálogo objetivo.
+
+**Pendiente (pregunta del plan §9):** probar en claude.ai si `destructiveHint` u `openWorldHint` cambian qué tools piden aprobación por default.
 
 ## Consecuencias
 

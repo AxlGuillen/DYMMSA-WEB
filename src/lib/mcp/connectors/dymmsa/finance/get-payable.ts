@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getPayable } from '@/lib/mcp/tools/payables'
 
 export const getPayableTool = defineTool({
@@ -11,7 +11,7 @@ export const getPayableTool = defineTool({
   description:
     'Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta id, o parte del concepto o del nombre del proveedor; con varias coincidencias devuelve la lista.',
   input: { factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor') },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Finanzas',
     title: 'Detalle de factura por pagar',

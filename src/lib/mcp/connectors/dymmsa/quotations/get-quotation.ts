@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getQuotation } from '@/lib/mcp/tools/quotations'
 
 export const getQuotationTool = defineTool({
@@ -11,7 +11,7 @@ export const getQuotationTool = defineTool({
   description:
     'Cotización completa con sus ítems (en orden), totales calculados (total y total de aprobados), estado de aprobación por ítem y la orden en que se convirtió (orden: null si no tiene). Obtén el id con list_quotations.',
   input: { id: z.string().describe('UUID de la cotización') },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Cotizaciones',
     title: 'Detalle de cotizacion',

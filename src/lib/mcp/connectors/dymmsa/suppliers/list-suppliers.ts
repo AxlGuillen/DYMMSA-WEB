@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { limit, readOnly } from '@/lib/mcp/core/schema'
+import { limit } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { listSuppliers } from '@/lib/mcp/tools/suppliers'
 
 export const listSuppliersTool = defineTool({
@@ -15,7 +16,7 @@ export const listSuppliersTool = defineTool({
     marca: z.string().optional().describe('Marca que debe surtir, p. ej. "SURTEK"'),
     limit: limit(100, 50).describe('Máx proveedores (default 50)'),
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Proveedores',
     title: 'Proveedores de menudeo',

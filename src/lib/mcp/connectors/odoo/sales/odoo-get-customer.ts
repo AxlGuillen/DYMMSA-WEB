@@ -18,7 +18,7 @@ export const odooGetCustomerTool = defineTool({
     vence_hasta: isoDate.optional(),
     incluir: z.enum(STATEMENT_INCLUDE).optional().describe('Default ambas'),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Ventas y cobranza',
     title: 'Cliente y estado de cuenta',

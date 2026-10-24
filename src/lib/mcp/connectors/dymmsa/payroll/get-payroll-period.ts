@@ -1,5 +1,6 @@
 import { defineTool } from '@/lib/mcp/core/define'
-import { isoDate, readOnly } from '@/lib/mcp/core/schema'
+import { isoDate } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getPayrollPeriod } from '@/lib/mcp/tools/payroll'
 
 export const getPayrollPeriodTool = defineTool({
@@ -12,7 +13,7 @@ export const getPayrollPeriodTool = defineTool({
   input: {
     fecha: isoDate.optional().describe('Cualquier día del corte (default hoy)'),
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   adminOnly: true,
   docs: {
     module: 'Nomina',

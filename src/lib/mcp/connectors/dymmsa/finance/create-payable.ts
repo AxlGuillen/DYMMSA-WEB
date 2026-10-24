@@ -21,7 +21,8 @@ export const createPayableTool = defineTool({
     notas: z.string().optional().describe('Notas'),
   },
   // Scoped write (#109, ADR-030): always born pending; paying it is mark_payable_paid.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // It only inserts, with no natural key: a repeat is a second invoice (#155 C2).
+  hints: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
   docs: {
     module: 'Finanzas',
     title: 'Registrar factura por pagar',

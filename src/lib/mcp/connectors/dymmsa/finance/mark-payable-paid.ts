@@ -16,7 +16,8 @@ export const markPayablePaidTool = defineTool({
     fecha_pago: isoDate.optional().describe('Fecha REAL de pago (default hoy)'),
   },
   // Scoped write (#109, ADR-030): a symbolic expense record, not money nor inventory.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // Back to pending clears paid_at; a repeat without fecha_pago never re-seals it (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   docs: {
     module: 'Finanzas',
     title: 'Marcar factura pagada',

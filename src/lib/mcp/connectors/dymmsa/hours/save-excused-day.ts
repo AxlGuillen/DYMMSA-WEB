@@ -17,8 +17,8 @@ export const saveExcusedDayTool = defineTool({
     nota: z.string().max(200).optional(),
     quitar: z.boolean().optional(),
   },
-  // Scoped write (#134, ADR-035).
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // Scoped write (#134, ADR-035). `quitar` deletes; UNIQUE (fecha, persona) makes a repeat a no-op (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   adminOnly: true,
   docs: {
     module: 'Horas',
