@@ -5,10 +5,11 @@
  */
 
 import { isAdminNow } from '@/lib/mcp/core/auth/live-admin'
-import { isUuid, sanitizeSearch } from '@/lib/text'
-import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { sanitizeSearch } from '@/lib/text'
+import { resolveByName } from '@/lib/mcp/core/lookup'
 import { ToolError } from '@/lib/mcp/core/errors'
-import { diff } from '@/lib/mcp/core/envelope'
+import { diff, listResult, refOf } from '@/lib/mcp/core/envelope'
+import { normalizePagination } from '@/lib/mcp/core/schema'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolveSupplier } from './suppliers'
 import { formatMoney, todayInMexico } from '@/lib/format'
@@ -17,7 +18,8 @@ import {
   daysUntilDue,
   describeAuditEvent,
   dueDateFrom,
-  PAYABLE_STATUS_LABELS,
+  PAYABLE_STATUS_TOKENS,
+  PAYABLE_FILTER_TOKENS,
   parsePayableUpdate,
   paymentTermsLabel,
   resolvePayableFilter,
@@ -37,7 +39,7 @@ const OVERVIEW_LIMIT = 1000
 
 function digest(p: PayableWithSupplier, today: string) {
   return {
-    id: p.id,
+    ref: refOf(p.id),
     proveedor: p.supplier?.name ?? null,
     concepto: p.concept,
     monto: p.amount,
@@ -45,14 +47,14 @@ function digest(p: PayableWithSupplier, today: string) {
     fecha_factura: p.invoice_date,
     vencimiento: p.due_date,
     dias_para_vencer: p.status === 'pending' ? daysUntilDue(p.due_date, today) : null,
-    estado: PAYABLE_STATUS_LABELS[p.status],
+    estado: PAYABLE_STATUS_TOKENS.toToken(p.status),
     pagada_el: p.paid_at,
     notas: p.notes,
   }
 }
 
 const label = (p: PayableWithSupplier) =>
-  `${p.supplier?.name ?? '?'} · ${p.concept} · $${p.amount} ${p.currency ?? DEFAULT_PAYABLE_CURRENCY} (${PAYABLE_STATUS_LABELS[p.status]})`
+  `${p.supplier?.name ?? '?'} · ${p.concept} · $${p.amount} ${p.currency ?? DEFAULT_PAYABLE_CURRENCY} (${PAYABLE_STATUS_TOKENS.toToken(p.status)})`
 
 async function findPayables(db: Db, search: string, status?: PayableStatus): Promise<PayableWithSupplier[]> {
   // Two steps instead of an embedded filter: "la de Perfiles" names the supplier, not the concept.
@@ -66,19 +68,23 @@ async function findPayables(db: Db, search: string, status?: PayableStatus): Pro
   return (data ?? []) as PayableWithSupplier[]
 }
 
-/** By UUID, or the one payable whose concept/supplier matches — preferring `preferStatus` when given. */
-export async function resolvePayable(db: Db, ref: string, preferStatus?: PayableStatus): Promise<PayableWithSupplier> {
-  const raw = ref.trim()
-  if (!raw) throw new ToolError('Indica la factura (id, concepto o proveedor)')
-  if (isUuid(raw)) {
-    const { data, error } = await db.from('payables').select(SELECT).eq('id', raw).single()
-    if (error || !data) throw new ToolError('Factura no encontrada')
-    return data as PayableWithSupplier
-  }
-  const search = sanitizeSearch(raw)
-  let rows = await findPayables(db, search, preferStatus)
-  if (rows.length === 0 && preferStatus) rows = await findPayables(db, search)
-  return requireSingleMatch(rows, label, 'factura por pagar', search)
+/** By UUID, ref, or the one payable whose concept/supplier matches — preferring `preferStatus` when given. */
+export async function resolvePayable(db: Db, reference: string, preferStatus?: PayableStatus): Promise<PayableWithSupplier> {
+  return resolveByName<PayableWithSupplier>(
+    db,
+    {
+      table: 'payables',
+      select: SELECT,
+      what: 'factura por pagar',
+      article: 'la',
+      label,
+      search: async (client, query) => {
+        const rows = await findPayables(client, query, preferStatus)
+        return rows.length === 0 && preferStatus ? findPayables(client, query) : rows
+      },
+    },
+    reference,
+  )
 }
 
 export interface ListPayablesInput {
@@ -87,23 +93,25 @@ export interface ListPayablesInput {
   mes?: string
   proveedor?: string
   concepto?: string
-  limit?: number
+  pagina?: number
+  por_pagina?: number
 }
 
 export async function listPayables(db: Db, input: ListPayablesInput = {}) {
-  const limit = Math.min(100, Math.max(1, Math.floor(input.limit ?? 50)))
+  const { pagina, por_pagina, from: rangeFrom, to: rangeTo } = normalizePagination(input, 50)
   const today = todayInMexico()
   let query = db
     .from('payables')
     .select(SELECT, { count: 'exact' })
     .order('due_date', { ascending: true })
     .order('id', { ascending: true })
-    .limit(limit)
+    .range(rangeFrom, rangeTo)
 
   const estado = input.estado?.trim()
   if (estado) {
-    const filter = resolvePayableFilter(estado, today)
-    if (!filter) throw new ToolError('Estado inválido — usa pending | overdue | paid | cancelled')
+    const dbFilter = PAYABLE_FILTER_TOKENS.toDb(estado)
+    const filter = dbFilter ? resolvePayableFilter(dbFilter, today) : null
+    if (!filter) throw new ToolError(`Estado inválido — usa ${PAYABLE_FILTER_TOKENS.tokens.join(' | ')}`)
     query = query.eq('status', filter.status)
     if (filter.dueBefore) query = query.lt('due_date', filter.dueBefore)
   }
@@ -124,11 +132,9 @@ export async function listPayables(db: Db, input: ListPayablesInput = {}) {
   const rows = (data ?? []) as PayableWithSupplier[]
   return {
     hoy: today,
-    total_coincidencias: count ?? rows.length,
-    mostradas: rows.length,
-    // Per currency, never added together (2026-10-20).
-    suma_mostrada: payableTotals(rows).byCurrency,
-    facturas: rows.map((r) => digest(r, today)),
+    // Per currency, never added together (2026-10-20); only this page, which the envelope's total says.
+    suma_de_esta_pagina: payableTotals(rows).byCurrency,
+    ...listResult('facturas', rows.map((r) => digest(r, today)), { total: count ?? rows.length, pagina, por_pagina }),
   }
 }
 

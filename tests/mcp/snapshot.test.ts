@@ -14,11 +14,13 @@ import { authAs, connectMcp } from './harness'
 const ROLES: McpRole[] = ['admin', 'member']
 
 /** Characters each tool costs on the wire, biggest first, so a PR diff shows where the budget went. */
-function sizeReport(role: McpRole, tools: Tool[]): string {
+function sizeReport(role: McpRole, tools: Tool[], instructions: string): string {
   const rows = tools.map((t) => ({ name: t.name, size: JSON.stringify(t).length })).sort((a, b) => b.size - a.size || a.name.localeCompare(b.name))
   const total = rows.reduce((n, r) => n + r.size, 0)
   const lines = rows.map((r) => `${String(r.size).padStart(6)}  ${r.name}`)
-  return [`# tools/list (${role}): ${rows.length} tools, ${total} caracteres en el cable`, ...lines, ''].join('\n')
+  const descriptions = tools.reduce((n, t) => n + (t.description ?? '').length, 0)
+  const header = `# tools/list (${role}): ${rows.length} tools, ${total} caracteres en el cable · descripciones ${descriptions} · instrucciones ${instructions.length}`
+  return [header, ...lines, ''].join('\n')
 }
 
 describe('snapshot del MCP', () => {
@@ -29,7 +31,7 @@ describe('snapshot del MCP', () => {
       const tools = await mcp.tools()
       await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(`./__snapshots__/tools-list.${role}.json`)
       await expect(`${mcp.instructions ?? ''}\n`).toMatchFileSnapshot(`./__snapshots__/instructions.${role}.md`)
-      await expect(sizeReport(role, tools)).toMatchFileSnapshot(`./__snapshots__/tools-size.${role}.txt`)
+      await expect(sizeReport(role, tools, mcp.instructions ?? '')).toMatchFileSnapshot(`./__snapshots__/tools-size.${role}.txt`)
     } finally {
       await mcp.close()
     }
@@ -42,7 +44,7 @@ describe('snapshot del MCP', () => {
       const tools = await mcp.tools()
       await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(`./__snapshots__/tools-list.odoo.${role}.json`)
       await expect(`${mcp.instructions ?? ''}\n`).toMatchFileSnapshot(`./__snapshots__/instructions.odoo.${role}.md`)
-      await expect(sizeReport(role, tools)).toMatchFileSnapshot(`./__snapshots__/tools-size.odoo.${role}.txt`)
+      await expect(sizeReport(role, tools, mcp.instructions ?? '')).toMatchFileSnapshot(`./__snapshots__/tools-size.odoo.${role}.txt`)
     } finally {
       await mcp.close()
     }

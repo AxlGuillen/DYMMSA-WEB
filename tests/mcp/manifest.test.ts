@@ -7,17 +7,17 @@
 import { describe, test, expect } from 'vitest'
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { TOOL_BUDGET, groupByModule, type McpRole, type ToolBlock } from '@/lib/mcp/manifest'
+import { TOOL_BUDGET, groupByModule, type McpRole } from '@/lib/mcp/manifest'
 import { ADMIN_ONLY_TOOLS, DOCS_MANIFEST, TOOL_MANIFEST, manifestFor, manifestForRole } from '@/lib/mcp/catalog'
 import { registerTools } from '@/lib/mcp/core/register'
-import type { ConnectorDefinition } from '@/lib/mcp/core/define'
+import type { ConnectorDefinition, ConnectorId } from '@/lib/mcp/core/define'
 import { dymmsaConnector } from '@/lib/mcp/connectors/dymmsa/connector'
 import { odooConnector } from '@/lib/mcp/connectors/odoo/connector'
 
 interface Registered { name: string; description: string; readOnly: boolean; view?: string }
 
-/** Each connector with the manifest block it serves (#155 B3: /api/mcp no longer serves the odoo_* tools). */
-const CONNECTORS: readonly (readonly [ToolBlock, ConnectorDefinition])[] = [['app', dymmsaConnector], ['odoo', odooConnector]]
+/** Each connector with its id (the manifest's connector) (#155 B3: /api/mcp no longer serves the odoo_* tools). */
+const CONNECTORS: readonly (readonly [ConnectorId, ConnectorDefinition])[] = [['dymmsa', dymmsaConnector], ['odoo', odooConnector]]
 
 /** What a connector serves a role in tools/list, captured from its own list. */
 function registryFor(connector: ConnectorDefinition, role: McpRole): { tools: Registered[]; resources: { uri: string; mimeType?: string; html: () => Promise<unknown> }[] } {
@@ -47,10 +47,10 @@ function registryFor(connector: ConnectorDefinition, role: McpRole): { tools: Re
 const allToolsFor = (role: McpRole) => CONNECTORS.flatMap(([, connector]) => registryFor(connector, role).tools)
 
 describe('manifiesto del MCP', () => {
-  test.each(CONNECTORS)('cada tool que registra el conector (%s) esta en su bloque del manifiesto, y el manifiesto no inventa tools', (block, connector) => {
+  test.each(CONNECTORS)('cada tool que registra el conector (%s) esta en su bloque del manifiesto, y el manifiesto no inventa tools', (id, connector) => {
     const registered = registryFor(connector, 'admin').tools.map((t) => t.name)
     expect(new Set(registered).size).toBe(registered.length)
-    const listed = manifestFor(block).map((t) => t.name)
+    const listed = manifestFor(id).map((t) => t.name)
     expect(registered.filter((n) => !listed.includes(n)), 'registradas sin manifiesto').toEqual([])
     expect(listed.filter((n) => !registered.includes(n)), 'en el manifiesto sin registrar').toEqual([])
   })
@@ -63,10 +63,10 @@ describe('manifiesto del MCP', () => {
 
   test('las escrituras son exactamente las aprobadas y cada una declara sus limites', () => {
     const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write')
-    expect(writes.filter((t) => t.block === 'app').map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'record_payroll_hours', 'save_excused_day', 'save_material_presentation', 'save_payroll_employee', 'save_supplier', 'save_time_entries', 'set_inventory_location', 'update_payable', 'update_task'])
+    expect(writes.filter((t) => t.connector === 'dymmsa').map((t) => t.name).sort()).toEqual(['create_payable', 'create_task', 'mark_payable_paid', 'record_payroll_hours', 'save_excused_day', 'save_material_presentation', 'save_payroll_employee', 'save_supplier', 'save_time_entries', 'set_inventory_location', 'update_payable', 'update_task'])
     for (const w of writes) expect(w.limits, w.name).toBeTruthy()
     expect(manifestFor('odoo').every((t) => t.name.startsWith('odoo_'))).toBe(true)
-    expect(manifestFor('app').every((t) => !t.name.startsWith('odoo_'))).toBe(true)
+    expect(manifestFor('dymmsa').every((t) => !t.name.startsWith('odoo_'))).toBe(true)
   })
 
   test('REGLA (ADR-040): en Odoo solo escriben las de #144 más confirmar (#155 B2b), todas de administrador y marcadas como escritura en el registro', () => {
@@ -89,21 +89,21 @@ describe('manifiesto del MCP', () => {
     expect(DOCS_MANIFEST).toHaveLength(TOOL_MANIFEST.length - ADMIN_ONLY_TOOLS.size)
   })
 
-  test.each(CONNECTORS)('REGLA: en %s un member recibe la lista sin las tools de administrador; un admin las recibe todas (#133)', (block, connector) => {
+  test.each(CONNECTORS)('REGLA: en %s un member recibe la lista sin las tools de administrador; un admin las recibe todas (#133)', (id, connector) => {
     const admin = registryFor(connector, 'admin').tools.map((t) => t.name)
     const member = registryFor(connector, 'member').tools.map((t) => t.name)
-    const adminOnly = manifestFor(block).filter((t) => t.adminOnly).map((t) => t.name)
-    expect(admin.sort()).toEqual(manifestFor(block).map((t) => t.name).sort())
-    expect(member.sort()).toEqual(manifestForRole('member').filter((t) => t.block === block).map((t) => t.name).sort())
+    const adminOnly = manifestFor(id).filter((t) => t.adminOnly).map((t) => t.name)
+    expect(admin.sort()).toEqual(manifestFor(id).map((t) => t.name).sort())
+    expect(member.sort()).toEqual(manifestForRole('member').filter((t) => t.connector === id).map((t) => t.name).sort())
     // core/register.ts skips the adminOnly definitions for a member (#133): the member list must lack exactly those.
     for (const name of adminOnly) expect(member, name).not.toContain(name)
     expect(member).toHaveLength(admin.length - adminOnly.length)
   })
 
-  test.each(CONNECTORS)('las instrucciones de %s nombran sus tools de administrador solo al admin (#133)', (block, connector) => {
+  test.each(CONNECTORS)('las instrucciones de %s nombran sus tools de administrador solo al admin (#133)', (id, connector) => {
     const member = connector.instructions('member')
     const admin = connector.instructions('admin')
-    for (const { name } of manifestFor(block).filter((t) => t.adminOnly)) {
+    for (const { name } of manifestFor(id).filter((t) => t.adminOnly)) {
       expect(member, name).not.toContain(name)
       expect(admin, name).toContain(name)
     }
@@ -144,14 +144,14 @@ describe('manifiesto del MCP', () => {
       expect(t.title.length, t.name).toBeGreaterThan(3)
       expect(t.example.length, t.name).toBeGreaterThan(8)
     }
-    const groups = groupByModule(manifestFor('app'))
+    const groups = groupByModule(manifestFor('dymmsa'))
     expect(groups[0].module).toBe('Panorama')
     expect(groups.map((g) => g.module)).toContain('Finanzas')
-    expect(groups.reduce((n, g) => n + g.tools.length, 0)).toBe(manifestFor('app').length)
+    expect(groups.reduce((n, g) => n + g.tools.length, 0)).toBe(manifestFor('dymmsa').length)
   })
 
   test.each([
-    ['app', dymmsaConnector, ['preview_time_report']],
+    ['dymmsa', dymmsaConnector, ['preview_time_report']],
     ['odoo', odooConnector, ['odoo_preview_quotation']],
   ] as const)('VISTAS (ADR-036) en %s: cada tool con vista apunta a un recurso ui:// del mismo conector y rol; un member no recibe ninguno', async (_block, connector, expected) => {
     const admin = registryFor(connector, 'admin')

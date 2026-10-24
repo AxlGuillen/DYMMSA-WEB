@@ -8,7 +8,7 @@ import { DOCS_MANIFEST } from '@/lib/mcp/catalog'
 describe('AssistantSection', () => {
   test('pinta cada capacidad del manifiesto con su pregunta ejemplo y marca las que escriben', () => {
     render(<AssistantSection tools={DOCS_MANIFEST} />)
-    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.block === 'app').length} de «DYMMSA-WEB» y ${DOCS_MANIFEST.filter((t) => t.block === 'odoo').length} de «Odoo DYMMSA»`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.connector === 'dymmsa').length} de «DYMMSA-WEB» y ${DOCS_MANIFEST.filter((t) => t.connector === 'odoo').length} de «Odoo DYMMSA»`))).toBeTruthy()
     for (const tool of DOCS_MANIFEST) {
       expect(screen.getAllByText(tool.title).length, tool.name).toBeGreaterThan(0)
     }
@@ -16,7 +16,7 @@ describe('AssistantSection', () => {
     expect(screen.getAllByText('escribe')).toHaveLength(8)
     expect(screen.getByText(/Nunca toca cantidades/)).toBeTruthy()
     // The Odoo writes are admin-only (#144): the page every member reads still lists Odoo as read-only.
-    expect(DOCS_MANIFEST.some((t) => t.block === 'odoo' && t.kind === 'write')).toBe(false)
+    expect(DOCS_MANIFEST.some((t) => t.connector === 'odoo' && t.kind === 'write')).toBe(false)
     expect(screen.getByText(/nunca publica, timbra ni envia/)).toBeTruthy()
     // Admins read this page too and they do write in Odoo (#144): no "solo lectura" claim for the block.
     expect(screen.queryByText(/la facturacion oficial \(solo lectura\)/)).toBeNull()

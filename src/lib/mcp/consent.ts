@@ -4,8 +4,9 @@
  */
 
 import { manifestForRole } from './catalog'
+import type { ConnectorId } from './core/define'
 import { MCP_PATH, ODOO_MCP_PATH, CONNECTOR_NAMES } from './core/routes'
-import { groupByModule, type McpRole, type ToolBlock } from './manifest'
+import { groupByModule, type McpRole } from './manifest'
 
 export interface ConsentWrite {
   title: string
@@ -25,21 +26,18 @@ export interface ConsentConnector {
  * Both connectors, always: the token is shared (ADR-041 §1), so the screen cannot know which one is
  * being authorized. Odoo's writes are admin-only (ADR-040): a member's list is empty.
  */
-export interface ConsentSummary {
-  app: ConsentConnector
-  odoo: ConsentConnector
-}
+export type ConsentSummary = Record<ConnectorId, ConsentConnector>
 
 export function consentSummary(role: McpRole): ConsentSummary {
   const tools = manifestForRole(role)
-  const block = (b: ToolBlock, name: string, path: string): ConsentConnector => ({
+  const connector = (id: ConnectorId, name: string, path: string): ConsentConnector => ({
     name,
     path,
-    reads: groupByModule(tools.filter((t) => t.block === b && t.kind === 'read')).map((g) => g.module),
-    writes: tools.filter((t) => t.block === b && t.kind === 'write').map((t) => ({ title: t.title, limits: t.limits ?? '' })),
+    reads: groupByModule(tools.filter((t) => t.connector === id && t.kind === 'read')).map((g) => g.module),
+    writes: tools.filter((t) => t.connector === id && t.kind === 'write').map((t) => ({ title: t.title, limits: t.limits ?? '' })),
   })
   return {
-    app: block('app', CONNECTOR_NAMES.dymmsa, MCP_PATH),
-    odoo: block('odoo', CONNECTOR_NAMES.odoo, ODOO_MCP_PATH),
+    dymmsa: connector('dymmsa', CONNECTOR_NAMES.dymmsa, MCP_PATH),
+    odoo: connector('odoo', CONNECTOR_NAMES.odoo, ODOO_MCP_PATH),
   }
 }

@@ -2,6 +2,7 @@
 
 import type { AuditEvent, Payable, PayableCurrency, PayableStatus, PayableUpdate } from '@/types/database'
 import { isRealDate, monthOf, nextMonth, type ISODate } from './month'
+import { tokenMap } from './tokens'
 
 export { monthOf, nextMonth }
 export type { ISODate }
@@ -136,6 +137,15 @@ export const PAYABLE_FILTER_LABELS: Record<PayableFilter, string> = {
   paid: 'Pagada',
   cancelled: 'Cancelada',
 }
+
+/** The assistant's tokens (#155 C6): `vencida` is only a filter (pending past its due date), never a stored status. */
+export const PAYABLE_STATUS_TOKENS = tokenMap({ pending: 'pendiente', paid: 'pagada', cancelled: 'cancelada' } as const satisfies Record<PayableStatus, string>)
+export const PAYABLE_FILTER_TOKENS = tokenMap({
+  pending: 'pendiente',
+  overdue: 'vencida',
+  paid: 'pagada',
+  cancelled: 'cancelada',
+} as const satisfies Record<PayableFilter, string>)
 
 export function resolvePayableFilter(filter: string, today: ISODate): { status: PayableStatus; dueBefore?: ISODate } | null {
   if (filter === 'overdue') return { status: 'pending', dueBefore: today }

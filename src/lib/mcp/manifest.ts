@@ -3,12 +3,12 @@
  * defineTool docs (#155 A3): src/lib/mcp/catalog.ts builds them for the docs page and the consent screen.
  */
 
-export type ToolBlock = 'app' | 'odoo'
+import type { ConnectorId } from './core/define'
 export type ToolKind = 'read' | 'write'
 
 export interface ToolManifestEntry {
   name: string
-  block: ToolBlock
+  connector: ConnectorId
   /** Group shown in the docs (one per screen/module). */
   module: string
   kind: ToolKind

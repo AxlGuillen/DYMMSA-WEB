@@ -1,4 +1,14 @@
 import type { QuotationStatus } from '@/types/database'
+import { tokenMap } from '@/lib/tokens'
+
+/** The assistant's tokens (#155 C6, ADR-041 §7): the same in the filters and in the answers. */
+export const QUOTATION_STATUS_TOKENS = tokenMap({
+  draft: 'borrador',
+  sent_for_approval: 'en_revision',
+  approved: 'aprobada',
+  rejected: 'rechazada',
+  converted_to_order: 'convertida',
+} as const satisfies Record<QuotationStatus, string>)
 
 /** Single source for the badge and the status dropdown. */
 export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {

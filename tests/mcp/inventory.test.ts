@@ -24,14 +24,14 @@ describe('searchInventory', () => {
 
     const result = await searchInventory(asDb(client), {})
 
-    expect(result.items[0].location).toBe('G-1')
-    expect(result.items[1].location).toBeNull() // kept in the DB, hidden without stock
+    expect(result.articulos[0].ubicacion).toBe('G-1')
+    expect(result.articulos[1].ubicacion).toBeNull() // kept in the DB, hidden without stock
   })
 
   test('aplica stockFilter low_stock (gt 0, lte 5)', async () => {
     const client = createMockSupabase({ responses: { store_inventory: { data: [], count: 0 } } })
 
-    await searchInventory(asDb(client), { stockFilter: 'low_stock' })
+    await searchInventory(asDb(client), { existencias: 'poca' })
 
     const call = client.callsTo('store_inventory', 'select')[0]
     expect(hasFilter(call, 'quantity', 'gt')).toBe(true)
@@ -40,13 +40,13 @@ describe('searchInventory', () => {
 
   test('with_stock es la misma lista que la pantalla (gt 0, sin tope), y un filtro inventado es error (#155 C1)', async () => {
     const client = createMockSupabase({ responses: { store_inventory: { data: [], count: 0 } } })
-    await searchInventory(asDb(client), { stockFilter: 'with_stock' })
+    await searchInventory(asDb(client), { existencias: 'con_existencia' })
     const call = client.callsTo('store_inventory', 'select')[0]
     expect(filterValue(call, 'quantity', 'gt')).toBe(0)
     expect(hasFilter(call, 'quantity', 'lte')).toBe(false)
 
     const other = createMockSupabase({ responses: { store_inventory: { data: [], count: 0 } } })
-    await expect(searchInventory(asDb(other), { stockFilter: 'agotado' })).rejects.toThrow(/Filtro inválido "agotado": usa all \| with_stock/)
+    await expect(searchInventory(asDb(other), { existencias: 'agotado' })).rejects.toThrow(/Filtro inválido "agotado": usa todas \| con_existencia/)
     expect(other.callsTo('store_inventory')).toEqual([])
   })
 })
@@ -59,7 +59,7 @@ describe('getInventoryStats', () => {
       },
     })
     const stats = await getInventoryStats(asDb(client))
-    expect(stats).toEqual({ total: 4, sin_stock: 1, low_stock: 2, in_stock: 1 })
+    expect(stats).toEqual({ total: 4, sin_existencia: 1, poca: 2, suficiente: 1 })
   })
 })
 

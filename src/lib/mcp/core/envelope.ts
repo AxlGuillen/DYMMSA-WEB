@@ -3,6 +3,7 @@
 
 import { z } from 'zod'
 import { isUuid } from '@/lib/text'
+import { hashOf } from './confirm/canonical'
 
 // Optional keys travel only when they say something (R11): absence = nothing to say.
 const said = <K extends string, V>(key: K, value: V | null | undefined): Partial<Record<K, V>> =>
@@ -18,7 +19,15 @@ export function refOf(id: string): string {
   return id.slice(0, 8).toLowerCase()
 }
 
-export const LIST_KEYS = ['total', 'pagina', 'por_pagina', 'hay_mas', 'nota'] as const
+/**
+ * version (plan §4.5, #155 C6): a short fingerprint of a document's line ids and its updated_at, so a later
+ * edit can pin what it read. A line moved, added or removed, or the document touched, changes it.
+ */
+export function versionOf(updatedAt: string, lineIds: readonly string[]): string {
+  return hashOf({ ids: lineIds, updated_at: updatedAt }).slice(0, 12)
+}
+
+export const LIST_KEYS =['total', 'pagina', 'por_pagina', 'hay_mas', 'nota'] as const
 type ListKey = (typeof LIST_KEYS)[number]
 
 export interface Page {

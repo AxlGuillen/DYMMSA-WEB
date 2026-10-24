@@ -9,8 +9,8 @@ export const getPayableTool = defineTool({
   kind: 'read',
   title: 'Detalle de factura por pagar',
   description:
-    'Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta id, o parte del concepto o del nombre del proveedor; con varias coincidencias devuelve la lista.',
-  input: { factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor') },
+    'Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta ref, o parte del concepto o del nombre del proveedor; con varias coincidencias pide precisar.',
+  input: { factura: z.string().min(1).describe('Ref, o parte del concepto / nombre del proveedor') },
   hints: dymmsaRead,
   docs: {
     module: 'Finanzas',

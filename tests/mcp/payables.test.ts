@@ -15,9 +15,12 @@ const PERFILES = { id: 's-perf', name: 'Perfiles del Bajío', payment_terms_days
 const TORNILLOS = { id: 's-torn', name: 'Tornillos MX', payment_terms_days: null }
 const SUPPLIERS = [PERFILES, TORNILLOS]
 
+/** Short test ids as real UUIDs: the answers show refs, and a ref is the first 8 hex of one. */
+const uuidOf = (key: string) => `${Buffer.from(key).toString('hex').padEnd(8, '0').slice(0, 8)}-0000-4000-8000-000000000000`
+
 type Row = ReturnType<typeof row>
 const row = (id: string, supplier: typeof PERFILES, concept: string, amount: number, due: string, status = 'pending', paidAt: string | null = null) => ({
-  id, supplier_id: supplier.id, concept, amount, invoice_date: due, due_date: due, status, paid_at: paidAt, notes: null,
+  id: uuidOf(id), supplier_id: supplier.id, concept, amount, invoice_date: due, due_date: due, status, paid_at: paidAt, notes: null,
   created_at: '', updated_at: '', supplier,
 })
 
@@ -36,12 +39,12 @@ function payables(rows: Row[]) {
       return { data: target ? { ...target, ...(rec.payload as object) } : null, error: target ? null : { code: 'PGRST116' } }
     }
     if (rec.op === 'insert') {
-      return { data: { ...(rec.payload as object), id: 'new', supplier: PERFILES, created_at: '', updated_at: '' }, error: null }
+      return { data: { ...(rec.payload as object), id: uuidOf('new'), supplier: PERFILES, created_at: '', updated_at: '' }, error: null }
     }
     const id = filterValue(rec, 'id')
     if (id) {
       const found = rows.find((r) => r.id === id) ?? null
-      return { data: found, error: found ? null : { code: 'PGRST116' } }
+      return { data: found, error: null }
     }
     let out = rows
     const status = filterValue(rec, 'status')
@@ -79,7 +82,7 @@ describe('listPayables', () => {
     // Anchored inside the month: the mock applies the due_date range, relative dates would cross it (review PR #111).
     const due1 = `${MONTH}-05`
     const c = client([row('p1', PERFILES, 'Perfiles junio', 1500, due1), row('p2', TORNILLOS, 'Tornillería', 200, `${MONTH}-20`)])
-    const result = await listPayables(asDb(c), { estado: 'pending', mes: MONTH, proveedor: 'perfiles', concepto: 'junio' })
+    const result = await listPayables(asDb(c), { estado: 'pendiente', mes: MONTH, proveedor: 'perfiles', concepto: 'junio' })
 
     const call = c.callsTo('payables', 'select')[0]
     expect(filterValue(call, 'status')).toBe('pending')
@@ -88,15 +91,15 @@ describe('listPayables', () => {
     expect(filterValue(call, 'supplier_id')).toBe('s-perf')
     expect(filterValue(call, 'concept', 'ilike')).toBe('%junio%')
     // The mock ignores ilike/supplier_id, the shape is what matters here.
-    expect(result.facturas[0]).toMatchObject({ proveedor: 'Perfiles del Bajío', monto: 1500, dias_para_vencer: daysUntilDue(due1, TODAY), estado: 'Pendiente' })
+    expect(result.facturas[0]).toMatchObject({ proveedor: 'Perfiles del Bajío', monto: 1500, dias_para_vencer: daysUntilDue(due1, TODAY), estado: 'pendiente' })
     // Rows without a currency are pesos; each currency sums apart (2026-10-20).
-    expect(result.suma_mostrada).toEqual({ MXN: 1700 })
+    expect(result.suma_de_esta_pagina).toEqual({ MXN: 1700 })
     expect(result.facturas[0]).toMatchObject({ moneda: 'MXN' })
   })
 
   test('estado overdue: pendientes con vencimiento antes de hoy', async () => {
     const c = client([])
-    await listPayables(asDb(c), { estado: 'overdue' })
+    await listPayables(asDb(c), { estado: 'vencida' })
     const call = c.callsTo('payables', 'select')[0]
     expect(filterValue(call, 'status')).toBe('pending')
     expect(filterValue(call, 'due_date', 'lt')).toBe(TODAY)
@@ -104,7 +107,7 @@ describe('listPayables', () => {
 
   test('estado o mes inválidos → error antes de consultar', async () => {
     const c = client([])
-    await expect(listPayables(asDb(c), { estado: 'pagada' })).rejects.toThrow(/Estado inválido/)
+    await expect(listPayables(asDb(c), { estado: 'paid' })).rejects.toThrow(/Estado inválido/)
     await expect(listPayables(asDb(c), { mes: '09-2026' })).rejects.toThrow(/Mes inválido/)
     expect(c.callsTo('payables', 'select')).toHaveLength(0)
   })
@@ -120,7 +123,7 @@ describe('resolvePayable / getPayable', () => {
   test('por nombre del proveedor encuentra sus facturas; prefiere el estado pedido y lista si hay varias', async () => {
     await expect(resolvePayable(asDb(client(rows)), 'perfiles')).rejects.toThrow(/2 coincidencias \(Perfiles del Bajío · Perfiles junio/)
     const pending = await resolvePayable(asDb(client(rows)), 'perfiles', 'pending')
-    expect(pending.id).toBe('p2')
+    expect(pending.id).toBe(uuidOf('p2'))
     // No pending match falls back to any status (to correct a date, say).
     const fallback = await resolvePayable(asDb(client(rows)), 'junio', 'pending')
     expect(fallback.concept).toBe('Perfiles junio')
@@ -140,13 +143,13 @@ describe('resolvePayable / getPayable', () => {
 
     const asMember = client(rows, { profiles: { data: { role: 'member' } }, audit_events: { data: events } })
     const member = await getPayable(asDb(asMember), 'u-member', rows[0].id)
-    expect(member).toMatchObject({ concepto: 'Perfiles junio', estado: 'Pagada' })
+    expect(member).toMatchObject({ concepto: 'Perfiles junio', estado: 'pagada' })
     expect(Object.keys(member)).not.toContain('historial')
     expect(Object.keys(member)).not.toContain('nota')
     // The trail is not even queried for a member.
     expect(asMember.callsTo('audit_events', 'select')).toHaveLength(0)
 
-    await expect(getPayable(asDb(client(rows)), 'u-x', '99999999-9999-4999-8999-999999999999')).rejects.toThrow(/Factura no encontrada/)
+    await expect(getPayable(asDb(client(rows)), 'u-x', '99999999-9999-4999-8999-999999999999')).rejects.toThrow(/No encontré la factura por pagar con ese id/)
   })
 })
 
@@ -162,8 +165,8 @@ describe('markPayablePaid (escritura)', () => {
     const result = await markPayablePaid(asDb(c), { factura: 'julio' })
     const update = c.callsTo('payables', 'update')[0]
     expect(update.payload).toEqual({ status: 'paid', paid_at: TODAY })
-    expect(filterValue(update, 'id')).toBe('p2')
-    expect(result).toMatchObject({ estado: 'Pagada', pagada_el: TODAY })
+    expect(filterValue(update, 'id')).toBe(uuidOf('p2'))
+    expect(result).toMatchObject({ estado: 'pagada', pagada_el: TODAY })
     // The answer never mentions the audit trail (ADR-028), only the visible outcome.
     expect(result.nota).toBe(`Marcada como pagada el ${TODAY}.`)
   })
@@ -209,7 +212,7 @@ describe('createPayable (escritura)', () => {
       supplier_id: 's-perf', concept: 'Perfiles agosto', amount: 2500, currency: 'MXN', invoice_date: TODAY,
       due_date: dueDateFrom(TODAY, 30), status: 'pending', paid_at: null, notes: null,
     })
-    expect(result).toMatchObject({ estado: 'Pendiente', proveedor: 'Perfiles del Bajío' })
+    expect(result).toMatchObject({ estado: 'pendiente', proveedor: 'Perfiles del Bajío' })
     expect(result.nota).toMatch(/\(1 mes\)/)
   })
 
@@ -247,7 +250,7 @@ describe('updatePayable (escritura, #134)', () => {
     const result = await updatePayable(asDb(c), { factura: 'julio', monto: 3200, notas: 'corregida' })
     const update = c.callsTo('payables', 'update')[0]
     expect(update.payload).toEqual({ amount: 3200, notes: 'corregida' })
-    expect(filterValue(update, 'id')).toBe('p2')
+    expect(filterValue(update, 'id')).toBe(uuidOf('p2'))
     expect(result.cambios).toEqual({ monto: { antes: 2300, ahora: 3200 }, notas: { antes: null, ahora: 'corregida' } })
     expect(result.nota).toBe('Corregida.')
   })

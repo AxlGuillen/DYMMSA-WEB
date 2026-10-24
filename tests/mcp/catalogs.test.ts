@@ -26,16 +26,16 @@ describe('searchProducts', () => {
       },
     })
 
-    const result = await searchProducts(asDb(client), { query: 'pinza' })
+    const result = await searchProducts(asDb(client), { buscar: 'pinza' })
 
-    expect(result.products[0]).toMatchObject({ dymmsa_description: 'Oficial URREA', dymmsa_description_source: 'catalog' })
-    expect(result.products[1]).toMatchObject({ dymmsa_description: 'Curada 2', dymmsa_description_source: 'dymmsa' })
-    expect(result.products[2]).toMatchObject({ dymmsa_description: null, dymmsa_description_source: null, is_sold: false })
+    expect(result.productos[0]).toMatchObject({ descripcion_dymmsa: 'Oficial URREA', fuente_descripcion_dymmsa: 'catalogo' })
+    expect(result.productos[1]).toMatchObject({ descripcion_dymmsa: 'Curada 2', fuente_descripcion_dymmsa: 'curada' })
+    expect(result.productos[2]).toMatchObject({ descripcion_dymmsa: null, fuente_descripcion_dymmsa: null, se_vende: 'no' })
   })
 
   test('rechaza búsqueda vacía (tras sanitizar)', async () => {
     const client = createMockSupabase()
-    await expect(searchProducts(asDb(client), { query: ' %() ' })).rejects.toThrow(ToolError)
+    await expect(searchProducts(asDb(client), { buscar: ' %() ' })).rejects.toThrow(ToolError)
   })
 })
 
@@ -47,10 +47,10 @@ describe('searchUrreaCatalog', () => {
       },
     })
 
-    const result = await searchUrreaCatalog(asDb(client), '  6954  ')
+    const result = await searchUrreaCatalog(asDb(client), { buscar: '  6954  ' })
 
-    expect(result.match).toBe('exact')
-    expect(result.items).toHaveLength(1)
+    expect(result.coincidencia).toBe('exacta')
+    expect(result.articulos).toHaveLength(1)
     expect(filterValue(client.callsTo('urrea_catalog', 'select')[0], 'code')).toBe('6954')
   })
 
@@ -67,16 +67,16 @@ describe('searchUrreaCatalog', () => {
       },
     })
 
-    const result = await searchUrreaCatalog(asDb(client), 'tijs9')
+    const result = await searchUrreaCatalog(asDb(client), { buscar: 'tijs9' })
 
-    expect(result.match).toBe('exact')
-    expect(result.items).toHaveLength(2)
-    expect(result.items.map((i) => i.brand)).toEqual(['FOY', 'SURTEK'])
+    expect(result.coincidencia).toBe('exacta')
+    expect(result.articulos).toHaveLength(2)
+    expect(result.articulos.map((i) => i.marca)).toEqual(['FOY', 'SURTEK'])
     // a single query: it does not fall back to the partial search
     expect(client.callsTo('urrea_catalog', 'select')).toHaveLength(1)
   })
 
-  test('sin match exacto cae a búsqueda parcial; sin resultados → match none', async () => {
+  test('sin match exacto cae a búsqueda parcial; sin resultados → coincidencia ninguna', async () => {
     let call = 0
     const client = createMockSupabase({
       responses: {
@@ -85,10 +85,10 @@ describe('searchUrreaCatalog', () => {
       },
     })
 
-    const result = await searchUrreaCatalog(asDb(client), 'martillo')
+    const result = await searchUrreaCatalog(asDb(client), { buscar: 'martillo' })
 
-    expect(result.match).toBe('none')
-    expect(result.items).toEqual([])
+    expect(result.coincidencia).toBe('ninguna')
+    expect(result.articulos).toEqual([])
     expect(client.callsTo('urrea_catalog', 'select')).toHaveLength(2)
   })
 })

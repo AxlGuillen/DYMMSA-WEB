@@ -8,7 +8,7 @@ export const getBusinessSummaryTool = defineTool({
   kind: 'read',
   title: 'Resumen del negocio',
   description:
-    'Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala primero cuando pregunten "¿cómo vamos?" o necesites contexto global.',
+    'Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala para "¿cómo vamos?".',
   input: {},
   hints: dymmsaRead,
   docs: {

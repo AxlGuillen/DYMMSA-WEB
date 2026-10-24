@@ -34,8 +34,8 @@ function Block({ entries }: { entries: readonly ToolManifestEntry[] }) {
 
 /** Rendered from the catalog (src/lib/mcp/catalog.ts), never typed by hand; the page passes it in because it is server-only. */
 export function AssistantSection({ tools }: { tools: readonly ToolManifestEntry[] }) {
-  const app = tools.filter((t) => t.block === 'app')
-  const odoo = tools.filter((t) => t.block === 'odoo')
+  const app = tools.filter((t) => t.connector === 'dymmsa')
+  const odoo = tools.filter((t) => t.connector === 'odoo')
   const appWrites = app.filter((t) => t.kind === 'write')
   const dymmsa = `«${CONNECTOR_NAMES.dymmsa}»`
   const odooName = `«${CONNECTOR_NAMES.odoo}»`

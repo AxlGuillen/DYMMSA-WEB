@@ -2,7 +2,7 @@
 
 import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
-import { resolveOrder } from './orders'
+import { orderBrief, resolveOrder } from './orders'
 import { fetchCatalogEntryMap } from '@/lib/urrea-catalog'
 import {
   buildPurchasePlan,
@@ -83,7 +83,7 @@ export async function getPurchasePlan(db: Db, input: { orden: string }) {
   const plan = buildPurchasePlan(plannable, catalog, (decisionsRes.data ?? []) as OrderPurchaseDecision[], thresholds)
 
   return {
-    orden: { id: order.id, nombre: order.name, cliente: order.customer_name, estado: order.status },
+    orden: orderBrief(order),
     umbrales: { dinero_parado_mxn: thresholds.money, pct_parado: thresholds.pct },
     resumen: {
       grupos_catalogo: plan.summary.urrea,

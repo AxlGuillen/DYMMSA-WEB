@@ -3,11 +3,16 @@
 import { avatarPublicUrl } from './avatar'
 import { normalizeNss, nssError } from './nss'
 import { parseRate } from './office-pay'
+import { tokenMap } from './tokens'
 import type { Profile, ProfileArea, ProfileRole } from '@/types/database'
 
 export const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador', member: 'Miembro' }
 
 export const AREA_LABELS: Record<ProfileArea, string> = { office: 'Oficina', workshop: 'Taller' }
+
+/** The assistant's tokens (#155 C6): the same in the inputs and in the answers. */
+export const ROLE_TOKENS = tokenMap({ admin: 'administrador', member: 'miembro' } as const satisfies Record<ProfileRole, string>)
+export const AREA_TOKENS = tokenMap({ office: 'oficina', workshop: 'taller' } as const satisfies Record<ProfileArea, string>)
 export const AREAS: readonly ProfileArea[] = ['office', 'workshop']
 
 /** Same text as the profiles_guard_last_admin trigger (#157): the route says it first, the DB backs it. */

@@ -1,4 +1,4 @@
-# tools/list (admin): 15 tools, 21371 caracteres en el cable
+# tools/list (admin): 15 tools, 21371 caracteres en el cable · descripciones 6332 · instrucciones 2974
   3743  odoo_preview_quotation
   2655  odoo_save_quotation
   1798  odoo_save_product

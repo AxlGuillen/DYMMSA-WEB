@@ -2,22 +2,27 @@
 
 import { resolveDymmsaDescription } from '@/lib/business-rules'
 import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
+import { listResult } from '@/lib/mcp/core/envelope'
 import { normalizePagination } from '@/lib/mcp/core/schema'
 import { sanitizeSearch } from '@/lib/text'
+import { soldToken } from '@/lib/tokens'
 import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import type { EtmProduct } from '@/types/database'
 
 export interface SearchProductsInput {
-  query: string
-  page?: number
-  pageSize?: number
+  buscar: string
+  pagina?: number
+  por_pagina?: number
 }
 
-export async function searchProducts(db: Db, input: SearchProductsInput) {
-  const { page, pageSize, from, to } = normalizePagination(input)
+/** Where the resolved DYMMSA description came from, as the assistant says it. */
+const DESCRIPTION_SOURCE = { catalog: 'catalogo', dymmsa: 'curada' } as const
 
-  const search = sanitizeSearch(input.query)
+export async function searchProducts(db: Db, input: SearchProductsInput) {
+  const { pagina, por_pagina, from, to } = normalizePagination(input)
+
+  const search = sanitizeSearch(input.buscar)
   if (!search) throw new ToolError('La búsqueda no puede estar vacía')
 
   const { data, error, count } = await db
@@ -49,15 +54,15 @@ export async function searchProducts(db: Db, input: SearchProductsInput) {
     )
     return {
       etm: p.etm,
-      model_code: p.model_code,
-      brand: p.brand,
-      description: p.description_es || p.description,
-      dymmsa_description: resolved.value,
-      dymmsa_description_source: resolved.source,
-      price: p.price,
-      is_sold: p.is_sold,
+      codigo: p.model_code,
+      marca: p.brand,
+      descripcion: p.description_es || p.description,
+      descripcion_dymmsa: resolved.value,
+      fuente_descripcion_dymmsa: resolved.source ? DESCRIPTION_SOURCE[resolved.source] : null,
+      precio: p.price,
+      se_vende: soldToken(p.is_sold),
     }
   })
 
-  return { products, count: count ?? 0, page, pageSize, totalPages: Math.ceil((count ?? 0) / pageSize) }
+  return listResult('productos', products, { total: count ?? 0, pagina, por_pagina })
 }

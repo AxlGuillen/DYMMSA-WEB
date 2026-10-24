@@ -2,6 +2,9 @@
 
 import { fetchGitHub, getGitHubConfig, isPullRequest, type GitHubIssue } from '@/lib/github'
 import type { Db } from '@/lib/mcp/core/db'
+import { ORDER_STATUS_TOKENS } from '@/lib/order-status'
+import { QUOTATION_STATUS_TOKENS } from '@/lib/quotation-status'
+import type { TokenMap } from '@/lib/tokens'
 import { getInventoryStats } from './inventory'
 import { getQuotationStats } from './quotations'
 import type { OrderStatus } from '@/types/database'
@@ -51,11 +54,16 @@ export async function getBusinessSummary(db: Db) {
   ])
 
   return {
-    quotations_by_status: quotations,
-    orders_by_status: orders,
-    inventory,
-    products_count: productsCount,
-    urrea_catalog_count: catalogCount,
-    open_tasks: openTasks,
+    cotizaciones_por_estado: quotations && byToken(quotations, QUOTATION_STATUS_TOKENS),
+    ordenes_por_estado: orders && byToken(orders, ORDER_STATUS_TOKENS),
+    inventario: inventory,
+    productos_etm: productsCount,
+    catalogo_urrea: catalogCount,
+    tareas_abiertas: openTasks,
   }
+}
+
+/** The counts under the assistant's tokens, in the order of the flow (#155 C6). */
+function byToken<K extends string>(counts: Record<K, number>, tokens: TokenMap<K>): Record<string, number> {
+  return Object.fromEntries((Object.keys(counts) as K[]).map((key) => [tokens.toToken(key), counts[key]]))
 }

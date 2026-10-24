@@ -71,7 +71,7 @@ describe('getCutPlan', () => {
         orders: { data: [{ ...order, id: 'a' }, { ...order, id: 'b', name: 'ORD-13' }] },
       },
     })
-    await expect(getCutPlan(asDb(client), { orden: 'andritz' })).rejects.toThrow(/2 coincidencias \(ORD-12 \(Andritz\), ORD-13 \(Andritz\)\)/)
+    await expect(getCutPlan(asDb(client), { orden: 'andritz' })).rejects.toThrow(/2 coincidencias \(ORD-12 \(Andritz\) \[ref a\], ORD-13 \(Andritz\) \[ref b\]\)/)
   })
 })
 

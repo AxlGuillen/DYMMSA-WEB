@@ -2,7 +2,7 @@
   {
     "name": "get_business_summary",
     "title": "Resumen del negocio",
-    "description": "Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala primero cuando pregunten \"¿cómo vamos?\" o necesites contexto global.",
+    "description": "Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala para \"¿cómo vamos?\".",
     "inputSchema": {
       "type": "object",
       "properties": {},
@@ -22,32 +22,32 @@
   {
     "name": "list_quotations",
     "title": "Listar cotizaciones",
-    "description": "Lista cotizaciones con filtros. Úsala para preguntas como \"¿qué cotizaciones esperan aprobación?\" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; en cotizaciones aprobadas editables puede quedar desfasado de los ítems actuales — usa get_quotation para el total recalculado en vivo.",
+    "description": "Lista cotizaciones con filtros, de la más reciente a la más antigua. Úsala para \"¿qué cotizaciones esperan aprobación?\" o buscar por cliente. `total_sellado` es el monto guardado en la fila: en una aprobada editable puede quedar desfasado; get_quotation trae el total recalculado.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "status": {
+        "estado": {
           "description": "Filtrar por estado exacto",
           "type": "string",
           "enum": [
-            "draft",
-            "sent_for_approval",
-            "approved",
-            "rejected",
-            "converted_to_order"
+            "borrador",
+            "en_revision",
+            "aprobada",
+            "rechazada",
+            "convertida"
           ]
         },
-        "search": {
+        "buscar": {
           "description": "Busca en nombre de cotización y nombre del cliente",
           "type": "string"
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "pageSize": {
+        "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
@@ -70,17 +70,18 @@
   {
     "name": "get_quotation",
     "title": "Detalle de cotización",
-    "description": "Cotización completa con sus ítems (en orden), totales calculados (total y total de aprobados), estado de aprobación por ítem y la orden en que se convirtió (orden: null si no tiene). Obtén el id con list_quotations.",
+    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "id": {
+        "cotizacion": {
           "type": "string",
-          "description": "UUID de la cotización"
+          "minLength": 1,
+          "description": "Nombre o cliente (parcial), ref o UUID"
         }
       },
       "required": [
-        "id"
+        "cotizacion"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -98,32 +99,32 @@
   {
     "name": "list_orders",
     "title": "Listar órdenes",
-    "description": "Lista órdenes de compra con filtros. Úsala para \"¿qué órdenes siguen abiertas?\" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; usa get_order para el total recalculado en vivo desde los ítems.",
+    "description": "Lista órdenes de compra con filtros, de la más reciente a la más antigua. Úsala para \"¿qué órdenes siguen abiertas?\" o buscar por cliente. `total_sellado` es el monto guardado en la fila; get_order trae el total recalculado.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "status": {
+        "estado": {
           "description": "Filtrar por estado exacto",
           "type": "string",
           "enum": [
-            "ordered",
-            "received",
-            "delivered",
-            "completed",
-            "cancelled"
+            "pedida",
+            "recibida",
+            "entregada",
+            "completada",
+            "cancelada"
           ]
         },
-        "search": {
+        "buscar": {
           "description": "Busca en nombre de orden y nombre del cliente",
           "type": "string"
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "pageSize": {
+        "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
@@ -146,17 +147,18 @@
   {
     "name": "get_order",
     "title": "Detalle de orden",
-    "description": "Orden completa con sus ítems: cantidades (aprobada/en stock/por pedir/recibida), urrea_status por ítem, ubicación en tienda y cuántos ítems siguen pendientes con URREA.",
+    "description": "Una orden con todas sus líneas numeradas (`linea`): cantidades (aprobada, en stock, por pedir, recibida), estado con URREA, ubicación en tienda, `version` y cuántas siguen pendientes con URREA. Acepta nombre, cliente o ref.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "id": {
+        "orden": {
           "type": "string",
-          "description": "UUID de la orden"
+          "minLength": 1,
+          "description": "Nombre o cliente (parcial), ref o UUID"
         }
       },
       "required": [
-        "id"
+        "orden"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -174,14 +176,14 @@
   {
     "name": "get_cut_plan",
     "title": "Lista de corte de una orden",
-    "description": "Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para \"¿cuánto tubo necesito para la orden de X?\". Acepta id o nombre parcial de la orden/cliente.",
+    "description": "Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para \"¿cuánto tubo necesito para la orden de X?\". Acepta nombre, cliente o ref de la orden.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "UUID, nombre de la orden o nombre del cliente (parcial)"
+          "description": "Nombre o cliente (parcial), ref o UUID"
         }
       },
       "required": [
@@ -255,14 +257,14 @@
   {
     "name": "get_purchase_plan",
     "title": "Planificador de compra de una orden",
-    "description": "Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). \"revisar\" = el usuario debe decidir. Acepta id o nombre parcial de la orden/cliente.",
+    "description": "Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). \"revisar\" = el usuario debe decidir. Acepta nombre, cliente o ref de la orden.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "UUID, nombre de la orden o nombre del cliente (parcial)"
+          "description": "Nombre o cliente (parcial), ref o UUID"
         }
       },
       "required": [
@@ -284,32 +286,32 @@
   {
     "name": "search_inventory",
     "title": "Buscar en inventario",
-    "description": "Stock de tienda por model_code, con ubicación física (gaveta) cuando hay existencias. stockFilter: with_stock (>0), in_stock (>5), low_stock (1-5), sin_stock (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
+    "description": "Stock de tienda por código, con su ubicación física (gaveta) cuando hay existencias. `existencias`: con_existencia (>0), suficiente (>5), poca (1-5), sin_existencia (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "search": {
-          "description": "Busca por model_code (parcial)",
+        "buscar": {
+          "description": "Código (parcial)",
           "type": "string"
         },
-        "stockFilter": {
-          "description": "Default all",
+        "existencias": {
+          "description": "Default todas",
           "type": "string",
           "enum": [
-            "all",
-            "with_stock",
-            "in_stock",
-            "low_stock",
-            "sin_stock"
+            "todas",
+            "con_existencia",
+            "suficiente",
+            "poca",
+            "sin_existencia"
           ]
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "pageSize": {
+        "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
@@ -365,21 +367,21 @@
   {
     "name": "search_products",
     "title": "Buscar productos ETM",
-    "description": "Busca en el catálogo ETM por código ETM, model_code o descripción. Devuelve precio, marca, is_sold (null=sin definir, false=no lo vendemos) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.",
+    "description": "Busca en el catálogo ETM por ETM, código o descripción. Devuelve precio, marca, `se_vende` (sin_definir, si, no) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "query": {
+        "buscar": {
           "type": "string",
-          "description": "Texto a buscar (ETM, model_code o descripción)"
+          "description": "Texto a buscar (ETM, código o descripción)"
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "pageSize": {
+        "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
@@ -387,7 +389,7 @@
         }
       },
       "required": [
-        "query"
+        "buscar"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -405,17 +407,29 @@
   {
     "name": "search_urrea_catalog",
     "title": "Consultar catálogo URREA",
-    "description": "Consulta el catálogo oficial URREA por código (match exacto, normalizado) o por descripción (parcial, máx 20). Devuelve código, descripción oficial y std (unidades por paquete).",
+    "description": "Consulta el catálogo oficial URREA por código (exacto, todas las marcas) o por descripción (parcial, paginada). Devuelve código, marca, descripción oficial y std (unidades por paquete).",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "query": {
+        "buscar": {
           "type": "string",
           "description": "Código URREA o texto de la descripción"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
         }
       },
       "required": [
-        "query"
+        "buscar"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -538,17 +552,17 @@
   {
     "name": "list_payables",
     "title": "Facturas por pagar",
-    "description": "Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (overdue = pendientes ya vencidas), mes de VENCIMIENTO, proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.",
+    "description": "Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (vencida = pendientes ya vencidas), mes de VENCIMIENTO, proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "estado": {
           "type": "string",
           "enum": [
-            "pending",
-            "overdue",
-            "paid",
-            "cancelled"
+            "pendiente",
+            "vencida",
+            "pagada",
+            "cancelada"
           ]
         },
         "mes": {
@@ -564,8 +578,14 @@
           "description": "Texto del concepto (parcial)",
           "type": "string"
         },
-        "limit": {
-          "description": "Máx 100 facturas (default 50)",
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -587,14 +607,14 @@
   {
     "name": "get_payable",
     "title": "Detalle de factura por pagar",
-    "description": "Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta id, o parte del concepto o del nombre del proveedor; con varias coincidencias devuelve la lista.",
+    "description": "Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta ref, o parte del concepto o del nombre del proveedor; con varias coincidencias pide precisar.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "factura": {
           "type": "string",
           "minLength": 1,
-          "description": "UUID, o parte del concepto / nombre del proveedor"
+          "description": "Ref, o parte del concepto / nombre del proveedor"
         }
       },
       "required": [

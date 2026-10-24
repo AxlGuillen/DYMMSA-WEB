@@ -25,16 +25,17 @@ export const limit = (max: number, fallback: number, what?: string) =>
 export const page = (note?: string) =>
   z.number().int().min(1).optional().describe(`Página (1-indexada, default 1${note ? `; ${note}` : ''})`)
 
+/** The standard collection input (plan §4.4, #155 C6): `pagina` from 1, `por_pagina` default 20, at most 100. */
 export const pagination = {
-  page: page(),
-  pageSize: z.number().int().min(1).max(100).optional().describe('Resultados por página (default 20, máx 100)'),
+  pagina: page(),
+  por_pagina: z.number().int().min(1).max(100).optional().describe('Resultados por página (default 20, máx 100)'),
 }
 
 /** 1-indexed page, capped size — same limits as the API routes. */
-export function normalizePagination(input: { page?: number; pageSize?: number }, defaultSize = 20) {
-  const page = Math.max(1, Math.floor(input.page ?? 1))
-  const pageSize = Math.min(100, Math.max(1, Math.floor(input.pageSize ?? defaultSize)))
-  return { page, pageSize, from: (page - 1) * pageSize, to: page * pageSize - 1 }
+export function normalizePagination(input: { pagina?: number; por_pagina?: number }, defaultSize = 20) {
+  const pagina = Math.max(1, Math.floor(input.pagina ?? 1))
+  const por_pagina = Math.min(100, Math.max(1, Math.floor(input.por_pagina ?? defaultSize)))
+  return { pagina, por_pagina, from: (pagina - 1) * por_pagina, to: pagina * por_pagina - 1 }
 }
 
 export type InputOf<S extends z.ZodRawShape> = z.infer<z.ZodObject<S, z.core.$strict>>

@@ -1,17 +1,17 @@
 /**
  * The assistant's catalog for the docs page and the consent screen (#118, #133), from both connectors' definitions
- * (`block` = which one serves it, #155 B3). Server-only: the docs page receives it as a prop.
+ * (`connector` = which one serves it, #155 B3, C6). Server-only: the docs page receives it as a prop.
  */
 
-import type { McpRole, ToolBlock, ToolManifestEntry } from './manifest'
-import type { ToolDefinition } from './core/define'
+import type { McpRole, ToolManifestEntry } from './manifest'
+import type { ConnectorId, ToolDefinition } from './core/define'
 import { DYMMSA_TOOLS } from './connectors/dymmsa'
 import { ODOO_TOOLS } from './connectors/odoo'
 
 export function manifestEntryOf(tool: ToolDefinition): ToolManifestEntry {
   return {
     name: tool.name,
-    block: tool.connector === 'odoo' ? 'odoo' : 'app',
+    connector: tool.connector,
     module: tool.docs.module,
     kind: tool.kind,
     title: tool.docs.title,
@@ -23,7 +23,7 @@ export function manifestEntryOf(tool: ToolDefinition): ToolManifestEntry {
 
 export const TOOL_MANIFEST: readonly ToolManifestEntry[] = [...DYMMSA_TOOLS, ...ODOO_TOOLS].map(manifestEntryOf)
 
-export const manifestFor = (block: ToolBlock) => TOOL_MANIFEST.filter((t) => t.block === block)
+export const manifestFor = (connector: ConnectorId) => TOOL_MANIFEST.filter((t) => t.connector === connector)
 
 /** What a caller of this role gets registered (#133): a member never sees the admin-only tools. */
 export const manifestForRole = (role: McpRole) =>

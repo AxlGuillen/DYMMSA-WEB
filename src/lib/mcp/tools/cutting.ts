@@ -2,7 +2,7 @@
 
 import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
-import { resolveOrder } from './orders'
+import { orderBrief, resolveOrder } from './orders'
 import {
   formatMm,
   packBars,
@@ -25,8 +25,9 @@ function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-const impossible = (rows: { pieceId: string; lengthMm: number; quantity: number }[]) =>
-  rows.map((r) => ({ pieza: r.pieceId, largo_mm: r.lengthMm, cantidad: r.quantity }))
+/** pieza = 1-based position in the order's cut list (#155 C6), never a UUID. */
+const impossible = (rows: { pieceId: string; lengthMm: number; quantity: number }[], numberOf: ReadonlyMap<string, number>) =>
+  rows.map((r) => ({ pieza: numberOf.get(r.pieceId) ?? null, largo_mm: r.lengthMm, cantidad: r.quantity }))
 
 export async function getCutPlan(db: Db, input: { orden: string }) {
   const order = await resolveOrder(db, input.orden)
@@ -55,6 +56,7 @@ export async function getCutPlan(db: Db, input: { orden: string }) {
       quantity: p.quantity,
     }))
   const labelOf = new Map(pieces.map((p) => [p.id, p.requested_label]))
+  const numberOf = new Map(pieces.map((p, index) => [p.id, index + 1]))
   const pieceRow = (p: { id: string; lengthMm: number; quantity: number }) => ({
     largo_mm: p.lengthMm,
     cantidad: p.quantity,
@@ -62,7 +64,7 @@ export async function getCutPlan(db: Db, input: { orden: string }) {
   })
 
   return {
-    orden: { id: order.id, nombre: order.name, cliente: order.customer_name, estado: order.status },
+    orden: orderBrief(order),
     margen_por_corte_mm: margin,
     nota: pieces.length === 0 ? 'La orden no tiene lista de corte capturada.' : null,
     tubos: tubeNetNeeds(tubes, margin).map((g) => ({
@@ -79,7 +81,7 @@ export async function getCutPlan(db: Db, input: { orden: string }) {
             barra_mm: num(pr.length_mm),
             barras: packed.bars.length,
             sobrante_total_mm: packed.bars.reduce((sum, b) => sum + b.leftoverMm, 0),
-            no_caben: impossible(packed.impossible),
+            no_caben: impossible(packed.impossible, numberOf),
           }
         }),
     })),
@@ -97,7 +99,7 @@ export async function getCutPlan(db: Db, input: { orden: string }) {
           return {
             hoja: `${num(pr.width_mm)}×${num(pr.length_mm)} mm`,
             hojas: packed.sheets.length,
-            no_caben: impossible(packed.impossible),
+            no_caben: impossible(packed.impossible, numberOf),
           }
         }),
     })),

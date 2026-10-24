@@ -1,30 +1,30 @@
-# tools/list (member): 29 tools, 26096 caracteres en el cable
+# tools/list (member): 29 tools, 26496 caracteres en el cable · descripciones 8092 · instrucciones 4890
   1381  create_payable
   1311  save_supplier
   1291  update_payable
   1283  update_task
+  1191  list_payables
   1145  mark_payable_paid
-  1129  list_quotations
+  1092  list_quotations
   1079  save_material_presentation
-  1054  list_payables
   1050  get_week_hours
-  1012  list_orders
-   981  search_inventory
+  1018  list_orders
+   988  search_inventory
    977  set_inventory_location
-   889  search_products
+   876  search_urrea_catalog
    875  create_task
    870  get_profiles
    865  list_suppliers
-   844  get_cut_plan
-   822  get_purchase_plan
+   864  search_products
+   821  get_cut_plan
    813  get_hours_trend
+   799  get_purchase_plan
    745  get_month_closing
    740  list_tasks
    722  get_payables_overview
-   678  get_payable
-   639  get_quotation
-   634  search_urrea_catalog
-   578  get_order
-   576  get_business_summary
+   710  get_quotation
+   675  get_order
+   674  get_payable
    559  get_app_settings
    554  get_task
+   528  get_business_summary
