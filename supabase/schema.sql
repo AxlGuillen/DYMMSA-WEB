@@ -1181,6 +1181,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'order_not_found';
   END IF;
+  -- Mirrors isOrderClosed() / goodsInStore() in src/lib/inventory.ts: change them in pairs.
   IF v_status IN ('completed', 'cancelled') THEN
     RAISE EXCEPTION 'order_closed';
   END IF;
@@ -1232,6 +1233,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'order_not_found';
   END IF;
+  -- Mirrors isOrderClosed() / goodsInStore() in src/lib/inventory.ts: change them in pairs.
   IF v_status IN ('completed', 'cancelled') THEN
     RAISE EXCEPTION 'order_closed';
   END IF;

@@ -35,7 +35,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   recibidos en líneas que salieron completas de stock (sin pedido a URREA).
   Además se guarda completa o nada: si algo falla a la mitad, no queda una
   parte guardada y el inventario no se descuadra.
-- **Si agregar un producto a una orden falla, el stock apartado regresa** al
+- **Si agregar un producto a una orden falla, ya no se aparta nada** del
   inventario. Y si falla cambiar el precio o el tiempo de entrega de una línea,
   la app ahora te avisa en vez de decir que se guardó.
 - **Dos órdenes creadas al mismo tiempo ya no se pisan el inventario**: entre

@@ -55,16 +55,20 @@ export function stockRpc(initial: Record<string, number | Row> = {}) {
     return { clamped: target < 0, missing: false }
   }
 
+  /** reserve_inventory for one code: takes what there is, up to what was asked; no row reserves nothing. */
+  const reserve = (code: string, asked: number): { reserved: number; location: string | null } => {
+    const row = stock.get(code)
+    if (!row || asked <= 0) return { reserved: 0, location: null }
+    const reserved = Math.min(Math.max(row.quantity, 0), asked)
+    row.quantity -= reserved
+    return { reserved, location: row.location }
+  }
+
   const responses: Record<string, (rec: CallRecord) => MockResult> = {
     'rpc.reserve_inventory': (rec) => {
-      const result = consolidate(params(rec).p_lines as Line[]).flatMap(([code, asked]) => {
-        if (asked <= 0) return []
-        const row = stock.get(code)
-        if (!row) return [{ model_code: code, reserved: 0, location: null }]
-        const taken = Math.min(Math.max(row.quantity, 0), asked)
-        row.quantity -= taken
-        return [{ model_code: code, reserved: taken, location: row.location }]
-      })
+      const result = consolidate(params(rec).p_lines as Line[]).flatMap(([code, asked]) =>
+        asked <= 0 ? [] : [{ model_code: code, ...reserve(code, asked) }],
+      )
       return { data: result, error: null }
     },
     'rpc.release_inventory': (rec) => ({ data: release(params(rec).p_lines as Line[]), error: null }),
@@ -74,6 +78,7 @@ export function stockRpc(initial: Record<string, number | Row> = {}) {
     stock,
     responses,
     release,
+    reserve,
     adjust,
     /** Current quantity of a code; undefined = no row. */
     quantity: (code: string) => stock.get(code)?.quantity,
@@ -140,9 +145,7 @@ export function orderRpc(stock: ReturnType<typeof stockRpc>, order: MockOrder) {
       const item = params(rec).p_item as {
         etm: string; description: string; model_code: string; brand: string; unit_price: number; quantity_approved: number
       }
-      const row = stock.stock.get(item.model_code)
-      const reserved = item.model_code.trim() && row ? Math.min(Math.max(row.quantity, 0), item.quantity_approved) : 0
-      if (row) row.quantity -= reserved
+      const reserved = item.model_code.trim() ? stock.reserve(item.model_code, item.quantity_approved).reserved : 0
       const line: MockOrderLine = {
         id: `new-${order.items.length + 1}`,
         model_code: item.model_code,
