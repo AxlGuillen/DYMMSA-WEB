@@ -117,6 +117,30 @@ export type UrreaCatalogInsert =
   Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at' | 'brand'> & { brand?: string }
 export type UrreaCatalogUpdate = Partial<Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at'>>
 
+export type CatalogImportMode = 'upsert' | 'replace'
+
+/** POST /api/urrea-catalog/import; a bad file is a 400 instead (#157). */
+export interface CatalogImportResult {
+  imported: number
+  updated: number
+  errors: number
+  total: number
+  mode: CatalogImportMode
+}
+
+export type ProductImportMode = 'upsert' | 'insert'
+
+/** POST /api/products/import (#157). */
+export interface ProductImportResult {
+  imported: number
+  updated: number
+  /** Existing rows left as they were: nothing new in upsert, or "only add new ones". */
+  skipped: number
+  /** Rows without ETM plus writes that failed. */
+  errors: number
+  total: number
+}
+
 export interface Supplier {
   id: string
   name: string

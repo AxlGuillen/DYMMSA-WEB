@@ -24,10 +24,14 @@ producción**; el módulo (UI) vive en `stg` hasta que se decida desplegarlo. La
   Orden por columnas (código, descripción, precio, std). Precio respeta el Modo Discreto
   (`useCurrency`). Búsqueda por código o descripción. Paginación (20/pág).
 - **CRUD manual** (`CatalogForm`): alta/edición/borrado de productos individuales.
-- **Import Excel** (`CatalogImporter`): columnas `codigo, descripcion, std, precio`
-  (case-insensitive; acepta inglés). Dos modos:
-  - **Actualizar o agregar** (`upsert` por `code`, en lote).
-  - **Reemplazar todo** (borra el catálogo actual e inserta el archivo).
+- **Import Excel** (`CatalogImporter`): columnas `codigo, marca, descripcion, std`
+  (case-insensitive; acepta inglés; sin `marca` → `URREA`). El archivo se **valida completo antes
+  de escribir** (#157): fila sin código, `std` que no es entero > 0 o `(code, brand)` repetido → 400
+  que nombra las filas. Dos modos:
+  - **Actualizar o agregar** (`upsert` por `(code, brand)`, en lote).
+  - **Reemplazar todo**: una sola llamada a la RPC `replace_urrea_catalog`, que borra e inserta en una
+    transacción; si falla, el catálogo queda como estaba (antes podía quedar vacío).
+- Validación y escrituras en `src/lib/urrea-catalog-store.ts` (las rutas son adaptadores).
 
 ## Componentes y código
 

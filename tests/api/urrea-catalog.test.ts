@@ -59,32 +59,97 @@ describe('POST /urrea-catalog/import', () => {
     expect(payload[0].brand).toBe('SURTEK')
   })
 
-  test('std vacío/0 cae a 1', async () => {
+  test('una celda std vacía en una columna presente cae a 1', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.upsert': { data: null, error: null } },
+    })
+    await catalogImport.POST(makeExcelRequest([{ codigo: 'C1', std: 6 }, { codigo: 'C2', descripcion: 'X' }]))
+    const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
+    expect(payload[1].std).toBe(1)
+  })
+
+  test('REGLA ADR-018: un archivo sin columna std no pisa los STD guardados (el upsert no la manda)', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: { 'urrea_catalog.upsert': { data: null, error: null } },
     })
     await catalogImport.POST(makeExcelRequest([{ codigo: 'C2', descripcion: 'X' }]))
-    const payload = activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')
-    expect(payload[0].std).toBe(1)
+    expect(activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')).toEqual([
+      { code: 'C2', brand: 'URREA', description: 'X' },
+    ])
   })
 
-  test('modo replace: borra todo e inserta', async () => {
+  test('un archivo sin columna descripcion no borra las descripciones guardadas', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: {
-        'urrea_catalog.delete': { data: null, error: null },
-        'urrea_catalog.insert': { data: null, error: null },
-      },
+      responses: { 'urrea_catalog.upsert': { data: null, error: null } },
+    })
+    await catalogImport.POST(makeExcelRequest([{ codigo: 'C2', std: 12 }]))
+    expect(activeClient.upsertPayload<Record<string, unknown>[]>('urrea_catalog')).toEqual([
+      { code: 'C2', brand: 'URREA', std: 12 },
+    ])
+  })
+
+  test('REGLA: modo replace va en UNA llamada transaccional (replace_urrea_catalog), sin delete suelto', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'rpc.replace_urrea_catalog': { data: 2, error: null } },
     })
     const res = await catalogImport.POST(
-      makeExcelRequest([{ codigo: 'C1' }, { codigo: 'C2' }], { mode: 'replace' }),
+      makeExcelRequest([{ codigo: 'c1' }, { codigo: 'C2', marca: 'surtek', std: 6 }], { mode: 'replace' }),
     )
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.mode).toBe('replace')
-    expect(body.imported).toBe(2)
-    expect(activeClient.didCall('urrea_catalog', 'delete')).toBe(true)
-    expect(activeClient.didCall('urrea_catalog', 'insert')).toBe(true)
+    expect(body).toMatchObject({ mode: 'replace', imported: 2, errors: 0 })
+    expect(activeClient._rpcCalls).toEqual([
+      {
+        fn: 'replace_urrea_catalog',
+        params: {
+          p_rows: [
+            { code: 'C1', brand: 'URREA', description: null, std: 1 },
+            { code: 'C2', brand: 'SURTEK', description: null, std: 6 },
+          ],
+        },
+      },
+    ])
+    expect(activeClient.didCall('urrea_catalog', 'delete')).toBe(false)
+    expect(activeClient.didCall('urrea_catalog', 'insert')).toBe(false)
+  })
+
+  test('replace que falla en la BD → 500 y avisa que el catálogo quedó como estaba', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'rpc.replace_urrea_catalog': { data: null, error: { code: '57014', message: 'timeout' } } },
+    })
+    const res = await catalogImport.POST(makeExcelRequest([{ codigo: 'C1' }], { mode: 'replace' }))
+    expect(res.status).toBe(500)
+    expect((await res.json()).message).toContain('quedó como estaba')
+  })
+})
+
+describe('POST /urrea-catalog/import — el archivo se valida completo antes de escribir (#157)', () => {
+  const badFiles: [string, Record<string, unknown>[], string][] = [
+    ['un (código, marca) repetido', [{ codigo: 'C1', marca: 'URREA' }, { codigo: ' c1 ' }], 'Filas 2, 3'],
+    ['un código vacío', [{ codigo: 'C1' }, { descripcion: 'sin código' }], 'Fila 3: falta el código'],
+    ['un STD decimal', [{ codigo: 'C1', std: 2.5 }], 'Fila 2: el STD «2.5»'],
+    ['un STD en cero', [{ codigo: 'C1', std: 0 }], 'Fila 2: el STD «0»'],
+  ]
+
+  test.each(badFiles)('replace con %s → 400 que nombra la fila y NO toca el catálogo', async (_label, rows, expected) => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await catalogImport.POST(makeExcelRequest(rows, { mode: 'replace' }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toContain(expected)
+    expect(activeClient._rpcCalls).toHaveLength(0)
+    expect(activeClient._calls).toHaveLength(0)
+  })
+
+  test.each(badFiles)('upsert con %s → 400 y no escribe', async (_label, rows) => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await catalogImport.POST(makeExcelRequest(rows))
+    expect(res.status).toBe(400)
+    expect(activeClient.didCall('urrea_catalog', 'upsert')).toBe(false)
   })
 })
 
