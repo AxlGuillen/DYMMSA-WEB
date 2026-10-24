@@ -16,7 +16,7 @@ export const odooSearchRecordsTool = defineTool({
     modelo: z.string().describe('Modelo Odoo del catálogo, p. ej. "account.move" o "hr.employee"'),
     filtros: domainSchema,
     campos: z.array(z.string()).optional().describe('Campos a devolver (subset del catálogo; omite para todos los permitidos)'),
-    limite: limit(50, 20),
+    limite: limit(50, 20, 'registros'),
     orden: z.string().optional().describe('P. ej. "invoice_date desc"'),
     saltar: z.number().int().min(0).optional().describe('Registros a saltar (paginar)'),
   },

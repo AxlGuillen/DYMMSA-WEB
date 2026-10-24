@@ -1,15 +1,15 @@
-# tools/list (admin): 15 tools, 20042 caracteres en el cable
+# tools/list (admin): 15 tools, 20059 caracteres en el cable
   2893  odoo_preview_quotation
   2655  odoo_save_quotation
   1798  odoo_save_product
-  1619  odoo_search_records
+  1629  odoo_search_records
   1298  odoo_aggregate_records
   1219  odoo_audit_invoice_links
   1164  odoo_get_customer
   1147  odoo_get_document
   1048  odoo_create_draft_invoice
    976  odoo_confirm_quotation
-   949  odoo_list_receivables
+   956  odoo_list_receivables
    912  odoo_summarize_invoices
    841  odoo_audit_payment_complements
    831  odoo_summarize_sales

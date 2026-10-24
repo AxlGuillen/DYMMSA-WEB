@@ -37,6 +37,18 @@ describe('searchInventory', () => {
     expect(hasFilter(call, 'quantity', 'gt')).toBe(true)
     expect(hasFilter(call, 'quantity', 'lte')).toBe(true)
   })
+
+  test('with_stock es la misma lista que la pantalla (gt 0, sin tope), y un filtro inventado es error (#155 C1)', async () => {
+    const client = createMockSupabase({ responses: { store_inventory: { data: [], count: 0 } } })
+    await searchInventory(asDb(client), { stockFilter: 'with_stock' })
+    const call = client.callsTo('store_inventory', 'select')[0]
+    expect(filterValue(call, 'quantity', 'gt')).toBe(0)
+    expect(hasFilter(call, 'quantity', 'lte')).toBe(false)
+
+    const other = createMockSupabase({ responses: { store_inventory: { data: [], count: 0 } } })
+    await expect(searchInventory(asDb(other), { stockFilter: 'agotado' })).rejects.toThrow(/Filtro inválido "agotado": usa all \| with_stock/)
+    expect(other.callsTo('store_inventory')).toEqual([])
+  })
 })
 
 describe('getInventoryStats', () => {

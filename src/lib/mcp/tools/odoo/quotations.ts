@@ -116,7 +116,8 @@ export const previewQuotationShape = {
   vigencia: isoDate.optional().describe('Vence el'),
 }
 
-const previewKey = z.string().min(1).max(4000)
+// A placeholder, never a real-looking key: the model must copy the preview's own.
+const previewKey = withSample(z.string().min(1).max(4000), '<la clave de la vista previa>')
 
 export const saveQuotationShape = {
   ...previewQuotationShape,

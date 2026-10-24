@@ -20,14 +20,16 @@ export const isoDate = withSample(
 
 export const isoMonth = withSample(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'no es un mes (YYYY-MM)'), '2026-01')
 
-/** Optional, capped list size; the handler applies the default. */
-export const limit = (max: number, fallback: number) =>
-  z.number().int().min(1).max(max).optional().describe(`Máx ${max} (default ${fallback})`)
+/** Optional, capped list size; the handler applies the default. The text carries both: never `.describe()` over it. */
+export const limit = (max: number, fallback: number, what?: string) =>
+  z.number().int().min(1).max(max).optional().describe(`Máx ${max}${what ? ` ${what}` : ''} (default ${fallback})`)
 
-export const page = z.number().int().min(1).optional().describe('Página (1-indexada, default 1)')
+/** 1-indexed page; `note` adds to the text instead of replacing it (e.g. the page size). */
+export const page = (note?: string) =>
+  z.number().int().min(1).optional().describe(`Página (1-indexada, default 1${note ? `; ${note}` : ''})`)
 
 export const pagination = {
-  page,
+  page: page(),
   pageSize: z.number().int().min(1).max(100).optional().describe('Resultados por página (default 20, máx 100)'),
 }
 

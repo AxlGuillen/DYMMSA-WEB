@@ -16,7 +16,7 @@ export const listPayablesTool = defineTool({
     mes: isoMonth.optional().describe('Mes de vencimiento'),
     proveedor: z.string().optional().describe('Nombre (o parte) del proveedor'),
     concepto: z.string().optional().describe('Texto del concepto (parcial)'),
-    limit: limit(100, 50).describe('Máx facturas (default 50)'),
+    limit: limit(100, 50, 'facturas'),
   },
   annotations: readOnly,
   docs: {

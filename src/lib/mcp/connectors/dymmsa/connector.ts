@@ -4,7 +4,7 @@ import type { ConnectorBudget } from '@/lib/mcp/manifest'
 import { serverInstructions } from '@/lib/mcp/server'
 import { DYMMSA_TOOLS } from '.'
 
-/** Caps of this connector (ADR-041), tools/list on the wire. C1: 36 tools, 33,904 on the wire, 12,567 of descriptions, 5,978 of instructions.
+/** Caps of this connector (ADR-041), tools/list on the wire. C1: 36 tools, 33,957 on the wire, 12,584 of descriptions, 5,978 of instructions.
  *  The instructions cap is tight on purpose: a new line has to take another out (or raise it explicitly in its PR). */
 export const DYMMSA_BUDGET: ConnectorBudget = { tools: 45, listTotal: 53_000, descriptionsTotal: 19_000, instructions: 6_000 }
 

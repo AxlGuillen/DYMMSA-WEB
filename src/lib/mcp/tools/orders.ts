@@ -9,7 +9,6 @@ import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import type { Order, OrderStatus, OrderWithItems } from '@/types/database'
 
-
 export type OrderRef = Pick<Order, 'id' | 'name' | 'customer_name' | 'status'>
 
 /** An order by UUID or by (partial) name/customer — the lookup the cut and purchase tools share (#109). */

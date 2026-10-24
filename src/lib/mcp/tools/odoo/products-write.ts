@@ -30,7 +30,7 @@ import type { McpContext } from '../../core/context'
 import { fold } from '@/lib/text'
 import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
 import { ToolError } from '@/lib/mcp/core/errors'
-import { parseInput, type InputOf } from '@/lib/mcp/core/schema'
+import { parseInput, withSample, type InputOf } from '@/lib/mcp/core/schema'
 import type { OdooQuotationDeps } from './quotations'
 import { isId, many2oneName, rowsOf } from './resolve'
 
@@ -60,7 +60,7 @@ const satAssignment = z.strictObject({
 export const saveProductShape = {
   productos: z.array(productForCreation).min(1).max(MAX_NEW_PRODUCTS).optional().describe('Alta: productos_para_alta con su clave elegida'),
   asignar: z.array(satAssignment).min(1).max(MAX_SAT_ASSIGN).optional().describe('Clave SAT de productos que ya existen'),
-  autorizacion: z.string().min(1).max(8000).describe('La de la vista previa'),
+  autorizacion: withSample(z.string().min(1).max(8000), '<la autorización de la vista previa>').describe('La de la vista previa'),
 }
 
 export type SaveProductInput = InputOf<typeof saveProductShape>

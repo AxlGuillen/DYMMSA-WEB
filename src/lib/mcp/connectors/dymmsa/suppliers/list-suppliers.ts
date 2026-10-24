@@ -13,7 +13,7 @@ export const listSuppliersTool = defineTool({
   input: {
     buscar: z.string().optional().describe('Texto a buscar en nombre, teléfono, whatsapp o email'),
     marca: z.string().optional().describe('Marca que debe surtir, p. ej. "SURTEK"'),
-    limit: limit(100, 50).describe('Máx proveedores (default 50)'),
+    limit: limit(100, 50, 'proveedores'),
   },
   annotations: readOnly,
   docs: {

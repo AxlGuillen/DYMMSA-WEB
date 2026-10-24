@@ -14,7 +14,7 @@ export const odooListReceivablesTool = defineTool({
     'Toda la cartera de Odoo: "¿quién nos debe y desde cuándo?", "¿a quién le cobro primero?", "¿quién paga más lento?". Cifra bruta por factura abierta, como la pantalla Clientes: totales, `por_cliente` (vencido, por vencer, total y días promedio de pago), las facturas más antiguas y las notas de crédito aparte, sin restar. `ordenar`: vencido (default), total o dias_pago. Para el estado de cuenta de uno, odoo_get_customer.',
   input: {
     ordenar: z.enum(RECEIVABLES_ORDER).optional().describe('Default vencido'),
-    limite: limit(50, 10).describe('Clientes y facturas por lista (default 10)'),
+    limite: limit(50, 10, 'clientes y facturas por lista'),
   },
   annotations: odooRead,
   docs: {
