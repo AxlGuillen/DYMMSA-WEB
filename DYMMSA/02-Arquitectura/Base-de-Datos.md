@@ -95,7 +95,8 @@ La resolución de la Descripción DYMMSA (`fetchCatalogDescriptionMap`) cruza po
 - `SECURITY INVOKER` (aplica la RLS de arriba al que llama), `search_path = ''`, `EXECUTE` solo para `authenticated` (se revoca de `PUBLIC` y `anon`).
 - Las filas llegan ya validadas y normalizadas por `parseCatalogSheet()` (`src/lib/urrea-catalog-store.ts`): código vacío, `(code, brand)` repetido o `std` que no es entero > 0 → 400 que nombra las filas, sin llamar a la función. La función normaliza otra vez (`upper(btrim())`, marca vacía → `URREA`, descripción vacía → null) para que una llamada directa no rompa el invariante.
 - Errores: `P0001` `empty_catalog` (lista vacía: nunca vacía el catálogo) y `empty_code`; `23505` por un `(code, brand)` repetido; `23514` por un `std` ≤ 0. `importCatalog()` los traduce a 400; cualquier otro, a 500 «quedó como estaba».
-- El modo **Actualizar** sigue siendo un solo `upsert` (`onConflict: code,brand`), que ya era atómico; la validación del archivo evita el «ON CONFLICT DO UPDATE command cannot affect row a second time» de un repetido.
+- El modo **Actualizar** sigue siendo un solo `upsert` (`onConflict: code,brand`), que ya era atómico; la validación del archivo evita el «ON CONFLICT DO UPDATE command cannot affect row a second time» de un repetido. Solo manda las columnas que el archivo trae: sin columna `std`, PostgREST no toca el STD guardado y una fila nueva toma el `DEFAULT 1` (review PR #169, ADR-018).
+- Patrón general (función INVOKER para lo atómico, store compartido, aplicar antes del merge): [[04-Decisiones-Tecnicas/ADR-042-Escrituras-Atomicas-y-Stores]].
 
 ---
 
