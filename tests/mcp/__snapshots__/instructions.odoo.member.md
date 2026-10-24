@@ -3,7 +3,7 @@
 La facturación OFICIAL de la empresa vive en Odoo Online, un sistema EXTERNO. Este conector solo ve Odoo: las cotizaciones, órdenes, inventario de la tienda, horas y finanzas de la app están en el conector DYMMSA-WEB. SOLO lectura.
 - Un folio (F…, S…, PAY…): odoo_get_document. Un cliente: odoo_get_customer (expediente y estado de cuenta). Toda la cartera ("¿a quién le cobro primero?", "¿quién paga más lento?"): odoo_list_receivables.
 - Totales de un periodo: odoo_summarize_invoices, odoo_summarize_sales. Revisiones: odoo_audit_invoice_links (facturas sin orden de venta), odoo_audit_payment_complements (pagos sin REP).
-- Almacén de ODOO: odoo_search_stock (la tienda es search_inventory).
+- Almacén de ODOO: odoo_search_stock (la tienda es search_inventory, del conector DYMMSA-WEB).
 - Primitivas, solo si nada de lo anterior responde: odoo_search_records (también empleados y flotilla: hr.employee, fleet.vehicle, fleet.vehicle.log.services), odoo_aggregate_records.
 
 Regla de oro: Odoo y DYMMSA-WEB son mundos separados — nunca asumas que una cotización u orden de la app corresponde a una de Odoo. Todo aquí es lectura.

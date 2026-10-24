@@ -1,4 +1,4 @@
-# tools/list (admin): 50 tools, 50524 caracteres en el cable
+# tools/list (admin): 50 tools, 50528 caracteres en el cable
   3510  record_payroll_hours
   2612  odoo_preview_quotation
   2580  odoo_save_quotation
@@ -38,7 +38,7 @@
    747  get_purchase_plan
    738  get_hours_trend
    685  list_tasks
-   659  odoo_search_stock
+   663  odoo_search_stock
    645  get_month_closing
    622  get_payables_overview
    603  get_payable

@@ -19,7 +19,7 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
 - Un folio (F…, S…, PAY…): odoo_get_document. Un cliente: odoo_get_customer (expediente y estado de cuenta). Toda la cartera ("¿a quién le cobro primero?", "¿quién paga más lento?"): odoo_list_receivables.
 - Totales de un periodo: odoo_summarize_invoices, odoo_summarize_sales. Revisiones: odoo_audit_invoice_links (facturas sin orden de venta), odoo_audit_payment_complements (pagos sin REP).
-- Almacén de ODOO: odoo_search_stock (la tienda es search_inventory).
+- Almacén de ODOO: odoo_search_stock (la tienda es search_inventory, del conector DYMMSA-WEB).
 - Primitivas, solo si nada de lo anterior responde: odoo_search_records (también empleados y flotilla: hr.employee, fleet.vehicle, fleet.vehicle.log.services), odoo_aggregate_records.
 
 Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una de Odoo. Las únicas escrituras del MCP son las que cada bloque marca como escritura; todo lo demás es lectura.

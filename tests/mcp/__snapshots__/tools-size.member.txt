@@ -1,4 +1,4 @@
-# tools/list (member): 39 tools, 34332 caracteres en el cable
+# tools/list (member): 39 tools, 34336 caracteres en el cable
   1517  odoo_search_records
   1311  create_payable
   1268  odoo_aggregate_records
@@ -28,7 +28,7 @@
    747  get_purchase_plan
    738  get_hours_trend
    685  list_tasks
-   659  odoo_search_stock
+   663  odoo_search_stock
    645  get_month_closing
    622  get_payables_overview
    603  get_payable

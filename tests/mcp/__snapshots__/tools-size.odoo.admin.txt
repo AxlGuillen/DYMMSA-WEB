@@ -1,4 +1,4 @@
-# tools/list (admin): 14 tools, 17633 caracteres en el cable
+# tools/list (admin): 14 tools, 17637 caracteres en el cable
   2612  odoo_preview_quotation
   2580  odoo_save_quotation
   1517  odoo_search_records
@@ -12,4 +12,4 @@
    828  odoo_summarize_sales
    826  odoo_audit_payment_complements
    770  odoo_create_draft_invoice
-   659  odoo_search_stock
+   663  odoo_search_stock

@@ -10,7 +10,7 @@ export const ODOO_INVOICE_LINK_RULE = `**Vínculo factura↔orden de venta (Odoo
 export function odooToolMap(admin: boolean): string {
   return `- Un folio (F…, S…, PAY…): odoo_get_document. Un cliente: odoo_get_customer (expediente y estado de cuenta). Toda la cartera ("¿a quién le cobro primero?", "¿quién paga más lento?"): odoo_list_receivables.
 - Totales de un periodo: odoo_summarize_invoices, odoo_summarize_sales. Revisiones: odoo_audit_invoice_links (facturas sin orden de venta), odoo_audit_payment_complements (pagos sin REP).
-- Almacén de ODOO: odoo_search_stock (la tienda es search_inventory).
+- Almacén de ODOO: odoo_search_stock (la tienda es search_inventory, del conector DYMMSA-WEB).
 - Primitivas, solo si nada de lo anterior responde: odoo_search_records (también empleados y flotilla: hr.employee, fleet.vehicle, fleet.vehicle.log.services), odoo_aggregate_records.
 ${admin ? '- Cotizar y facturar (solo administradores): odoo_preview_quotation (solo lee: vista previa y clave) → tras el sí, odoo_save_quotation (BORRADOR, editar o confirmar como venta) → odoo_create_draft_invoice (factura completa en BORRADOR). "Haz esta cotización en Odoo" es este flujo, nunca el navegador. Nunca publica, timbra, envía ni crea clientes; los productos nuevos solo con el botón de la vista (odoo_save_product: no la llames tú).\n' : ''}`
 }

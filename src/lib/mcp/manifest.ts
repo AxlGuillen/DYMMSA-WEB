@@ -31,8 +31,8 @@ export type McpRole = 'admin' | 'member'
  * PR, with its why: each new tool has to earn its place or replace another.
  */
 export const TOOL_BUDGET = {
-  /** Odoo 16 → 20 for the four #144 writes (ADR-040, decided 2026-10-16). */
-  tools: { app: 36, odoo: 20 },
+  /** Odoo 16 → 20 for the four #144 writes (ADR-040); back to 16 with the final catalog (#155 B2a, ADR-041). */
+  tools: { app: 36, odoo: 16 },
   /** Characters of description per tool; the exceptions carry a guide the model needs in full. */
   description: 1000,
   descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,

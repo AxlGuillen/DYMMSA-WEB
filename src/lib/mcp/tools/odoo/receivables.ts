@@ -9,6 +9,7 @@ import { fetchCustomersByIds } from '@/lib/odoo/customers'
 import { fetchOpenCustomerMoves } from '@/lib/odoo/income'
 import { todayIso } from '@/lib/odoo/normalize'
 import {
+  byDueDate,
   customersTotals,
   daysLabel,
   statementLines,
@@ -20,8 +21,6 @@ import {
 
 const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 50
-// Undated lines sort last: they must not take the slots of the most overdue ones.
-const NO_DATE = '9999-12-31'
 
 /** Every open invoice, however old or far off. */
 const WHOLE_PORTFOLIO: StatementRange = { from: null, to: null, filter: 'all' }
@@ -78,7 +77,7 @@ export async function odooListReceivables(odoo: OdooCaller, input: ListReceivabl
   const ordenar = input.ordenar ?? 'vencido'
   const limite = Math.min(MAX_LIMIT, Math.max(1, Math.floor(input.limite ?? DEFAULT_LIMIT)))
 
-  // 2 calls: every open invoice and credit note, then the DSO of only the customers that owe.
+  // Every open invoice and credit note in one read, then the DSO of only the customers that owe (paged by 100).
   const moves = await fetchOpenCustomerMoves(odoo)
   const owing = moves.rows.flatMap((m) => (m.moveType === 'out_invoice' && m.customerId !== null ? [m.customerId] : []))
   const customers = owing.length > 0 ? await fetchCustomersByIds(odoo, owing) : []
@@ -87,13 +86,16 @@ export async function odooListReceivables(odoo: OdooCaller, input: ListReceivabl
   const totals = customersTotals(everyone)
   const rows = everyone.filter((r) => r.openInvoices > 0).sort(ORDER[ordenar])
   const oldest = rows
-    .flatMap((r) => statementLines(moves.rows, r.id, WHOLE_PORTFOLIO, today).map((l) => ({ ...statementLineOut(l), cliente: r.name })))
-    .sort((a, b) => (a.vence ?? NO_DATE).localeCompare(b.vence ?? NO_DATE) || a.folio.localeCompare(b.folio))
+    .flatMap((r) => statementLines(moves.rows, r.id, WHOLE_PORTFOLIO, today).map((line) => ({ line, cliente: r.name })))
+    .sort((a, b) => byDueDate(a.line, b.line))
+    .map(({ line, cliente }) => ({ ...statementLineOut(line), cliente }))
   const withCredit = everyone.filter((r) => r.creditNoteCount > 0).sort((a, b) => b.creditNotes - a.creditNotes)
 
   return {
     corte: today,
     criterio: 'bruto por factura abierta, como la pantalla Clientes; las notas de crédito van aparte y no se restan',
+    // Structured, not only prose: a capped read must never pass for the whole portfolio (review PR #164).
+    truncado: moves.truncated,
     total_por_cobrar: totals.total,
     total_vencido: totals.overdue,
     total_por_vencer: totals.upcoming,

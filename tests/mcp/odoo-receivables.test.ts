@@ -99,9 +99,24 @@ describe('odoo_list_receivables', () => {
     expect(empty.calls).toHaveLength(1)
     expect(none).toMatchObject({ total_por_cobrar: 0, clientes_con_saldo: 0, por_cliente: [], facturas_mas_antiguas: [] })
 
+    expect(none.truncado).toBe(false)
+
     const full = Array.from({ length: 500 }, (_, i) => OPEN({ id: i + 1, name: `F${i}`, partner_id: [24, 'Andritz'] }))
     const { odoo } = fakeOdoo({ 'account.move.search_read': [full], 'res.partner.search_read': [PARTNERS] })
-    expect((await odooListReceivables(odoo)).nota).toMatch(/máximo de facturas abiertas/)
+    const capped = await odooListReceivables(odoo)
+    expect(capped.truncado).toBe(true)
+    expect(capped.nota).toMatch(/máximo de facturas abiertas/)
+  })
+
+  test('sin vencimiento ordena por la fecha de factura, como la pantalla Clientes', async () => {
+    const moves = [
+      OPEN({ id: 1, name: 'F-SIN-FECHAS', invoice_date: false, invoice_date_due: false }),
+      OPEN({ id: 2, name: 'F-SOLO-EMISION', invoice_date: '2020-01-15', invoice_date_due: false }),
+      OPEN({ id: 3, name: 'F-VENCE', invoice_date_due: '2020-03-01' }),
+    ]
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [moves], 'res.partner.search_read': [PARTNERS] })
+    const { facturas_mas_antiguas } = await odooListReceivables(odoo)
+    expect(facturas_mas_antiguas.map((f) => f.folio)).toEqual(['F-SOLO-EMISION', 'F-VENCE', 'F-SIN-FECHAS'])
   })
 })
 

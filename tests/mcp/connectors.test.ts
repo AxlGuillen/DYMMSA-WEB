@@ -40,7 +40,9 @@ describe('rutas de los conectores', () => {
     }
     const odoo = (await (await metadataFor(['api', 'odoo', 'mcp'])).json()) as { resource: string }
     expect(odoo.resource).toBe('http://localhost:3000/api/odoo/mcp')
-    expect((await metadataFor(['api', 'otra'])).status).toBe(404)
+    const missing = await metadataFor(['api', 'otra'])
+    expect(missing.status).toBe(404)
+    expect(missing.headers.get('access-control-allow-origin')).toBe('*')
   })
 })
 
@@ -76,7 +78,7 @@ describe('conector Odoo DYMMSA', () => {
       'odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice',
     ])
     const texts = [
-      ...dymmsaConnector.tools.map((t) => t.description),
+      ...[...dymmsaConnector.tools, ...odooConnector.tools].map((t) => t.description),
       ...(['admin', 'member'] as const).flatMap((role) => [odooConnector.instructions(role), dymmsaConnector.instructions(role)]),
     ]
     for (const name of RETIRED_NAMES) {
