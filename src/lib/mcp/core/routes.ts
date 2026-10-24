@@ -1,4 +1,4 @@
-/** MCP route constants (ADR-023), safe on client and server. */
+/** MCP route constants (ADR-023). Server-only like the rest of lib/mcp: client-boundary.test.ts keeps it out of client bundles. */
 
 export const MCP_PATH = '/api/mcp'
 

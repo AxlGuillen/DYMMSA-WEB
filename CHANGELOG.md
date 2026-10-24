@@ -24,7 +24,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   traer todo sin filtrar o guardar con el valor de siempre. En el conector de
   Odoo los datos de las búsquedas ahora van en español (`desde`, `hasta`,
   `agrupar_por`, `limite`…).
-- [admin] **Odoo ahora vive en su propio conector, «Odoo DYMMSA».** El
+- **Odoo ahora vive en su propio conector, «Odoo DYMMSA».** El
   conector de DYMMSA ya no trae las herramientas de Odoo (facturas, cobranza,
   ventas, cotizar y facturar en Odoo). Para seguir usándolas, agrega el
   conector en Claude: Configuración → Conectores → Agregar conector
