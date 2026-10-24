@@ -17,7 +17,7 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   tienen clave.
 
 ### Mejorado
-- [admin] **Odoo ahora vive en su propio conector, «Odoo DYMMSA».** El
+- **Odoo ahora vive en su propio conector, «Odoo DYMMSA».** El
   conector de DYMMSA ya no trae las herramientas de Odoo (facturas, cobranza,
   ventas, cotizar y facturar en Odoo). Para seguir usándolas, agrega el
   conector en Claude: Configuración → Conectores → Agregar conector

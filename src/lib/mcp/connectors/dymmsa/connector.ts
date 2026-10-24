@@ -4,7 +4,8 @@ import type { ConnectorBudget } from '@/lib/mcp/manifest'
 import { serverInstructions } from '@/lib/mcp/server'
 import { DYMMSA_TOOLS } from '.'
 
-/** Caps of this connector (ADR-041), tools/list on the wire. B3: 36 tools, 32,891 on the wire, 12,925 of descriptions, 5,978 of instructions. */
+/** Caps of this connector (ADR-041), tools/list on the wire. B3: 36 tools, 32,891 on the wire, 12,925 of descriptions, 5,978 of instructions.
+ *  The instructions cap is tight on purpose: a new line has to take another out (or raise it explicitly in its PR). */
 export const DYMMSA_BUDGET: ConnectorBudget = { tools: 45, listTotal: 53_000, descriptionsTotal: 19_000, instructions: 6_000 }
 
 /** «DYMMSA-WEB» at /api/mcp: only the app's own tools since #155 B3; Odoo is «Odoo DYMMSA». */
