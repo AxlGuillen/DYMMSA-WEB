@@ -1,37 +1,34 @@
-# tools/list (member): 44 tools, 37104 caracteres en el cable
-  1396  odoo_query
+# tools/list (member): 39 tools, 34332 caracteres en el cable
+  1517  odoo_search_records
   1311  create_payable
+  1268  odoo_aggregate_records
   1239  update_payable
   1237  save_supplier
   1219  update_task
-  1204  odoo_invoice_link_check
-  1139  odoo_aggregate
+  1204  odoo_audit_invoice_links
+  1157  odoo_get_customer
+  1118  odoo_get_document
   1067  mark_payable_paid
   1052  list_quotations
-  1019  odoo_customer_profile
   1004  save_material_presentation
    991  list_payables
    971  get_week_hours
-   965  odoo_overdue_invoices
-   960  odoo_receivables_ranking
    935  list_orders
-   908  odoo_invoices_summary
+   920  odoo_list_receivables
+   909  odoo_summarize_invoices
    903  set_inventory_location
-   878  odoo_invoice_detail
    861  search_inventory
    842  create_task
-   837  odoo_sales_summary
-   825  odoo_sale_detail
+   828  odoo_summarize_sales
+   826  odoo_audit_payment_complements
    814  search_products
    795  get_profiles
    786  list_suppliers
-   779  odoo_rep_audit
    769  get_cut_plan
    747  get_purchase_plan
    738  get_hours_trend
-   704  odoo_payment_detail
    685  list_tasks
-   658  odoo_stock_check
+   659  odoo_search_stock
    645  get_month_closing
    622  get_payables_overview
    603  get_payable
@@ -41,5 +38,3 @@
    501  get_business_summary
    484  get_app_settings
    479  get_task
-   465  odoo_employee_directory
-   441  odoo_fleet_status

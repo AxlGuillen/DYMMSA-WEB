@@ -1,16 +1,11 @@
-# tools/list (member): 15 tools, 13178 caracteres en el cable
-  1396  odoo_query
-  1204  odoo_invoice_link_check
-  1139  odoo_aggregate
-  1019  odoo_customer_profile
-   965  odoo_overdue_invoices
-   960  odoo_receivables_ranking
-   908  odoo_invoices_summary
-   878  odoo_invoice_detail
-   837  odoo_sales_summary
-   825  odoo_sale_detail
-   779  odoo_rep_audit
-   704  odoo_payment_detail
-   658  odoo_stock_check
-   465  odoo_employee_directory
-   441  odoo_fleet_status
+# tools/list (member): 10 tools, 10406 caracteres en el cable
+  1517  odoo_search_records
+  1268  odoo_aggregate_records
+  1204  odoo_audit_invoice_links
+  1157  odoo_get_customer
+  1118  odoo_get_document
+   920  odoo_list_receivables
+   909  odoo_summarize_invoices
+   828  odoo_summarize_sales
+   826  odoo_audit_payment_complements
+   659  odoo_search_stock

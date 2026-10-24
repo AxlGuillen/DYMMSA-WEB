@@ -1,12 +1,12 @@
 import { z } from 'zod'
 import { callOdoo } from '@/lib/odoo/client'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
-import { odooInvoiceLinkCheck } from '@/lib/mcp/tools/odoo/links'
+import { odooAuditInvoiceLinks } from '@/lib/mcp/tools/odoo/links'
+import { odooRead } from '../shared'
 
-export const odooInvoiceLinkCheckTool = defineTool({
+export const odooAuditInvoiceLinksTool = defineTool({
   connector: 'odoo',
-  name: 'odoo_invoice_link_check',
+  name: 'odoo_audit_invoice_links',
   kind: 'read',
   title: 'Facturas sin orden de venta (Odoo)',
   description:
@@ -17,11 +17,11 @@ export const odooInvoiceLinkCheckTool = defineTool({
     cliente: z.string().optional().describe('Nombre (o parte) del cliente para acotar'),
     incluir_ligadas: z.boolean().optional().describe('true = también listar las facturas correctamente ligadas'),
   },
-  annotations: readOnly,
+  annotations: odooRead,
   docs: {
     module: 'Contabilidad',
     title: 'Facturas sin orden de venta',
     example: '¿Que facturas del mes no estan ligadas a su orden de venta?',
   },
-  handler: (input) => odooInvoiceLinkCheck(callOdoo, input),
+  handler: (input) => odooAuditInvoiceLinks(callOdoo, input),
 })

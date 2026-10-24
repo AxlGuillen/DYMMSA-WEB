@@ -60,46 +60,82 @@ function partnerDomain(query: string): DomainItem[] {
   return [['name', 'ilike', escapeLike(query)]]
 }
 
+/** A partner found by the shared lookup, with its raw row for the extra fields a read asked for. */
+export interface FoundPartner {
+  readonly partner: WritePartner
+  readonly row: Row
+}
+
 /** Nameless rows are addresses (invoice, delivery), never the customer to quote. */
-function parsePartners(value: unknown): WritePartner[] {
+function parsePartners(value: unknown): FoundPartner[] {
   return rowsOf(value).flatMap((row) => {
     if (!isId(row.id)) throw new OdooError('Odoo devolvió un cliente que no pude leer.')
     const name = text(row.name)
-    return name ? [{ id: row.id, name, vat: text(row.vat), isCompany: row.id === COMPANY_PARTNER_ID }] : []
+    return name ? [{ partner: { id: row.id, name, vat: text(row.vat), isCompany: row.id === COMPANY_PARTNER_ID }, row }] : []
   })
 }
 
 const partnerLabel = (p: WritePartner) => `${p.name} (#${p.id})`
 
-/** Name, RFC or '#id'; no customer_rank filter: quote-only customers and the company itself have 0. */
-export async function resolvePartnerForWrite(odoo: OdooCaller, query: string): Promise<WritePartner> {
+async function searchPartners(odoo: OdooCaller, domain: DomainItem[], fields: readonly string[], archived: boolean) {
+  return parsePartners(
+    await odoo('res.partner', 'search_read', {
+      domain,
+      fields: [...fields],
+      limit: PARTNER_LIMIT,
+      order: 'name asc',
+      ...(archived ? { context: { active_test: false } } : {}),
+    }),
+  )
+}
+
+function pickPartner(found: FoundPartner[], q: string): FoundPartner {
+  const exact = found.filter((p) => fold(p.partner.name) === fold(q))
+  return requireSingleMatch(exact.length > 0 ? exact : found, (p) => partnerLabel(p.partner), 'cliente en Odoo', q)
+}
+
+export interface PartnerLookupOptions {
+  /** Read on top of name/vat/active (odoo_get_customer, #155). */
+  fields?: readonly string[]
+  /** 'read': an archived customer still has a statement to show; a write refuses it (#144). */
+  archived?: 'refuse' | 'read'
+}
+
+/**
+ * Name, RFC or '#id', exact first, never a guess: one lookup for the writes (#144) and odoo_get_customer (#155).
+ * No customer_rank filter: quote-only customers and the company itself have 0.
+ */
+export async function resolvePartner(
+  odoo: OdooCaller,
+  query: string,
+  opts: PartnerLookupOptions = {},
+): Promise<FoundPartner & { archived: boolean }> {
   const q = query.trim()
   if (!q) throw new ToolError('Indica el cliente: nombre, RFC o #id.')
   const domain = partnerDomain(q)
-  const found = parsePartners(
-    await odoo('res.partner', 'search_read', { domain, fields: PARTNER_FIELDS, limit: PARTNER_LIMIT, order: 'name asc' }),
-  )
-  if (found.length === 0) {
-    const archived = parsePartners(
-      await odoo('res.partner', 'search_read', {
-        domain,
-        fields: PARTNER_FIELDS,
-        limit: PARTNER_LIMIT,
-        order: 'name asc',
-        context: { active_test: false },
-      }),
-    )
-    if (archived.length > 0) {
-      throw new ToolError(
-        `El cliente ${archived.slice(0, 3).map(partnerLabel).join(', ')} está archivado en Odoo: reactívalo ahí y vuelve a pedirlo. El asistente no da de alta ni reactiva clientes.`,
-      )
-    }
+  const fields = [...new Set([...PARTNER_FIELDS, ...(opts.fields ?? [])])]
+  const found = await searchPartners(odoo, domain, fields, false)
+  if (found.length > 0) return { ...pickPartner(found, q), archived: false }
+
+  const archived = await searchPartners(odoo, domain, fields, true)
+  if (opts.archived === 'read') {
+    if (archived.length > 0) return { ...pickPartner(archived, q), archived: true }
     throw new ToolError(
-      `No hay ningún cliente en Odoo que coincida con "${q}": créalo en Odoo (el asistente no da de alta clientes) y vuelve a pedirlo.`,
+      `No hay ningún cliente en Odoo que coincida con "${q}". Prueba con otra parte del nombre, el RFC o el #id (p. ej. "Andritz", "AHY9601017X4" o "#24").`,
     )
   }
-  const exact = found.filter((p) => fold(p.name) === fold(q))
-  return requireSingleMatch(exact.length > 0 ? exact : found, partnerLabel, 'cliente en Odoo', q)
+  if (archived.length > 0) {
+    throw new ToolError(
+      `El cliente ${archived.slice(0, 3).map((p) => partnerLabel(p.partner)).join(', ')} está archivado en Odoo: reactívalo ahí y vuelve a pedirlo. El asistente no da de alta ni reactiva clientes.`,
+    )
+  }
+  throw new ToolError(
+    `No hay ningún cliente en Odoo que coincida con "${q}": créalo en Odoo (el asistente no da de alta clientes) y vuelve a pedirlo.`,
+  )
+}
+
+export async function resolvePartnerForWrite(odoo: OdooCaller, query: string): Promise<WritePartner> {
+  return (await resolvePartner(odoo, query)).partner
 }
 
 const PRODUCT_FIELDS = [

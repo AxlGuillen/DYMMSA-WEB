@@ -11,7 +11,8 @@ export const odooSaveProductTool = defineTool({
   description:
     'Solo la llama el botón de la vista de odoo_preview_quotation: da de alta en Odoo los productos nuevos de esa vista previa (bienes, IVA 16, factura por entrega). Sin la autorización de la vista no crea nada.',
   input: saveProductShape,
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // Only creates; a product that already exists comes back as ya_existian (#155).
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   adminOnly: true,
   visibility: ['app'],
   docs: {

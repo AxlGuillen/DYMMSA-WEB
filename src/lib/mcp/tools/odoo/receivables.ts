@@ -1,28 +1,37 @@
 /**
- * Odoo phase 8 (#113): the customer's receivable figures as Odoo computes them — total_due,
- * total_overdue and DSO (average days to pay). Computed and not stored, so the ranking reads
- * every customer and orders in memory; no domain or order on these fields ever reaches Odoo.
+ * The whole portfolio (#155, ADR-041): ONE figure, gross per open invoice like the Clientes screen
+ * (lib/customers.ts), credit notes apart and never subtracted (#102), currencies summed unconverted
+ * but named (ADR-027 §7). Odoo's net ledger figures (#113) live only in odoo_get_customer.
  */
 
 import type { OdooCaller } from '@/lib/odoo/client'
-import { normalizeRecords } from '@/lib/odoo/normalize'
+import { fetchCustomersByIds } from '@/lib/odoo/customers'
+import { fetchOpenCustomerMoves } from '@/lib/odoo/income'
+import { todayIso } from '@/lib/odoo/normalize'
+import {
+  customersTotals,
+  daysLabel,
+  statementLines,
+  summarizeCustomers,
+  type CustomerRow,
+  type StatementLine,
+  type StatementRange,
+} from '@/lib/customers'
 
-// 100 per page: every row computes three receivable fields against the partner's ledger, and the
-// client aborts a call at 25 s (review PR #117) — one more page beats one lost call.
-const PAGE = 100
-const MAX_PAGES = 10
 const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 50
+// Undated lines sort last: they must not take the slots of the most overdue ones.
+const NO_DATE = '9999-12-31'
+
+/** Every open invoice, however old or far off. */
+const WHOLE_PORTFOLIO: StatementRange = { from: null, to: null, filter: 'all' }
+
+export const RECEIVABLES_ORDER = ['vencido', 'total', 'dias_pago'] as const
+export type ReceivablesOrder = (typeof RECEIVABLES_ORDER)[number]
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
-/** Sums of MXN amounts pick up float noise; two decimals is the currency. */
-const money = (v: number) => Math.round(v * 100) / 100
 
-/**
- * Digested receivable block shared by the customer profile and the ranking. Odoo's ledger
- * balance: NET of credit notes and in company currency — never to be squared against the gross
- * per-invoice figures (#102).
- */
+/** Odoo's ledger balance for one partner: NET of credit notes and in company currency (#102, #113). */
 export function receivableBlock(p: Record<string, unknown>) {
   const dso = num(p.days_sales_outstanding)
   return {
@@ -33,60 +42,81 @@ export function receivableBlock(p: Record<string, unknown>) {
 }
 
 export const CARTERA_NOTA =
-  'Saldo contable de Odoo: neto de notas de crédito y en moneda de la compañía — no lo cuadres contra facturacion.total_pendiente ni facturas_vencidas (brutos por factura), ni le restes notas de crédito otra vez.'
+  'Saldo contable de Odoo: neto de notas de crédito y en moneda de la compañía — no lo cuadres contra estado_de_cuenta (bruto por factura) ni le restes notas de crédito otra vez.'
 
-export async function odooReceivablesRanking(odoo: OdooCaller, input: { limit?: number } = {}) {
-  const limit = Math.min(MAX_LIMIT, Math.max(1, Math.floor(input.limit ?? DEFAULT_LIMIT)))
-
-  const domain = [['customer_rank', '>', 0]]
-  const partners: Record<string, unknown>[] = []
-  let pages = 0
-  let total: number | null = null
-  for (;;) {
-    const page = normalizeRecords(
-      await odoo('res.partner', 'search_read', {
-        domain,
-        fields: ['name', 'total_due', 'total_overdue', 'days_sales_outstanding'],
-        limit: PAGE,
-        offset: pages * PAGE,
-        order: 'customer_rank desc, id asc',
-      }),
-    )
-    pages += 1
-    partners.push(...page)
-    if (page.length < PAGE) break
-    if (pages >= MAX_PAGES) {
-      // A full last page is not proof of more: one count says whether anyone was left out.
-      total = Number(await odoo('res.partner', 'search_count', { domain }))
-      break
-    }
+/** One statement line as the Odoo customer tools show it. */
+export function statementLineOut(l: StatementLine) {
+  return {
+    folio: l.folio,
+    emitida: l.invoiceDate,
+    vence: l.dueDate,
+    estado: l.status === 'overdue' ? 'vencida' : 'por vencer',
+    dias: daysLabel(l),
+    saldo: l.residual,
+    total: l.total,
+    moneda: l.currency,
   }
-  const truncated = total !== null && (!Number.isFinite(total) || total > partners.length)
+}
 
-  const withBalance = partners
-    .map((p) => ({ cliente: (p.name as string | null) ?? 'Sin nombre', ...receivableBlock(p) }))
-    .filter((c) => (c.deuda_total ?? 0) > 0)
+/** undefined disappears on serialize: currencies are named only when something was summed unconverted. */
+export const unconverted = (currencies: readonly string[]) => (currencies.length ? [...currencies] : undefined)
 
-  const byOverdue = [...withBalance].sort(
-    (a, b) => (b.vencido ?? 0) - (a.vencido ?? 0) || (b.deuda_total ?? 0) - (a.deuda_total ?? 0),
-  )
-  const bySlowness = withBalance
-    .filter((c) => c.dias_promedio_de_pago !== null)
-    .sort((a, b) => (b.dias_promedio_de_pago ?? 0) - (a.dias_promedio_de_pago ?? 0))
+// A customer without Odoo's DSO goes last: "slowest" needs a payment history.
+const ORDER: Record<ReceivablesOrder, (a: CustomerRow, b: CustomerRow) => number> = {
+  vencido: (a, b) => b.overdue - a.overdue || b.total - a.total,
+  total: (a, b) => b.total - a.total || b.overdue - a.overdue,
+  dias_pago: (a, b) => (b.daysToPay ?? -1) - (a.daysToPay ?? -1) || b.total - a.total,
+}
+
+export interface ListReceivablesInput {
+  ordenar?: ReceivablesOrder
+  limite?: number
+}
+
+export async function odooListReceivables(odoo: OdooCaller, input: ListReceivablesInput = {}) {
+  const today = todayIso()
+  const ordenar = input.ordenar ?? 'vencido'
+  const limite = Math.min(MAX_LIMIT, Math.max(1, Math.floor(input.limite ?? DEFAULT_LIMIT)))
+
+  // 2 calls: every open invoice and credit note, then the DSO of only the customers that owe.
+  const moves = await fetchOpenCustomerMoves(odoo)
+  const owing = moves.rows.flatMap((m) => (m.moveType === 'out_invoice' && m.customerId !== null ? [m.customerId] : []))
+  const customers = owing.length > 0 ? await fetchCustomersByIds(odoo, owing) : []
+
+  const everyone = summarizeCustomers(customers, moves.rows, WHOLE_PORTFOLIO, today)
+  const totals = customersTotals(everyone)
+  const rows = everyone.filter((r) => r.openInvoices > 0).sort(ORDER[ordenar])
+  const oldest = rows
+    .flatMap((r) => statementLines(moves.rows, r.id, WHOLE_PORTFOLIO, today).map((l) => ({ ...statementLineOut(l), cliente: r.name })))
+    .sort((a, b) => (a.vence ?? NO_DATE).localeCompare(b.vence ?? NO_DATE) || a.folio.localeCompare(b.folio))
+  const withCredit = everyone.filter((r) => r.creditNoteCount > 0).sort((a, b) => b.creditNotes - a.creditNotes)
 
   return {
-    // Partners with a balance but no customer rank (manual invoices) are outside this universe.
-    universo: 'clientes de Odoo (customer_rank > 0) con saldo; cifras contables netas de notas de crédito',
-    clientes_con_saldo: withBalance.length,
-    deuda_total: money(withBalance.reduce((sum, c) => sum + (c.deuda_total ?? 0), 0)),
-    vencido_total: money(withBalance.reduce((sum, c) => sum + (c.vencido ?? 0), 0)),
-    // Who to collect from first: overdue amount, then total owed.
-    por_vencido: byOverdue.slice(0, limit),
-    // Who pays slowest: Odoo's DSO, averaged over the customer's history.
-    mas_lentos: bySlowness.slice(0, limit).map((c) => ({ cliente: c.cliente, dias_promedio_de_pago: c.dias_promedio_de_pago, deuda_total: c.deuda_total })),
-    llamadas: pages + (total !== null ? 1 : 0),
-    nota: truncated
-      ? `Ranking sobre ${partners.length} clientes leídos${Number.isFinite(total) ? ` de ${total}` : ''} — puede faltar alguno de menor relevancia.`
-      : null,
+    corte: today,
+    criterio: 'bruto por factura abierta, como la pantalla Clientes; las notas de crédito van aparte y no se restan',
+    total_por_cobrar: totals.total,
+    total_vencido: totals.overdue,
+    total_por_vencer: totals.upcoming,
+    facturas: totals.openInvoices,
+    clientes_con_saldo: rows.length,
+    monedas_sin_convertir: unconverted(totals.currencies),
+    ordenado_por: ordenar,
+    por_cliente: rows.slice(0, limite).map((r) => ({
+      cliente: r.name,
+      facturas: r.openInvoices,
+      vencido: r.overdue,
+      por_vencer: r.upcoming,
+      total: r.total,
+      dias_promedio_de_pago: r.daysToPay,
+      monedas_sin_convertir: unconverted(r.currencies),
+    })),
+    // Oldest due first across customers; `limite` caps the lists, the totals above cover everything.
+    facturas_mas_antiguas: oldest.slice(0, limite),
+    notas_credito_sin_aplicar: {
+      total: totals.creditNotes,
+      documentos: withCredit.reduce((n, r) => n + r.creditNoteCount, 0),
+      por_cliente: withCredit.slice(0, limite).map((r) => ({ cliente: r.name, documentos: r.creditNoteCount, saldo_a_favor: r.creditNotes })),
+    },
+    nota: moves.truncated ? 'Odoo devolvió el máximo de facturas abiertas: puede faltar alguna.' : undefined,
   }
 }

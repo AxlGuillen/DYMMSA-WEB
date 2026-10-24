@@ -1,16 +1,11 @@
-/** Odoo phase 2 — contacts + sales (ADR-025). date_order is a DATETIME: ranges expand to day bounds so records aren't lost. */
+/** Odoo phase 2 — sales (ADR-025). date_order is a DATETIME: ranges expand to day bounds so records aren't lost. */
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import type { DomainTriple } from '@/lib/odoo/catalog'
-import { daysSince, normalizeGroups, normalizeRecord, normalizeRecords, todayIso } from '@/lib/odoo/normalize'
-import { ToolError } from '@/lib/mcp/core/errors'
-import { OPEN_CREDIT_NOTES_DOMAIN, overdueDomain } from '@/lib/odoo/domains'
-import { creditNotesByCustomer } from './accounting'
-import { CARTERA_NOTA, receivableBlock } from './receivables'
-
+import { normalizeGroups } from '@/lib/odoo/normalize'
 import { assertDateRange } from './dates'
 
-export interface SalesSummaryInput {
+export interface SummarizeSalesInput {
   date_from?: string
   date_to?: string
   group_by?: 'estado' | 'cliente' | 'vendedor' | 'mes'
@@ -18,14 +13,14 @@ export interface SalesSummaryInput {
   incluir?: 'confirmadas' | 'todas'
 }
 
-const SALES_GROUP_FIELD: Record<NonNullable<SalesSummaryInput['group_by']>, string> = {
+const SALES_GROUP_FIELD: Record<NonNullable<SummarizeSalesInput['group_by']>, string> = {
   estado: 'state',
   cliente: 'partner_id',
   vendedor: 'user_id',
   mes: 'date_order:month',
 }
 
-export async function odooSalesSummary(odoo: OdooCaller, input: SalesSummaryInput = {}) {
+export async function odooSummarizeSales(odoo: OdooCaller, input: SummarizeSalesInput = {}) {
   assertDateRange(input.date_from, input.date_to)
 
   const incluir = input.incluir ?? 'confirmadas'
@@ -52,110 +47,5 @@ export async function odooSalesSummary(odoo: OdooCaller, input: SalesSummaryInpu
     total_ventas: grupos.reduce((sum, g) => sum + ((g.amount_total as number) ?? 0), 0),
     ordenes: grupos.reduce((sum, g) => sum + ((g.count as number) ?? 0), 0),
     grupos,
-  }
-}
-
-const PARTNER_FIELDS = ['name', 'email', 'phone', 'vat', 'city', 'country_id', 'customer_rank']
-// Odoo's receivable figures, computed per partner (#113): requested explicitly, never filterable.
-const RECEIVABLE_FIELDS = ['total_due', 'total_overdue', 'days_sales_outstanding']
-
-export async function odooCustomerProfile(odoo: OdooCaller, input: { cliente: string }) {
-  const query = input.cliente?.trim()
-  if (!query) throw new ToolError('Indica el nombre (o parte del nombre) del cliente')
-
-  const matches = normalizeRecords(
-    await odoo('res.partner', 'search_read', {
-      domain: [['name', 'ilike', query]],
-      fields: [...PARTNER_FIELDS, ...RECEIVABLE_FIELDS],
-      limit: 5,
-      order: 'customer_rank desc',
-    }),
-  )
-  if (matches.length === 0) {
-    return {
-      encontrado: false as const,
-      mensaje: `Ningún contacto en Odoo coincide con "${query}"`,
-      coincidencias: [] as unknown[],
-    }
-  }
-  if (matches.length > 1) {
-    return {
-      encontrado: false as const,
-      mensaje: `Hay ${matches.length} coincidencias — precisa el nombre`,
-      coincidencias: matches.map((m) => m.name),
-    }
-  }
-
-  const { total_due, total_overdue, days_sales_outstanding, ...partner } = matches[0]
-  const partnerId = partner.id as number
-
-  // 5 more calls (the queue serializes them): sales, invoicing, overdue, credit-note total and list.
-  const ventas = normalizeGroups(
-    await odoo('sale.order', 'read_group', {
-      domain: [['partner_id', '=', partnerId]],
-      fields: ['amount_total:sum'],
-      groupby: ['state'],
-    }),
-  )
-  const facturacion = normalizeGroups(
-    await odoo('account.move', 'read_group', {
-      domain: [['partner_id', '=', partnerId], ['move_type', '=', 'out_invoice'], ['state', '=', 'posted']],
-      fields: ['amount_total:sum', 'amount_residual:sum'],
-      groupby: ['payment_state'],
-    }),
-  )
-  const vencidas = normalizeRecords(
-    await odoo('account.move', 'search_read', {
-      domain: [...overdueDomain(todayIso()), ['partner_id', '=', partnerId]],
-      fields: ['name', 'invoice_date_due', 'amount_residual'],
-      limit: 5,
-      order: 'invoice_date_due asc',
-    }),
-  )
-  // Total from read_group, list from a limited search_read — the block's rule: totals never
-  // come from a truncated list (review PR #103).
-  const creditTotal = await creditNotesByCustomer(odoo, [['partner_id', '=', partnerId]])
-  const notasCredito = normalizeRecords(
-    await odoo('account.move', 'search_read', {
-      domain: [...OPEN_CREDIT_NOTES_DOMAIN, ['partner_id', '=', partnerId]],
-      fields: ['name', 'invoice_date', 'amount_residual'],
-      limit: 10,
-      order: 'invoice_date desc',
-    }),
-  )
-
-  // Odoo draft/sent are quotations, not sales: the total sums confirmed only,
-  // while por_estado keeps everything for context.
-  const CONFIRMED = new Set(['sale', 'done'])
-  return {
-    encontrado: true as const,
-    cliente: normalizeRecord(partner),
-    cartera: { ...receivableBlock({ total_due, total_overdue, days_sales_outstanding }), nota: CARTERA_NOTA },
-    ventas: {
-      total_confirmado: ventas
-        .filter((g) => CONFIRMED.has(g.state as string))
-        .reduce((sum, g) => sum + ((g.amount_total as number) ?? 0), 0),
-      por_estado: ventas,
-    },
-    facturacion: {
-      total_facturado: facturacion.reduce((sum, g) => sum + ((g.amount_total as number) ?? 0), 0),
-      total_pendiente: facturacion.reduce((sum, g) => sum + ((g.amount_residual as number) ?? 0), 0),
-      por_estado_pago: facturacion,
-    },
-    facturas_vencidas: vencidas.map((inv) => ({
-      folio: inv.name,
-      vencio: inv.invoice_date_due,
-      dias_vencida: typeof inv.invoice_date_due === 'string' ? daysSince(inv.invoice_date_due) : null,
-      monto_pendiente: inv.amount_residual,
-    })),
-    // Customer credit, informed apart: NOT subtracted from total_pendiente (#102).
-    notas_credito_sin_aplicar: {
-      saldo_a_favor: creditTotal.total,
-      documentos: creditTotal.documentos,
-      ultimas: notasCredito.map((n) => ({
-        folio: n.name, fecha: n.invoice_date, saldo: Math.abs((n.amount_residual as number) ?? 0),
-      })),
-      lista_completa: notasCredito.length >= creditTotal.documentos,
-    },
   }
 }
