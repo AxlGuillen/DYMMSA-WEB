@@ -1,7 +1,7 @@
 # ADR-041: dos conectores MCP (DYMMSA-WEB y Odoo DYMMSA) y reglas de composición de tools
 
 **Fecha:** 2026-10-22
-**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector». **C1 hecho (2026-10-24):** entrada estricta, errores en español y `DomainError`; ver § «C1: contrato de entrada y errores». **C2 hecho (2026-10-24):** las cuatro anotaciones en cada tool de los dos conectores, derivadas del tipo; ver § «C2: anotaciones».
+**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector». **C1 hecho (2026-10-24):** entrada estricta, errores en español y `DomainError`; ver § «C1: contrato de entrada y errores». **C2 hecho (2026-10-24):** las cuatro anotaciones en cada tool de los dos conectores, derivadas del tipo; ver § «C2: anotaciones». **C3 hecho (2026-10-24):** envolturas estándar, `structuredContent` en cada resultado y `outputSchema` en las dos vistas; ver § «C3: envolturas y `structuredContent`».
 **Relacionado:** [[ADR-015-MCP-Interno]] · [[ADR-023-MCP-OAuth]] · [[ADR-025-Bloque-Odoo-MCP]] · [[ADR-033-Nomina-Horas-por-Corte]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]] · [[ADR-040-Escrituras-Acotadas-en-Odoo]] · issue #155
 
 ## Contexto
@@ -221,6 +221,81 @@ Cumple la decisión 10 y R8 del plan: **siempre las cuatro, explícitas**, en la
 Cada tool paga unos 46 caracteres por las dos llaves nuevas. La auditoría estimaba unos 2,600 en el cable para DYMMSA-WEB contando las 44 tools del catálogo objetivo.
 
 **Pendiente (pregunta del plan §9):** probar en claude.ai si `destructiveHint` u `openWorldHint` cambian qué tools piden aprobación por default.
+
+## C3: envolturas y `structuredContent` (2026-10-24)
+
+Cumple la decisión 9 (respuestas) en lo que no cambia la forma de las tools que ya existen: esas se migran cuando C6 las fusiona o renombra, para romper las rutinas una sola vez ([[02-Arquitectura/MCP-Escrituras/Auditoria-codigo]] §3.5).
+
+**Las llaves elegidas.** La tabla de la §3.5 y el plan §4 difieren. Gana el plan, completado con la §4.3 de [[02-Arquitectura/MCP-Escrituras/Auditoria-DYMMSA-WEB]], que es su versión detallada:
+
+| Envoltura | Llaves | Helper (`core/envelope.ts`) |
+|---|---|---|
+| Colección | `total`, `pagina`, `por_pagina`, `hay_mas`, `nota?` y al final `<plural>` | `listResult(plural, filas, { total, pagina, por_pagina }, nota?)` |
+| Registro | `ref?`, la entidad, `avisos?`, `nota?` | `recordResult(entidad, { ref, avisos, nota })` y `refOf(uuid)` |
+| Escritura | `accion`, `escrito`, `<entidad>`, `cambios?`, `avisos?`, `bloqueos?`, `clave?`, `vence?`, `nota?` | `writeResult(accion, entidad, datos, detalles)` y `diff(antes, ahora, ignorar)` |
+| Vista previa | `puede_guardar`, `bloqueos`, `avisos`, `clave`, `vence`, `siguiente_paso` | `previewEnvelope` (shape zod; el helper que firma la clave es C4) |
+| Error | `isError` con el texto de `toToolResult` (C1), nunca `structuredContent` | sin cambio |
+
+Cómo se decidió cada diferencia:
+1. **Colección: `hay_mas` y `por_pagina`** (plan) en vez de `truncado`, `mostrados` y `paginas` (§3.5).
+   - `mostrados` es el largo de la lista y `paginas` sale de `total` y `por_pagina`: no viajan.
+   - `hay_mas` se calcula de los números (`(pagina − 1) × por_pagina + mostrados < total`), así que no puede contradecirlos.
+   - Sin `nota` propia, la envoltura dice «Hay N más: pide pagina=X.» (§4.4 de la auditoría).
+2. **Escritura: `escrito` es booleano** (§4.3) y **sale de `accion`**: solo `creado`, `actualizado` y `borrado` escriben. La entidad va con su nombre (`factura`, `proveedor`), no en una llave genérica.
+3. **Tokens de `accion`:** la unión de las dos listas, con la ortografía del plan: `simulado | creado | actualizado | borrado | sin_cambios | ya_existia`.
+   - `borrado`, el de `delete_record`, en vez de `quitado`.
+   - `ya_existia` se queda para el alta idempotente que encuentra a su gemela.
+   - `simulado` es la fase 1 de una escritura en dos fases (C4).
+4. **`vence`, no `expira`:** es el nombre que ya usa la vista previa de Odoo y el que leerá la fase 1 de C4.
+5. **`nota`** es el texto libre de las tres envolturas. `siguiente_paso` queda solo en la vista previa, donde ya está y lo leen las vistas.
+6. **Lo opcional solo viaja si dice algo** (R11): una lista vacía, `null` o `undefined` no salen. Ausencia = nada que decir.
+7. **Llaves reservadas:** el tipo no deja llamar a la lista o a la entidad como una llave de la envoltura (`Exclude<K, …>`), y el helper también lo rechaza en runtime.
+
+**`structuredContent` en cada resultado.**
+- **Cómo:** `run()` pasa por `toolResultOf()` (`core/result.ts`). El texto es `JSON.stringify(datos)` y `structuredContent` es **ese mismo texto parseado**: el mismo JSON byte por byte (sin `undefined`, las fechas como texto).
+- **Límites:** la spec solo admite un objeto, así que una lista o un escalar se quedan en texto. Un error sigue siendo solo texto.
+- **El texto sigue siendo la fuente del modelo.** La pregunta del plan §9 queda abierta.
+- **Lo que cuesta:** nada en `tools/list`, donde no viaja. En cada respuesta el JSON va dos veces por el cable: con el reporte del checador de prueba, 2,217 → 4,124 caracteres. Si claude.ai le pasa al modelo los dos, cada respuesta paga el doble de tokens. **Revertir es una línea** en `toolResultOf()`: emitirlo solo cuando hay `output`.
+
+**`outputSchema`, solo en las dos vistas** (`output` en `defineTool`; `definitions.test.ts` exige `output` ⇔ `view`):
+- **`preview_time_report`: completo y estricto** (`previewTimeReportOutput` en `tools/hours.ts`).
+  - La vista toma su tipo de `z.infer<typeof previewTimeReportOutput>`, no del retorno del handler.
+  - `previewTimeReport()` declara ese tipo: una llave de más no compila.
+- **`odoo_preview_quotation`: mínimo** (`previewQuotationOutput`, `z.looseObject`).
+  - Lleva `modo`, la envoltura de vista previa y las cuatro listas que la vista recorre (`lineas`, `productos_nuevos`, `productos_para_alta`, `sin_clave_sat`), sin detallar sus filas.
+  - El completo no cabe en `ODOO_BUDGET`.
+  - La vista sigue tipada por `QuotationPreview` y **`defineTool` amarra los dos**: el handler no compila si `QuotationPreview` deja de cumplir el schema.
+- **Cómo se ata el tipo:** `defineTool<S, O>` infiere `O` de `output` y exige que el handler devuelva `OutputOf<O>`, solo o envuelto en `withResultMeta`. `OutputOf` es el `z.input` del schema, aceptando arreglos `readonly` y sin pedir la firma de índice de un objeto abierto. Se probó con `@ts-expect-error` contra `tsc` (falta una llave, tipo distinto, dato envuelto distinto, `QuotationPreview` sin una llave exigida, llaves reservadas de las envolturas). Como en C2, esa prueba no se quedó en el repo.
+- **Nunca un `z.object` normal.** Pasa en el servidor con llaves de más, porque zod las quita al validar. Pero su JSON Schema dice `additionalProperties: false` y el cliente, que valida con Ajv, rechaza el resultado. Un output es `z.strictObject` o `z.looseObject`; `definitions.test.ts` lo vigila comparando su JSON Schema de entrada y de salida.
+- **Las vistas leen `structuredContent`** (`dataOf()`) y, si el host no lo pasa, el mismo JSON del texto. También lo leen del resultado de `save_time_entries` y de `odoo_save_product`, que no declaran `output`.
+- **Si un output no se cumple,** el SDK responde `isError` con su mensaje en inglés y el volcado de zod. Es un error de programación: lo atrapan los tests de contrato antes de llegar al modelo.
+
+**Lo que ya adoptó una envoltura** (sin cambiar la forma para quien la lee):
+- `save_supplier` y `save_payroll_employee` ya eran `{ accion, <entidad>, nota? }` con tokens del plan: pasan por `writeResult` y solo ganan `escrito: true`.
+- `update_payable` calcula `cambios` con `diff()`, la generalización de su propio cálculo. La respuesta sale idéntica, y un test la compara con el cálculo viejo. Su `writeResult` llega cuando C6 la fusione en `save_payable`.
+- Ninguna lista de hoy tiene `pagina` ni `hay_mas`, y ningún registro trae `ref`: `listResult` y `recordResult` quedan listos para C6 y la Fase D.
+
+**Tests:**
+- `envelope.test.ts`: los helpers y `toolResultOf`.
+- `structured-output.test.ts`, con el SDK real: el output de las vistas previas reales de los dos conectores pasa en el servidor y en el cliente; un error no trae `structuredContent`; por qué no un `z.object` normal.
+- `definitions.test.ts`, por definición: `output` ⇔ `view`, una muestra por tool con `output`, el `outputSchema` en `tools/list`, `structuredContent` igual al texto y una respuesta rota es error.
+- `views.test.ts`: la vista de Odoo lee `structuredContent`, y ninguna vista empaqueta código de `src/lib` ni zod.
+
+**Snapshots:** solo cambian `tools-list.admin.json` y `tools-list.odoo.admin.json` (el `outputSchema` de las dos vistas) y sus `tools-size`. Los de member y las instrucciones no cambian.
+
+**Medidas** (en el cable; los topes no cambian):
+
+| Conector | Rol | Tools | `tools/list` | Descripciones | Instrucciones |
+|---|---|---|---|---|---|
+| DYMMSA-WEB | admin | 36 de 45 | 37,324 de 53,000 (+1,717) | 12,584 de 19,000 | 5,978 de 6,000 |
+| DYMMSA-WEB | member | 29 | 26,096 | 8,117 | 5,371 |
+| Odoo DYMMSA | admin | 15 de 16 | 21,369 de 21,500 (+804) | 6,333 de 6,500 | 2,891 de 3,000 |
+| Odoo DYMMSA | member | 10 | 11,149 | 4,179 | 2,113 |
+
+- `preview_time_report` pasa de 1,088 a 2,805 caracteres (su `outputSchema` mide 1,701) y `odoo_preview_quotation` de 2,939 a 3,743 (788). El member no cambia: las dos tools son `adminOnly`.
+- **A Odoo le quedan 131 caracteres de `tools/list`.** No se recortó ninguna descripción. El próximo cambio que agregue texto a una tool de Odoo tendrá que quitar otro o subir el tope en su PR.
+
+**Pendiente (plan §9):** medir en claude.ai si el modelo recibe el texto, el `structuredContent` o los dos. Si son los dos, emitirlo solo donde hay `output`.
 
 ## Consecuencias
 
