@@ -36,6 +36,8 @@ La segunda descarta la solución obvia (columnas `paid_by`/`paid_marked_at` en `
 
 Solo se auditan **estado y fecha de pago** (`status_changed`, `paid_at_changed`) más `created`/`deleted`; editar concepto, monto o notas no genera evento. Es a propósito: lo que importa fiscalmente es cuándo y quién dijo "ya se pagó".
 
+> **Actualización 2026-10-24 (#157, migración `guards_audit_payroll_freeze`):** el monto y la moneda **sí se auditan**: cambiar cualquiera de los dos deja `amount_changed` con `{ from: { amount, currency }, to: { amount, currency } }` — una sola acción para los dos, porque una moneda corregida casi siempre trae su monto. Un UPDATE que cambia estado y monto deja **dos** eventos (uno por tipo). Los snapshots de `created`/`deleted` ganan `currency` (sin ella, "$300" de una factura en dólares se leía como pesos). Concepto, fechas, proveedor y notas siguen sin auditarse. `audit_events.action` no tiene CHECK, así que la acción nueva no tocó restricciones. El popup y `get_payable` la pintan con `describeAuditEvent()`: «Monto corregido», «Moneda corregida» o «Monto y moneda corregidos»; con la moneda cambiada se nombran las dos. Va junto con la regla de la ruta: un `paid_at` solo vale sobre una factura que queda pagada (`resolvePaymentUpdate`).
+
 ### 4. Tres capas, como en ADR-026
 
 - **BD**: la policy `is_admin()`.
