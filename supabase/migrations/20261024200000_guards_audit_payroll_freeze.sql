@@ -96,7 +96,7 @@ SET search_path = ''
 AS $$
 BEGIN
   -- Deleting the row (also an auth user removed by cascade) counts as a demotion (review PR #171).
-  IF OLD.role = 'admin' AND CASE WHEN TG_OP = 'DELETE' THEN true ELSE NEW.role IS DISTINCT FROM 'admin' END THEN
+  IF OLD.role = 'admin' AND (CASE WHEN TG_OP = 'DELETE' THEN true ELSE NEW.role IS DISTINCT FROM 'admin' END) THEN
     PERFORM pg_advisory_xact_lock(hashtext('public.profiles.last_admin'));
     IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.role = 'admin' AND p.id <> OLD.id) THEN
       RAISE EXCEPTION 'Debe quedar al menos un administrador'
