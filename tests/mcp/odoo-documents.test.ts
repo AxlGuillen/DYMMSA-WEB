@@ -52,9 +52,9 @@ describe('catálogo fase 5', () => {
   test('los campos CFDI ya son consultables vía odoo_search_records', async () => {
     const { odoo } = fakeOdoo({ 'account.move.search_read': [[F00167]] })
     const result = await odooSearchRecords(odoo, {
-      model: 'account.move',
-      fields: ['name', 'l10n_mx_edi_cfdi_uuid', 'l10n_mx_edi_cfdi_sat_state'],
-      limit: 1,
+      modelo: 'account.move',
+      campos: ['name', 'l10n_mx_edi_cfdi_uuid', 'l10n_mx_edi_cfdi_sat_state'],
+      limite: 1,
     })
     expect(result.items[0].l10n_mx_edi_cfdi_uuid).toBe('6063dc3f-b881-4ea9-a24b-d9bb40623340')
   })

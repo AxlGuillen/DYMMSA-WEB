@@ -123,7 +123,9 @@ async function refused(script: OdooScript, folio = INPUT.folio) {
     expect(error).toBeInstanceOf(Error)
     outcomes.push({ message: (error as Error).message, calls })
   }
-  expect(outcomes[1].message).toBe(outcomes[0].message)
+  // Same refusal either way; only an input error's example echoes the call it corrects (#155 C1).
+  const reason = (message: string) => message.replace(/ Ej\.: .*$/, '')
+  expect(reason(outcomes[1].message)).toBe(reason(outcomes[0].message))
   expect(outcomes[1].calls).toEqual(outcomes[0].calls)
   return outcomes[0]
 }
@@ -225,7 +227,7 @@ describe('rechazos', () => {
     expect(near.calls[0].payload.domain).toEqual([['name', '=', 'S000912']])
 
     const malformed = await refused({}, '912')
-    expect(malformed.message).toMatch(/^Entrada inválida en folio: folio de venta de Odoo, ej\. S00912/)
+    expect(malformed.message).toMatch(/^Entrada inválida en odoo_create_draft_invoice: «folio»: folio de venta de Odoo, ej\. S00912/)
     expect(malformed.calls).toEqual([])
   })
 
@@ -285,7 +287,7 @@ describe('resumen sin confirmar (#155 B2b)', () => {
     const bad = fakeOdoo({})
     await expect(
       odooCreateDraftInvoice({ reader: bad.odoo, writer }, context().ctx, { folio: 'S00912', confirmar: 'sí' } as unknown as DraftInvoiceInput),
-    ).rejects.toThrow(/^Entrada inválida en confirmar/)
+    ).rejects.toThrow(/^Entrada inválida en odoo_create_draft_invoice: «confirmar»/)
     expect(bad.calls).toEqual([])
   })
 

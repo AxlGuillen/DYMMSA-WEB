@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
 import { pagination, readOnly } from '@/lib/mcp/core/schema'
 import { listOrders } from '@/lib/mcp/tools/orders'
+import { ORDER_STATUSES } from '@/lib/order-status'
 
 export const listOrdersTool = defineTool({
   connector: 'dymmsa',
@@ -9,9 +10,9 @@ export const listOrdersTool = defineTool({
   kind: 'read',
   title: 'Listar órdenes',
   description:
-    'Lista órdenes de compra con filtros. status: ordered | received | delivered | completed | cancelled. Úsala para "¿qué órdenes siguen abiertas?" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; usa get_order para el total recalculado en vivo desde los ítems.',
+    'Lista órdenes de compra con filtros. Úsala para "¿qué órdenes siguen abiertas?" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; usa get_order para el total recalculado en vivo desde los ítems.',
   input: {
-    status: z.string().optional().describe('Filtrar por estado exacto'),
+    status: z.enum(ORDER_STATUSES).optional().describe('Filtrar por estado exacto'),
     search: z.string().optional().describe('Busca en nombre de orden y nombre del cliente'),
     ...pagination,
   },

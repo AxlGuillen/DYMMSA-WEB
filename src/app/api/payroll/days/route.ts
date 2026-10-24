@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAdmin, badRequest, serverError, isUuid } from '@/lib/api-helpers'
-import { saveDays, PayrollError, type DayInput } from '@/lib/payroll-store'
+import { requireAdmin, apiError, badRequest, serverError, isUuid } from '@/lib/api-helpers'
+import { saveDays, type DayInput } from '@/lib/payroll-store'
 import { isIsoDate } from '@/lib/payroll'
 
 // PUT /api/payroll/days — one day as the admin typed it: overwrites and confirms.
@@ -40,8 +40,6 @@ export async function PUT(request: NextRequest) {
     const result = await saveDays(supabase, [day], { source: 'manual', status: 'confirmed', overwrite: true })
     return NextResponse.json({ ...result, deleted: false })
   } catch (error) {
-    if (error instanceof PayrollError) return badRequest(error.message)
-    console.error('Payroll day PUT error:', error)
-    return serverError('Error al guardar el día')
+    return apiError(error, 'Error al guardar el día', 'Payroll day PUT error:')
   }
 }

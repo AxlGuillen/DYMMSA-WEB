@@ -6,7 +6,7 @@ import { sanitizeSearch } from '@/lib/text'
 import type { Db } from '@/lib/mcp/core/db'
 import { normalizeBrandTag } from '@/lib/business-rules'
 import { paymentTermsLabel } from '@/lib/payables'
-import { createSupplier, parseSupplierInput, SupplierError, updateSupplier } from '@/lib/suppliers-store'
+import { createSupplier, parseSupplierInput, updateSupplier } from '@/lib/suppliers-store'
 import type { Supplier } from '@/types/database'
 
 type SupplierRow = Supplier & { supplier_brands: { brands: { name: string } | null }[] | null }
@@ -139,25 +139,20 @@ export async function saveSupplier(db: Db, input: SaveSupplierInput) {
   }
   const [add, remove] = await brandIdsFor(db, input.agregar_marcas, input.quitar_marcas)
 
-  try {
-    if (!editing) {
-      const created = await createSupplier(db, parsed.value, add)
-      return { accion: 'creado', proveedor: await readSupplier(db, created.id) }
-    }
-    const target = await resolveSupplier(db, input.proveedor as string)
-    let brandIds: string[] | undefined
-    if (add.length > 0 || remove.length > 0) {
-      const { data, error } = await db.from('supplier_brands').select('brand_id').eq('supplier_id', target.id)
-      if (error) throw new ToolError(`Error al leer las marcas del proveedor: ${error.message}`)
-      const current = new Set(((data ?? []) as { brand_id: string }[]).map((l) => l.brand_id))
-      add.forEach((id) => current.add(id))
-      remove.forEach((id) => current.delete(id))
-      brandIds = [...current]
-    }
-    await updateSupplier(db, target.id, parsed.value, brandIds)
-    return { accion: 'actualizado', proveedor: await readSupplier(db, target.id) }
-  } catch (error) {
-    if (error instanceof SupplierError) throw new ToolError(error.message)
-    throw error
+  if (!editing) {
+    const created = await createSupplier(db, parsed.value, add)
+    return { accion: 'creado', proveedor: await readSupplier(db, created.id) }
   }
+  const target = await resolveSupplier(db, input.proveedor as string)
+  let brandIds: string[] | undefined
+  if (add.length > 0 || remove.length > 0) {
+    const { data, error } = await db.from('supplier_brands').select('brand_id').eq('supplier_id', target.id)
+    if (error) throw new ToolError(`Error al leer las marcas del proveedor: ${error.message}`)
+    const current = new Set(((data ?? []) as { brand_id: string }[]).map((l) => l.brand_id))
+    add.forEach((id) => current.add(id))
+    remove.forEach((id) => current.delete(id))
+    brandIds = [...current]
+  }
+  await updateSupplier(db, target.id, parsed.value, brandIds)
+  return { accion: 'actualizado', proveedor: await readSupplier(db, target.id) }
 }

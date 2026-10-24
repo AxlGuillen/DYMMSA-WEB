@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { isoDate } from '@/lib/mcp/core/schema'
+import { PAYABLE_CURRENCIES } from '@/lib/payables'
 import { createPayable } from '@/lib/mcp/tools/payables'
 
 export const createPayableTool = defineTool({
@@ -13,9 +15,9 @@ export const createPayableTool = defineTool({
     proveedor: z.string().min(1).describe('Nombre (o parte) del proveedor'),
     concepto: z.string().min(1).describe('Concepto de la factura'),
     monto: z.number().positive().describe('Mayor a 0'),
-    moneda: z.enum(['MXN', 'USD']).optional().describe('Default MXN'),
-    fecha_factura: z.string().describe('Fecha de la factura, YYYY-MM-DD'),
-    vencimiento: z.string().optional().describe('Vencimiento, YYYY-MM-DD (default: fecha + plazo del proveedor)'),
+    moneda: z.enum(PAYABLE_CURRENCIES).optional().describe('Default MXN'),
+    fecha_factura: isoDate.describe('Fecha de la factura'),
+    vencimiento: isoDate.optional().describe('Default: fecha + plazo del proveedor'),
     notas: z.string().optional().describe('Notas'),
   },
   // Scoped write (#109, ADR-030): always born pending; paying it is mark_payable_paid.

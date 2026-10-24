@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { TASK_CLOSE_REASONS, TASK_PRIORITIES, TASK_STATES } from '@/lib/github'
 import { updateTask } from '@/lib/mcp/tools/tasks'
 
 export const updateTaskTool = defineTool({
@@ -8,13 +9,13 @@ export const updateTaskTool = defineTool({
   kind: 'write',
   title: 'Actualizar tarea',
   description:
-    'Actualiza una tarea existente (GitHub Issue). ESCRIBE: usa solo cuando el usuario pida comentar, cambiar la prioridad o cerrar/reabrir una tarea. Acepta cualquier combinación de: comment (se publica atribuido a "Asistente (MCP)"), priority (low | medium | high | highest, o "none" para quitarla) y state (open | closed; al cerrar, state_reason "completed" o "not_planned" = descartada). NO edita título ni descripción — eso se hace en la app.',
+    'Actualiza una tarea existente (GitHub Issue). ESCRIBE: usa solo cuando el usuario pida comentar, cambiar la prioridad o cerrar/reabrir una tarea. Acepta cualquier combinación de: comment (se publica atribuido a "Asistente (MCP)"), priority ("none" la quita) y state (al cerrar, state_reason not_planned = descartada). NO edita título ni descripción — eso se hace en la app.',
   input: {
     task_number: z.number().int().min(1).describe('Número de la tarea (#N)'),
     comment: z.string().optional().describe('Comentario a publicar en la tarea'),
-    priority: z.string().optional().describe('low | medium | high | highest, o "none" para quitarla'),
-    state: z.string().optional().describe('open (reabrir) | closed (cerrar)'),
-    state_reason: z.string().optional().describe('Solo al cerrar: completed (default) | not_planned (descartada)'),
+    priority: z.enum([...TASK_PRIORITIES, 'none']).optional().describe('"none" la quita'),
+    state: z.enum(TASK_STATES).optional().describe('open reabre, closed cierra'),
+    state_reason: z.enum(TASK_CLOSE_REASONS).optional().describe('Solo al cerrar (default completed); not_planned = descartada'),
   },
   // Scoped write (#72, ADR-015): comment/prioritize/close, never rewrite human text.
   annotations: { readOnlyHint: false, openWorldHint: false },

@@ -30,7 +30,8 @@ import type { McpContext } from '../../core/context'
 import { fold } from '@/lib/text'
 import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
 import { ToolError } from '@/lib/mcp/core/errors'
-import { parseInput, type OdooQuotationDeps } from './quotations'
+import { parseInput, type InputOf } from '@/lib/mcp/core/schema'
+import type { OdooQuotationDeps } from './quotations'
 import { isId, many2oneName, rowsOf } from './resolve'
 
 export { SAT_PLACEHOLDER } from '@/lib/odoo/sat-keys'
@@ -62,9 +63,7 @@ export const saveProductShape = {
   autorizacion: z.string().min(1).max(8000).describe('La de la vista previa'),
 }
 
-const saveProductSchema = z.strictObject(saveProductShape)
-
-export type SaveProductInput = z.infer<typeof saveProductSchema>
+export type SaveProductInput = InputOf<typeof saveProductShape>
 
 export interface SavedProduct {
   readonly id: number
@@ -351,7 +350,7 @@ export async function odooSaveProduct(
   const dl = startDeadline()
   const proof = await requireLiveAdmin(ctx)
   if (typeof raw?.autorizacion !== 'string' || !raw.autorizacion.trim()) throw new ToolError(PRODUCTS_UNAUTHORIZED_MESSAGE)
-  const input = parseInput(saveProductSchema, raw)
+  const input = parseInput('odoo_save_product', saveProductShape, raw)
   if ((input.productos === undefined) === (input.asignar === undefined)) throw new ToolError(ONE_MODE)
   // Throws the precise reason (no key, bad URL) before anything is read.
   odooWriteEnv()

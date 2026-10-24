@@ -6,7 +6,7 @@ import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import type { StoreInventory } from '@/types/database'
 
-const STOCK_FILTERS = ['all', 'in_stock', 'low_stock', 'sin_stock'] as const
+export const STOCK_FILTERS = ['all', 'in_stock', 'low_stock', 'sin_stock'] as const
 type StockFilter = (typeof STOCK_FILTERS)[number]
 
 export interface SearchInventoryInput {
@@ -17,6 +17,9 @@ export interface SearchInventoryInput {
 }
 
 export async function searchInventory(db: Db, input: SearchInventoryInput) {
+  const stockFilter = (input.stockFilter ?? 'all') as StockFilter
+  // An unknown filter is an error, never "all" in silence (#155 C1).
+  if (!STOCK_FILTERS.includes(stockFilter)) throw new ToolError(`Filtro inválido "${stockFilter}": usa ${STOCK_FILTERS.join(' | ')}`)
   const { page, pageSize, from, to } = normalizePagination(input)
 
   let query = db.from('store_inventory').select('*', { count: 'exact' })
@@ -25,9 +28,6 @@ export async function searchInventory(db: Db, input: SearchInventoryInput) {
   const search = sanitizeSearch(input.search ?? '')
   if (search) query = query.ilike('model_code', `%${search}%`)
 
-  const stockFilter: StockFilter = STOCK_FILTERS.includes(input.stockFilter as StockFilter)
-    ? (input.stockFilter as StockFilter)
-    : 'all'
   if (stockFilter === 'sin_stock') query = query.eq('quantity', 0)
   else if (stockFilter === 'low_stock') query = query.gt('quantity', 0).lte('quantity', 5)
   else if (stockFilter === 'in_stock') query = query.gt('quantity', 5)

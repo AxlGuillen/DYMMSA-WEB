@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { isoDate } from '@/lib/mcp/core/schema'
 import { markPayablePaid } from '@/lib/mcp/tools/payables'
 
 export const markPayablePaidTool = defineTool({
@@ -12,7 +13,7 @@ export const markPayablePaidTool = defineTool({
   input: {
     factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor'),
     pagada: z.boolean().optional().describe('true = marcar pagada (default); false = regresar a pendiente'),
-    fecha_pago: z.string().optional().describe('Fecha REAL de pago, YYYY-MM-DD (default hoy)'),
+    fecha_pago: isoDate.optional().describe('Fecha REAL de pago (default hoy)'),
   },
   // Scoped write (#109, ADR-030): a symbolic expense record, not money nor inventory.
   annotations: { readOnlyHint: false, openWorldHint: false },

@@ -13,7 +13,6 @@ import { todayInMexico } from '@/lib/format'
 import { formatDuration, SHIFT_LABELS } from '@/lib/timesheet'
 import { PERIOD_DAY_LABELS, isIsoDate, parseEmployeeInput, payrollPeriod, type HoursBreakdown } from '@/lib/payroll'
 import {
-  PayrollError,
   createEmployee,
   loadEmployees,
   loadPayrollView,
@@ -28,16 +27,6 @@ const NO_ACCESS = 'Sin empleados visibles: Nómina solo la ve un administrador, 
 
 const SOURCE_LABELS = { sheet: 'hoja', hours: 'checador', manual: 'manual' } as const
 
-/** PayrollError is a broken rule the user can fix: it must reach the model verbatim. */
-async function asTool<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn()
-  } catch (error) {
-    if (error instanceof PayrollError) throw new ToolError(error.message)
-    throw error
-  }
-}
-
 function totals(t: HoursBreakdown) {
   return {
     normal: formatDuration(t.regular),
@@ -51,7 +40,7 @@ function totals(t: HoursBreakdown) {
 export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
   if (input.fecha !== undefined && !isIsoDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
   const { start } = payrollPeriod(input.fecha ?? todayInMexico())
-  const view = await asTool(() => loadPayrollView(db, start))
+  const view = await loadPayrollView(db, start)
 
   return {
     corte: {
@@ -146,7 +135,7 @@ export async function recordPayrollHours(db: Db, input: RecordPayrollHoursInput)
     }
   })
 
-  const result = await asTool(() => saveDays(db, days, { source: 'sheet', status: 'draft', overwrite: false }))
+  const result = await saveDays(db, days, { source: 'sheet', status: 'draft', overwrite: false })
   const cortes = [...new Set(days.map((d) => payrollPeriod(d.work_date).start))].sort()
   return {
     guardados: result.saved,
@@ -167,7 +156,7 @@ async function prefillCut(db: Db, fecha?: string) {
   const employees = await loadEmployees(db)
   // A member reads zero employees by RLS: say so instead of sending them to a screen they cannot open (review PR #138).
   if (employees.length === 0) throw new ToolError(NO_ACCESS)
-  const result = await asTool(() => prefillFromHours(db, start))
+  const result = await prefillFromHours(db, start)
   const byId = new Map(employees.map((e) => [e.id, e.name]))
   return {
     corte: { inicio: start, fin: end },
@@ -217,9 +206,7 @@ export async function savePayrollEmployee(db: Db, callerId: string, input: SaveP
   if ('error' in parsed) throw new ToolError(parsed.error)
   if (editing && Object.keys(parsed.value).length === 0) throw new ToolError('No hay cambios: indica nombre, jornada, perfil o activo.')
 
-  const saved = target
-    ? await asTool(() => updateEmployee(db, target.id, parsed.value))
-    : await asTool(() => createEmployee(db, parsed.value))
+  const saved = target ? await updateEmployee(db, target.id, parsed.value) : await createEmployee(db, parsed.value)
   // It was just read from a visible list, so 0 rows means it went away in between (review PR #139).
   if (!saved) throw new ToolError('El empleado ya no existe: vuelve a consultar la lista de Nómina.')
 

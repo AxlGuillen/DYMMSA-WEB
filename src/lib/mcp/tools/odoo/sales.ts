@@ -6,14 +6,14 @@ import { normalizeGroups } from '@/lib/odoo/normalize'
 import { assertDateRange } from './dates'
 
 export interface SummarizeSalesInput {
-  date_from?: string
-  date_to?: string
-  group_by?: 'estado' | 'cliente' | 'vendedor' | 'mes'
+  desde?: string
+  hasta?: string
+  agrupar_por?: 'estado' | 'cliente' | 'vendedor' | 'mes'
   /** confirmadas (default): sale/done only. todas: also draft/sent quotations. */
   incluir?: 'confirmadas' | 'todas'
 }
 
-const SALES_GROUP_FIELD: Record<NonNullable<SummarizeSalesInput['group_by']>, string> = {
+const SALES_GROUP_FIELD: Record<NonNullable<SummarizeSalesInput['agrupar_por']>, string> = {
   estado: 'state',
   cliente: 'partner_id',
   vendedor: 'user_id',
@@ -21,29 +21,29 @@ const SALES_GROUP_FIELD: Record<NonNullable<SummarizeSalesInput['group_by']>, st
 }
 
 export async function odooSummarizeSales(odoo: OdooCaller, input: SummarizeSalesInput = {}) {
-  assertDateRange(input.date_from, input.date_to)
+  assertDateRange(input.desde, input.hasta)
 
   const incluir = input.incluir ?? 'confirmadas'
   const domain: DomainTriple[] = [
     ...(incluir === 'confirmadas'
       ? [['state', 'in', ['sale', 'done']] as DomainTriple]
       : [['state', '!=', 'cancel'] as DomainTriple]),
-    ...(input.date_from ? [['date_order', '>=', `${input.date_from} 00:00:00`] as DomainTriple] : []),
-    ...(input.date_to ? [['date_order', '<=', `${input.date_to} 23:59:59`] as DomainTriple] : []),
+    ...(input.desde ? [['date_order', '>=', `${input.desde} 00:00:00`] as DomainTriple] : []),
+    ...(input.hasta ? [['date_order', '<=', `${input.hasta} 23:59:59`] as DomainTriple] : []),
   ]
 
   const grupos = normalizeGroups(
     await odoo('sale.order', 'read_group', {
       domain,
       fields: ['amount_untaxed:sum', 'amount_total:sum'],
-      groupby: [SALES_GROUP_FIELD[input.group_by ?? 'estado']],
+      groupby: [SALES_GROUP_FIELD[input.agrupar_por ?? 'estado']],
     }),
   )
 
   return {
-    periodo: { desde: input.date_from ?? 'inicio', hasta: input.date_to ?? 'hoy' },
+    periodo: { desde: input.desde ?? 'inicio', hasta: input.hasta ?? 'hoy' },
     incluye: incluir === 'confirmadas' ? 'solo ventas confirmadas (sale/done)' : 'todo menos canceladas',
-    agrupado_por: input.group_by ?? 'estado',
+    agrupado_por: input.agrupar_por ?? 'estado',
     total_ventas: grupos.reduce((sum, g) => sum + ((g.amount_total as number) ?? 0), 0),
     ordenes: grupos.reduce((sum, g) => sum + ((g.count as number) ?? 0), 0),
     grupos,

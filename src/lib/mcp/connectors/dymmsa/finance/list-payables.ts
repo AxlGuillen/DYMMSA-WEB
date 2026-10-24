@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { isoMonth, limit, readOnly } from '@/lib/mcp/core/schema'
 import { listPayables } from '@/lib/mcp/tools/payables'
+import { PAYABLE_FILTERS } from '@/lib/payables'
 
 export const listPayablesTool = defineTool({
   connector: 'dymmsa',
@@ -9,13 +10,13 @@ export const listPayablesTool = defineTool({
   kind: 'read',
   title: 'Facturas por pagar',
   description:
-    'Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (pending | overdue = pendientes ya vencidas | paid | cancelled), mes de VENCIMIENTO (YYYY-MM), proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.',
+    'Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (overdue = pendientes ya vencidas), mes de VENCIMIENTO, proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.',
   input: {
-    estado: z.string().optional().describe('pending | overdue | paid | cancelled'),
-    mes: z.string().optional().describe('Mes de vencimiento, YYYY-MM'),
+    estado: z.enum(PAYABLE_FILTERS).optional(),
+    mes: isoMonth.optional().describe('Mes de vencimiento'),
     proveedor: z.string().optional().describe('Nombre (o parte) del proveedor'),
     concepto: z.string().optional().describe('Texto del concepto (parcial)'),
-    limit: z.number().int().min(1).max(100).optional().describe('Máx facturas (default 50)'),
+    limit: limit(100, 50).describe('Máx facturas (default 50)'),
   },
   annotations: readOnly,
   docs: {

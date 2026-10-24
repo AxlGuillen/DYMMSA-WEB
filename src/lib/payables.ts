@@ -119,6 +119,8 @@ export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
 /** List filter: the three statuses plus `overdue` (pending with due date before today, as the overview counts it). */
 export type PayableFilter = PayableStatus | 'overdue'
 
+export const PAYABLE_FILTERS = ['pending', 'overdue', 'paid', 'cancelled'] as const satisfies readonly PayableFilter[]
+
 export const PAYABLE_FILTER_LABELS: Record<PayableFilter, string> = {
   pending: 'Pendiente',
   overdue: 'Vencida',

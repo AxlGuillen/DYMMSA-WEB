@@ -3,12 +3,12 @@
 import { calculateOrderTotal, isProductItem } from '@/lib/business-rules'
 import { isUuid, sanitizeSearch } from '@/lib/text'
 import { normalizePagination } from '@/lib/mcp/core/schema'
+import { ORDER_STATUSES } from '@/lib/order-status'
 import { requireSingleMatch } from '@/lib/mcp/core/lookup'
 import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import type { Order, OrderStatus, OrderWithItems } from '@/types/database'
 
-const STATUSES: OrderStatus[] = ['ordered', 'received', 'delivered', 'completed', 'cancelled']
 
 export type OrderRef = Pick<Order, 'id' | 'name' | 'customer_name' | 'status'>
 
@@ -40,6 +40,10 @@ export interface ListOrdersInput {
 }
 
 export async function listOrders(db: Db, input: ListOrdersInput) {
+  // An unknown status is an error, never a filter dropped in silence (#155 C1).
+  if (input.status && !ORDER_STATUSES.includes(input.status as OrderStatus)) {
+    throw new ToolError(`Estado inválido "${input.status}": usa ${ORDER_STATUSES.join(' | ')}`)
+  }
   const { page, pageSize, from, to } = normalizePagination(input)
 
   let query = db.from('orders').select('*, order_items(count)', { count: 'exact' })
@@ -48,9 +52,7 @@ export async function listOrders(db: Db, input: ListOrdersInput) {
   if (search) {
     query = query.or(`customer_name.ilike.%${search}%,name.ilike.%${search}%`)
   }
-  if (input.status && STATUSES.includes(input.status as OrderStatus)) {
-    query = query.eq('status', input.status)
-  }
+  if (input.status) query = query.eq('status', input.status)
 
   const { data, error, count } = await query
     .order('created_at', { ascending: false })

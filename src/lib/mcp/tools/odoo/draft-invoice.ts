@@ -21,20 +21,19 @@ import { noteHasTrail } from '@/lib/odoo/writer'
 import type { McpContext } from '../../core/context'
 import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
 import { ToolError } from '@/lib/mcp/core/errors'
-import { errorName, noteOf, parseInput, type OdooQuotationDeps } from './quotations'
+import { parseInput, type InputOf } from '@/lib/mcp/core/schema'
+import { errorName, noteOf, saleFolio, type OdooQuotationDeps } from './quotations'
 import { isId, many2oneName, numberOr, requireExactSale, rowsOf, type SaleRecord } from './resolve'
 
 type ToolContext = Pick<McpContext, 'db' | 'userId' | 'role'>
 
 export const draftInvoiceShape = {
-  folio: z.string().regex(/^S\d{5,}$/i, 'folio de venta de Odoo, ej. S00912').describe('Folio exacto de la venta confirmada'),
+  folio: saleFolio.describe('Folio exacto de la venta confirmada'),
   // A boolean, not literal(true): `confirmar: false` is a summary, never "Entrada inválida" (review PR #165).
   confirmar: z.boolean().optional().describe('true crea el borrador; sin esto solo muestra el resumen'),
 }
 
-const draftInvoiceSchema = z.strictObject(draftInvoiceShape)
-
-export type DraftInvoiceInput = z.infer<typeof draftInvoiceSchema>
+export type DraftInvoiceInput = InputOf<typeof draftInvoiceShape>
 
 export interface DraftInvoiceView {
   readonly id: number
@@ -364,7 +363,7 @@ export async function odooCreateDraftInvoice(
   // First: the live-admin read counts against the request's budget (#144).
   const dl = startDeadline()
   const proof = await requireLiveAdmin(ctx)
-  const input = parseInput(draftInvoiceSchema, raw)
+  const input = parseInput('odoo_create_draft_invoice', draftInvoiceShape, raw)
   // Throws the precise reason (no key, bad URL) before anything is read.
   odooWriteEnv()
 

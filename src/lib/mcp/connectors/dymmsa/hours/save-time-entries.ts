@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { isoDate } from '@/lib/mcp/core/schema'
 import { saveTimeEntries } from '@/lib/mcp/tools/hours'
 
 export const saveTimeEntriesTool = defineTool({
@@ -13,9 +14,9 @@ export const saveTimeEntriesTool = defineTool({
     filas: z.array(z.array(z.string().max(200)).max(20)).min(1).max(1000).optional(),
     nombre_archivo: z.string().max(200).optional(),
     checada: z
-      .object({
+      .strictObject({
         persona: z.string().optional().describe('Default: tú'),
-        fecha: z.string().describe('YYYY-MM-DD'),
+        fecha: isoDate,
         entrada_actual: z.string().optional(),
         entrada: z.string().optional().describe('HH:MM'),
         salida: z.string().optional(),

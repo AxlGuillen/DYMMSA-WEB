@@ -47,9 +47,9 @@ describe('catálogo fase 6', () => {
   test('l10n_mx_edi.document es consultable y filtrable (campos almacenados)', async () => {
     const { odoo, calls } = fakeOdoo({ 'l10n_mx_edi.document.search_read': [[REP_DOC]] })
     const result = await odooSearchRecords(odoo, {
-      model: 'l10n_mx_edi.document',
-      domain: [['state', 'like', 'payment%'], ['sat_state', '=', 'valid']],
-      limit: 5,
+      modelo: 'l10n_mx_edi.document',
+      filtros: [['state', 'like', 'payment%'], ['sat_state', '=', 'valid']],
+      limite: 5,
     })
     expect(result.count).toBe(1)
     expect(calls[0].payload.domain).toEqual([['state', 'like', 'payment%'], ['sat_state', '=', 'valid']])
@@ -58,9 +58,9 @@ describe('catálogo fase 6', () => {
   test('reconciled_invoice_ids se puede LEER pidiéndolo explícito', async () => {
     const { odoo } = fakeOdoo({ 'account.payment.search_read': [[PAY00068]] })
     const result = await odooSearchRecords(odoo, {
-      model: 'account.payment',
-      fields: ['name', 'reconciled_invoice_ids'],
-      limit: 1,
+      modelo: 'account.payment',
+      campos: ['name', 'reconciled_invoice_ids'],
+      limite: 1,
     })
     expect(result.items[0].reconciled_invoice_ids).toEqual([436, 433])
   })
@@ -68,23 +68,23 @@ describe('catálogo fase 6', () => {
   test('candado: filtrar u ordenar por reconciled_invoice_ids se rechaza (Odoo daría 0 en silencio)', async () => {
     const { odoo } = fakeOdoo({})
     await expect(
-      odooSearchRecords(odoo, { model: 'account.payment', domain: [['reconciled_invoice_ids', 'in', [436]]] }),
+      odooSearchRecords(odoo, { modelo: 'account.payment', filtros: [['reconciled_invoice_ids', 'in', [436]]] }),
     ).rejects.toThrow(/computado sin almacenar/)
     await expect(
-      odooSearchRecords(odoo, { model: 'account.payment', order: 'reconciled_invoice_ids asc' }),
+      odooSearchRecords(odoo, { modelo: 'account.payment', orden: 'reconciled_invoice_ids asc' }),
     ).rejects.toThrow(/computado sin almacenar/)
   })
 
   test('la proyección por defecto NO incluye los readOnly (van solo bajo demanda)', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.payment.search_read': [[]] })
-    await odooSearchRecords(odoo, { model: 'account.payment' })
+    await odooSearchRecords(odoo, { modelo: 'account.payment' })
     expect(calls[0].payload.fields).not.toContain('reconciled_invoice_ids')
   })
 
   test('los l10n_mx_edi_* del pago NO están en el catálogo (computan false, mentirían)', async () => {
     const { odoo } = fakeOdoo({})
     await expect(
-      odooSearchRecords(odoo, { model: 'account.payment', fields: ['l10n_mx_edi_cfdi_state'] }),
+      odooSearchRecords(odoo, { modelo: 'account.payment', campos: ['l10n_mx_edi_cfdi_state'] }),
     ).rejects.toThrow(/no está en el catálogo/)
   })
 })
@@ -178,7 +178,7 @@ describe('odoo_audit_payment_complements', () => {
       'account.move.search_read': [[{ id: 500, l10n_mx_edi_payment_policy: 'PPD' }]],
     })
 
-    const result = await odooAuditPaymentComplements(odoo, { date_from: '2026-08-01', date_to: '2026-08-31' })
+    const result = await odooAuditPaymentComplements(odoo, { desde: '2026-08-01', hasta: '2026-08-31' })
 
     expect(calls).toHaveLength(3)
     expect(calls[2].payload.domain).toEqual([['id', 'in', [500]]])
@@ -221,7 +221,7 @@ describe('odoo_audit_payment_complements', () => {
         { id: 700, l10n_mx_edi_payment_policy: 'PPD' },
       ]],
     })
-    const result = await odooAuditPaymentComplements(odoo, { date_from: '2026-08-01' })
+    const result = await odooAuditPaymentComplements(odoo, { desde: '2026-08-01' })
     expect(result.en_regla).toBe(0)
     expect(result.sin_rep).toHaveLength(1)
   })
@@ -294,6 +294,6 @@ describe('odoo_audit_payment_complements', () => {
 
   test('fecha inválida → ToolError accionable', async () => {
     const { odoo } = fakeOdoo({})
-    await expect(odooAuditPaymentComplements(odoo, { date_from: '12/08/2026' })).rejects.toThrow(ToolError)
+    await expect(odooAuditPaymentComplements(odoo, { desde: '12/08/2026' })).rejects.toThrow(ToolError)
   })
 })
