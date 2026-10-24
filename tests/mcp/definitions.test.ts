@@ -42,3 +42,8 @@ test('ningún nombre se repite entre definiciones', () => {
   const names = ALL_TOOLS.map((t) => t.name)
   expect(new Set(names).size).toBe(names.length)
 })
+
+test('cada definición está en la lista del conector que declara (#155 B3: cada conector sirve solo la suya)', () => {
+  expect(DYMMSA_TOOLS.filter((t) => t.connector !== 'dymmsa').map((t) => t.name)).toEqual([])
+  expect(ODOO_TOOLS.filter((t) => t.connector !== 'odoo').map((t) => t.name)).toEqual([])
+})

@@ -1,4 +1,5 @@
 import { Brain } from '@/components/icons'
+import { CONNECTOR_NAMES, MCP_PATH, ODOO_MCP_PATH } from '@/lib/mcp/core/routes'
 import { groupByModule, type ToolManifestEntry } from '@/lib/mcp/manifest'
 import { DocSection, List, Note, Sub } from './shared'
 
@@ -35,23 +36,33 @@ function Block({ entries }: { entries: readonly ToolManifestEntry[] }) {
 export function AssistantSection({ tools }: { tools: readonly ToolManifestEntry[] }) {
   const app = tools.filter((t) => t.block === 'app')
   const odoo = tools.filter((t) => t.block === 'odoo')
-  const writes = tools.filter((t) => t.kind === 'write')
+  const appWrites = app.filter((t) => t.kind === 'write')
+  const dymmsa = `«${CONNECTOR_NAMES.dymmsa}»`
+  const odooName = `«${CONNECTOR_NAMES.odoo}»`
 
   return (
-    <DocSection id="asistente" icon={Brain} title="Asistente (IA)" description={`Lo que puedes preguntarle o pedirle a Claude conectado a la plataforma: ${tools.length} capacidades, ${app.length} de la app y ${odoo.length} de Odoo.`}>
+    <DocSection id="asistente" icon={Brain} title="Asistente (IA)" description={`Lo que puedes preguntarle o pedirle a Claude con los dos conectores de DYMMSA: ${tools.length} capacidades, ${app.length} de ${dymmsa} y ${odoo.length} de ${odooName}.`}>
+      <Sub>Dos conectores</Sub>
+      <List>
+        <li><strong>{dymmsa}</strong> (<code>{MCP_PATH}</code>): la plataforma &mdash; cotizaciones, ordenes, inventario de la tienda, gastos, horas, tareas.</li>
+        <li><strong>{odooName}</strong> (<code>{ODOO_MCP_PATH}</code>): la facturacion oficial en Odoo.</li>
+        <li>Son independientes: puedes prender uno o los dos en un chat. No hay vinculo entre sus registros: una cotizacion de la plataforma no es una de Odoo aunque coincidan nombre o monto.</li>
+      </List>
+
       <Sub>Como se conecta</Sub>
       <List>
-        <li>Desde Claude (web, movil o escritorio) se agrega el conector de DYMMSA y se inicia sesion <strong>con tu propia cuenta</strong> de la plataforma: el asistente ve exactamente lo que tu ves (un miembro no ve las horas de otros, por ejemplo).</li>
+        <li>Desde Claude (web, movil o escritorio) se agrega el conector y se inicia sesion <strong>con tu propia cuenta</strong> de la plataforma: el asistente ve exactamente lo que tu ves (un miembro no ve las horas de otros, por ejemplo).</li>
+        <li>Para agregar {odooName}: en Claude, <strong>Configuracion &rarr; Conectores &rarr; Agregar conector personalizado</strong>; nombre {odooName} y como URL la misma de {dymmsa} cambiando <code>{MCP_PATH}</code> por <code>{ODOO_MCP_PATH}</code>. Se inicia sesion con la misma cuenta.</li>
         <li>Cuando se publican capacidades nuevas hay que <strong>reconectar</strong> el conector para que aparezcan.</li>
         <li>Antes de cualquier accion que escriba, el asistente te dice que va a hacer y espera tu confirmacion; si un nombre coincide con varias cosas, pregunta cual.</li>
       </List>
 
-      <Sub>Plataforma: lo que consulta por modulo</Sub>
+      <Sub>{dymmsa}: lo que consulta por modulo</Sub>
       <Block entries={app} />
 
-      <Sub>Plataforma: lo que puede hacer ({writes.length} acciones)</Sub>
+      <Sub>{dymmsa}: lo que puede hacer ({appWrites.length} acciones)</Sub>
       <ul className="ml-4 list-disc space-y-1.5">
-        {writes.map((tool) => (
+        {appWrites.map((tool) => (
           <li key={tool.name}>
             <span className="font-medium text-foreground">{tool.title}</span>
             <span className="text-muted-foreground"> &mdash; &ldquo;{tool.example}&rdquo; </span>
@@ -64,11 +75,10 @@ export function AssistantSection({ tools }: { tools: readonly ToolManifestEntry[
         cotizaciones u ordenes: eso se hace en la app.
       </Note>
 
-      <Sub>Odoo: la facturacion oficial</Sub>
+      <Sub>{odooName}: la facturacion oficial</Sub>
       <p className="text-muted-foreground">
         El asistente lee de Odoo facturas, pagos y sus complementos (REP), ventas, clientes, existencias del almacen de Odoo, el directorio de
-        empleados y la flotilla. En Odoo <strong>nunca publica, timbra ni envia</strong> facturas, nunca entra a nomina ni salarios, y no cruza
-        sus datos con los de la app: las cotizaciones de aqui y las de Odoo son mundos separados.
+        empleados y la flotilla. En Odoo <strong>nunca publica, timbra ni envia</strong> facturas y nunca entra a nomina ni salarios.
       </p>
       <Block entries={odoo} />
     </DocSection>

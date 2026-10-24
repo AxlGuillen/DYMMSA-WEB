@@ -1,9 +1,8 @@
-/** DYMMSA-WEB's server instructions (#155 A3, ADR-041); what it serves is dymmsaConnector.tools, the one list (review PR #162). */
+/** DYMMSA-WEB's server instructions (#155 A3, ADR-041); since B3 they say nothing about the odoo_* tools, which live in «Odoo DYMMSA». */
 
 import type { McpRole } from './manifest'
-import { ODOO_CREDIT_NOTES_RULE, ODOO_INVOICE_LINK_RULE, odooToolMap } from './connectors/odoo/instructions'
 
-export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el asistente)
+export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA
 
 - **Flujo**: cotización (draft → sent_for_approval → approved/rejected → converted_to_order) → orden (ordered → received → delivered → completed | cancelled).
 - **Separadores** (item_type='separator') son encabezados de sección: nunca cuentan en totales, conteos ni aprobaciones.
@@ -19,18 +18,13 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Cierre del mes** = cobrado (Odoo) − pagado (app); proyectado = real − pendiente del mes − vencido arrastrado. Sin Odoo el cierre solo refleja egresos.
 - **Cambiar el estado de una cotización regenera su approval_token** → el link de aprobación compartido antes muere.
 - **Tareas** = GitHub Issues del repo; prioridad por label priority:*, "Descartada" = cerrada como not_planned.
-- **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB. Las cotizaciones/órdenes de aquí y las de Odoo son mundos separados — no asumas cruces entre ambos.
-- ${ODOO_INVOICE_LINK_RULE}
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
 /** Grouping lives here because the MCP tool listing itself is flat (#72); a member gets the map without the admin-only lines (#133). */
 export function serverInstructions(role: McpRole): string {
   const admin = role === 'admin'
-  return `# MCP DYMMSA — mapa de herramientas
+  return `# MCP DYMMSA-WEB (la app de cotizaciones e inventario) — mapa de herramientas
 
-Las tools se dividen en DOS bloques que NO se cruzan:
-
-## Bloque A — DYMMSA-WEB (la app de cotizaciones e inventario)
 - Panorama: get_business_summary (úsala primero para contexto global; trae los conteos por estado y la salud del inventario).
 - Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió).
 - Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escritura save_material_presentation para registrar una barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
@@ -43,14 +37,12 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona como en horas. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
 ${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes: horas por empleado y día, total equivalente) y las escrituras record_payroll_hours (BORRADOR; confirmar y cerrar es en la app; la guía de la hoja va en la tool) y save_payroll_employee (alta, cambios y baja de empleados). Son HORAS, nunca montos. Rutina de los viernes: preview_time_report → save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
-## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
-La facturación OFICIAL de la empresa, en un sistema EXTERNO. ${admin ? 'Lectura, más las escrituras acotadas de Cotizar y facturar.' : 'SOLO lectura.'}
-${odooToolMap(admin)}
-Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una de Odoo. Las únicas escrituras del MCP son las que cada bloque marca como escritura; todo lo demás es lectura.
+## Dos conectores, sin vínculo
+La facturación OFICIAL (facturas, cobros, cartera, almacén) vive en Odoo, un sistema EXTERNO con su propio conector, «Odoo DYMMSA»; aquí solo llega por get_month_closing (notas de crédito aparte: saldo a favor, nunca se restan).
+- Ningún registro de aquí es uno de Odoo aunque coincidan nombre, monto o código: no los cruces ni sumes.
+- Si piden llevar algo de un lado al otro, di que son sistemas separados y que el puente es el usuario: nunca asumas que una cotización de aquí es una de Odoo.${admin ? ' Cotizar o facturar en Odoo es del conector «Odoo DYMMSA».' : ''}
 
-Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
-
-${ODOO_CREDIT_NOTES_RULE}
+Las únicas escrituras son las que el mapa marca; todo lo demás es lectura. Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
 
 ${BUSINESS_RULES_MD}`
 }

@@ -7,6 +7,7 @@
 import { describe, test, expect } from 'vitest'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import type { McpRole } from '@/lib/mcp/manifest'
+import { dymmsaConnector } from '@/lib/mcp/connectors/dymmsa/connector'
 import { odooConnector } from '@/lib/mcp/connectors/odoo/connector'
 import { authAs, connectMcp } from './harness'
 
@@ -21,8 +22,9 @@ function sizeReport(role: McpRole, tools: Tool[]): string {
 }
 
 describe('snapshot del MCP', () => {
-  test.each(ROLES)('tools/list, instrucciones y tamaños (%s)', async (role) => {
-    const mcp = await connectMcp(role)
+  // «DYMMSA-WEB» at /api/mcp: since #155 B3 only the app's own tools, without any odoo_*.
+  test.each(ROLES)('conector DYMMSA-WEB: tools/list, instrucciones y tamaños (%s)', async (role) => {
+    const mcp = await connectMcp(role, authAs(role), dymmsaConnector)
     try {
       const tools = await mcp.tools()
       await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(`./__snapshots__/tools-list.${role}.json`)

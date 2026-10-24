@@ -7,7 +7,7 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
-import { consentSummary } from '@/lib/mcp/consent'
+import { consentSummary, type ConsentConnector } from '@/lib/mcp/consent'
 import { createClient } from '@/lib/supabase/server'
 
 import { approveAction, denyAction } from './actions'
@@ -25,6 +25,43 @@ function ConsentError({ title = 'Solicitud inválida', message }: { title?: stri
         <p className="mt-2 text-sm text-muted-foreground">{message}</p>
       </div>
     </main>
+  )
+}
+
+/** One connector of the two (#155 B3): what it reads, what it writes and what it never does. */
+function ConnectorBlock({
+  connector,
+  reads,
+  writesIntro,
+  never,
+}: {
+  connector: ConsentConnector
+  reads: string
+  writesIntro: string
+  never: string
+}) {
+  return (
+    <section className="mt-4">
+      <h2 className="text-sm font-semibold text-foreground">
+        «{connector.name}» <span className="font-normal text-muted-foreground">({connector.path})</span>
+      </h2>
+      <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+        <li>• {reads}</li>
+        {connector.writes.length > 0 && (
+          <li>
+            • {writesIntro}
+            <ul className="mt-1 space-y-1 pl-4">
+              {connector.writes.map((w) => (
+                <li key={w.title}>
+                  – {w.title}. <span className="text-xs">{w.limits}</span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        )}
+        <li>• {never}</li>
+      </ul>
+    </section>
   )
 }
 
@@ -90,38 +127,32 @@ export default async function ConsentPage({
           sistema DYMMSA.
         </p>
 
-        <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-          <li>• Consulta {summary.reads.join(', ')} y la facturación de Odoo — lo mismo que ves tú.</li>
-          <li>
-            • Puede hacer {summary.writes.length} acciones en la app, siempre confirmando antes:
-            <ul className="mt-1 space-y-1 pl-4">
-              {summary.writes.map((w) => (
-                <li key={w.title}>
-                  – {w.title}. <span className="text-xs">{w.limits}</span>
-                </li>
-              ))}
-            </ul>
-          </li>
-          {summary.odooWrites.length > 0 && (
-            <li>
-              • En Odoo, solo como administrador:
-              <ul className="mt-1 space-y-1 pl-4">
-                {summary.odooWrites.map((w) => (
-                  <li key={w.title}>
-                    – {w.title}. <span className="text-xs">{w.limits}</span>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          )}
-          <li>
-            • Nunca modifica cotizaciones, órdenes ni cantidades de inventario de la app
-            {summary.odooWrites.length > 0
-              ? ', y en Odoo nunca publica, timbra ni envía facturas.'
-              : ', y nunca escribe en Odoo.'}
-          </li>
-          <li>• Puedes revocar el acceso cuando quieras desde el panel de Supabase.</li>
-        </ul>
+        <p className="mt-6 text-sm text-muted-foreground">
+          Esta autorización sirve para los dos conectores de DYMMSA: el asistente usa las
+          herramientas del que agregaste en Claude.
+        </p>
+
+        <ConnectorBlock
+          connector={summary.app}
+          reads={`Consulta ${summary.app.reads.join(', ')} — lo mismo que ves tú.`}
+          writesIntro={`Puede hacer ${summary.app.writes.length} acciones en la app, siempre confirmando antes:`}
+          never="Nunca modifica cotizaciones, órdenes ni cantidades de inventario de la app."
+        />
+        {/* Odoo is read with the server's key, not the person's: no "lo mismo que ves tú" here. */}
+        <ConnectorBlock
+          connector={summary.odoo}
+          reads={`Consulta la facturación oficial de Odoo: ${summary.odoo.reads.join(', ')}.`}
+          writesIntro="Solo como administrador, siempre confirmando antes:"
+          never={
+            summary.odoo.writes.length > 0
+              ? 'Nunca publica, timbra ni envía facturas.'
+              : 'Solo lectura: nunca escribe en Odoo.'
+          }
+        />
+
+        <p className="mt-4 text-sm text-muted-foreground">
+          Puedes revocar el acceso cuando quieras desde el panel de Supabase.
+        </p>
 
         {/* Two forms instead of one submitter with name/value: intent lives in which action runs,
             not in a field the browser controls. */}

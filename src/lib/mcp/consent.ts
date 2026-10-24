@@ -4,22 +4,42 @@
  */
 
 import { manifestForRole } from './catalog'
-import { groupByModule, type McpRole } from './manifest'
+import { MCP_PATH, ODOO_MCP_PATH, CONNECTOR_NAMES } from './core/routes'
+import { groupByModule, type McpRole, type ToolBlock } from './manifest'
 
-export interface ConsentSummary {
-  /** Modules the assistant can read, in manifest order. */
+export interface ConsentWrite {
+  title: string
+  limits: string
+}
+
+export interface ConsentConnector {
+  name: string
+  path: string
+  /** Modules it can read, in manifest order. */
   reads: string[]
-  /** Each app write with its limit, in manifest order. */
-  writes: { title: string; limits: string }[]
-  /** Odoo writes (#144, ADR-040): admin-only, so a member's screen still promises Odoo is read-only. */
-  odooWrites: { title: string; limits: string }[]
+  /** Each write with its limit, in manifest order. */
+  writes: ConsentWrite[]
+}
+
+/**
+ * Both connectors, always: the token is shared (ADR-041 §1), so the screen cannot know which one is
+ * being authorized. Odoo's writes are admin-only (ADR-040): a member's list is empty.
+ */
+export interface ConsentSummary {
+  app: ConsentConnector
+  odoo: ConsentConnector
 }
 
 export function consentSummary(role: McpRole): ConsentSummary {
   const tools = manifestForRole(role)
+  const block = (b: ToolBlock, name: string, path: string): ConsentConnector => ({
+    name,
+    path,
+    reads: groupByModule(tools.filter((t) => t.block === b && t.kind === 'read')).map((g) => g.module),
+    writes: tools.filter((t) => t.block === b && t.kind === 'write').map((t) => ({ title: t.title, limits: t.limits ?? '' })),
+  })
   return {
-    reads: groupByModule(tools.filter((t) => t.block === 'app' && t.kind === 'read')).map((g) => g.module),
-    writes: tools.filter((t) => t.block === 'app' && t.kind === 'write').map((t) => ({ title: t.title, limits: t.limits ?? '' })),
-    odooWrites: tools.filter((t) => t.block === 'odoo' && t.kind === 'write').map((t) => ({ title: t.title, limits: t.limits ?? '' })),
+    app: block('app', CONNECTOR_NAMES.dymmsa, MCP_PATH),
+    odoo: block('odoo', CONNECTOR_NAMES.odoo, ODOO_MCP_PATH),
   }
 }

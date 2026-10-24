@@ -8,7 +8,7 @@ import { DOCS_MANIFEST } from '@/lib/mcp/catalog'
 describe('AssistantSection', () => {
   test('pinta cada capacidad del manifiesto con su pregunta ejemplo y marca las que escriben', () => {
     render(<AssistantSection tools={DOCS_MANIFEST} />)
-    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.block === 'app').length} de la app y ${DOCS_MANIFEST.filter((t) => t.block === 'odoo').length} de Odoo`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.block === 'app').length} de «DYMMSA-WEB» y ${DOCS_MANIFEST.filter((t) => t.block === 'odoo').length} de «Odoo DYMMSA»`))).toBeTruthy()
     for (const tool of DOCS_MANIFEST) {
       expect(screen.getAllByText(tool.title).length, tool.name).toBeGreaterThan(0)
     }
@@ -19,7 +19,17 @@ describe('AssistantSection', () => {
     expect(DOCS_MANIFEST.some((t) => t.block === 'odoo' && t.kind === 'write')).toBe(false)
     expect(screen.getByText(/nunca publica, timbra ni envia/)).toBeTruthy()
     // Admins read this page too and they do write in Odoo (#144): no "solo lectura" claim for the block.
-    expect(screen.queryByText(/Odoo: la facturacion oficial \(solo lectura\)/)).toBeNull()
+    expect(screen.queryByText(/la facturacion oficial \(solo lectura\)/)).toBeNull()
+  })
+
+  test('presenta los dos conectores por separado, con su ruta y como agregar «Odoo DYMMSA» en Claude (#155 B3)', () => {
+    render(<AssistantSection tools={DOCS_MANIFEST} />)
+    expect(screen.getAllByText('/api/mcp').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('/api/odoo/mcp').length).toBeGreaterThan(0)
+    expect(screen.getByText(/Configuracion → Conectores → Agregar conector personalizado/)).toBeTruthy()
+    expect(screen.getByText('«DYMMSA-WEB»: lo que consulta por modulo')).toBeTruthy()
+    expect(screen.getByText('«Odoo DYMMSA»: la facturacion oficial')).toBeTruthy()
+    expect(screen.getByText(/Son independientes/)).toBeTruthy()
   })
 })
 
