@@ -5,6 +5,7 @@
 
 import { z } from 'zod'
 import { ToolError } from '@/lib/mcp/core/errors'
+import { CONFIRM_UNAVAILABLE_MESSAGE, issuePreviewKey, previewSecret, verifyPreviewKeyFor } from '@/lib/mcp/core/confirm/preview-key'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
@@ -207,20 +208,29 @@ export interface SaveTimeEntriesInput {
   /** The clock report's rows, cell by cell, as the sheet prints them. */
   filas?: string[][]
   nombre_archivo?: string
+  /** The key preview_time_report signed for these rows (#155 C4); only `filas` needs it. */
+  clave?: string
   checada?: PunchInput
 }
 
 const ASSISTANT_FILE = 'Asistente (MCP)'
 
+/** What the key signs for the report: the rows and the name, nothing else of the call. */
+const reportArgs = (input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>) => ({ filas: input.filas, nombre_archivo: input.nombre_archivo })
+
+/** Who the import would assign each clock id to: if it moves between the preview and the save, the preview no longer holds. */
+const clockMapping = (profiles: { id: string; clock_employee_id: number | null }[]) =>
+  profiles.map((p) => [p.clock_employee_id, p.id]).sort((a, b) => Number(a[0]) - Number(b[0]))
+
 /** One tool per entity (ADR-034): the weekly report (#132) or a single punch (#134). */
 export async function saveTimeEntries(db: Db, callerId: string, input: SaveTimeEntriesInput) {
   if (input.filas?.length && input.checada) throw new ToolError('Manda `filas` o `checada`, no las dos en la misma llamada')
   if (input.checada) return savePunch(db, callerId, input.checada)
-  return importReport(db, input)
+  return importReport(db, callerId, input)
 }
 
 /** The rows go through the app's own parser, and must add up to the clock's totals (ADR-035). */
-async function importReport(db: Db, input: SaveTimeEntriesInput) {
+async function importReport(db: Db, callerId: string, input: SaveTimeEntriesInput) {
   if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador, o una `checada` para corregir o registrar')
   const report = parseNgtecoReport(input.filas)
   const mismatches = reportMismatches(report)
@@ -229,6 +239,21 @@ async function importReport(db: Db, input: SaveTimeEntriesInput) {
       `No guardé nada: lo que mandaste no cuadra con los totales del propio reporte. Revisa esas filas contra el archivo y vuelve a mandarlo completo. ${mismatches.join(' · ')}`,
     )
   }
+  // Same refusals as the preview and the store, before the key: a malformed report is never a "missing key".
+  if (!report.period) throw new ToolError('Las filas no traen "Período de pago": ¿es el reporte del checador?')
+  if (report.employees.length === 0) throw new ToolError('Las filas no traen bloques de empleado')
+  // The yes is the preview's key (#155 C4): the same rows, the same admin, the same clock-id mapping, within 30 min.
+  if (!previewSecret()) throw new ToolError(CONFIRM_UNAVAILABLE_MESSAGE)
+  if (!input.clave?.trim()) {
+    throw new ToolError('Falta la `clave` del reporte: revísalo primero con preview_time_report y repite con su clave. No guardé nada.')
+  }
+  verifyPreviewKeyFor(input.clave, {
+    userId: callerId,
+    tool: 'save_time_entries',
+    args: reportArgs(input),
+    fingerprint: clockMapping(await loadClockProfiles(db)),
+    subject: 'La asignación de personas del checador',
+  })
   const name = input.nombre_archivo?.trim()
   const { result, absent } = await importTimeReport(db, report, name ? `${ASSISTANT_FILE}: ${name.slice(0, 120)}` : ASSISTANT_FILE)
   return {
@@ -291,13 +316,16 @@ export const previewTimeReportOutput = z.strictObject({
   sin_perfil: textList,
   no_vinieron_en_el_reporte: textList,
   avisos: textList,
+  /** The key save_time_entries demands with `filas` (#155 C4); null when the report does not add up or confirmations are off. */
+  clave: text.nullable(),
+  vence: text.nullable(),
   siguiente_paso: text,
 })
 
 export type TimeReportPreview = z.infer<typeof previewTimeReportOutput>
 
-/** Read-only twin of save_time_entries (ADR-034: never read and write in one tool); the MCP App view renders it (ADR-036). */
-export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>): Promise<TimeReportPreview> {
+/** Read-only twin of save_time_entries (ADR-034: never read and write in one tool); the MCP App view renders it (ADR-036). It signs the key the save asks for. */
+export async function previewTimeReport(db: Db, callerId: string, input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>): Promise<TimeReportPreview> {
   if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador')
   const report = parseNgtecoReport(input.filas)
   if (!report.period) throw new ToolError('Las filas no traen "Período de pago": ¿es el reporte del checador?')
@@ -333,6 +361,12 @@ export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput
     }
   })
 
+  const confirmable = previewSecret() !== null
+  const key =
+    problems.length === 0 && confirmable
+      ? issuePreviewKey({ userId: callerId, tool: 'save_time_entries', args: reportArgs(input), fingerprint: clockMapping(profiles) })
+      : null
+
   return {
     periodo: { inicio: report.period.start, fin: report.period.end },
     nombre_archivo: input.nombre_archivo ?? null,
@@ -345,9 +379,13 @@ export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput
     avisos: truncated
       ? [...report.warnings, `La tabla muestra solo los primeros ${MAX_PREVIEW_DAYS} días del periodo; el total y "cuadra" sí consideran todas las checadas, y guardar las escribe todas.`]
       : report.warnings,
+    clave: key?.clave ?? null,
+    vence: key?.vence ?? null,
     siguiente_paso: problems.length
       ? 'No cuadra con los totales del reporte: revisa esas filas contra el archivo antes de guardar.'
-      : 'Nada se ha guardado. Muestra el resumen y, si el administrador confirma, llama save_time_entries con las mismas filas.',
+      : !confirmable
+        ? CONFIRM_UNAVAILABLE_MESSAGE
+        : 'Nada se ha guardado. Muestra el resumen y, si el administrador confirma, llama save_time_entries con las mismas filas y la clave.',
   }
 }
 

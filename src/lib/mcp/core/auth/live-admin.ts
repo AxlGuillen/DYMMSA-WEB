@@ -1,4 +1,4 @@
-import { ADMIN_ONLY_MESSAGE, issueAdminProof, type AdminProof } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE, issueAdminProof, type AdminProof } from '@/lib/auth/admin-proof'
 import type { McpContext } from '../context'
 import type { Db } from '../db'
 import { ToolError } from '../errors'

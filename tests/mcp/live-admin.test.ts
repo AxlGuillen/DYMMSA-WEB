@@ -9,7 +9,7 @@ import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import { PRE_TOOL_HEADROOM_MS } from '@/lib/odoo/deadline'
 import { grantPreviewWrite, issueQuotationKey, PREVIEW_EXPIRED_MESSAGE, verifyQuotationKey } from '@/lib/odoo/preview-token'
-import { ADMIN_ONLY_MESSAGE, assertAdminProof } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE, assertAdminProof } from '@/lib/auth/admin-proof'
 import type { McpRole } from '@/lib/mcp/manifest'
 
 const asDb = (c: MockSupabaseClient) => c as unknown as Db

@@ -9,10 +9,11 @@ export const saveTimeEntriesTool = defineTool({
   kind: 'write',
   title: 'Guardar checadas',
   description:
-    'Escribe checadas, solo si un administrador lo pide. A) `filas`: el reporte semanal del checador, las mismas filas que en preview_time_report (revísalo ahí primero). Si no cuadra con los totales del reporte, no guarda nada. B) `checada`: corrige una (`entrada_actual` = su entrada de hoy, ver get_week_hours) o registra una a mano (con `entrada`); `salida: ""` la borra. Lo corregido sobrevive al re-import.',
+    'Escribe checadas, solo si un administrador lo pide. A) `filas` + `clave`: el reporte semanal, las mismas filas que en preview_time_report y la clave que esa vista devolvió (revísalo ahí primero). Si no cuadra con los totales del reporte, no guarda nada. B) `checada`: corrige una (`entrada_actual` = su entrada de hoy, ver get_week_hours) o registra una a mano (con `entrada`); `salida: ""` la borra. Lo corregido sobrevive al re-import.',
   input: {
     filas: z.array(z.array(z.string().max(200)).max(20)).min(1).max(1000).optional(),
     nombre_archivo: z.string().max(200).optional(),
+    clave: z.string().optional().describe('La de preview_time_report; obligatoria con `filas`'),
     checada: z
       .strictObject({
         persona: z.string().optional().describe('Default: tú'),

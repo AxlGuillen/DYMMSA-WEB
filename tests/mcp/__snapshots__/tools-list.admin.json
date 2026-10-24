@@ -922,7 +922,7 @@
   {
     "name": "preview_time_report",
     "title": "Revisar reporte del checador",
-    "description": "Revisa SIN guardar el reporte semanal del checador (NGTeco .xls) contra sus propios totales; úsala antes de save_time_entries (en Claude se ve como tabla con botón para guardar). `filas`: TODAS las filas tal cual, cada celda en su columna (\"\" si vacía; sin resumir), con \"Período de pago\", \"Empleado\", continuaciones y \"Horas totales\". Ej.: [\"LU\",\"2026-09-28\",\"10:09\",\"19:48\",\"09:38\",\"09:38\"].",
+    "description": "Revisa SIN guardar el reporte semanal del checador (NGTeco .xls) contra sus propios totales; devuelve la `clave` que save_time_entries exige con `filas` (en Claude se ve como tabla con botón para guardar). `filas`: TODAS las filas tal cual, cada celda en su columna (\"\" si vacía; sin resumir), con \"Período de pago\", \"Empleado\", continuaciones y \"Horas totales\". Ej.: [\"LU\",\"2026-09-28\",\"10:09\",\"19:48\",\"09:38\",\"09:38\"].",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1119,6 +1119,26 @@
             "type": "string"
           }
         },
+        "clave": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "siguiente_paso": {
           "type": "string"
         }
@@ -1133,6 +1153,8 @@
         "sin_perfil",
         "no_vinieron_en_el_reporte",
         "avisos",
+        "clave",
+        "vence",
         "siguiente_paso"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1157,7 +1179,7 @@
   {
     "name": "save_time_entries",
     "title": "Guardar checadas",
-    "description": "Escribe checadas, solo si un administrador lo pide. A) `filas`: el reporte semanal del checador, las mismas filas que en preview_time_report (revísalo ahí primero). Si no cuadra con los totales del reporte, no guarda nada. B) `checada`: corrige una (`entrada_actual` = su entrada de hoy, ver get_week_hours) o registra una a mano (con `entrada`); `salida: \"\"` la borra. Lo corregido sobrevive al re-import.",
+    "description": "Escribe checadas, solo si un administrador lo pide. A) `filas` + `clave`: el reporte semanal, las mismas filas que en preview_time_report y la clave que esa vista devolvió (revísalo ahí primero). Si no cuadra con los totales del reporte, no guarda nada. B) `checada`: corrige una (`entrada_actual` = su entrada de hoy, ver get_week_hours) o registra una a mano (con `entrada`); `salida: \"\"` la borra. Lo corregido sobrevive al re-import.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1177,6 +1199,10 @@
         "nombre_archivo": {
           "type": "string",
           "maxLength": 200
+        },
+        "clave": {
+          "description": "La de preview_time_report; obligatoria con `filas`",
+          "type": "string"
         },
         "checada": {
           "type": "object",

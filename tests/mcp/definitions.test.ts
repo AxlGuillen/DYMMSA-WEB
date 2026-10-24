@@ -158,6 +158,8 @@ const OUTPUT_SAMPLES: Record<string, Record<string, unknown>> = {
     sin_perfil: [],
     no_vinieron_en_el_reporte: [],
     avisos: [],
+    clave: null,
+    vence: null,
     siguiente_paso: 'Nada se ha guardado.',
   },
   odoo_preview_quotation: {

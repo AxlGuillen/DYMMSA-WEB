@@ -1,14 +1,17 @@
 /**
  * Preview keys (#144, ADR-040): an HMAC token ties every save to the preview the admin saw —
  * same admin, same canonical content, same intent, within 30 min. The products one rides in _meta only.
+ * Signed with the MCP's common token (#155 C4), under Odoo's own purposes and a secret derived from the write key.
  */
 
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
+import { canonicalJson, sha256Hex as sha256 } from '@/lib/mcp/core/confirm/canonical'
+import { openClaims, signClaims } from '@/lib/mcp/core/confirm/token'
 
 import { OdooError } from './client'
 import { odooWriteEnv } from './env'
-import { assertAdminProof, type AdminProof } from './write-guard'
+import { assertAdminProof, type AdminProof } from '@/lib/auth/admin-proof'
 import type { MarkerKeys } from './writer'
 
 export const PREVIEW_TTL_MS = 30 * 60_000
@@ -101,12 +104,7 @@ export interface QuotationKeyInput {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** Keys sorted at every depth; undefined dropped as JSON does. */
-export function canonicalJson(value: unknown): string {
-  const sorted = (_key: string, v: unknown) =>
-    isRecord(v) ? Object.fromEntries(Object.keys(v).sort().map((key) => [key, v[key]])) : v
-  return JSON.stringify(value, sorted) ?? 'null'
-}
+export { canonicalJson }
 
 // The save and the confirm repeat the preview with its `clave`, which is not content.
 const NOT_CONTENT: ReadonlySet<string> = new Set(['clave'])
@@ -146,8 +144,6 @@ export function canonicalQuotationInput(input: QuotationKeyInput): Record<string
   return canonical
 }
 
-const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex')
-
 export function quotationContentHash(input: QuotationKeyInput): string {
   return sha256(canonicalJson(canonicalQuotationInput(input)))
 }
@@ -160,39 +156,17 @@ const withoutChoice = (product: unknown) =>
 
 const productsContentHash = (products: readonly unknown[]) => sha256(canonicalJson(products.map(withoutChoice)))
 
-/** Derived from the write key: no key, no tokens; rotating it voids every pending preview. */
-function previewSecret(): Buffer {
-  return createHmac('sha256', odooWriteEnv().apiKey).update('dymmsa-mcp-preview-v1').digest()
-}
+/** The write key itself: no key, no tokens; rotating it voids every pending preview. Odoo keeps this secret (not MCP_PREVIEW_SECRET) so its flow works as before. */
+const previewSecret = (): Buffer => Buffer.from(odooWriteEnv().apiKey, 'utf8')
 
-const mac = (secret: Buffer, payload: string) => createHmac('sha256', secret).update(payload).digest('base64url')
+/** One purpose per family: a quotation key never opens as a products authorization, nor the reverse. */
+const QUOTATION_PURPOSE = 'odoo-quotation'
+const PRODUCTS_PURPOSE = 'odoo-products'
 
-function sign(claims: QuotationKeyClaims | ProductsKeyClaims): string {
-  const payload = Buffer.from(canonicalJson(claims), 'utf8').toString('base64url')
-  return `${payload}.${mac(previewSecret(), payload)}`
-}
+const sign = (claims: QuotationKeyClaims | ProductsKeyClaims): string =>
+  signClaims(claims, claims.k === 'products' ? PRODUCTS_PURPOSE : QUOTATION_PURPOSE, previewSecret())
 
-/** timingSafeEqual throws on a length mismatch: here that is just "no". */
-function sameText(a: string, b: string): boolean {
-  const left = Buffer.from(a, 'utf8')
-  const right = Buffer.from(b, 'utf8')
-  return left.length === right.length && timingSafeEqual(left, right)
-}
-
-const BASE64URL = /^[A-Za-z0-9_-]+$/
-
-// The MAC is compared as text: a re-spelled token (padding, other base64) would mint another marker.
-function openToken(token: string): unknown {
-  const parts = token.split('.')
-  if (parts.length !== 2 || !parts.every((part) => BASE64URL.test(part))) return null
-  const [payload, signature] = parts
-  if (!sameText(signature, mac(previewSecret(), payload))) return null
-  try {
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
-  } catch {
-    return null
-  }
-}
+const openToken = (token: string, purpose: string): unknown => openClaims(token, purpose, previewSecret())
 
 /** k10 is the idempotency marker: a retry with the same key finds the same order (ADR-040). */
 function markersOf(clave: string, h: string): MarkerKeys {
@@ -290,7 +264,7 @@ export function verifyQuotationKey(
   assertAdminProof(proof, now)
   const token = typeof clave === 'string' ? clave.trim() : ''
   if (!token) throw new OdooError(PREVIEW_KEY_MISSING_MESSAGE)
-  const parsed = quotationClaims.safeParse(openToken(token))
+  const parsed = quotationClaims.safeParse(openToken(token, QUOTATION_PURPOSE))
   if (!parsed.success) throw new OdooError(PREVIEW_KEY_INVALID_MESSAGE)
   const claims = Object.freeze(parsed.data)
   if (claims.u !== proof.userId) throw new OdooError(PREVIEW_KEY_OTHER_ADMIN_MESSAGE)
@@ -394,7 +368,7 @@ export function verifyProductsAuthorization(
   const now = deps.now ?? Date.now()
   assertAdminProof(proof, now)
   const token = typeof autorizacion === 'string' ? autorizacion.trim() : ''
-  const parsed = token ? productsClaims.safeParse(openToken(token)) : null
+  const parsed = token ? productsClaims.safeParse(openToken(token, PRODUCTS_PURPOSE)) : null
   if (!parsed?.success) throw new OdooError(PRODUCTS_UNAUTHORIZED_MESSAGE)
   const claims = parsed.data
   if (claims.u !== proof.userId) throw new OdooError(PRODUCTS_OTHER_ADMIN_MESSAGE)

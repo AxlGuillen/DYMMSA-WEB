@@ -25,7 +25,7 @@ import {
 } from '@/lib/odoo/quotation-plan'
 import { SAT_PLACEHOLDER } from '@/lib/odoo/sat-keys'
 import { ETM_CODE_LIST, type ProductCreateVals } from '@/lib/odoo/write-catalog'
-import type { AdminProof } from '@/lib/odoo/write-guard'
+import type { AdminProof } from '@/lib/auth/admin-proof'
 import type { McpContext } from '../../core/context'
 import { fold } from '@/lib/text'
 import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'

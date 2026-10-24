@@ -127,7 +127,7 @@ describe('frontera de escritura en Odoo (#144)', () => {
   })
 
   test('issueAdminProof solo se llama desde core/auth/live-admin.ts', () => {
-    const named = filesContaining(/\bissueAdminProof\b/).filter((path) => path !== 'src/lib/odoo/write-guard.ts')
+    const named = filesContaining(/\bissueAdminProof\b/).filter((path) => path !== 'src/lib/auth/admin-proof.ts')
     for (const path of named) expect(path).toBe('src/lib/mcp/core/auth/live-admin.ts')
     // Not even the guard calls it on its own behalf.
     const called = filesWhere('issueAdminProof', (node) => calleeName(node) === 'issueAdminProof')

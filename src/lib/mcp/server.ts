@@ -1,5 +1,6 @@
 /** DYMMSA-WEB's server instructions (#155 A3, ADR-041); since B3 they say nothing about the odoo_* tools, which live in «Odoo DYMMSA». */
 
+import { CONFIRMATION_RULE } from './core/confirm/two-phase'
 import type { McpRole } from './manifest'
 
 export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA
@@ -25,7 +26,7 @@ export function serverInstructions(role: McpRole): string {
   const admin = role === 'admin'
   return `# MCP DYMMSA-WEB (la app de cotizaciones e inventario) — mapa de herramientas
 
-- Panorama: get_business_summary (úsala primero para contexto global; trae los conteos por estado y la salud del inventario).
+- Panorama: get_business_summary (conteos por estado y salud del inventario).
 - Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió).
 - Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escritura save_material_presentation para registrar una barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
 - Inventario de la TIENDA: search_inventory; escritura acotada set_inventory_location (solo la gaveta, nunca cantidades).
@@ -33,8 +34,8 @@ export function serverInstructions(role: McpRole): string {
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte); escritura save_supplier (alta o edición, nunca borra).
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escrituras acotadas: mark_payable_paid (pagada con fecha real, o de regreso a pendiente), create_payable (registrar una factura de gasto) y update_payable (corregirla o cancelarla).
 - Tareas del equipo: list_tasks, get_task; escrituras create_task y update_task (comentar/priorizar/cerrar).
-- Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports, preview_time_report; escriben save_time_entries y save_excused_day' : ' (solo lectura)'}. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), sin relación con los empleados de Odoo (directorio, no checadas).
-- Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona como en horas. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan y no lo repitas en resúmenes.
+- Horas del equipo (checador): get_week_hours, get_hours_trend${admin ? ', list_time_imports, preview_time_report; escriben save_time_entries y save_excused_day' : ' (solo lectura)'}. Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), no de los empleados de Odoo.
+- Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura, por persona como en horas. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
 ${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes: horas por empleado y día, total equivalente) y las escrituras record_payroll_hours (BORRADOR; confirmar y cerrar es en la app; la guía de la hoja va en la tool) y save_payroll_employee (alta, cambios y baja de empleados). Son HORAS, nunca montos. Rutina de los viernes: preview_time_report → save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
 ## Dos conectores, sin vínculo
@@ -42,7 +43,7 @@ La facturación OFICIAL (facturas, cobros, cartera, almacén) vive en Odoo, un s
 - Ningún registro de aquí es uno de Odoo aunque coincidan nombre, monto o código: no los cruces ni sumes.
 - Si piden llevar algo de un lado al otro, di que son sistemas separados y que el puente es el usuario: nunca asumas que una cotización de aquí es una de Odoo.${admin ? ' Cotizar o facturar en Odoo es del conector «Odoo DYMMSA».' : ''}
 
-Las únicas escrituras son las que el mapa marca; todo lo demás es lectura. Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
+Las únicas escrituras son las que el mapa marca; todo lo demás es lectura. Antes de escribir di qué y con qué valores. ${CONFIRMATION_RULE} Si una búsqueda por nombre da varias coincidencias, pregunta cuál.
 
 ${BUSINESS_RULES_MD}`
 }

@@ -1,6 +1,6 @@
 /** MCP hours tools (#101): "me" comes from the token, everything else from RLS — the mock plays the policy. */
 
-import { describe, test, expect } from 'vitest'
+import { describe, test, expect, vi } from 'vitest'
 import { todayInMexico } from '@/lib/format'
 import { weekBounds } from '@/lib/timesheet'
 import { createMockSupabase, filterValue, type CallRecord } from '../helpers/supabase-mock'
@@ -8,6 +8,9 @@ import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import { getWeekHours, getHoursTrend, listTimeImports, previewTimeReport, saveTimeEntries, saveExcusedDay } from '@/lib/mcp/tools/hours'
 import { NGTECO_PERIOD, NGTECO_WEEK } from '../helpers/fixtures/ngteco'
+import { withPreviewSecret } from '../helpers/preview-secret'
+
+withPreviewSecret()
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
@@ -188,9 +191,14 @@ describe('save_time_entries (#132)', () => {
   const importClient = (rpc: unknown = { data: { inserted: 5, updated: 0, skipped_edited: 0 }, error: null }) =>
     createMockSupabase({ responses: { 'profiles.select': { data: MAPPED, error: null }, 'rpc.import_time_entries': rpc } })
 
+  /** The key preview_time_report signs for these rows, as the admin's yes carries it (#155 C4). */
+  const keyFor = async (client: ReturnType<typeof importClient>, input: { filas: string[][]; nombre_archivo?: string }, user = 'u-axl') =>
+    (await previewTimeReport(asDb(client), user, input)).clave as string
+
   test('las filas pasan por el parser de la app y la misma RPC; avisa quién no vino en el reporte', async () => {
     const client = importClient()
-    const result = await saveTimeEntries(asDb(client), 'u-axl', { filas: NGTECO_WEEK, nombre_archivo: 'ASISTENCIA_OFICINA.xls' })
+    const input = { filas: NGTECO_WEEK, nombre_archivo: 'ASISTENCIA_OFICINA.xls' }
+    const result = await saveTimeEntries(asDb(client), 'u-axl', { ...input, clave: await keyFor(client, input) })
 
     expect(result.periodo).toEqual({ inicio: NGTECO_PERIOD.start, fin: NGTECO_PERIOD.end })
     expect(result).toMatchObject({ insertadas: 5, actualizadas: 0, saltadas_por_edicion: 0, sin_perfil: [], no_vinieron_en_el_reporte: ['Santi'] })
@@ -219,7 +227,61 @@ describe('save_time_entries (#132)', () => {
     await expect(saveTimeEntries(asDb(importClient()), 'u-axl', { filas: [] })).rejects.toThrow(/Manda las filas/)
     await expect(saveTimeEntries(asDb(importClient()), 'u-axl', { filas: NGTECO_WEEK.filter((r) => r[0] !== 'Período de pago') })).rejects.toThrow(/Período de pago/)
     const denied = importClient({ data: null, error: { code: '42501', message: 'denied' } })
-    await expect(saveTimeEntries(asDb(denied), 'u-axl', { filas: NGTECO_WEEK })).rejects.toThrow(/Solo un administrador/)
+    const clave = await keyFor(importClient(), { filas: NGTECO_WEEK })
+    await expect(saveTimeEntries(asDb(denied), 'u-axl', { filas: NGTECO_WEEK, clave })).rejects.toThrow(/Solo un administrador/)
+  })
+
+  describe('la clave de preview_time_report (#155 C4)', () => {
+    const input = { filas: NGTECO_WEEK, nombre_archivo: 'semana.xls' }
+
+    test('sin clave no guarda nada y dice que primero se revisa', async () => {
+      const client = importClient()
+      await expect(saveTimeEntries(asDb(client), 'u-axl', input)).rejects.toThrow(/Falta la `clave` del reporte.*No guardé nada/)
+      await expect(saveTimeEntries(asDb(client), 'u-axl', { ...input, clave: '  ' })).rejects.toThrow(/Falta la `clave`/)
+      expect(client._rpcCalls).toEqual([])
+    })
+
+    test('la clave de otro usuario, de otras filas o de otro nombre de archivo no sirve', async () => {
+      const client = importClient()
+      const clave = await keyFor(client, input)
+      await expect(saveTimeEntries(asDb(client), 'u-otro', { ...input, clave })).rejects.toThrow(/de otro usuario/)
+      const edited = NGTECO_WEEK.map((r) => (r[1] === '2026-09-01' && r[2] === '08:55' ? ['MA', '2026-09-01', '08:50', r[3], r[4], r[5]] : r))
+      await expect(saveTimeEntries(asDb(client), 'u-axl', { filas: edited, nombre_archivo: 'semana.xls', clave })).rejects.toThrow(/No guardé nada/)
+      await expect(saveTimeEntries(asDb(client), 'u-axl', { filas: NGTECO_WEEK, nombre_archivo: 'otra.xls', clave })).rejects.toThrow(/Los datos son distintos/)
+      expect(client._rpcCalls).toEqual([])
+    })
+
+    test('si cambia a quién corresponde cada id del checador entre la revisión y el guardado, no guarda', async () => {
+      const clave = await keyFor(importClient(), input)
+      const moved = createMockSupabase({
+        responses: {
+          'profiles.select': { data: MAPPED.map((p) => (p.id === 'u-tania' ? { ...p, clock_employee_id: 9 } : p)), error: null },
+          'rpc.import_time_entries': { data: { inserted: 5, updated: 0, skipped_edited: 0 }, error: null },
+        },
+      })
+      await expect(saveTimeEntries(asDb(moved), 'u-axl', { ...input, clave })).rejects.toThrow(/La asignación de personas del checador cambió desde el resumen/)
+      expect(moved._rpcCalls).toEqual([])
+    })
+
+    test('una clave vencida no guarda', async () => {
+      const client = importClient()
+      const clave = await keyFor(client, input)
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 31 * 60_000 })
+      try {
+        await expect(saveTimeEntries(asDb(client), 'u-axl', { ...input, clave })).rejects.toThrow(/venció/)
+      } finally {
+        vi.useRealTimers()
+      }
+      expect(client._rpcCalls).toEqual([])
+    })
+
+    test('sin MCP_PREVIEW_SECRET no se guarda, aunque alguien tenga una clave', async () => {
+      const client = importClient()
+      const clave = await keyFor(client, input)
+      vi.stubEnv('MCP_PREVIEW_SECRET', '')
+      await expect(saveTimeEntries(asDb(client), 'u-axl', { ...input, clave })).rejects.toThrow(/no está disponible/)
+      expect(client._rpcCalls).toEqual([])
+    })
   })
 })
 
@@ -339,7 +401,7 @@ describe('preview_time_report (ADR-036)', () => {
 
   test('arma la tabla por persona y día sin escribir nada; marca quién no tiene perfil y quién no vino', async () => {
     const db = client()
-    const result = await previewTimeReport(asDb(db), { filas: NGTECO_WEEK, nombre_archivo: 'semana.xls' })
+    const result = await previewTimeReport(asDb(db), 'u-axl', { filas: NGTECO_WEEK, nombre_archivo: 'semana.xls' })
 
     expect(result).toMatchObject({ periodo: { inicio: '2026-08-31', fin: '2026-09-06' }, nombre_archivo: 'semana.xls', cuadra: true, problemas: [] })
     expect(result.dias.map((d) => d.dia)).toEqual(['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'])
@@ -355,13 +417,27 @@ describe('preview_time_report (ADR-036)', () => {
     expect(db._calls.filter((c) => c.op !== 'select')).toEqual([])
   })
 
+  test('un reporte que cuadra trae la clave de 30 min para guardarlo; sin MCP_PREVIEW_SECRET no hay clave y lo dice', async () => {
+    const withKey = await previewTimeReport(asDb(client()), 'u-axl', { filas: NGTECO_WEEK })
+    expect(withKey.clave).toMatch(/^[\w-]+\.[\w-]+$/)
+    expect(new Date(withKey.vence as string).getTime() - Date.now()).toBeGreaterThan(29 * 60_000)
+    expect(withKey.siguiente_paso).toMatch(/clave/)
+
+    vi.stubEnv('MCP_PREVIEW_SECRET', '')
+    const without = await previewTimeReport(asDb(client()), 'u-axl', { filas: NGTECO_WEEK })
+    expect(without).toMatchObject({ cuadra: true, clave: null, vence: null })
+    expect(without.siguiente_paso).toMatch(/no está disponible/)
+  })
+
   test('lo que no cuadra se marca por persona y en problemas, para que la vista no deje guardar', async () => {
     const typo = NGTECO_WEEK.map((r) => (r[1] === '2026-08-31' && r[3] === '18:27' ? ['LU', '2026-08-31', '10:06', '18:57', '08:21', '08:21'] : r))
-    const result = await previewTimeReport(asDb(client()), { filas: typo })
+    const result = await previewTimeReport(asDb(client()), 'u-axl', { filas: typo })
     expect(result.cuadra).toBe(false)
     expect(result.personas.map((p) => p.cuadra)).toEqual([false, true])
     expect(result.problemas).toHaveLength(2)
     expect(result.siguiente_paso).toMatch(/No cuadra/)
-    await expect(previewTimeReport(asDb(client()), { filas: NGTECO_WEEK.filter((r) => r[0] !== 'Período de pago') })).rejects.toThrow(/Período de pago/)
+    // A report that does not add up gets no key: there is nothing to confirm (#155 C4).
+    expect(result).toMatchObject({ clave: null, vence: null })
+    await expect(previewTimeReport(asDb(client()), 'u-axl', { filas: NGTECO_WEEK.filter((r) => r[0] !== 'Período de pago') })).rejects.toThrow(/Período de pago/)
   })
 })

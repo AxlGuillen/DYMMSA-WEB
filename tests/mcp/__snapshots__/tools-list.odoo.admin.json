@@ -914,7 +914,7 @@
   {
     "name": "odoo_create_draft_invoice",
     "title": "Factura en borrador (Odoo)",
-    "description": "Factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`). Sin `confirmar` no escribe: devuelve el resumen (cliente, total y líneas a facturar, entrega, productos sin clave SAT, si ya hay borrador); muéstralo y, tras el sí, repite con confirmar: true. Revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.",
+    "description": "Factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`). Dos fases: sin `clave` no escribe y devuelve el resumen (cliente, total y líneas a facturar, entrega, productos sin clave SAT, si ya hay borrador) con su `clave`; tras el sí, repite con ella. Revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -923,9 +923,9 @@
           "pattern": "^S\\d{5,}$",
           "description": "Folio exacto de la venta confirmada"
         },
-        "confirmar": {
-          "description": "true crea el borrador; sin esto solo muestra el resumen",
-          "type": "boolean"
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
         }
       },
       "required": [

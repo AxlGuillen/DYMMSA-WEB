@@ -27,7 +27,7 @@ const UNCERTAIN_RETRY_WAIT = 'Odoo puede seguir guardando: espera 2 minutos ante
 
 const UNCERTAIN_RETRY_HINT: Readonly<Record<UncertainRetry, string>> = Object.freeze({
   quotation: `${UNCERTAIN_RETRY_WAIT} Repite exactamente la misma llamada (o el mismo clic): con la misma clave no se duplica. No pidas otra vista previa antes de repetirla.`,
-  invoice: `${UNCERTAIN_RETRY_WAIT} Repite exactamente la misma llamada con el mismo folio: si el borrador ya se creó, te lo reporto y no creo otro.`,
+  invoice: `${UNCERTAIN_RETRY_WAIT} Pide otra vez el resumen con el mismo folio: si el borrador ya se creó, te lo reporto y no creo otro.`,
   products: `${UNCERTAIN_RETRY_WAIT} Repite el mismo clic: los productos que ya se hayan creado salen como existentes y no se duplican.`,
   'sat-keys': `${UNCERTAIN_RETRY_WAIT} Repite el mismo clic: los productos que ya tengan su clave SAT salen como ya asignados y no se tocan.`,
 })

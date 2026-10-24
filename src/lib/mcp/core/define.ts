@@ -6,6 +6,9 @@
 import type { z } from 'zod'
 import type { Implementation, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import type { McpContext } from './context'
+import { claveField } from './confirm/preview-key'
+import { runTwoPhase, type TwoPhaseInput } from './confirm/two-phase'
+import type { Changes } from './envelope'
 import type { ResultWithMeta } from './result'
 import type { ConnectorBudget, McpRole } from '../manifest'
 
@@ -81,10 +84,63 @@ interface ToolDefinitionBase<S extends z.ZodRawShape, O extends ToolOutput | und
 }
 
 export type ToolDefinition<S extends z.ZodRawShape = z.ZodRawShape, O extends ToolOutput | undefined = ToolOutput | undefined> = ToolDefinitionBase<S, O> &
-  ({ kind: 'read'; hints: ReadHints } | { kind: 'write'; hints: WriteHints })
+  (
+    | { kind: 'read'; hints: ReadHints; confirm?: never }
+    // 'two_phase' is only reachable through defineTool's second overload (plan/commit), which builds the handler.
+    | { kind: 'write'; hints: WriteHints; confirm?: 'none' | 'two_phase' }
+  )
 
-export function defineTool<S extends z.ZodRawShape, O extends ToolOutput | undefined = undefined>(definition: ToolDefinition<S, O>): ToolDefinition<S, O> {
-  return definition
+/** What phase 1 shows and phase 2 acts on (#155 C4): plan() reads and decides, it never writes. */
+export interface WritePlan<P = null> {
+  /** The summary, under the entity's own key in the answer (writeResult). */
+  readonly entity: { readonly key: string; readonly value: unknown }
+  readonly cambios?: Changes
+  readonly avisos?: readonly string[]
+  /** Anything here stops the write: phase 1 issues no key, phase 2 refuses. */
+  readonly bloqueos?: readonly string[]
+  /** Nothing to do (already done): answered as sin_cambios, with no key. */
+  readonly sinCambios?: boolean
+  /** What the write depends on (versions, stock read, the set of drafts…); JSON. A change between the phases voids the key. */
+  readonly fingerprint: unknown
+  /** «la venta S00912»: «<subject> cambió desde el resumen». */
+  readonly subject: string
+  readonly nota?: string
+  /** What plan() read, so commit() does not read it twice; never serialized. */
+  readonly carry: P
+}
+
+/** The erased pair the core runs; tools write the typed one. */
+export interface TwoPhaseSpec {
+  plan(input: Record<string, unknown>, ctx: McpContext): Promise<WritePlan<unknown>>
+  commit(input: Record<string, unknown>, ctx: McpContext, plan: WritePlan<unknown>): Promise<unknown>
+}
+
+/** A tool whose write needs the user's yes (R10): no `handler`, the core builds it from plan and commit. */
+export type TwoPhaseDefinition<S extends z.ZodRawShape, O extends ToolOutput | undefined, P> = Omit<ToolDefinitionBase<S, O>, 'handler'> & {
+  kind: 'write'
+  hints: WriteHints
+  confirm: 'two_phase'
+  plan(input: z.infer<z.ZodObject<S>>, ctx: McpContext): Promise<WritePlan<P>>
+  commit(input: z.infer<z.ZodObject<S>>, ctx: McpContext, plan: WritePlan<P>): Promise<HandlerResult<O>>
+}
+
+type ClaveShape = { clave: typeof claveField }
+
+export function defineTool<S extends z.ZodRawShape, O extends ToolOutput | undefined = undefined>(
+  definition: ToolDefinition<S, O> & { confirm?: 'none' },
+): ToolDefinition<S, O>
+export function defineTool<S extends z.ZodRawShape, O extends ToolOutput | undefined = undefined, P = null>(
+  definition: TwoPhaseDefinition<S, O, P>,
+): ToolDefinition<S & ClaveShape, O>
+export function defineTool(definition: ToolDefinition | TwoPhaseDefinition<z.ZodRawShape, ToolOutput | undefined, unknown>): ToolDefinition {
+  if (definition.confirm !== 'two_phase') return definition as ToolDefinition
+  const { plan, commit, input, ...rest } = definition as TwoPhaseDefinition<z.ZodRawShape, ToolOutput | undefined, unknown>
+  const spec = { plan, commit } as TwoPhaseSpec
+  return {
+    ...rest,
+    input: { ...input, clave: claveField },
+    handler: (raw: unknown, ctx: McpContext) => runTwoPhase(rest.name, spec, raw as TwoPhaseInput, ctx),
+  } as ToolDefinition
 }
 
 /** The four MCP hints, always explicit and in the spec's order (R8, ADR-041 §10): what tools/list carries. */

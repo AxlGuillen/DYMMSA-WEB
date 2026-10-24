@@ -8,7 +8,7 @@ La facturación OFICIAL de la empresa vive en Odoo Online, un sistema EXTERNO. E
 
 Regla de oro: Odoo y DYMMSA-WEB son mundos separados — nunca asumas que una cotización u orden de la app corresponde a una de Odoo. Todo aquí es lectura.
 
-Si una búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
+Si una búsqueda por nombre da varias coincidencias, pregunta cuál.
 
 Notas de crédito (Odoo): una nota de crédito sin aplicar es SALDO A FAVOR del cliente, no deuda. Las tools la reportan aparte (campos notas_credito*) y NUNCA la restan del vencido ni del por cobrar — es decisión del negocio (no se sabe si el cliente la usará o si se aplicará a una factura). No hagas ese neteo tú tampoco.
 

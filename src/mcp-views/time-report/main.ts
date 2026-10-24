@@ -96,14 +96,16 @@ function renderNotes(preview: Preview): HTMLElement | null {
 }
 
 async function save() {
-  if (!state.filas || state.saving) return
+  const clave = state.preview?.clave
+  if (!state.filas || !clave || state.saving) return
   state.saving = true
   state.error = null
   render()
   try {
+    // The key signs exactly these rows and this name (#155 C4): send them as the preview received them.
     const result = await app.callServerTool({
       name: 'save_time_entries',
-      arguments: { filas: state.filas, ...(state.fileName ? { nombre_archivo: state.fileName } : {}) },
+      arguments: { filas: state.filas, ...(state.fileName ? { nombre_archivo: state.fileName } : {}), clave },
     })
     if (result.isError) {
       state.error = textOf(result) || 'No se pudo guardar'
@@ -134,13 +136,15 @@ function renderFooter(preview: Preview): HTMLElement {
   }
   const mapped = preview.personas.some((p) => p.perfil)
   const button = el('button', 'primary', state.saving ? 'Guardando…' : 'Guardar en Horas') as HTMLButtonElement
-  button.disabled = state.saving || !preview.cuadra || !mapped || !state.filas
+  button.disabled = state.saving || !preview.cuadra || !mapped || !state.filas || !preview.clave
   button.addEventListener('click', save)
   const hint = !preview.cuadra
     ? 'No cuadra con los totales del reporte: corrige las filas antes de guardar.'
-    : !state.filas
-      ? 'Pídele a Claude que lo guarde.'
-      : 'Re-subir la misma semana no duplica ni pisa correcciones.'
+    : !preview.clave
+      ? 'La confirmación en dos pasos no está disponible en el servidor: no se puede guardar.'
+      : !state.filas
+        ? 'Pídele a Claude que lo guarde.'
+        : 'Re-subir la misma semana no duplica ni pisa correcciones.'
   footer.append(el('p', 'hint', hint), button)
   if (state.error) footer.append(el('p', 'error', state.error))
   return footer

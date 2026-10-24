@@ -1,11 +1,11 @@
-# tools/list (admin): 36 tools, 37324 caracteres en el cable
+# tools/list (admin): 36 tools, 37599 caracteres en el cable
   3606  record_payroll_hours
-  2805  preview_time_report
+  2956  preview_time_report
+  1406  save_time_entries
   1381  create_payable
   1311  save_supplier
   1291  update_payable
   1283  update_task
-  1282  save_time_entries
   1234  save_payroll_employee
   1145  mark_payable_paid
   1129  list_quotations
