@@ -190,12 +190,19 @@ export class MockSupabaseClient {
     return new QueryBuilder(table, this)
   }
 
-  /** Simple RPC: no chained filters; resolves `responses['rpc.<fn>']`. */
+  /** Simple RPC: no chained filters; resolves `responses['rpc.<fn>']` (a function gets the params as `payload`). */
   rpc(fn: string, params?: unknown): Promise<MockResult> {
     this._rpcCalls.push({ fn, params })
     const v = this.responses[`rpc.${fn}`]
     if (v === undefined) return Promise.resolve(DEFAULT_RESULT)
-    return Promise.resolve(typeof v === 'function' ? v({ table: fn, op: 'select', filters: [], single: false }) : v)
+    return Promise.resolve(
+      typeof v === 'function' ? v({ table: fn, op: 'select', filters: [], single: false, payload: params }) : v,
+    )
+  }
+
+  /** Params of every call to `fn`, in order. */
+  rpcParams<T = Record<string, unknown>>(fn: string): T[] {
+    return this._rpcCalls.filter((c) => c.fn === fn).map((c) => c.params as T)
   }
 
   auth = {

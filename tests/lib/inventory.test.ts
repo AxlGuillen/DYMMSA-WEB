@@ -1,5 +1,19 @@
 import { describe, test, expect } from 'vitest'
-import { computeRestoration, deleteRestoresStock } from '@/lib/inventory'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  adjustInventory,
+  computeRestoration,
+  deleteRestoresStock,
+  goodsInStore,
+  isOrderClosed,
+  releaseInventory,
+  reserveInventory,
+  reservedLines,
+  restorationLines,
+} from '@/lib/inventory'
+import { createMockSupabase } from '../helpers/supabase-mock'
+
+const asDb = (client: ReturnType<typeof createMockSupabase>) => client as unknown as SupabaseClient
 
 function makeItem(overrides: Partial<{
   model_code: string | null
@@ -158,5 +172,89 @@ describe('deleteRestoresStock (ADR-010)', () => {
   test('entregada o completada: los productos ya salieron con el cliente → no se restaura', () => {
     expect(deleteRestoresStock('delivered')).toBe(false)
     expect(deleteRestoresStock('completed')).toBe(false)
+  })
+})
+
+describe('goodsInStore / isOrderClosed (#157)', () => {
+  test('REGLA: solo pedida o recibida se cancela o gana/pierde líneas; entregada ya salió con el cliente', () => {
+    expect(goodsInStore('ordered')).toBe(true)
+    expect(goodsInStore('received')).toBe(true)
+    expect(goodsInStore('delivered')).toBe(false)
+    expect(goodsInStore('completed')).toBe(false)
+    expect(goodsInStore('cancelled')).toBe(false)
+  })
+
+  test('completada o cancelada es de solo lectura; entregada todavía corrige precio, entrega y recepción', () => {
+    expect(isOrderClosed('completed')).toBe(true)
+    expect(isOrderClosed('cancelled')).toBe(true)
+    expect(isOrderClosed('delivered')).toBe(false)
+    expect(isOrderClosed('ordered')).toBe(false)
+  })
+})
+
+describe('restorationLines / reservedLines (#157)', () => {
+  test('consolida computeRestoration por model_code: una devolución por código', () => {
+    const items = [
+      makeItem({ model_code: 'MC-001', quantity_in_stock: 3, quantity_received: 0 }),
+      makeItem({ model_code: 'MC-001', quantity_in_stock: 2, quantity_received: 1 }),
+      makeItem({ model_code: 'MC-002', quantity_in_stock: 0, quantity_received: 0 }),
+    ]
+    expect(restorationLines(items)).toEqual([{ model_code: 'MC-001', quantity: 6 }])
+  })
+
+  test('reservedLines devuelve solo lo que sí se apartó', () => {
+    const reservations = new Map([
+      ['A', { reserved: 4, location: 'G1' }],
+      ['B', { reserved: 0, location: null }],
+    ])
+    expect(reservedLines(reservations)).toEqual([{ model_code: 'A', quantity: 4 }])
+  })
+})
+
+describe('funciones atómicas de stock (#157)', () => {
+  test('reserveInventory llama reserve_inventory y regresa lo apartado y la gaveta por código', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'rpc.reserve_inventory': {
+          data: [{ model_code: 'A', reserved: 3, location: 'G1' }, { model_code: 'B', reserved: 0, location: null }],
+          error: null,
+        },
+      },
+    })
+    const lines = [{ model_code: 'A', quantity: 5 }, { model_code: 'B', quantity: 1 }]
+    const result = await reserveInventory(asDb(client), lines)
+    expect(client.rpcParams('reserve_inventory')).toEqual([{ p_lines: lines }])
+    expect(result.get('A')).toEqual({ reserved: 3, location: 'G1' })
+    expect(result.get('B')).toEqual({ reserved: 0, location: null })
+  })
+
+  test('sin líneas no llama a la BD', async () => {
+    const client = createMockSupabase()
+    expect((await reserveInventory(asDb(client), [])).size).toBe(0)
+    expect(await releaseInventory(asDb(client), [])).toBe(0)
+    expect(await adjustInventory(asDb(client), 'A', 0)).toEqual({ quantity: null, clamped: false, missing: false })
+    expect(await adjustInventory(asDb(client), '  ', 5)).toEqual({ quantity: null, clamped: false, missing: false })
+    expect(client._rpcCalls).toEqual([])
+  })
+
+  test('un error de la BD se propaga (nunca se toma como "no se apartó nada")', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'rpc.reserve_inventory': { data: null, error: { message: 'boom' } },
+        'rpc.release_inventory': { data: null, error: { message: 'boom' } },
+        'rpc.adjust_inventory': { data: null, error: { message: 'boom' } },
+      },
+    })
+    await expect(reserveInventory(asDb(client), [{ model_code: 'A', quantity: 1 }])).rejects.toThrow(/reserve_inventory/)
+    await expect(releaseInventory(asDb(client), [{ model_code: 'A', quantity: 1 }])).rejects.toThrow(/release_inventory/)
+    await expect(adjustInventory(asDb(client), 'A', -1)).rejects.toThrow(/adjust_inventory/)
+  })
+
+  test('adjustInventory pasa el delta y lee clamped / missing', async () => {
+    const client = createMockSupabase({
+      responses: { 'rpc.adjust_inventory': { data: { quantity: 0, clamped: true, missing: false }, error: null } },
+    })
+    expect(await adjustInventory(asDb(client), 'A', -8)).toEqual({ quantity: 0, clamped: true, missing: false })
+    expect(client.rpcParams('adjust_inventory')).toEqual([{ p_model_code: 'A', p_delta: -8 }])
   })
 })
