@@ -58,10 +58,10 @@ El paso 1 no aplica en el chat: la ruta nunca recibe el .xlsx. Claude lee el Exc
   8. UPDATE de `quotations` (name, customer_name, total_amount). **Su error no se revisa**: si falla, las líneas cambiaron y el encabezado o el `total_amount` sellado quedan viejos sin aviso.
   9. Auto-learn de **todas** las líneas, con `storedSnapshots`.
 - **Reglas y efectos secundarios:**
-  - **Los ids de `quotation_items` cambian en CADA guardado.** `QuotationDetail` usa esa firma (`itemsSignature`) para saber que llegaron datos nuevos. Ningún id de línea sirve entre dos ediciones.
+  - **Los ids de `quotation_items` cambian en CADA guardado.** `QuotationDetail` usa esa firma (`itemsSignature`) para saber que llegaron datos nuevos. Ningún id de línea sirve entre dos ediciones. **Arreglado el 2026-10-24 (#157):** `update_quotation()` actualiza en su lugar las líneas que traen `_dbId`; `itemsSignature` ahora suma `quotations.updated_at` para seguir resincronizando tras guardar.
   - **No toca `status` ni `approval_token`.**
   - `is_approved` se preserva en cualquier estado y las líneas nuevas nacen `null`. En `approved` eso significa que **no entran a la orden** hasta que alguien las apruebe (`create-order` toma solo `is_approved === true`).
-  - **Sin transacción:** entre el DELETE y el INSERT la cotización tiene 0 ítems; la página pública los lee en ese momento.
+  - **Sin transacción:** entre el DELETE y el INSERT la cotización tiene 0 ítems; la página pública los lee en ese momento. **Arreglado el 2026-10-24 (#157):** encabezado y líneas van en una sola transacción, y los errores de la lectura previa y del encabezado ya no se ignoran. La validación de líneas también corre en el server.
   - **Sin control de concurrencia:** la última escritura gana. Una pestaña abierta en `QuotationDetail` + una edición desde el chat = cambios perdidos.
   - ⚠️ **Auto-learn re-aprende TODAS las líneas reenviadas.** Re-guardar una cotización vieja (aunque sea para cambiar solo el nombre) regresa `etm_products.price` (y descripción, modelo y marca) a los valores de esa cotización.
 - **Dónde vive la lógica:** inline en la ruta, con helpers de lib. Hay que extraer `updateQuotationItems()` y crear aparte un `updateQuotationHeader()` (nombre o cliente sin reenviar líneas ni disparar auto-learn).

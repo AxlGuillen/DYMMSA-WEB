@@ -147,6 +147,8 @@ src/
 │   ├── customers.ts              # Cartera y estado de cuenta: rango por vencimiento, líneas, totales (issue #145, ADR-039)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145); sat-keys.ts ordena las claves SAT sugeridas (#154)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
+│   ├── quotations-store.ts       # Crear y editar cotizaciones (validación server-side + update_quotation), listo para save_quotation del MCP (#157)
+│   ├── approval-store.ts         # La respuesta del cliente en /approve/[token] (submit_quotation_approval); solo la ruta pública, nunca el MCP (#157)
 │   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores, resultado/_meta, schema, lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool, ConnectorDefinition), register (registro derivado) y http (connectorRoute: la ruta de cada conector)
 │   ├── mcp/connectors/dymmsa/    # Las 36 tools de DYMMSA-WEB, una definición por archivo por módulo (summary, quotations, orders, inventory, catalogs, suppliers, finance, hours, profiles, payroll, tasks, settings) (#155 A3b)
 │   ├── mcp/connectors/*/connector.ts # Definición de cada conector: ruta, serverInfo, tools e instrucciones (#155 B1)

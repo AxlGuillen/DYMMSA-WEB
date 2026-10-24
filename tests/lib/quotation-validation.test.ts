@@ -66,6 +66,12 @@ describe('validateQuotationItems', () => {
     expect(issues.some((i) => i.field === 'quantity')).toBe(true)
   })
 
+  test('quantity con decimales → error: la columna es entera (#157)', () => {
+    const issues = getBlockingIssues([row({ etm: 'DEC', quantity: 1.5 })])
+    expect(issues).toHaveLength(1)
+    expect(issues[0].message).toMatch(/DEC.*entero mayor a 0/)
+  })
+
   test('unit_price negativo → error', () => {
     const issues = validateQuotationItems([row({ etm: 'NEG', unit_price: -5 })])
     expect(issues).toHaveLength(1)
