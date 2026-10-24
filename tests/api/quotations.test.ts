@@ -1,6 +1,7 @@
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, filterValue, type ResponseValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
+import { stockRpc } from '../helpers/stock-rpc'
 import { AUTH, quotationItem as product, separator } from '../helpers/factories'
 import { makeRequest, makeParams } from '../helpers/request'
 import * as save from '@/app/api/quotations/save/route'
@@ -633,9 +634,11 @@ describe('POST /quotations/[id]/create-order', () => {
   })
 
   test('REGLA: order_items incluye separadores + solo productos aprobados; deduce stock; marca convertida', async () => {
+    const stock = stockRpc({ MC1: 10 }) // stock covers the 3 of MC1
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
+        ...stock.responses,
         'quotations.select': {
           data: {
             id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
@@ -647,10 +650,8 @@ describe('POST /quotations/[id]/create-order', () => {
           },
           error: null,
         },
-        'store_inventory.select': { data: { quantity: 10 }, error: null }, // stock covers the 3 of MC1
         'orders.insert': { data: { id: 'o1' }, error: null },
         'order_items.insert': { data: null, error: null },
-        'store_inventory.update': { data: null, error: null },
         'quotations.update': { data: null, error: null },
       },
     })
@@ -676,8 +677,9 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(p1.quantity_in_stock).toBe(3)   // stock 10 covers the 3
     expect(p1.quantity_to_order).toBe(0)
 
-    // deducted inventory and marked the quotation as converted
-    expect(activeClient.didCall('store_inventory', 'update')).toBe(true)
+    // deducted inventory (only for the approved line) and marked the quotation as converted
+    expect(activeClient.rpcParams('reserve_inventory')).toEqual([{ p_lines: [{ model_code: 'MC1', quantity: 3 }] }])
+    expect(stock.quantity('MC1')).toBe(7)
     const upd = activeClient.updatePayload('quotations')
     expect(upd.status).toBe('converted_to_order')
   })
@@ -696,7 +698,7 @@ describe('POST /quotations/[id]/create-order', () => {
           },
           error: null,
         },
-        'store_inventory.select': { data: { quantity: 0 }, error: null },
+        ...stockRpc({ MC1: 0, MC2: 50 }).responses,
         'orders.insert': { data: { id: 'o1' }, error: null },
         'order_items.insert': { data: null, error: null },
         'quotations.update': { data: null, error: null },
@@ -704,6 +706,8 @@ describe('POST /quotations/[id]/create-order', () => {
     })
     const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
     expect(res.status).toBe(200)
+    // The not-sold line never reserves stock.
+    expect(activeClient.rpcParams('reserve_inventory')).toEqual([{ p_lines: [{ model_code: 'MC1', quantity: 2 }] }])
     const body = await res.json()
     expect(body.items_count).toBe(1)     // only p1; p2 (not sold) excluded
     expect(body.total_amount).toBe(200)  // 100*2, without p2's 999
@@ -724,10 +728,9 @@ describe('POST /quotations/[id]/create-order', () => {
           },
           error: null,
         },
-        'store_inventory.select': { data: { quantity: 10, location: 'A-12' }, error: null },
+        ...stockRpc({ MC1: { quantity: 10, location: 'A-12' } }).responses,
         'orders.insert': { data: { id: 'o1' }, error: null },
         'order_items.insert': { data: null, error: null },
-        'store_inventory.update': { data: null, error: null },
         'quotations.update': { data: null, error: null },
       },
     })
@@ -806,7 +809,7 @@ describe('POST /quotations/[id]/create-order', () => {
           },
           error: null,
         },
-        'store_inventory.select': { data: { quantity: 10 }, error: null },
+        ...stockRpc({ MC1: 10 }).responses,
         'orders.insert': {
           data: null,
           error: {
@@ -820,7 +823,7 @@ describe('POST /quotations/[id]/create-order', () => {
     expect(res.status).toBe(400)
     expect((await res.json()).message).toMatch(/ya tiene una orden/i)
     expect(activeClient.didCall('order_items', 'insert')).toBe(false)
-    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
+    expect(activeClient._rpcCalls).toEqual([]) // the losing click never reserves
     expect(activeClient.didCall('quotations', 'update')).toBe(false)
   })
 
@@ -845,7 +848,8 @@ describe('POST /quotations/[id]/create-order', () => {
     expect((await res.json()).message).toBe('Error al crear la orden')
   })
 
-  test('REGLA: si falla marcar la cotización como convertida → rollback de la orden antes de tocar stock', async () => {
+  test('REGLA: si falla marcar la cotización como convertida → rollback de la orden y del stock apartado', async () => {
+    const stock = stockRpc({ MC1: 10 })
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
@@ -858,7 +862,7 @@ describe('POST /quotations/[id]/create-order', () => {
           },
           error: null,
         },
-        'store_inventory.select': { data: { quantity: 10 }, error: null },
+        ...stock.responses,
         'orders.insert': { data: { id: 'o1' }, error: null },
         'order_items.insert': { data: null, error: null },
         'quotations.update': { data: null, error: { message: 'connection reset' } },
@@ -869,8 +873,64 @@ describe('POST /quotations/[id]/create-order', () => {
     const rollback = activeClient.callsTo('orders', 'delete')
     expect(rollback).toHaveLength(1)
     expect(filterValue(rollback[0], 'id')).toBe('o1')
-    // A linked order behind an 'approved' quotation would be a dead end (ADR-010).
-    expect(activeClient.didCall('store_inventory', 'update')).toBe(false)
+    // A linked order behind an 'approved' quotation would be a dead end (ADR-010); its stock goes back (#157).
+    expect(stock.quantity('MC1')).toBe(10)
+  })
+
+  test('REGLA (#157): el mismo model_code en dos secciones se aparta contra UN solo stock', async () => {
+    const stock = stockRpc({ MC1: 6 })
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': {
+          data: {
+            id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
+            quotation_items: [
+              { id: 's1', item_type: 'separator', section_label: 'A', sort_order: 0 },
+              { id: 'p1', item_type: 'product', is_approved: true, sort_order: 1, model_code: 'MC1', quantity: 5, unit_price: 10, etm: 'E1', brand: 'URREA' },
+              { id: 's2', item_type: 'separator', section_label: 'B', sort_order: 2 },
+              { id: 'p2', item_type: 'product', is_approved: true, sort_order: 3, model_code: 'MC1', quantity: 5, unit_price: 10, etm: 'E2', brand: 'URREA' },
+            ],
+          },
+          error: null,
+        },
+        ...stock.responses,
+        'orders.insert': { data: { id: 'o1' }, error: null },
+        'order_items.insert': { data: null, error: null },
+        'quotations.update': { data: null, error: null },
+      },
+    })
+    const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(200)
+    const products = activeClient.insertPayload('order_items').filter((i) => i.item_type === 'product')
+    // Before #157: 5 + 5 reserved against a stock of 6, and inventory ended at 1.
+    expect(products.map((i) => [i.etm, i.quantity_in_stock, i.quantity_to_order])).toEqual([['E1', 5, 0], ['E2', 1, 4]])
+    expect(stock.quantity('MC1')).toBe(0)
+  })
+
+  test('REGLA (#157): si falla el insert de los ítems, el stock apartado regresa', async () => {
+    const stock = stockRpc({ MC1: 4 })
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'quotations.select': {
+          data: {
+            id: 'q1', name: 'Q', customer_name: 'ACME', status: 'approved',
+            quotation_items: [
+              { id: 'p1', item_type: 'product', is_approved: true, sort_order: 0, model_code: 'MC1', quantity: 3, unit_price: 10, etm: 'E1', brand: 'URREA' },
+            ],
+          },
+          error: null,
+        },
+        ...stock.responses,
+        'orders.insert': { data: { id: 'o1' }, error: null },
+        'order_items.insert': { data: null, error: { message: 'fail' } },
+      },
+    })
+    const res = await createOrder.POST(makeRequest(), makeParams({ id: 'q1' }))
+    expect(res.status).toBe(500)
+    expect(activeClient.didCall('orders', 'delete')).toBe(true)
+    expect(stock.quantity('MC1')).toBe(4)
   })
 })
 

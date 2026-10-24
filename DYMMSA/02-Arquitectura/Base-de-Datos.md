@@ -62,6 +62,24 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `location` | text | Sí | — | | Ubicación física (gaveta), texto libre. Se conserva aunque `quantity=0` |
 | `updated_at` | timestamptz | Sí | `now()` | | |
 
+### Funciones de stock atómico (#157, migración `atomic_order_stock`)
+
+Las órdenes **nunca** leen la cantidad, calculan y escriben un absoluto: mueven `quantity` con estas funciones, que bloquean la fila. Todas son `SECURITY INVOKER` (la RLS `FOR ALL TO authenticated` de `store_inventory`/`orders`/`order_items` aplica al que llama), con `search_path = ''`, y `EXECUTE` solo para `authenticated` (se revoca de `PUBLIC` y `anon`). Las llama `src/lib/inventory.ts` / `src/lib/orders-store.ts`. **Orden de bloqueo en todas:** primero la fila de la orden, después `store_inventory` por `model_code` (así dos operaciones simultáneas no se interbloquean).
+
+| Función | Devuelve | Qué garantiza |
+|---|---|---|
+| `reserve_inventory(p_lines jsonb)` | `jsonb` `[{model_code, reserved, location}]` | Aparta `least(quantity, pedido)` por `model_code` bajo `FOR UPDATE`. Suma los códigos repetidos y bloquea en orden de código (la segunda orden espera y aparta de lo que quedó). Sin fila → `reserved: 0`, no la crea. La gaveta sirve de snapshot para `order_items.location` |
+| `release_inventory(p_lines jsonb)` | `integer` (códigos tocados) | Devuelve sumando (`INSERT … ON CONFLICT (model_code) DO UPDATE SET quantity = quantity + …`); crea la fila si falta. Ignora códigos vacíos y cantidades ≤ 0. La usan crear la orden (desde cotización o manual) para deshacer un apartado si fallan los ítems |
+| `adjust_inventory(p_model_code text, p_delta integer)` | `jsonb` `{quantity, clamped, missing}` | Delta del excedente (ADR-019): positivo suma y crea la fila; negativo resta con tope en 0 (`clamped`) o avisa que no hay fila (`missing`). La llama `receive_order_items` |
+| `order_restock_lines(p_order_id uuid)` | `jsonb` `[{model_code, quantity}]` | STABLE. Lo que devuelve cancelar/eliminar: `in_stock + least(recibido, pedido)` por `model_code`, solo productos — espejo de `computeRestoration()` |
+| `cancel_order_restock(p_order_id uuid, p_expected_status text)` | `integer` o `NULL` | `status → 'cancelled'` **solo si** la orden sigue en `p_expected_status` y, en la misma transacción y ya con la orden bloqueada, lee sus líneas (`order_restock_lines`) y las devuelve. `NULL` = ya cambió (reintento, otro clic): no devuelve nada |
+| `delete_order_restock(p_order_id uuid, p_expected_status text, p_restock boolean)` | `integer` o `NULL` | Bloquea la orden en el estado leído, lee las líneas si `p_restock` (= `deleteRestoresStock()`), borra la orden (ítems, corte y decisiones por CASCADE) y devuelve |
+| `remove_order_item_restock(p_order_id uuid, p_item_id uuid, p_expected_status text)` | `integer` o `NULL` | Bloquea la orden `FOR SHARE` en el estado leído, borra la línea (acotada a la orden) y devuelve su `quantity_in_stock`, leído de la fila que borra |
+| `add_order_item(p_order_id uuid, p_item jsonb)` | `jsonb` (la fila insertada) | Agregar una línea en una transacción: bloquea la orden `FOR UPDATE`, exige que siga en tienda (`ordered`/`received`), aparta con `reserve_inventory`, reparte `in_stock = apartado` y `to_order = cantidad − apartado` (espejo de `allocateLines()`), toma `sort_order = max + 1` bajo el mismo bloqueo e inserta. Así un cancelar simultáneo o ve la línea y devuelve su stock, o el alta falla. Errores `P0001`: `order_not_found`, `order_closed`, `order_delivered` |
+| `receive_order_items(p_order_id uuid, p_items jsonb)` | `jsonb` `{inventory_updated, warnings: [{tag, model_code, kind}]}` | La recepción entera en una transacción: bloquea la orden (rechaza `completed`/`cancelled`), valida que cada línea sea de la orden, no esté repetida y tenga pedido a URREA, escribe `quantity_received`/`urrea_status` y aplica el delta del excedente contra lo persistido (espejo de `receptionExcess()`), en orden de código. Si algo falla no queda nada escrito. Errores `P0001`: `order_not_found`, `order_closed`, `duplicate_item`, `item_not_in_order`, `item_not_ordered` (DETAIL = la etiqueta de la línea); `orders-store.ts` los traduce |
+
+Cuándo se cancela, borra con devolución o cambia de estado (`goodsInStore`, `deleteRestoresStock`, `canChangeOrderStatus`) sigue siendo regla del código. Las fórmulas de qué devolver y del excedente viven en JS (`computeRestoration`, `receptionExcess`) y la BD las repite dentro de la transacción, con un comentario que las liga.
+
 ---
 
 ## Tabla: `urrea_catalog`
@@ -555,4 +573,5 @@ Los totales (`buildPayrollView()` → `dayRules()`) usan el snapshot cuando exis
 | `add_finance_payables` | (2026-09-02) | Columna `payment_terms_days` en `suppliers` y tabla `payables` (facturas por pagar: FK a suppliers sin cascade, concept/amount/fechas, status pending·paid·cancelled, `paid_at` fecha real). Índice (status, due_date), RLS + policy. Issue #84 |
 | `20261001052530` | `add_payroll` | Nómina (#123): `payroll_employees`, `payroll_days`, `payroll_periods`, trigger del corte cerrado y RLS solo admin |
 | `20261007035652` | `profile_pay_admin_only` | `profiles.hourly_rate` → tabla `profile_pay` (solo admin); el trigger de campos de admin deja de nombrar la tarifa (review PR #137) |
+| `20261024090750` (archivo `20261023170000`) | `atomic_order_stock` | Nueve funciones de stock atómico para las órdenes (#157): `reserve_inventory`, `release_inventory`, `adjust_inventory`, `order_restock_lines`, `cancel_order_restock`, `delete_order_restock`, `remove_order_item_restock`, `add_order_item`, `receive_order_items`. Sin cambios de datos. Pendiente de aplicar en la nube (ver `supabase/migrations-log.md`) |
 | pendiente (archivo `20261024200000`) | `guards_audit_payroll_freeze` | #157 «El resto»: `audit_payable()` audita monto/moneda (`amount_changed`) y guarda `currency`; `guard_profile_admin_fields()` congela `is_owner` para cualquier sesión; trigger nuevo `profiles_guard_last_admin`; `payroll_days.shift_snapshot`/`area_snapshot` + `close_payroll_period()`/`reopen_payroll_period()`. Ver `supabase/migrations-log.md` |
