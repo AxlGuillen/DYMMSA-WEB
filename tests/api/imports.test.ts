@@ -115,6 +115,17 @@ describe('POST /inventory/import', () => {
   })
 })
 
+const EXISTING = {
+  etm: 'E1',
+  description: 'Existing',
+  description_es: 'Existente',
+  dymmsa_description: null,
+  model_code: 'MC1',
+  price: 80,
+  brand: 'URREA',
+  is_sold: true,
+}
+
 describe('POST /products/import', () => {
   test('400 si faltan columnas ETM / MODEL_CODE', async () => {
     activeClient = createMockSupabase({ user: AUTH })
@@ -126,7 +137,7 @@ describe('POST /products/import', () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
-        'etm_products.select': { data: null, error: null },
+        'etm_products.select': { data: [], error: null },
         'etm_products.insert': { data: null, error: null },
       },
     })
@@ -142,7 +153,7 @@ describe('POST /products/import', () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
-        'etm_products.select': { data: { id: 'p1' }, error: null },
+        'etm_products.select': { data: [{ ...EXISTING }], error: null },
         'etm_products.update': { data: null, error: null },
       },
     })
@@ -158,7 +169,7 @@ describe('POST /products/import', () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
-        'etm_products.select': { data: null, error: null },
+        'etm_products.select': { data: [], error: null },
         'etm_products.insert': { data: null, error: null },
       },
     })
@@ -167,6 +178,89 @@ describe('POST /products/import', () => {
     const body = await res.json()
     expect(body.errors).toBe(1)
     expect(body.imported).toBe(0)
+  })
+
+  test('REGLA: upsert NO pisa con vacíos ni reescribe created_by (#157)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'etm_products.select': { data: [{ ...EXISTING }], error: null },
+        'etm_products.update': { data: null, error: null },
+      },
+    })
+    const res = await productsImport.POST(
+      makeExcelRequest([
+        { ETM: 'E1', MODEL_CODE: '', DESCRIPTION: '', DESCRIPTION_ES: 'Nueva', PRICE: '', BRAND: '' },
+      ]),
+    )
+    expect(res.status).toBe(200)
+    expect(activeClient.updatePayload('etm_products')).toEqual({ description_es: 'Nueva' })
+  })
+
+  test('REGLA: encabezados con espacios o en minúsculas ("ETM ", "model_code") se leen (#157)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'etm_products.select': { data: [], error: null },
+        'etm_products.insert': { data: null, error: null },
+      },
+    })
+    const res = await productsImport.POST(makeExcelRequest([{ 'ETM ': 'E5', model_code: 'MC5', ' price': 7 }]))
+    expect(await res.json()).toMatchObject({ imported: 1, errors: 0 })
+    expect(activeClient.insertPayload<Record<string, unknown>>('etm_products')).toMatchObject({
+      etm: 'E5',
+      model_code: 'MC5',
+      price: 7,
+    })
+  })
+
+  test('REGLA: un ETM nuevo sin MODEL_CODE no recibe marca URREA (#157)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'etm_products.select': { data: [], error: null },
+        'etm_products.insert': { data: null, error: null },
+      },
+    })
+    await productsImport.POST(makeExcelRequest([{ ETM: 'E9', MODEL_CODE: '', DESCRIPTION: 'Sin modelo' }]))
+    expect(activeClient.insertPayload<Record<string, unknown>>('etm_products').brand).toBeNull()
+  })
+
+  test('REGLA: el import nunca escribe is_sold ni la Descripción DYMMSA (ADR-013)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'etm_products.select': { data: [{ ...EXISTING }], error: null },
+        'etm_products.update': { data: null, error: null },
+      },
+    })
+    await productsImport.POST(makeExcelRequest([{ ETM: 'E1', MODEL_CODE: 'MC2', DESCRIPTION: 'Otra', PRICE: 70 }]))
+    const payload = activeClient.updatePayload('etm_products')
+    expect(payload).not.toHaveProperty('is_sold')
+    expect(payload).not.toHaveProperty('dymmsa_description')
+  })
+
+  test('REGLA: un precio negativo → 400 que nombra la fila y no escribe nada', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await productsImport.POST(
+      makeExcelRequest([
+        { ETM: 'E1', MODEL_CODE: 'MC1', PRICE: 10 },
+        { ETM: 'E2', MODEL_CODE: 'MC2', PRICE: -3 },
+      ]),
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toContain('Fila 3 (ETM E2)')
+    expect(activeClient._calls).toHaveLength(0)
+  })
+
+  test('"Solo agregar nuevos" no toca un ETM existente y lo reporta sin cambios', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'etm_products.select': { data: [{ ...EXISTING }], error: null } },
+    })
+    const res = await productsImport.POST(makeExcelRequest([{ ETM: 'E1', MODEL_CODE: 'MC1', PRICE: 1 }], { mode: 'insert' }))
+    expect(await res.json()).toMatchObject({ imported: 0, updated: 0, skipped: 1, errors: 0 })
+    expect(activeClient.didCall('etm_products', 'update')).toBe(false)
   })
 })
 

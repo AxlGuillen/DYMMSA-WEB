@@ -40,8 +40,13 @@ finalize=false → "Guardar avance":
 finalize=true → "Enviar" (con popup de confirmación):
 - aprobados → true, resto → false
 - quotations.status → approved (si approvedIds trae alguno) + sella approved_at
-                     → rejected (si no aprobó ninguno)
+                       SOLO si está vacía (guarda la primera aprobación, #157)
+                     → rejected (si no aprobó ninguno; approved_at no se toca)
 - Solo procede si status = sent_for_approval (si no → 400; dos envíos a la vez → 409)
+- Todo o nada (submit_quotation_approval, #157): si algún id ya no es un
+  producto aprobable de la cotización (DYMMSA lo quitó mientras el cliente
+  revisaba) → 409 code 'stale_items', no escribe nada y la página muestra
+  un aviso fijo con «Recargar página»
 
 DYMMSA ve el resultado al abrir o recargar la cotización
 (lista y detalle). El aviso por correo de ADR-012 está APAGADO

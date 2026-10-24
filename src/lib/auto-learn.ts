@@ -13,7 +13,7 @@ export interface QuotationAutoLearnResult {
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
-type ExistingEtm = {
+export type ExistingEtm = {
   etm: string
   description: string
   description_es: string
@@ -24,7 +24,16 @@ type ExistingEtm = {
   is_sold: boolean | null
 }
 
+/** Columns read to merge into an existing etm_products row. */
+export const EXISTING_ETM_COLUMNS = 'etm, description, description_es, dymmsa_description, model_code, price, brand, is_sold'
+
 type EligibleItem = QuotationItemRow & { etm: string }
+
+/** What auto-learn reads from a line; a products import row maps onto it, so both follow one rule (#157). */
+export type LearnableProduct = Pick<
+  QuotationItemRow,
+  'etm' | 'description' | 'description_es' | 'dymmsa_description' | 'model_code' | 'brand' | 'unit_price' | 'is_sold'
+>
 
 /** Eligible: product with etm plus model_code/description — or an explicit is_sold alone. */
 export function isEligibleForAutoLearn(item: QuotationItemRow): item is EligibleItem {
@@ -36,7 +45,7 @@ export function isEligibleForAutoLearn(item: QuotationItemRow): item is Eligible
 }
 
 /** INSERT fields. Brand defaults to URREA ONLY when a model_code exists. */
-export function computeNewEtmFields(item: EligibleItem): {
+export function computeNewEtmFields(item: LearnableProduct): {
   etm: string
   description: string
   description_es: string
@@ -63,7 +72,7 @@ export function computeNewEtmFields(item: EligibleItem): {
 /** UPDATE merge: only non-empty changed fields — never overwrites with empty. */
 export function mergeEtmFields(
   existing: ExistingEtm,
-  incoming: EligibleItem
+  incoming: LearnableProduct
 ): { updates: Record<string, unknown>; hasChanges: boolean } {
   const updates: Record<string, unknown> = {}
 
@@ -91,7 +100,7 @@ export function mergeEtmFields(
 /** Curated text auto-learn may store for a line, '' = none (ADR-013 r1/r3). `catalogMap` null =
  *  urrea_catalog unreadable; `storedSnapshot` = the line's saved quotation_items value. */
 export function learnableDymmsaDescription(
-  item: QuotationItemRow,
+  item: Pick<QuotationItemRow, 'dymmsa_description' | 'model_code' | 'brand'> & { item_type?: string | null },
   catalogMap: Map<string, string | null> | null,
   storedSnapshot?: string | null
 ): string {
@@ -126,7 +135,7 @@ export async function processAutoLearn(
   const etmCodes = eligible.map((i) => i.etm)
   const { data: existingProducts } = await supabase
     .from('etm_products')
-    .select('id, etm, description, description_es, dymmsa_description, model_code, price, brand, is_sold')
+    .select(`id, ${EXISTING_ETM_COLUMNS}`)
     .in('etm', etmCodes)
 
   const existingMap = new Map<string, ExistingEtm>(

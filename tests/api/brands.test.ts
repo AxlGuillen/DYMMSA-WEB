@@ -113,7 +113,8 @@ describe('PATCH /api/brands/[id]', () => {
 })
 
 describe('DELETE /api/brands/[id]', () => {
-  const del = () => brandById.DELETE(makeRequest(), makeParams({ id: 'b1' }))
+  const BRAND_ID = '0b0b0b0b-0000-4000-8000-000000000001'
+  const del = (id = BRAND_ID) => brandById.DELETE(makeRequest(), makeParams({ id }))
 
   test('401 sin usuario', async () => {
     activeClient = createMockSupabase({ user: null })
@@ -138,12 +139,29 @@ describe('DELETE /api/brands/[id]', () => {
       user: AUTH,
       responses: {
         'supplier_brands.select': { data: null, error: null, count: 0 },
-        'brands.delete': { data: null, error: null },
+        'brands.delete': { data: [{ id: BRAND_ID }], error: null },
       },
     })
     const res = await del()
     expect(res.status).toBe(200)
-    expect(filterValue(activeClient.callsTo('brands', 'delete')[0], 'id')).toBe('b1')
+    expect(filterValue(activeClient.callsTo('brands', 'delete')[0], 'id')).toBe(BRAND_ID)
+  })
+
+  test('#157: una marca que no existe → 404, no ok; un id que no es uuid → 404 sin consultar', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'supplier_brands.select': { data: null, error: null, count: 0 },
+        'brands.delete': { data: [], error: null },
+      },
+    })
+    const res = await del()
+    expect(res.status).toBe(404)
+    expect((await readJson<{ message: string }>(res)).message).toBe('Marca no encontrada')
+
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await del('b1')).status).toBe(404)
+    expect(activeClient._calls).toEqual([])
   })
 
   test('backstop: FK 23503 (carrera tras el pre-check) → 400', async () => {

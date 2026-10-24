@@ -47,7 +47,18 @@ export const officeSaturdayMinutes = (shift: ProfileShift) => SHIFT_HOURS[shift]
 
 /** Office = linked to a profile whose area is office (Equipo); no account means the workshop (#135). */
 export function payrollArea(employee: Pick<PayrollEmployee, 'profile_id'>, areas: ReadonlyMap<string, ProfileArea>): ProfileArea {
+  // Same rule as close_payroll_period() in the DB, which freezes it: change them in pairs.
   return (employee.profile_id && areas.get(employee.profile_id)) || 'workshop'
+}
+
+export interface DayRules {
+  shift: ProfileShift
+  area: ProfileArea
+}
+
+/** A closed cut counts with what it froze; an open one with today's shift and area (#157). */
+export function dayRules(day: Pick<PayrollDay, 'shift_snapshot' | 'area_snapshot'> | null, live: DayRules): DayRules {
+  return { shift: day?.shift_snapshot ?? live.shift, area: day?.area_snapshot ?? live.area }
 }
 
 export interface HoursBreakdown {
@@ -90,7 +101,9 @@ function add(a: HoursBreakdown, b: HoursBreakdown): HoursBreakdown {
 
 export interface PayrollRow {
   employee: PayrollEmployee
+  /** The rules the totals used: frozen at close, live while the cut is open (#157). */
   area: ProfileArea
+  shift: ProfileShift
   /** Saturday→Friday; null = nothing recorded that day. */
   days: (PayrollDay | null)[]
   totals: HoursBreakdown
@@ -125,12 +138,17 @@ export function buildPayrollView(
     // An inactive employee stays visible only where they have hours.
     if (!employee.active && cells.every((c) => c === null)) continue
     const confirmed = cells.filter((c): c is PayrollDay => c?.status === 'confirmed')
-    const area = payrollArea(employee, areas)
+    const live: DayRules = { shift: employee.shift, area: payrollArea(employee, areas) }
+    const { shift, area } = dayRules(cells.find((c) => c?.shift_snapshot || c?.area_snapshot) ?? null, live)
     rows.push({
       employee,
       area,
+      shift,
       days: cells,
-      totals: confirmed.reduce((sum, c) => add(sum, classifyDay(c.work_date, c.worked_minutes, employee.shift, area)), EMPTY),
+      totals: confirmed.reduce((sum, c) => {
+        const rules = dayRules(c, live)
+        return add(sum, classifyDay(c.work_date, c.worked_minutes, rules.shift, rules.area))
+      }, EMPTY),
       missedMinutes: confirmed.reduce((sum, c) => sum + c.missed_minutes, 0),
       drafts: cells.filter((c) => c?.status === 'draft').length,
     })

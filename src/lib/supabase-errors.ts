@@ -166,6 +166,19 @@ export function explainPgError(
           isConstraintViolation: true,
           constraintName: constraint,
         }
+      // NOT VALID checks of #157: the server validation catches these first; this is the DB backstop.
+      case 'quotation_items_delivery_time_check':
+        return {
+          userMessage: 'Un producto tiene un tiempo de entrega inválido. Elige uno de la lista.',
+          isConstraintViolation: true,
+          constraintName: constraint,
+        }
+      case 'quotation_items_item_type_check':
+        return {
+          userMessage: 'Una línea de la cotización tiene un tipo inválido: debe ser producto o sección.',
+          isConstraintViolation: true,
+          constraintName: constraint,
+        }
       case 'quotations_status_check':
       case 'orders_status_check':
       case 'order_items_delivery_time_check':

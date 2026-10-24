@@ -115,36 +115,45 @@ describe('corte', () => {
     expect((await periodRoute.GET(makeRequest(), startParams('2026-09-21'))).status).toBe(400)
   })
 
-  test('cerrar exige cero borradores y sella quién; reabrir sella quién reabrió', async () => {
+  test('cerrar y reabrir van por la BD en una transacción (#157), con quién y los borradores como 400', async () => {
     const patch = (closed: unknown) => periodRoute.PATCH(makeRequest({ closed }, { method: 'PATCH' }), startParams())
     activeClient = client({})
     expect((await patch('si')).status).toBe(400)
+    expect(activeClient._rpcCalls).toEqual([])
 
-    activeClient = client({ 'payroll_days.select': { data: null, error: null, count: 2 } })
+    activeClient = client({ 'rpc.close_payroll_period': { data: null, error: { code: 'P0001', message: 'drafts_pending', details: '2' } } })
     const blocked = await patch(true)
     expect(blocked.status).toBe(400)
-    expect((await readJson<{ message: string }>(blocked)).message).toMatch(/2 días en borrador/)
-    expect(activeClient.callsTo('payroll_periods', 'upsert')).toEqual([])
+    expect((await readJson<{ message: string }>(blocked)).message).toBe('Hay 2 días en borrador: confírmalos o bórralos antes de cerrar')
 
-    activeClient = client({
-      'payroll_days.select': { data: null, error: null, count: 0 },
-      'payroll_periods.upsert': { data: { start_date: SAT, status: 'closed' }, error: null },
-    })
-    expect((await patch(true)).status).toBe(200)
-    expect(activeClient.upsertPayload<Record<string, unknown>>('payroll_periods')).toMatchObject({ start_date: SAT, status: 'closed', closed_by_name: 'Axl' })
+    activeClient = client({ 'rpc.close_payroll_period': { data: { start_date: SAT, status: 'closed', closed_by_name: 'Axl' }, error: null } })
+    expect(await readJson(await patch(true))).toMatchObject({ start_date: SAT, status: 'closed' })
+    expect(activeClient._rpcCalls).toEqual([{ fn: 'close_payroll_period', params: { p_start: SAT, p_actor_name: 'Axl' } }])
+    // The snapshot and the stamp are the function's job: the route never writes the tables itself.
+    expect(activeClient._calls.filter((c) => c.op !== 'select')).toEqual([])
 
-    // Reopening a cut that was never closed stamps nothing.
-    activeClient = client({ 'payroll_periods.select': { data: null, error: null } })
+    // Reopening a cut that was never closed stamps nothing: the function answers null.
+    activeClient = client({ 'rpc.reopen_payroll_period': { data: null, error: null }, 'payroll_periods.select': { data: null, error: null } })
     expect(await readJson(await patch(false))).toMatchObject({ start_date: SAT, status: 'open', reopened_at: null })
-    expect(activeClient.callsTo('payroll_periods', 'upsert')).toEqual([])
+    expect(activeClient._rpcCalls[0]).toEqual({ fn: 'reopen_payroll_period', params: { p_start: SAT, p_actor_name: 'Axl' } })
 
+    activeClient = client({ 'rpc.reopen_payroll_period': { data: { start_date: SAT, status: 'open', reopened_by_name: 'Axl' }, error: null } })
+    expect(await readJson(await patch(false))).toMatchObject({ status: 'open', reopened_by_name: 'Axl' })
+
+    // Any other database error is a 500, never a fake success.
+    activeClient = client({ 'rpc.close_payroll_period': { data: null, error: { code: '42501', message: 'permission denied' } } })
+    expect((await patch(true)).status).toBe(500)
+  })
+
+  test('review PR #171: si cerrar no devuelve el corte, es 500 — nunca un «abierto» con 200', async () => {
     activeClient = client({
-      'payroll_periods.select': { data: { start_date: SAT, status: 'closed' }, error: null },
-      'payroll_periods.upsert': { data: { start_date: SAT, status: 'open' }, error: null },
+      'rpc.close_payroll_period': { data: null, error: null },
+      'payroll_periods.select': { data: { start_date: SAT, status: 'open' }, error: null },
     })
-    expect((await patch(false)).status).toBe(200)
-    expect(activeClient.upsertPayload<Record<string, unknown>>('payroll_periods')).toMatchObject({ status: 'open', reopened_by_name: 'Axl' })
-    expect(activeClient.upsertPayload<Record<string, unknown>>('payroll_periods')).not.toHaveProperty('closed_at')
+    const res = await periodRoute.PATCH(makeRequest({ closed: true }, { method: 'PATCH' }), startParams())
+    expect(res.status).toBe(500)
+    // The reopen fallback (read the row) is never used for a close.
+    expect(activeClient.callsTo('payroll_periods')).toEqual([])
   })
 
   test('confirm pasa los borradores del corte a confirmados', async () => {

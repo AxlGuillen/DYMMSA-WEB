@@ -44,7 +44,16 @@ justo por el caso que motiva el feature. Se excluye `is_sold=false` (`No disponi
 ### 4. `approved_at` (sí requiere columna) + confirmación
 - Nueva columna `quotations.approved_at timestamptz` (nullable). Se sella al
   **finalizar** en `approved`, y también al marcar `approved` desde el cambio manual
-  de estado (se limpia al salir de `approved`). Se muestra en `QuotationDetail`.
+  de estado. Se muestra en `QuotationDetail`.
+- **Actualizado 2026-10-24 (#157, decisión del usuario):** `approved_at` guarda la
+  **primera** aprobación y nunca cambia. Ya no "se limpia al salir de `approved`": ni un
+  rechazo posterior del cliente la borra ni una re-aprobación la vuelve a sellar
+  (`submit_quotation_approval()` escribe `coalesce(approved_at, now())`).
+- **Actualizado 2026-10-24 (#157):** los dos updates (reset + aprobar) ahora corren en
+  la función `submit_quotation_approval()`, todo o nada y bajo el lock de la cotización
+  (el mismo que toma `update_quotation()`). Si algún id ya no es una línea aprobable de
+  la cotización (DYMMSA la quitó mientras el cliente revisaba), responde 409
+  `stale_items` sin escribir nada y la página pide recargar.
 - El envío definitivo pide **confirmación** en un `AlertDialog` (resumen de N ítems +
   total). "Guardar avance" no confirma (es no destructivo).
 

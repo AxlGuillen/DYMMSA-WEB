@@ -117,6 +117,30 @@ export type UrreaCatalogInsert =
   Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at' | 'brand'> & { brand?: string }
 export type UrreaCatalogUpdate = Partial<Omit<UrreaCatalogItem, 'id' | 'created_at' | 'updated_at'>>
 
+export type CatalogImportMode = 'upsert' | 'replace'
+
+/** POST /api/urrea-catalog/import; a bad file is a 400 instead (#157). */
+export interface CatalogImportResult {
+  imported: number
+  updated: number
+  errors: number
+  total: number
+  mode: CatalogImportMode
+}
+
+export type ProductImportMode = 'upsert' | 'insert'
+
+/** POST /api/products/import (#157). */
+export interface ProductImportResult {
+  imported: number
+  updated: number
+  /** Existing rows left as they were: nothing new in upsert, or "only add new ones". */
+  skipped: number
+  /** Rows without ETM plus writes that failed. */
+  errors: number
+  total: number
+}
+
 export interface Supplier {
   id: string
   name: string
@@ -180,7 +204,7 @@ export interface PayableWithSupplier extends Payable {
   paid_by?: { name: string | null; at: string } | null
 }
 
-export type AuditAction = 'created' | 'status_changed' | 'paid_at_changed' | 'deleted'
+export type AuditAction = 'created' | 'status_changed' | 'paid_at_changed' | 'amount_changed' | 'deleted'
 
 /** One row of the audit trail (`audit_events`), written by a DB trigger; admins only. */
 export interface AuditEvent {
@@ -547,6 +571,9 @@ export interface PayrollDay {
   note: string | null
   source: PayrollDaySource
   status: PayrollDayStatus
+  /** The employee's shift and area when the cut closed; null while open (#157: closing freezes the totals). */
+  shift_snapshot: ProfileShift | null
+  area_snapshot: ProfileArea | null
   created_at: string
   updated_at: string
 }
