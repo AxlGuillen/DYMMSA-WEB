@@ -17,13 +17,14 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   tienen clave.
 
 ### Mejorado
-- [admin] **El asistente ahora avisa si le mandas un dato que no existe, en
-  vez de ignorarlo.** Si escribe mal un campo, usa un estado que no existe o
-  una fecha imposible (como el 30 de febrero), no hace nada: te dice qué
-  falló, qué datos acepta y un ejemplo correcto. Antes, en esos casos, podía
-  traer todo sin filtrar o guardar con el valor de siempre. En el conector de
-  Odoo los datos de las búsquedas ahora van en español (`desde`, `hasta`,
-  `agrupar_por`, `limite`…).
+- **El asistente ahora avisa si le mandas un dato que no existe, en vez de
+  ignorarlo.** Si escribe mal un campo, usa un estado que no existe o una
+  fecha imposible (como el 30 de febrero), no hace nada: te dice qué falló,
+  qué datos acepta y un ejemplo correcto. Antes, en esos casos, podía traer
+  todo sin filtrar o guardar con el valor de siempre.
+- [admin] **En el conector de Odoo los datos de las búsquedas ahora van en
+  español** (`desde`, `hasta`, `agrupar_por`, `limite`…). Si una rutina usa
+  los nombres viejos en inglés, el asistente te dice cuáles son los nuevos.
 - **Odoo ahora vive en su propio conector, «Odoo DYMMSA».** El
   conector de DYMMSA ya no trae las herramientas de Odoo (facturas, cobranza,
   ventas, cotizar y facturar en Odoo). Para seguir usándolas, agrega el

@@ -134,7 +134,7 @@ Cumple la decisión 8 (entrada estricta de golpe, sin semana de registro) y la p
 **El locale `es` se aplica por mensaje, nunca con `z.config()`.** Uno global cambiaría también los mensajes zod de las rutas de la app según el orden en que cargue el proceso.
 
 **Primitivas y enums.**
-- **Primitivas en `core/schema.ts`:** `isoDate` (`isRealDate`, anuncia `format: date`), `isoMonth`, `limit(max, default)`, `page` y `withSample`.
+- **Primitivas en `core/schema.ts`:** `isoDate` (`isRealDate`, anuncia `format: date`), `isoMonth`, `limit(max, default, qué?)`, `page(nota?)` y `withSample`. `limit` y `page` arman su texto completo (tope y default), así que no se les pone `.describe()` encima (review PR #170).
 - **Enums de constantes del dominio:** `QUOTATION_STATUSES`, `ORDER_STATUSES`, `PAYABLE_FILTERS`, `PAYABLE_CURRENCIES`, `TASK_PRIORITIES`/`TASK_STATES`/`TASK_CLOSE_REASONS` y `STOCK_FILTERS`. Sus listas salen de las descripciones.
 - **Lo que cambió:** las 10 listas cerradas que eran `z.string()` y las 24 fechas y meses de los dos conectores. Los handlers ya no ignoran un estado desconocido: es error.
 - **Se conservan los tokens de hoy.** Pasar los de DYMMSA-WEB a español es C6.
@@ -162,10 +162,10 @@ Un nombre viejo es error con los campos nuevos: no se aceptan alias. La vista `o
 
 | Conector | Rol | Tools | `tools/list` | Descripciones | Instrucciones |
 |---|---|---|---|---|---|
-| DYMMSA-WEB | admin | 36 de 45 | 33,904 de 53,000 (+1,013) | 12,567 de 19,000 (−358) | 5,978 de 6,000 |
-| DYMMSA-WEB | member | 29 | 24,703 | 8,100 | 5,371 |
-| Odoo DYMMSA | admin | 15 de 16 | 20,042 de 21,500 (+375) | 6,333 de 6,500 | 2,891 de 3,000 |
-| Odoo DYMMSA | member | 10 | 10,672 | 4,179 | 2,113 |
+| DYMMSA-WEB | admin | 36 de 45 | 33,957 de 53,000 (+1,066) | 12,584 de 19,000 (−341) | 5,978 de 6,000 |
+| DYMMSA-WEB | member | 29 | 24,764 | 8,117 | 5,371 |
+| Odoo DYMMSA | admin | 15 de 16 | 20,059 de 21,500 (+392) | 6,333 de 6,500 | 2,891 de 3,000 |
+| Odoo DYMMSA | member | 10 | 10,689 | 4,179 | 2,113 |
 
 `additionalProperties: false` en cada objeto y los enums cuestan bytes. Quitar las listas de valores de las descripciones y el «YYYY-MM-DD» de las fechas, que ya anuncian `format: date`, compensa una parte.
 

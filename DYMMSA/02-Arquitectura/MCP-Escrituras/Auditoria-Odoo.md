@@ -237,6 +237,7 @@ Antes de escribir di qué harás (folio, cliente, monto) y espera el sí; con va
 2. **Parámetros:**
    - **En español:** `folio`, `cliente`, `desde`, `hasta`, `agrupar_por`, `incluir`, `ordenar`, `limite`. Alinear `limite`/`limit` con lo que decida la auditoría de DYMMSA-WEB.
    - **Excepción declarada:** las dos primitivas conservan el vocabulario de Odoo (`model`, `domain`, `fields`, `order`, `group_by`, `metrics`) porque pasan directo a su API.
+     - **Revertida el 2026-10-24** por [[04-Decisiones-Tecnicas/ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] § «C1»: los parámetros de las primitivas también van en español (`modelo`, `filtros`, `campos`, `limite`, `orden`, `saltar`, `agrupar_por`, `metricas`). Solo los valores (modelos y campos de Odoo) conservan su vocabulario.
    - **Restricciones reales:** fechas con regex `YYYY-MM-DD` en el esquema y existencia revisada (`isRealDate`); `enum` en todo lo que es una lista cerrada.
    - **Esquemas estrictos en lectura y escritura:** una llave desconocida es error, no se descarta.
 3. **Clientes y documentos:**
