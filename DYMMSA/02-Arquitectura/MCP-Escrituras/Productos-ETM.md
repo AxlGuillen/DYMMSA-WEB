@@ -2,6 +2,7 @@
 
 > Issue #155 · Fase 0 (mapa, sin código) · Revisado contra el código el 2026-10-22
 > Ver [[02-Arquitectura/MCP-Escrituras/00-Matriz]] · [[02-Arquitectura/API-Routes]] · [[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]] · [[04-Decisiones-Tecnicas/ADR-002-DYMMSA-codes]]
+> **Actualización 2026-10-24 (#157):** los bugs de esta ficha están arreglados: la guarda ADR-013 corre en el servidor (`assertCuratedAllowed()` en `POST`/`PATCH`; Pregunta 2 resuelta: sí, en la ruta), el precio negativo es 400 en alta, edición e import (Pregunta 4 resuelta, sin CHECK en la BD), y el import sigue las reglas del auto-learn (no pisa con vacíos, `URREA` solo con `MODEL_CODE`, no reescribe `created_by`; sigue sin escribir `is_sold` ni la curada). Todo vive en `src/lib/products-store.ts` (`parseProductInput`, `assertCuratedAllowed`, `createProduct`, `updateProduct`, `parseProductSheet`, `importProducts`) —el «store» que proponía esta ficha, sin `nextDymmsaCode()` todavía—. Siguen igual: la marca no se normaliza (Pregunta 3) y `DELETE` responde ok aunque no exista. Los archivo:línea de abajo describen el código **anterior**.
 
 ## Resumen
 
