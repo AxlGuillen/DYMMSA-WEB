@@ -17,6 +17,15 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   tienen clave.
 
 ### Mejorado
+- [admin] **Odoo ahora vive en su propio conector, «Odoo DYMMSA».** El
+  conector de DYMMSA ya no trae las herramientas de Odoo (facturas, cobranza,
+  ventas, cotizar y facturar en Odoo). Para seguir usándolas, agrega el
+  conector en Claude: Configuración → Conectores → Agregar conector
+  personalizado, con el nombre «Odoo DYMMSA» y la dirección
+  `<app>/api/odoo/mcp` (la misma del conector de DYMMSA, cambiando `/api/mcp`
+  por `/api/odoo/mcp`). Entras con tu misma cuenta. En cada chat puedes
+  prender uno de los dos o los dos; el cierre del mes sigue trayendo lo
+  cobrado en Odoo desde el conector de DYMMSA.
 - [admin] **El asistente de Odoo tiene nombres nuevos y menos herramientas.**
   Ahora cada herramienta dice lo que hace («Documento por folio», «Cliente y
   estado de cuenta», «Cartera por cobrar»…). Para saber quién nos debe hay

@@ -1,7 +1,7 @@
 # ADR-041: dos conectores MCP (DYMMSA-WEB y Odoo DYMMSA) y reglas de composición de tools
 
 **Fecha:** 2026-10-22
-**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7.
+**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector».
 **Relacionado:** [[ADR-015-MCP-Interno]] · [[ADR-023-MCP-OAuth]] · [[ADR-025-Bloque-Odoo-MCP]] · [[ADR-033-Nomina-Horas-por-Corte]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]] · [[ADR-040-Escrituras-Acotadas-en-Odoo]] · issue #155
 
 ## Contexto
@@ -99,8 +99,23 @@ El insumo de esta decisión:
 - **Desde #158** se mide el `tools/list` real en el cable, con anotaciones y estructura JSON.
 - **Conversión:** los topes salieron de 46,000 y 19,000 con el método viejo del stub, convertidos con los factores medidos ese día: ×1.147 para el bloque app (32,891 contra 28,674) y ×1.125 para Odoo (20,272 contra 18,019). Los dos sumandos del stub dan 46,693 y el total medido 46,692: es un carácter de redondeo, no dos mediciones distintas.
 - **En B1** se mide cada conector de verdad y se fijan los topes con esa medición.
-- **Valores de transición de B1** (`ODOO_BUDGET`, review PR #162): mientras «Odoo DYMMSA» sirve las 19 tools de hoy, su tope es **20 tools y 7,000 de descripciones** (medidas: 19 y 6,932). B2a los baja a los 16 / 6,500 de la tabla. El tope de tools no se repite: `ODOO_BUDGET.tools` sale de `TOOL_BUDGET.tools.odoo`.
+- **Valores de transición de B1** (`ODOO_BUDGET`, review PR #162): mientras «Odoo DYMMSA» sirve las 19 tools de hoy, su tope es **20 tools y 7,000 de descripciones** (medidas: 19 y 6,932). B2a los baja a los 16 / 6,500 de la tabla. Hasta B3 el tope de tools no se repetía porque `ODOO_BUDGET.tools` salía de `TOOL_BUDGET.tools.odoo`.
 - **Después:** se re-miden al cerrar cada fase, y subir un tope es un cambio explícito en su PR.
+
+### B3: medidas finales (2026-10-24)
+
+`/api/mcp` dejó de servir las `odoo_*`. Cada tope vive **una sola vez**, junto a la definición de su conector: `DYMMSA_BUDGET` (`connectors/dymmsa/connector.ts`) y `ODOO_BUDGET` (`connectors/odoo/connector.ts`), los dos como `budget` de su `ConnectorDefinition`. `TOOL_BUDGET` (`manifest.ts`) se quedó solo con los topes por tool, comunes a los dos (1,000 caracteres por descripción; `record_payroll_hours` 2,600). `tests/mcp/connectors.test.ts` mide cada conector contra los suyos y `manifest.test.ts` los de cada tool.
+
+| Conector | Rol | Tools | `tools/list` (en el cable) | Descripciones | Instrucciones |
+|---|---|---|---|---|---|
+| DYMMSA-WEB | admin | 36 de 45 | 32,891 de 53,000 | 12,925 de 19,000 | 5,978 de 6,000 |
+| DYMMSA-WEB | member | 29 | 23,926 | 8,458 | 5,371 |
+| Odoo DYMMSA | admin | 15 de 16 | 19,667 de 21,500 | 6,333 de 6,500 | 2,891 de 3,000 |
+| Odoo DYMMSA | member | 10 | 10,448 | 4,179 | 2,113 |
+
+- **Ningún tope cambia:** todo cabe en los de la tabla de arriba. Los de `tools/list` y descripciones se miden con la lista del admin, la más grande.
+- **Instrucciones de DYMMSA-WEB:** bajan de 7,945 a 5,978 caracteres para el admin y de 6,793 a 5,371 para el member. Salen el bloque B, el mapa de Odoo, la regla de notas de crédito y la del vínculo factura↔venta, que ya viven en el conector Odoo. La regla de oro pasa a «dos conectores, sin vínculo», con qué hacer si piden llevar algo de un lado al otro. **Quedan 22 caracteres de margen:** la próxima línea que se agregue tendrá que quitar otra (C6 las reescribe con los enums en español, decisión 7).
+- **Con los dos conectores prendidos,** el admin paga 52,558 de `tools/list` en el cable, igual que antes de B3 con uno solo, pero ahora cada chat puede prender solo el que necesita.
 
 ## Consecuencias
 
