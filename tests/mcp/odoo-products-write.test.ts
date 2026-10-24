@@ -455,6 +455,13 @@ describe('asignar la clave SAT a productos que ya existen (#154)', () => {
     // Nothing to write: not even the SAT catalog is read.
     expect(calls.map((c) => c.model)).toEqual(['product.product'])
     expect(attempts).toEqual([])
+
+    // A key Odoo sends without its name still counts, and never shows as "#412" (review PR #167).
+    const unnamed = fakeOdoo({ 'product.product.search_read': [reread({ 16980: [412, false] })] })
+    await expect(
+      odooSaveProduct({ reader: unnamed.odoo, writer }, context().ctx, assign([{ producto_id: 16980, clave_sat: '31211507' }], autorizacion)),
+    ).resolves.toEqual({ asignados: [], ya_tenian: [{ id: 16980, nombre: AEROSOL.name, clave_sat: null }] })
+    expect(attempts).toEqual([])
   })
 
   test('un producto que la vista previa no marcó, una clave no ofrecida sin teclear o un producto repetido no escriben ni leen', async () => {

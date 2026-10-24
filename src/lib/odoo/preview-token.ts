@@ -355,7 +355,10 @@ export interface ProductsAuthorizationScope {
 const ownKey = (product: unknown): string[] =>
   isRecord(product) && typeof product.clave_sat === 'string' ? [product.clave_sat] : []
 
-/** Signs productos_para_alta (keys aside) and, per product, the set of keys the view may send. */
+/**
+ * Signs productos_para_alta (keys aside), the offered keys per product and which existing products may be keyed.
+ * The offered keys are not a lock on their own: a key marked as typed bypasses them and is checked against the catalog.
+ */
 export function issueProductsAuthorization(
   proof: AdminProof,
   scope: ProductsAuthorizationScope,

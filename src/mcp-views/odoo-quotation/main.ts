@@ -11,6 +11,7 @@ import {
   applyToolResult,
   assignArguments,
   assignChoiceKey,
+  assignedSummary,
   defaultSatChoice,
   initialState,
   newChoiceKey,
@@ -196,11 +197,7 @@ async function assignKeys() {
       state.assignError = textOf(result) || 'No se pudo asignar la clave SAT'
     } else {
       state.assigned = JSON.parse(textOf(result)) as SatAssignResult
-      const s = state.assigned
-      const keyed = (list: SatAssignResult['asignados']) => list.map((p) => `${p.nombre} (#${p.id}) → ${p.clave_sat}`).join(', ')
-      await tellModel(
-        `El administrador asignó la clave SAT en Odoo desde la vista: ${keyed(s.asignados) || 'ninguna'}.${s.ya_tenian.length ? ` Ya tenían clave en Odoo (no se tocó): ${keyed(s.ya_tenian)}.` : ''}`,
-      )
+      await tellModel(assignedSummary(state.assigned))
     }
   } catch {
     state.assignError = 'No se pudo asignar la clave SAT: vuelve a intentarlo.'
@@ -223,12 +220,15 @@ function syncButtons() {
   syncButton(controls.assign, assignArguments(state), state.assigning, state.assignError)
 }
 
-const typedInputId = (key: string) => `sat-${key.replace(/[^a-z0-9]/gi, '-')}`
+const domId = (prefix: string, key: string) => `${prefix}-${key.replace(/[^a-z0-9]/gi, '-')}`
+const typedInputId = (key: string) => domId('sat-input', key)
+const selectId = (key: string) => domId('sat-select', key)
 
 function satPicker(key: string, item: SatItem, disabled: boolean): HTMLElement {
   const wrap = el('div', 'sat')
   const choice = state.choices[key] ?? defaultSatChoice(item)
   const select = document.createElement('select')
+  select.id = selectId(key)
   select.setAttribute('aria-label', 'Clave SAT')
   for (const option of satOptions(item)) {
     const node = document.createElement('option')
@@ -239,10 +239,12 @@ function satPicker(key: string, item: SatItem, disabled: boolean): HTMLElement {
   select.value = choice.value
   select.disabled = disabled
   select.addEventListener('change', () => {
-    const typed = state.choices[key]?.typed ?? ''
-    state.choices = { ...state.choices, [key]: { value: select.value, typed } }
+    const before = state.choices[key] ?? defaultSatChoice(item)
+    state.choices = { ...state.choices, [key]: { value: select.value, typed: before.typed } }
+    // Only the "Otra clave" input changes the tree: any other choice keeps the keyboard focus (review PR #167).
+    if ((before.value === OTHER_SAT) === (select.value === OTHER_SAT)) return syncButtons()
     render()
-    if (select.value === OTHER_SAT) document.getElementById(typedInputId(key))?.focus()
+    document.getElementById(select.value === OTHER_SAT ? typedInputId(key) : selectId(key))?.focus()
   })
   wrap.append(el('span', 'sat-label', 'Clave SAT'), select)
   if (choice.value === OTHER_SAT) {

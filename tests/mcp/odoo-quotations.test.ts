@@ -551,6 +551,25 @@ describe('clave SAT en la vista previa (#154)', () => {
     expect(quiet).toHaveBeenCalled()
   })
 
+  test('si las palabras no caben en la búsqueda, avisa de cuántos productos se quedaron cortos (review PR #167)', async () => {
+    // 16 products with 4 words each: 64 terms, and the search takes 60.
+    const letters = 'abcdefghijklmnop'.split('')
+    const input: PreviewQuotationInput = {
+      cliente: '#1',
+      lineas: letters.map((l) => ({ codigo: `ZZ${l.toUpperCase()}`, descripcion: `alfa${l}k beta${l}k gama${l}k delta${l}k`, cantidad: 1, precio: 1 })),
+    }
+    const { data, calls } = await preview(input, satScript({ 'product.unspsc.code.search_read': [[]] }))
+    const domain = unspscCalls(calls)[0].payload.domain as unknown[]
+    expect(domain.filter((item) => Array.isArray(item))).toHaveLength(60)
+    expect(domain).not.toContainEqual(['name', 'ilike', 'alfapk'])
+    expect(data.avisos).toContain(
+      'No alcancé a buscar todas las palabras de 1 producto: su clave SAT puede no estar entre las sugeridas (precisa con categoria_sat o tecléala).',
+    )
+    // Under the cap nobody is warned.
+    const { data: few } = await preview(SAT_INPUT, satScript())
+    expect(few.avisos.some((a) => a.startsWith('No alcancé a buscar'))).toBe(false)
+  })
+
   test('el catálogo SAT topado lo avisa', async () => {
     const many = Array.from({ length: 400 }, (_, i) => ({ id: 2000 + i, code: String(27000000 + i), name: `Brochas ${i}` }))
     const { data } = await preview(SAT_INPUT, satScript({ 'product.unspsc.code.search_read': [many] }))

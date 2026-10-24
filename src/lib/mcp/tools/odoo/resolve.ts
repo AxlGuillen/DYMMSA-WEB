@@ -219,6 +219,8 @@ export interface SatSuggestionsRead {
   readonly suggestions: readonly (readonly SatSuggestion[])[]
   readonly terms: readonly (readonly string[])[]
   readonly truncated: boolean
+  /** Texts with a word left out of the search by MAX_SAT_TERMS: their suggestions may be missing (review PR #167). */
+  readonly cut: readonly number[]
 }
 
 /**
@@ -228,7 +230,9 @@ export interface SatSuggestionsRead {
 export async function readSatSuggestions(odoo: OdooCaller, texts: readonly string[]): Promise<SatSuggestionsRead> {
   const terms = texts.map(satSearchTerms)
   const union = [...new Set(terms.flat())].slice(0, MAX_SAT_TERMS)
-  if (union.length === 0) return { suggestions: texts.map(() => []), terms, truncated: false }
+  const searched = new Set(union)
+  const cut = terms.flatMap((own, i) => (own.some((term) => !searched.has(term)) ? [i] : []))
+  if (union.length === 0) return { suggestions: texts.map(() => []), terms, truncated: false, cut }
   const rows = rowsOf(
     await odoo('product.unspsc.code', 'search_read', {
       domain: orDomain(union.map((term): DomainTriple => ['name', 'ilike', escapeLike(term)])),
@@ -244,6 +248,7 @@ export async function readSatSuggestions(odoo: OdooCaller, texts: readonly strin
     suggestions: terms.map((own) => rankSatSuggestions(own, codes)),
     terms,
     truncated: rows.length >= SAT_SEARCH_LIMIT,
+    cut,
   }
 }
 
