@@ -94,6 +94,116 @@ describe('POST /products (create)', () => {
     expect(res.status).toBe(400)
     expect((await res.json()).message).toContain('A-1')
   })
+
+  test('REGLA: precio negativo → 400 y no inserta', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await listRoute.POST(makeRequest({ etm: 'A-1', price: -10 }, { method: 'POST' }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toContain('negativo')
+    expect(activeClient.didCall('etm_products', 'insert')).toBe(false)
+  })
+
+  test('REGLA ADR-013: curada con descripción oficial para su (código, marca) → 400 y no inserta', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.select': { data: [{ code: 'MC1', brand: 'URREA', description: 'Oficial' }], error: null } },
+    })
+    const res = await listRoute.POST(
+      makeRequest({ etm: 'A-1', model_code: 'mc1', brand: 'URREA', dymmsa_description: 'Oficial' }, { method: 'POST' }),
+    )
+    expect(res.status).toBe(400)
+    expect(activeClient.didCall('etm_products', 'insert')).toBe(false)
+  })
+
+  test('curada sin match en el catálogo → se guarda', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'urrea_catalog.select': { data: [], error: null },
+        'etm_products.insert': { data: { id: '1' }, error: null },
+      },
+    })
+    const res = await listRoute.POST(
+      makeRequest({ etm: 'A-1', model_code: 'MC9', dymmsa_description: ' Punta 30 mm ' }, { method: 'POST' }),
+    )
+    expect(res.status).toBe(201)
+    expect(activeClient.insertPayload<Record<string, unknown>>('etm_products').dymmsa_description).toBe('Punta 30 mm')
+  })
+})
+
+describe('PATCH /products/[id] — precio y Descripción DYMMSA (#157)', () => {
+  const patch = (body: unknown) =>
+    itemRoute.PATCH(makeRequest(body, { method: 'PATCH' }), makeParams({ id: '1' }))
+  const stored = { id: '1', etm: 'A-1', model_code: 'MC1', brand: 'URREA', dymmsa_description: 'Copia de la oficial' }
+  const official = { data: [{ code: 'MC1', brand: 'URREA', description: 'Oficial' }], error: null }
+
+  test('REGLA: precio negativo → 400 sin tocar la BD', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await patch({ price: -1 })).status).toBe(400)
+    expect(activeClient._calls).toHaveLength(0)
+  })
+
+  test('REGLA ADR-013: una curada NUEVA con match de catálogo → 400 y no actualiza', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'etm_products.select': { data: stored, error: null }, 'urrea_catalog.select': official },
+    })
+    expect((await patch({ dymmsa_description: 'Otra curada', price: 10 })).status).toBe(400)
+    expect(activeClient.didCall('etm_products', 'update')).toBe(false)
+  })
+
+  test('la curada reenviada sin cambios (ProductForm con match) no se reescribe; lo demás sí', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'etm_products.select': { data: stored, error: null },
+        'etm_products.update': { data: { id: '1' }, error: null },
+      },
+    })
+    expect((await patch({ dymmsa_description: 'Copia de la oficial', price: 10 })).status).toBe(200)
+    const payload = activeClient.updatePayload('etm_products')
+    expect(payload).not.toHaveProperty('dymmsa_description')
+    expect(payload.price).toBe(10)
+    expect(activeClient.didCall('urrea_catalog', 'select')).toBe(false)
+  })
+
+  test('el cruce usa el código y la marca NUEVOS cuando vienen en el mismo cambio', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'etm_products.select': { data: { ...stored, model_code: 'MC9', dymmsa_description: null }, error: null },
+        'urrea_catalog.select': official,
+      },
+    })
+    expect((await patch({ model_code: 'MC1', dymmsa_description: 'Mi texto' })).status).toBe(400)
+  })
+
+  test('catálogo ilegible → 500 sin actualizar', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'etm_products.select': { data: { ...stored, dymmsa_description: null }, error: null },
+        'urrea_catalog.select': { data: null, error: { message: 'boom' } },
+      },
+    })
+    expect((await patch({ dymmsa_description: 'Mi texto' })).status).toBe(500)
+    expect(activeClient.didCall('etm_products', 'update')).toBe(false)
+  })
+
+  test('vaciar la curada no consulta nada y la guarda en null', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'etm_products.update': { data: { id: '1' }, error: null } },
+    })
+    expect((await patch({ dymmsa_description: '  ' })).status).toBe(200)
+    expect(activeClient.updatePayload('etm_products').dymmsa_description).toBeNull()
+    expect(activeClient.didCall('etm_products', 'select')).toBe(false)
+  })
+
+  test('producto inexistente → 404', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'etm_products.select': { data: null, error: null } } })
+    expect((await patch({ dymmsa_description: 'Mi texto' })).status).toBe(404)
+  })
 })
 
 describe('PATCH /products/[id] — is_sold tri-estado', () => {

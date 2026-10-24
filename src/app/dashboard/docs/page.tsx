@@ -891,21 +891,31 @@ export default function DocsPage() {
                   <TableCell>Codigo URREA. Es la llave que se cruza con el <code className="rounded bg-muted px-1">model_code</code> de los productos. Acepta el alias <code className="rounded bg-muted px-1">code</code>.</TableCell>
                 </TableRow>
                 <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">marca</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>URREA, SURTEK, FOY... Si no viene, se asume URREA. Acepta el alias <code className="rounded bg-muted px-1">brand</code>.</TableCell>
+                </TableRow>
+                <TableRow>
                   <TableCell><code className="rounded bg-muted px-1">descripcion</code></TableCell>
                   <TableCell className="text-muted-foreground">No</TableCell>
-                  <TableCell>Descripcion oficial de URREA. Acepta el alias <code className="rounded bg-muted px-1">description</code>.</TableCell>
+                  <TableCell>Descripcion oficial de URREA. Acepta el alias <code className="rounded bg-muted px-1">description</code>. Si el archivo no trae la columna, <strong>Actualizar</strong> conserva la descripcion guardada.</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell><code className="rounded bg-muted px-1">std</code></TableCell>
                   <TableCell className="text-muted-foreground">No</TableCell>
-                  <TableCell>Unidades por paquete. Si no viene o es invalido, se asume 1.</TableCell>
+                  <TableCell>Unidades por paquete; si viene, debe ser un entero mayor que 0 (2.5 o 0 no se aceptan). Una celda vacia es 1. Si el archivo no trae la columna, <strong>Actualizar</strong> conserva el STD guardado de cada codigo (los nuevos quedan en 1) y <strong>Reemplazar</strong> pone 1.</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
             <p className="text-muted-foreground">
-              Al importar puedes elegir <strong>Actualizar</strong> (agrega y actualiza por codigo) o
-              <strong> Reemplazar</strong> (borra el catalogo y carga el nuevo). Los codigos se normalizan
+              Al importar puedes elegir <strong>Actualizar</strong> (agrega y actualiza por codigo y marca) o
+              <strong> Reemplazar</strong> (borra el catalogo y carga el nuevo). Los codigos y marcas se normalizan
               automaticamente (sin espacios y en mayusculas) para que el cruce con los productos funcione.
+            </p>
+            <p className="text-muted-foreground">
+              Antes de guardar se revisa el archivo completo: si una fila no trae codigo, trae un STD invalido o
+              repite un codigo con la misma marca, <strong>no se importa nada</strong> y el aviso dice que filas
+              corregir. Reemplazar es todo o nada: si algo falla, el catalogo queda como estaba.
             </p>
           </div>
 

@@ -5,6 +5,36 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-10-24
 
+### Corregido
+- **Importar el catálogo URREA ya no lo puede dejar vacío.** Antes, si al
+  elegir «Reemplazar» el archivo traía un error (por ejemplo, el mismo código
+  con la misma marca dos veces), el catálogo se quedaba sin productos. Ahora se
+  revisa todo el archivo antes de guardar: si una fila no trae código, trae un
+  STD que no es un número entero mayor que 0 o repite un código con la misma
+  marca, no se importa nada y el aviso dice qué filas corregir. Y si algo falla
+  al reemplazar, el catálogo queda como estaba.
+- **Actualizar el catálogo con un archivo sin columna STD ya no pone todos los
+  STD en 1.** Si el archivo no trae la columna `std` (o `descripcion`), se
+  conserva la que ya estaba guardada; solo los productos nuevos quedan en 1.
+- **Los encabezados del Excel de productos se reconocen aunque traigan
+  espacios o minúsculas** («ETM », «etm»). Antes un espacio de más hacía que
+  se rechazara el archivo por «columnas faltantes».
+- **Si el archivo tiene errores, la lista se queda en la ventana de
+  importación**, una fila por renglón, en vez de desaparecer en un aviso.
+- **Un STD con decimales ya no da un error del sistema.** Al dar de alta o
+  editar un producto del catálogo URREA, un STD como 2.5 o 0 muestra un aviso
+  claro.
+- **Importar productos de la BD ETM ya no borra datos con celdas vacías.** Con
+  «Actualizar y agregar», una celda vacía deja lo que ya estaba guardado (antes
+  lo borraba y el precio quedaba en 0). Un producto nuevo sin código de modelo
+  ya no queda como marca URREA, y el aviso final dice cuántos quedaron sin
+  cambios.
+- **Los productos ya no aceptan un precio negativo**, ni al darlos de alta, ni
+  al editarlos, ni al importarlos (el aviso dice la fila).
+- **La descripción oficial del catálogo URREA ya no se guarda como Descripción
+  DYMMSA**, venga de donde venga: antes solo lo cuidaba la ventana de editar
+  producto.
+
 ### Nuevo
 - [admin] **La clave SAT de los productos ya no hay que sabérsela.** En la
   vista previa de una cotización de Odoo, cada producto que no tiene clave
