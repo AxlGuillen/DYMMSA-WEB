@@ -95,6 +95,8 @@ INSERT INTO public.store_inventory (model_code, quantity, location) VALUES
 -- Roles para RLS (#93). Idempotente: resetDb() lo re-ejecuta en cada test, así un
 -- test que degrade o remapee no contamina al siguiente. a1 admin ⊇ member: los tests
 -- previos siguen válidos.
+-- Orden obligatorio: promover a1 ANTES de degradar a2; al reves, profiles_guard_last_admin (#157)
+-- responde 23514 y tumba el beforeEach de toda la integracion.
 UPDATE public.profiles SET role = 'admin',  clock_employee_id = NULL, display_name = 'test',   nss = NULL, avatar_path = NULL, is_owner = false, area = 'office'
   WHERE id = '00000000-0000-0000-0000-0000000000a1';
 UPDATE public.profiles SET role = 'member', clock_employee_id = 5,    display_name = 'Member', nss = NULL, avatar_path = NULL, is_owner = false, area = 'office'

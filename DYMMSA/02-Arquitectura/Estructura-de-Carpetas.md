@@ -138,7 +138,9 @@ src/
 │   ├── approval-filters.ts       # Filtros de la página de aprobación: secciones/marcas (issue #24)
 │   ├── purchase-plan.ts          # Planificador de compra: consolidación, math STD, recomendación (ADR-018)
 │   ├── api-helpers.ts            # requireAuth() + respuestas estándar para route handlers
+│   ├── domain-error.ts           # DomainError(kind): base de los errores de los stores, status por kind (#155 C1, #157)
 │   ├── inventory.ts              # computeRestoration y estados en tienda (puras) + envoltorios de las funciones atómicas de stock (#157)
+│   ├── orders-store.ts           # Escrituras de órdenes que mueven stock, compartidas por las rutas; OrderError extiende DomainError (#157)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
 │   ├── github.ts                 # Cliente GitHub Issues (módulo Tareas): fetchGitHub + mapeos puros
 │   ├── month.ts                  # ISODate, ISO_MONTH, monthOf, nextMonth, monthRange — sin imports de la app (#94)

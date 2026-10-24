@@ -3,6 +3,7 @@
  * through the atomic DB functions of inventory.ts, and a write that fails gives its reservation back.
  */
 
+import { DomainError } from '@/lib/domain-error'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   allocateLines,
@@ -36,27 +37,19 @@ import type {
   UrreaStatus,
 } from '@/types/database'
 
-type OrderErrorKind = 'invalid' | 'not_found' | 'conflict' | 'failed'
-
-const STATUS_BY_KIND: Record<OrderErrorKind, number> = { invalid: 400, not_found: 404, conflict: 409, failed: 500 }
-
-/** A rule the user broke (400/404), a concurrent change (409) or a write that failed (500). */
-export class OrderError extends Error {
+/** A rule the user broke (400/404), a concurrent change (409) or a write that failed (500); base in domain-error.ts (#155 C1). */
+export class OrderError extends DomainError {
   constructor(
     message: string,
-    readonly kind: OrderErrorKind = 'invalid',
+    kind: 'invalid' | 'not_found' | 'conflict' | 'failed' = 'invalid',
     readonly offendingEtm?: string,
   ) {
-    super(message)
+    super(message, kind)
     this.name = 'OrderError'
   }
 
-  get status(): number {
-    return STATUS_BY_KIND[this.kind]
-  }
-
   /** Response body; the ETM travels when explainPgError names it (ADR-009). */
-  get body(): { message: string; offendingEtm?: string } {
+  override get body(): { message: string; offendingEtm?: string } {
     return this.offendingEtm ? { message: this.message, offendingEtm: this.offendingEtm } : { message: this.message }
   }
 }
