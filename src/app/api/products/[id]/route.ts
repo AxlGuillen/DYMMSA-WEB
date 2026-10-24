@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { notFound, requireAuth, serverError } from '@/lib/api-helpers'
-import { DomainError } from '@/lib/domain-error'
+import { requireAuth, apiError, notFound, serverError } from '@/lib/api-helpers'
 import { isUuid } from '@/lib/text'
 import { parseProductInput, updateProduct } from '@/lib/products-store'
 
@@ -20,9 +19,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const body = await request.json().catch(() => null)
     return NextResponse.json(await updateProduct(supabase, id, parseProductInput(body, { create: false })))
   } catch (error) {
-    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
-    console.error('Product update error:', error)
-    return serverError('Error al actualizar el producto')
+    return apiError(error, 'Error al actualizar el producto', 'Product update error:')
   }
 }
 

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api-helpers'
-import { DomainError } from '@/lib/domain-error'
+import { requireAuth, apiError } from '@/lib/api-helpers'
 import { importCatalog, parseCatalogSheet } from '@/lib/urrea-catalog-store'
 import type { CatalogImportMode, CatalogImportResult } from '@/types/database'
 
@@ -31,8 +30,6 @@ export async function POST(request: NextRequest) {
     const result: CatalogImportResult = { imported, updated: 0, errors: 0, total: rows.length, mode }
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
-    console.error('URREA catalog import error:', error)
-    return NextResponse.json({ message: 'Error al procesar el archivo' }, { status: 500 })
+    return apiError(error, 'Error al procesar el archivo', 'URREA catalog import error:')
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api-helpers'
-import { createOrderFromQuotation, OrderError } from '@/lib/orders-store'
+import { requireAuth, apiError } from '@/lib/api-helpers'
+import { createOrderFromQuotation } from '@/lib/orders-store'
 
 export async function POST(
   _req: NextRequest,
@@ -18,8 +18,6 @@ export async function POST(
     console.log(`[create-order] START quotationId=${id} userId=${auth.user.id}`)
     return NextResponse.json(await createOrderFromQuotation(supabase, id, auth.user.id))
   } catch (error) {
-    if (error instanceof OrderError) return NextResponse.json(error.body, { status: error.status })
-    console.error(`[create-order] unhandled error quotationId=${id}`, error)
-    return NextResponse.json({ message: 'Error interno' }, { status: 500 })
+    return apiError(error, 'Error interno', `[create-order] unhandled error quotationId=${id}`)
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { apiError } from '@/lib/api-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { submitApproval } from '@/lib/approval-store'
-import { QuotationError } from '@/lib/quotations-store'
 
 // GET (public) — the quotation behind its approval token.
 
@@ -42,8 +42,6 @@ export async function POST(
     const body = await request.json().catch(() => null)
     return NextResponse.json(await submitApproval(createAdminClient(), token, body))
   } catch (error) {
-    if (error instanceof QuotationError) return NextResponse.json(error.body, { status: error.status })
-    console.error('Approve POST error:', error)
-    return NextResponse.json({ message: 'Error interno' }, { status: 500 })
+    return apiError(error, 'Error interno', 'Approve POST error:')
   }
 }
