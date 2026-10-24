@@ -1,5 +1,5 @@
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getBusinessSummary } from '@/lib/mcp/tools/summary'
 
 export const getBusinessSummaryTool = defineTool({
@@ -10,7 +10,7 @@ export const getBusinessSummaryTool = defineTool({
   description:
     'Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala primero cuando pregunten "¿cómo vamos?" o necesites contexto global.',
   input: {},
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Panorama',
     title: 'Resumen del negocio',

@@ -11,7 +11,7 @@ export const odooCreateDraftInvoiceTool = defineTool({
     'Factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`). Sin `confirmar` no escribe: devuelve el resumen (cliente, total y líneas a facturar, entrega, productos sin clave SAT, si ya hay borrador); muéstralo y, tras el sí, repite con confirmar: true. Revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.',
   input: draftInvoiceShape,
   // A draft takes no folio, and an existing draft comes back as ya_existia (#155).
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  hints: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
   adminOnly: true,
   docs: {
     module: 'Cotizar y facturar',

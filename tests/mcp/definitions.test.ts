@@ -4,6 +4,7 @@ import { describe, test, expect } from 'vitest'
 import { z } from 'zod'
 import { DYMMSA_TOOLS } from '@/lib/mcp/connectors/dymmsa'
 import { ODOO_TOOLS } from '@/lib/mcp/connectors/odoo'
+import { toolAnnotations } from '@/lib/mcp/core/define'
 import { parseInput, strictInput } from '@/lib/mcp/core/schema'
 import { TOOL_BUDGET } from '@/lib/mcp/manifest'
 
@@ -38,18 +39,22 @@ describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (nam
     expect(tool.description.length).toBeLessThanOrEqual(cap)
   })
 
-  test('las anotaciones dicen lo mismo que el tipo de tool, y una escritura declara sus límites', () => {
-    expect(tool.annotations.readOnlyHint === true).toBe(tool.kind === 'read')
+  test('ANOTACIONES (R8, #155 C2): las cuatro, explícitas; readOnlyHint sale del tipo y una escritura declara sus límites', () => {
+    const annotations = toolAnnotations(tool)
+    expect(Object.keys(annotations)).toEqual(['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'])
+    expect(Object.values(annotations).every((value) => typeof value === 'boolean')).toBe(true)
+    expect(annotations.readOnlyHint).toBe(tool.kind === 'read')
+    if (tool.kind === 'read') expect(annotations).toMatchObject({ destructiveHint: false, idempotentHint: true })
+    // Odoo is a third-party system others edit (ADR-041 §10); DYMMSA-WEB's domain is closed (Auditoría DYMMSA-WEB §3).
+    expect(annotations.openWorldHint).toBe(tool.connector === 'odoo')
     if (tool.kind === 'write') expect(tool.docs.limits?.length).toBeGreaterThan(0)
     expect(tool.docs.example.length).toBeGreaterThan(0)
-    // Odoo is a third-party system others edit (ADR-041 §10); DYMMSA-WEB's domain is closed.
-    expect(tool.annotations.openWorldHint).toBe(tool.connector === 'odoo')
   })
 
-  test('ANOTACIONES (ADR-041 §10): una escritura de Odoo declara destructiveHint e idempotentHint', () => {
-    if (tool.connector !== 'odoo' || tool.kind !== 'write') return
-    expect(typeof tool.annotations.destructiveHint).toBe('boolean')
-    expect(typeof tool.annotations.idempotentHint).toBe('boolean')
+  test('la definición no escribe anotaciones crudas ni readOnlyHint: solo los hints de su tipo (#155 C2)', () => {
+    expect(tool).not.toHaveProperty('annotations')
+    const expected = tool.kind === 'read' ? ['openWorldHint'] : ['destructiveHint', 'idempotentHint', 'openWorldHint']
+    expect(Object.keys(tool.hints).sort()).toEqual(expected)
   })
 
   test('REGLA (ADR-040): toda escritura de Odoo es de administrador', () => {
@@ -84,6 +89,40 @@ describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (nam
     expect(example, message).toBeDefined()
     expect(() => parseInput(name, tool.input, JSON.parse(example as string))).not.toThrow()
   })
+})
+
+/**
+ * E(d,i) of every write, as the audits decided (Auditoría DYMMSA-WEB H7 and §4.8; ADR-041 §10, #155 C2).
+ * d = destructiveHint, i = idempotentHint; changing one is a decision its PR explains.
+ */
+const WRITE_HINTS: Record<string, string> = {
+  save_material_presentation: 'E(0,1)',
+  set_inventory_location: 'E(1,1)',
+  save_supplier: 'E(1,1)',
+  mark_payable_paid: 'E(1,1)',
+  create_payable: 'E(0,0)',
+  update_payable: 'E(1,1)',
+  save_time_entries: 'E(1,1)',
+  save_excused_day: 'E(1,1)',
+  record_payroll_hours: 'E(1,1)',
+  save_payroll_employee: 'E(1,1)',
+  create_task: 'E(0,0)',
+  update_task: 'E(1,0)',
+  odoo_save_quotation: 'E(1,1)',
+  odoo_confirm_quotation: 'E(1,1)',
+  odoo_save_product: 'E(0,1)',
+  odoo_create_draft_invoice: 'E(0,1)',
+}
+
+test('ANOTACIONES (#155 C2): cada escritura de los dos conectores declara lo que decidió su auditoría', () => {
+  const declared = Object.fromEntries(
+    ALL_TOOLS.flatMap((tool) => {
+      if (tool.kind !== 'write') return []
+      const { destructiveHint, idempotentHint } = toolAnnotations(tool)
+      return [[tool.name, `E(${Number(destructiveHint)},${Number(idempotentHint)})`]]
+    }),
+  )
+  expect(declared).toEqual(WRITE_HINTS)
 })
 
 test('ningún nombre se repite entre definiciones', () => {

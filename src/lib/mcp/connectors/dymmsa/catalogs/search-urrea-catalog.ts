@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { searchUrreaCatalog } from '@/lib/mcp/tools/urrea'
 
 export const searchUrreaCatalogTool = defineTool({
@@ -11,7 +11,7 @@ export const searchUrreaCatalogTool = defineTool({
   description:
     'Consulta el catálogo oficial URREA por código (match exacto, normalizado) o por descripción (parcial, máx 20). Devuelve código, descripción oficial y std (unidades por paquete).',
   input: { query: z.string().describe('Código URREA o texto de la descripción') },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Catalogos',
     title: 'Consultar catalogo URREA',

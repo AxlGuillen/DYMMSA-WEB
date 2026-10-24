@@ -15,7 +15,7 @@ export const odooAuditPaymentComplementsTool = defineTool({
     desde: isoDate.optional().describe('Default hace 30 días'),
     hasta: isoDate.optional().describe('Default hoy'),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Contabilidad',
     title: 'Auditoria de complementos de pago',

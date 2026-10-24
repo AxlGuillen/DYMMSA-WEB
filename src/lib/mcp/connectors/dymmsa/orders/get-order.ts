@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getOrder } from '@/lib/mcp/tools/orders'
 
 export const getOrderTool = defineTool({
@@ -11,7 +11,7 @@ export const getOrderTool = defineTool({
   description:
     'Orden completa con sus ítems: cantidades (aprobada/en stock/por pedir/recibida), urrea_status por ítem, ubicación en tienda y cuántos ítems siguen pendientes con URREA.',
   input: { id: z.string().describe('UUID de la orden') },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Ordenes',
     title: 'Detalle de orden',

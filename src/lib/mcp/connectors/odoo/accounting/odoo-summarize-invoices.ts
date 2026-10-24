@@ -17,7 +17,7 @@ export const odooSummarizeInvoicesTool = defineTool({
     hasta: isoDate.optional(),
     agrupar_por: z.enum(['estado_pago', 'cliente', 'mes']).optional(),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Contabilidad',
     title: 'Resumen de facturacion',

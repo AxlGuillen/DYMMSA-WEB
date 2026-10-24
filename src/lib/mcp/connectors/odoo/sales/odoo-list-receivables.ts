@@ -16,7 +16,7 @@ export const odooListReceivablesTool = defineTool({
     ordenar: z.enum(RECEIVABLES_ORDER).optional().describe('Default vencido'),
     limite: limit(50, 10).describe('Clientes y facturas por lista (default 10)'),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Ventas y cobranza',
     title: 'Cartera por cobrar',

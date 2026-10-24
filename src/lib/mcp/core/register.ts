@@ -2,7 +2,7 @@ import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from '@model
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { McpRole } from '../manifest'
-import type { ToolDefinition, ToolView } from './define'
+import { toolAnnotations, type ToolDefinition, type ToolView } from './define'
 import { run } from './run'
 import { strictInput } from './schema'
 
@@ -12,7 +12,7 @@ export function registerTools(server: McpServer, tools: readonly ToolDefinition[
     if (tool.adminOnly && role !== 'admin') continue
     // SDK 1.26 and ext-apps take a whole schema, not only a raw shape: strict without patching (#155 C1, ADR-041).
     const inputSchema = strictInput(tool.name, tool.input)
-    const config = { title: tool.title, description: tool.description, inputSchema, annotations: tool.annotations }
+    const config = { title: tool.title, description: tool.description, inputSchema, annotations: toolAnnotations(tool) }
     // The SDK types the callback per input schema; a heterogeneous list can only be bridged here, once.
     const callback = ((input: unknown, extra: { authInfo?: AuthInfo }) =>
       run(tool.name, extra, (_db, ctx) => tool.handler(input as never, ctx))) as never

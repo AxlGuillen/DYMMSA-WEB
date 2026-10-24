@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getPurchasePlan } from '@/lib/mcp/tools/purchase'
 
 export const getPurchasePlanTool = defineTool({
@@ -11,7 +11,7 @@ export const getPurchasePlanTool = defineTool({
   description:
     'Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). "revisar" = el usuario debe decidir. Acepta id o nombre parcial de la orden/cliente.',
   input: { orden: z.string().min(1).describe('UUID, nombre de la orden o nombre del cliente (parcial)') },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Ordenes',
     title: 'Planificador de compra',

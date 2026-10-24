@@ -10,7 +10,7 @@ export const odooPreviewQuotationTool = defineTool({
   description:
     'SOLO LEE: arma la vista previa de una cotización de Odoo y firma la `clave` que exigen odoo_save_quotation y odoo_confirm_quotation (vale 30 min). Crear: `cliente` (nombre, RFC o #id; nunca se crean clientes) + `lineas`, la lista COMPLETA: cada producto con codigo, etm o producto_id, cantidad y precio unitario sin IVA; nota/seccion para textos. Editar: `folio` + `lineas` (parte de lineas_como_entrada). Revisar o confirmar: solo `folio`. En Claude se ve como tabla: con sus botones se dan de alta los productos que falten y se elige la clave SAT de los que no la tienen. Muestra el resumen (bloqueos, avisos, al_confirmar) y espera el sí antes de guardar.',
   input: previewQuotationShape,
-  annotations: odooRead,
+  hints: odooRead,
   adminOnly: true,
   view: ODOO_QUOTATION_VIEW,
   docs: {

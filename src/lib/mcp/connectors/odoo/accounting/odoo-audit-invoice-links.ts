@@ -18,7 +18,7 @@ export const odooAuditInvoiceLinksTool = defineTool({
     cliente: z.string().optional().describe('Nombre (o parte) del cliente para acotar'),
     incluir_ligadas: z.boolean().optional().describe('true = también listar las facturas correctamente ligadas'),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Contabilidad',
     title: 'Facturas sin orden de venta',
