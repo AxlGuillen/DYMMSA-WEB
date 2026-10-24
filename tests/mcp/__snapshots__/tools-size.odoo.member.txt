@@ -1,10 +1,10 @@
-# tools/list (member): 10 tools, 11132 caracteres en el cable
-  1665  odoo_search_records
+# tools/list (member): 10 tools, 11149 caracteres en el cable
+  1675  odoo_search_records
   1344  odoo_aggregate_records
   1265  odoo_audit_invoice_links
   1210  odoo_get_customer
   1193  odoo_get_document
-   995  odoo_list_receivables
+  1002  odoo_list_receivables
    958  odoo_summarize_invoices
    887  odoo_audit_payment_complements
    877  odoo_summarize_sales

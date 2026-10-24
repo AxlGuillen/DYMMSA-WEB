@@ -74,12 +74,15 @@ export interface CreateTaskInput {
   priority?: string
 }
 
-/** Mirrors POST /api/tasks; an invalid priority is ignored. */
+/** Mirrors POST /api/tasks, but strict like its siblings: an unknown priority is an error, never dropped (#155 C1). */
 export async function createTask(input: CreateTaskInput) {
   const title = input.title?.trim()
   if (!title) throw new ToolError('El título es obligatorio')
+  if (input.priority !== undefined && !isTaskPriority(input.priority)) {
+    throw new ToolError(`priority inválida "${input.priority}": usa ${TASK_PRIORITIES.join(' | ')}`)
+  }
 
-  const labels = input.priority && isTaskPriority(input.priority) ? [priorityToLabel(input.priority)] : []
+  const labels = input.priority ? [priorityToLabel(input.priority)] : []
 
   const issue = await fetchGitHub<GitHubIssue>('/issues', {
     method: 'POST',

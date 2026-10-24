@@ -284,7 +284,7 @@
   {
     "name": "search_inventory",
     "title": "Buscar en inventario",
-    "description": "Stock de tienda por model_code, con ubicación física (gaveta) cuando hay existencias. stockFilter: in_stock (>5), low_stock (1-5), sin_stock (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
+    "description": "Stock de tienda por model_code, con ubicación física (gaveta) cuando hay existencias. stockFilter: with_stock (>0), in_stock (>5), low_stock (1-5), sin_stock (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -297,6 +297,7 @@
           "type": "string",
           "enum": [
             "all",
+            "with_stock",
             "in_stock",
             "low_stock",
             "sin_stock"
@@ -445,7 +446,7 @@
           "type": "string"
         },
         "limit": {
-          "description": "Máx proveedores (default 50)",
+          "description": "Máx 100 proveedores (default 50)",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -564,7 +565,7 @@
           "type": "string"
         },
         "limit": {
-          "description": "Máx facturas (default 50)",
+          "description": "Máx 100 facturas (default 50)",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -899,7 +900,7 @@
       "type": "object",
       "properties": {
         "limit": {
-          "description": "Cuántas cargas listar (default 10)",
+          "description": "Máx 50 cargas (default 10)",
           "type": "integer",
           "minimum": 1,
           "maximum": 50
@@ -1280,7 +1281,7 @@
           ]
         },
         "page": {
-          "description": "Página (30 por página)",
+          "description": "Página (1-indexada, default 1; 30 por página)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991

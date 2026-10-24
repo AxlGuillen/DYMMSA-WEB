@@ -1,4 +1,5 @@
-/** The Spanish input error (#155 C1, ADR-041): what failed, what to fix and a valid example. */
+/** The Spanish input error (#155 C1, ADR-041): what failed, what to fix and a valid example. It leans on zod internals
+ *  (z.core._check, finalizeIssue, _zod.def/bag/optin) a minor zod bump can move: the real-SDK harness tests are the net. */
 
 import { z } from 'zod'
 import { fold } from '@/lib/text'
@@ -144,6 +145,7 @@ function setAt(target: Container, path: readonly PropertyKey[], value: unknown):
 function deleteAt(target: Container, path: readonly PropertyKey[]): void {
   const parent = getAt(target, path.slice(0, -1))
   const key = path[path.length - 1]
+  // Two issues in one array can shift indexes: harmless, the example is validated and falls back to the minimal one.
   if (Array.isArray(parent) && typeof key === 'number') parent.splice(key, 1)
   else if (isRecord(parent)) delete parent[String(key)]
 }

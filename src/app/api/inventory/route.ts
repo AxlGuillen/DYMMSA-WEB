@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
+import { STOCK_FILTERS, type StockFilter } from '@/lib/stock-filters'
 import type { StoreInventoryInsert } from '@/types/database'
-
-const STOCK_FILTERS = ['all', 'with_stock', 'in_stock', 'low_stock', 'sin_stock'] as const
-type StockFilter = (typeof STOCK_FILTERS)[number]
 
 /** "No brand" is a filterable category (#53): stocked items whose ETM carries no brand. */
 export const NO_BRAND = '__none__'

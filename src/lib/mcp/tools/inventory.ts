@@ -4,10 +4,8 @@ import { normalizePagination } from '@/lib/mcp/core/schema'
 import { sanitizeSearch } from '@/lib/text'
 import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
+import { STOCK_FILTERS, type StockFilter } from '@/lib/stock-filters'
 import type { StoreInventory } from '@/types/database'
-
-export const STOCK_FILTERS = ['all', 'in_stock', 'low_stock', 'sin_stock'] as const
-type StockFilter = (typeof STOCK_FILTERS)[number]
 
 export interface SearchInventoryInput {
   search?: string
@@ -29,6 +27,7 @@ export async function searchInventory(db: Db, input: SearchInventoryInput) {
   if (search) query = query.ilike('model_code', `%${search}%`)
 
   if (stockFilter === 'sin_stock') query = query.eq('quantity', 0)
+  else if (stockFilter === 'with_stock') query = query.gt('quantity', 0)
   else if (stockFilter === 'low_stock') query = query.gt('quantity', 0).lte('quantity', 5)
   else if (stockFilter === 'in_stock') query = query.gt('quantity', 5)
 

@@ -1,4 +1,4 @@
-# tools/list (admin): 36 tools, 35554 caracteres en el cable
+# tools/list (admin): 36 tools, 35607 caracteres en el cable
   3606  record_payroll_hours
   1381  create_payable
   1311  save_supplier
@@ -10,27 +10,27 @@
   1129  list_quotations
   1088  preview_time_report
   1079  save_material_presentation
+  1054  list_payables
   1050  get_week_hours
-  1050  list_payables
   1012  list_orders
+   981  search_inventory
    977  set_inventory_location
-   951  search_inventory
    889  search_products
    875  create_task
    870  get_profiles
-   861  list_suppliers
+   865  list_suppliers
    847  save_excused_day
    844  get_cut_plan
    828  get_payroll_period
    822  get_purchase_plan
    813  get_hours_trend
    745  get_month_closing
+   740  list_tasks
    722  get_payables_overview
-   717  list_tasks
    678  get_payable
    639  get_quotation
-   634  list_time_imports
    634  search_urrea_catalog
+   626  list_time_imports
    578  get_order
    576  get_business_summary
    559  get_app_settings

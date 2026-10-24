@@ -15,7 +15,7 @@ export const listTasksTool = defineTool({
   input: {
     state: z.enum(TASK_LIST_STATES).optional().describe('Default open'),
     priority: z.enum(TASK_PRIORITIES).optional(),
-    page: page.describe('Página (30 por página)'),
+    page: page('30 por página'),
   },
   hints: dymmsaRead,
   docs: {
