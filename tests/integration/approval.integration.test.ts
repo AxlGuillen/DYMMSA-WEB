@@ -67,13 +67,61 @@ describe('POST /approve/[token] (integración local)', () => {
     expect(q.approved_at).not.toBeNull()
   })
 
-  test('finalizar SIN aprobaciones → status=rejected y approved_at null', async () => {
+  test('finalizar SIN aprobaciones → status=rejected y approved_at sigue vacío si nunca se aprobó', async () => {
     const { token } = await seedForApproval()
     const res = await post(token, { approvedIds: [], finalize: true })
     expect(res.status).toBe(200)
     const [q] = await sql<{ status: string; approved_at: string | null }>('SELECT status, approved_at FROM quotations')
     expect(q.status).toBe('rejected')
     expect(q.approved_at).toBeNull()
+  })
+
+  test('REGLA (#157): approved_at conserva la PRIMERA aprobación: ni el rechazo lo borra ni la re-aprobación lo mueve', async () => {
+    const first = '2026-09-01T10:00:00.000Z'
+    const rejected = await seedForApproval()
+    await sql('UPDATE quotations SET approved_at = $1 WHERE id = $2', [first, rejected.id])
+    expect((await post(rejected.token, { approvedIds: [], finalize: true })).status).toBe(200)
+
+    const reapproved = await seedForApproval()
+    await sql('UPDATE quotations SET approved_at = $1 WHERE id = $2', [first, reapproved.id])
+    expect((await post(reapproved.token, { approvedIds: [reapproved.itemIds[0]], finalize: true })).status).toBe(200)
+
+    const rows = await sql<{ id: string; status: string; approved_at: Date }>('SELECT id, status, approved_at FROM quotations')
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    expect(byId.get(rejected.id)).toMatchObject({ status: 'rejected' })
+    expect(byId.get(reapproved.id)).toMatchObject({ status: 'approved' })
+    expect(byId.get(rejected.id)?.approved_at.toISOString()).toBe(first)
+    expect(byId.get(reapproved.id)?.approved_at.toISOString()).toBe(first)
+  })
+
+  test('REGLA (#157): ids que ya no son líneas de la cotización → 409 claro y NO escribe nada', async () => {
+    const { id, token, itemIds } = await seedForApproval()
+    await sql('UPDATE quotation_items SET is_approved = true WHERE id = $1', [itemIds[0]]) // saved progress
+    // DYMMSA removed P2 while the client had the page open.
+    await sql('DELETE FROM quotation_items WHERE id = $1', [itemIds[1]])
+
+    for (const finalize of [false, true]) {
+      const res = await post(token, { approvedIds: [itemIds[0], itemIds[1]], finalize })
+      expect(res.status).toBe(409)
+      expect(await readJson<{ code: string; message: string }>(res)).toMatchObject({
+        code: 'stale_items', message: expect.stringMatching(/recarga la página/i),
+      })
+    }
+
+    const items = await sql<{ etm: string; is_approved: boolean | null }>(
+      'SELECT etm, is_approved FROM quotation_items WHERE quotation_id = $1 ORDER BY sort_order', [id],
+    )
+    expect(items).toEqual([{ etm: 'P1', is_approved: true }, { etm: 'NO', is_approved: null }])
+    const [q] = await sql<{ status: string; approved_at: string | null }>('SELECT status, approved_at FROM quotations')
+    expect(q).toEqual({ status: 'sent_for_approval', approved_at: null })
+  })
+
+  test('un "no lo vendemos" no es aprobable: mandarlo es 409, no se aprueba a escondidas', async () => {
+    const { token, itemIds } = await seedForApproval()
+    const res = await post(token, { approvedIds: [itemIds[2]], finalize: true })
+    expect(res.status).toBe(409)
+    const [noSell] = await sql<{ is_approved: boolean | null }>('SELECT is_approved FROM quotation_items WHERE id = $1', [itemIds[2]])
+    expect(noSell.is_approved).toBeNull()
   })
 
   test('cotización ya procesada (approved) → 400', async () => {

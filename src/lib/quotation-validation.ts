@@ -38,13 +38,14 @@ export function validateQuotationItems(
 
     const tag = item.etm || '(sin ETM)'
 
-    if (item.quantity == null || item.quantity <= 0) {
+    // quantity is an integer column: 2.5 would reach the DB and fail as a 500 (#157).
+    if (item.quantity == null || item.quantity <= 0 || !Number.isInteger(item.quantity)) {
       issues.push({
         itemId: item._id,
         etm: item.etm || null,
         field: 'quantity',
         severity: 'error',
-        message: `ETM "${tag}": la cantidad debe ser mayor a 0.`,
+        message: `ETM "${tag}": la cantidad debe ser un entero mayor a 0.`,
       })
     }
 

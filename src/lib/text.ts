@@ -6,7 +6,10 @@ export function sanitizeSearch(raw: string): string {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** Tools accept "a UUID or a name": this decides which lookup runs. */
+/**
+ * Ids are checked before they reach Postgres (a non-uuid is a 22P02 → 500): a bad query filter is ignored,
+ * a bad path id is a 404 (#157). Tools use it to tell "a UUID or a name" apart.
+ */
 export const isUuid = (value: string) => UUID_RE.test(value)
 
 /** Accent- and case-insensitive name matching for the name lookups. */

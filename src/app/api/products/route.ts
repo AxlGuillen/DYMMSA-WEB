@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
-import type { EtmProductInsert } from '@/types/database'
+import { requireAuth, serverError } from '@/lib/api-helpers'
+import { DomainError } from '@/lib/domain-error'
+import { createProduct, parseProductInput } from '@/lib/products-store'
 
 const SORT_COLUMNS = ['etm', 'description_es', 'model_code', 'price'] as const
 type SortColumn = (typeof SORT_COLUMNS)[number]
@@ -9,11 +10,6 @@ type SortColumn = (typeof SORT_COLUMNS)[number]
 /** Strips `,()` (they would alter the .or() filter) and `%*` (ilike wildcards). */
 function sanitizeSearch(raw: string): string {
   return raw.replace(/[%*,()]/g, ' ').trim()
-}
-
-/** TEXT NOT NULL columns: normalized to a trimmed string, never null. */
-function text(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
 }
 
 // GET /api/products?page=&pageSize=&search=&sortBy=&sortDir=
@@ -74,34 +70,11 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as Partial<EtmProductInsert>
-    const etm = typeof body.etm === 'string' ? body.etm.trim() : ''
-    if (!etm) return badRequest('El ETM es obligatorio')
-
-    const { data, error } = await supabase
-      .from('etm_products')
-      .insert({
-        etm,
-        description: text(body.description),
-        description_es: text(body.description_es),
-        // The only nullable text column (catalog hierarchy, ADR-013).
-        dymmsa_description: text(body.dymmsa_description) || null,
-        model_code: text(body.model_code),
-        brand: text(body.brand),
-        price: typeof body.price === 'number' && Number.isFinite(body.price) ? body.price : 0,
-        is_sold: typeof body.is_sold === 'boolean' ? body.is_sold : null,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === '23505') return badRequest(`Ya existe un producto con el ETM ${etm}`)
-      console.error('Error creating etm_product:', error)
-      return serverError('Error al crear el producto')
-    }
-
-    return NextResponse.json(data, { status: 201 })
+    const body = await request.json().catch(() => null)
+    const product = await createProduct(supabase, parseProductInput(body, { create: true }))
+    return NextResponse.json(product, { status: 201 })
   } catch (error) {
+    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
     console.error('Product create error:', error)
     return serverError('Error al crear el producto')
   }

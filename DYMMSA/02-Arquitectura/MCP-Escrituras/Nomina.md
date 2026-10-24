@@ -2,6 +2,7 @@
 
 > Issue #155 · Fase 0 (mapa, sin código) · Revisado contra el código el 2026-10-22
 > Ver [[02-Arquitectura/MCP-Escrituras/00-Matriz]] · [[02-Arquitectura/API-Routes]] · [[04-Decisiones-Tecnicas/ADR-033-Nomina-Horas-por-Corte]] · [[02-Arquitectura/MCP-Escrituras/Horas]]
+> **Actualización 2026-10-24 (#157):** la pregunta 4 se decidió por el snapshot. Cerrar congela `shift_snapshot`/`area_snapshot` en cada día del corte con la RPC `close_payroll_period` (snapshot antes del `closed`, en una transacción con el chequeo de borradores) y `reopen_payroll_period` los limpia; `buildPayrollView()` usa el snapshot cuando existe. La pregunta 5 también: cerrar un corte ya cerrado no re-sella. `setPeriodClosed` sigue recibiendo el nombre del actor desde la ruta. Los archivo:línea de abajo describen el código **anterior**.
 
 ## Resumen
 

@@ -63,13 +63,19 @@ describe('excused_days', () => {
 })
 
 describe('profiles.is_owner', () => {
-  test('un member no puede coronarse (42501); el admin sí, y solo puede haber un dueño', async () => {
+  test('#157: nadie con sesión cambia al dueño (42501, tampoco el admin); por SQL sí, y solo puede haber uno', async () => {
     const self = await member.from('profiles').update({ is_owner: true }).eq('id', MEMBER_ID).select()
     expect(self.error?.code).toBe('42501')
-
     const crown = await admin.from('profiles').update({ is_owner: true }).eq('id', ADMIN_ID).select('is_owner')
-    expect(crown.data).toEqual([{ is_owner: true }])
-    const second = await admin.from('profiles').update({ is_owner: true }).eq('id', MEMBER_ID).select()
-    expect(second.error?.code).toBe('23505')
+    expect(crown.error?.code).toBe('42501')
+    expect(crown.error?.message).toMatch(/solo se cambia por SQL/)
+    expect(await sql(`SELECT 1 FROM public.profiles WHERE is_owner`)).toHaveLength(0)
+
+    // Without a session (SQL in the cloud, service role) it passes; the partial unique index still allows one.
+    await sql(`UPDATE public.profiles SET is_owner = true WHERE id = $1`, [ADMIN_ID])
+    await expect(sql(`UPDATE public.profiles SET is_owner = true WHERE id = $1`, [MEMBER_ID])).rejects.toMatchObject({ code: '23505' })
+    // The admin's other edits on the owner's row still work: only is_owner is frozen.
+    const rename = await admin.from('profiles').update({ display_name: 'Diego' }).eq('id', ADMIN_ID).select('display_name, is_owner')
+    expect(rename.data).toEqual([{ display_name: 'Diego', is_owner: true }])
   })
 })

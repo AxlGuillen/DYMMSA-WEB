@@ -5,6 +5,36 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-10-24
 
+### Corregido
+- **Importar el catálogo URREA ya no lo puede dejar vacío.** Antes, si al
+  elegir «Reemplazar» el archivo traía un error (por ejemplo, el mismo código
+  con la misma marca dos veces), el catálogo se quedaba sin productos. Ahora se
+  revisa todo el archivo antes de guardar: si una fila no trae código, trae un
+  STD que no es un número entero mayor que 0 o repite un código con la misma
+  marca, no se importa nada y el aviso dice qué filas corregir. Y si algo falla
+  al reemplazar, el catálogo queda como estaba.
+- **Actualizar el catálogo con un archivo sin columna STD ya no pone todos los
+  STD en 1.** Si el archivo no trae la columna `std` (o `descripcion`), se
+  conserva la que ya estaba guardada; solo los productos nuevos quedan en 1.
+- **Los encabezados del Excel de productos se reconocen aunque traigan
+  espacios o minúsculas** («ETM », «etm»). Antes un espacio de más hacía que
+  se rechazara el archivo por «columnas faltantes».
+- **Si el archivo tiene errores, la lista se queda en la ventana de
+  importación**, una fila por renglón, en vez de desaparecer en un aviso.
+- **Un STD con decimales ya no da un error del sistema.** Al dar de alta o
+  editar un producto del catálogo URREA, un STD como 2.5 o 0 muestra un aviso
+  claro.
+- **Importar productos de la BD ETM ya no borra datos con celdas vacías.** Con
+  «Actualizar y agregar», una celda vacía deja lo que ya estaba guardado (antes
+  lo borraba y el precio quedaba en 0). Un producto nuevo sin código de modelo
+  ya no queda como marca URREA, y el aviso final dice cuántos quedaron sin
+  cambios.
+- **Los productos ya no aceptan un precio negativo**, ni al darlos de alta, ni
+  al editarlos, ni al importarlos (el aviso dice la fila).
+- **La descripción oficial del catálogo URREA ya no se guarda como Descripción
+  DYMMSA**, venga de donde venga: antes solo lo cuidaba la ventana de editar
+  producto.
+
 ### Nuevo
 - [admin] **La clave SAT de los productos ya no hay que sabérsela.** En la
   vista previa de una cotización de Odoo, cada producto que no tiene clave
@@ -54,6 +84,44 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   con tu sí. Antes de hacer una factura en borrador te enseña un resumen con
   el cliente, el total, las líneas y si ya se entregó; la crea hasta que le
   dices que sí.
+
+### Corregido
+- **La fecha de pago solo se guarda en facturas pagadas.** Antes se le podía
+  poner «Pagada el» a una factura pendiente o cancelada sin cambiarle el
+  estado, y quedaba con una fecha que no correspondía. Ahora el sistema lo
+  rechaza con un aviso: primero se marca como pagada.
+- **Borrar algo que ya no existe ahora avisa.** Al eliminar un proveedor, una
+  marca, una factura por pagar o un producto del inventario que alguien más
+  ya había borrado, el sistema decía que todo salió bien; ahora dice que ya
+  no existe.
+- [admin] **El historial de una factura ahora registra cambios de monto y de
+  moneda.** Si alguien corrige el monto o cambia pesos por dólares, el
+  historial dice de cuánto a cuánto y quién lo hizo. Al registrar o borrar una
+  factura, el historial también guarda su moneda.
+- [admin] **Un corte de nómina cerrado ya no cambia solo.** Si después de
+  cerrar un corte se cambiaba la jornada de un empleado en Nómina o el área
+  (oficina o taller) de una persona en Equipo, los totales de ese corte ya
+  pagado se recalculaban. Ahora el corte guarda la jornada y el área que tenía
+  al cerrarse; si lo reabres, vuelve a usar las actuales.
+- [admin] **Siempre queda al menos un administrador**, aunque el cambio no se
+  haga desde la pantalla de Equipo. Y la corona de dueño ya no se puede mover
+  desde la app.
+- **Si editas una cotización mientras el cliente la revisa, su aprobación ya
+  no se pierde.** Antes, guardar renovaba todos los productos: si el cliente
+  enviaba después, la cotización quedaba Aprobada sin ningún producto
+  aprobado, y si guardaba avance se borraba lo que ya había marcado. Ahora los
+  productos se conservan al guardar. Si quitaste uno que el cliente tenía
+  marcado, su página le pide recargar y no guarda nada a medias.
+- **Lo que el cliente ya guardó no lo borra un detalle abierto desde antes.**
+  Mientras la cotización está En aprobación, sus decisiones se respetan
+  aunque guardes cambios de precio, cantidad o entrega.
+- **Guardar una cotización ya no la deja vacía ni a medias si algo falla:**
+  los productos, el nombre y el total se guardan juntos, o no se guarda nada.
+- **La fecha de aprobación es siempre la de la primera aprobación.** Ya no
+  cambia si el cliente vuelve a aprobar, ni se borra si después rechaza todo.
+- **El servidor también revisa los productos al guardar** (cantidad entera
+  mayor a 0, precio no negativo y ETM), igual que la pantalla, y te dice qué
+  ETM corregir.
 
 ## 2026-10-23
 

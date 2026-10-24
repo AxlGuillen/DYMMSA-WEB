@@ -4,6 +4,7 @@ import { describe, test, expect } from 'vitest'
 import {
   buildPayrollView,
   classifyDay,
+  dayRules,
   isIsoDate,
   isPeriodStart,
   minutesByDate,
@@ -23,7 +24,7 @@ const employee = (id: string, over: Partial<PayrollEmployee> = {}): PayrollEmplo
 
 const day = (employeeId: string, date: string, minutes: number, over: Partial<PayrollDay> = {}): PayrollDay => ({
   id: `${employeeId}-${date}`, employee_id: employeeId, work_date: date, worked_minutes: minutes, missed_minutes: 0,
-  note: null, source: 'manual', status: 'confirmed', created_at: '', updated_at: '', ...over,
+  note: null, source: 'manual', status: 'confirmed', shift_snapshot: null, area_snapshot: null, created_at: '', updated_at: '', ...over,
 })
 
 describe('corte sábado → viernes', () => {
@@ -133,6 +134,31 @@ describe('buildPayrollView', () => {
     expect(buildPayrollView('2026-09-19', [ana, gone], [], closed, new Map())).toMatchObject({ closed: true, rows: [{ employee: { id: 'ana' } }] })
     expect(buildPayrollView('2026-09-19', [gone], [day('gone', '2026-09-22', 60)], null, new Map()).rows).toHaveLength(1)
     expect(buildPayrollView('2026-09-19', [ana], [], { ...closed, status: 'open' }, new Map()).closed).toBe(false)
+  })
+
+  test('REGLA #157: un corte cerrado cuenta con la jornada y el área que congeló, no con las de hoy', () => {
+    // Today Marco is office and part time; the cut closed when he was workshop and full time.
+    const marco = employee('marco', { profile_id: 'p-marco', shift: 'part_time' })
+    const areas = new Map([['p-marco', 'office' as const]])
+    const frozen = { shift_snapshot: 'full_time' as const, area_snapshot: 'workshop' as const }
+    const days = [day('marco', '2026-09-19', 420, frozen), day('marco', '2026-09-21', 600, frozen)]
+
+    const view = buildPayrollView('2026-09-19', [marco], days, null, areas)
+    // Workshop Saturday of 7 h = 5 normal + 2 at double; Monday 10 h on a full shift = 8 + 2 extra.
+    expect(view.rows[0]).toMatchObject({ area: 'workshop', shift: 'full_time' })
+    expect(view.rows[0].totals).toEqual({ regular: 300 + 480, extra: 120, saturdayExtra: 120, sunday: 0, equivalent: 300 + 240 + 600 })
+
+    // The same days without a snapshot (open cut) follow today's values: office Saturday, 4 h shift.
+    const live = buildPayrollView('2026-09-19', [marco], days.map((d) => ({ ...d, shift_snapshot: null, area_snapshot: null })), null, areas)
+    expect(live.rows[0]).toMatchObject({ area: 'office', shift: 'part_time' })
+    expect(live.rows[0].totals).toEqual({ regular: 420 + 240, extra: 360, saturdayExtra: 0, sunday: 0, equivalent: 420 + 600 })
+  })
+
+  test('dayRules: el snapshot gana por campo; sin día o sin snapshot, lo vivo', () => {
+    const live = { shift: 'part_time' as const, area: 'office' as const }
+    expect(dayRules(null, live)).toEqual(live)
+    expect(dayRules({ shift_snapshot: null, area_snapshot: null }, live)).toEqual(live)
+    expect(dayRules({ shift_snapshot: 'full_time', area_snapshot: 'workshop' }, live)).toEqual({ shift: 'full_time', area: 'workshop' })
   })
 })
 

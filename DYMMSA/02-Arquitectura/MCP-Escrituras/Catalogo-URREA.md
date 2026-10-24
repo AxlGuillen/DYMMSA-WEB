@@ -2,6 +2,7 @@
 
 > Issue #155 · Fase 0 (mapa, sin código) · Revisado contra el código el 2026-10-22
 > Ver [[02-Arquitectura/MCP-Escrituras/00-Matriz]] · [[02-Arquitectura/API-Routes]] · [[04-Decisiones-Tecnicas/ADR-013-Descripcion-DYMMSA]] · [[04-Decisiones-Tecnicas/ADR-018-Mayoreo-vs-Menudeo]]
+> **Actualización 2026-10-24 (#157):** los bugs de esta ficha (replace que podía dejar el catálogo vacío, `std` decimal → 500, duplicados del archivo que tumbaban el upsert, descripción sin recortar, `description` no-string → 500) están arreglados. La validación y las escrituras viven en `src/lib/urrea-catalog-store.ts` (`parseCatalogItemInput`, `toStd`, `parseCatalogSheet`, `importCatalog`, `createCatalogItem`, `updateCatalogItem`) —el «store» que proponía esta ficha, sin `catalogChangeImpact()` todavía— y el replace es una sola llamada a la RPC `replace_urrea_catalog` ([[02-Arquitectura/Base-de-Datos]]). Los archivo:línea de abajo describen el código **anterior**.
 
 ## Resumen
 

@@ -82,6 +82,14 @@ describe('explainPgError', () => {
     expect(r.userMessage).toMatch(/total.*negativo/i)
   })
 
+  test('checks NOT VALID de quotation_items (#157) → mensajes de entrega y tipo de línea', () => {
+    const delivery = explainPgError(checkErr('quotation_items_delivery_time_check'))
+    expect(delivery).toMatchObject({ isConstraintViolation: true, constraintName: 'quotation_items_delivery_time_check' })
+    expect(delivery.userMessage).toMatch(/tiempo de entrega/i)
+    const type = explainPgError(checkErr('quotation_items_item_type_check'))
+    expect(type.userMessage).toMatch(/producto o sección/i)
+  })
+
   test('CHECK desconocida → fallback con nombre', () => {
     const r = explainPgError(checkErr('some_future_check'))
     expect(r.userMessage).toMatch(/some_future_check/)
