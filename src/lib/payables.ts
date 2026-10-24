@@ -40,20 +40,33 @@ export function payableTotals(rows: readonly Pick<Payable, 'amount' | 'currency'
 }
 
 export type PaymentUpdate =
-  | { ok: true; updates: { status: PayableStatus; paid_at: string | null } }
+  | { ok: true; updates: { status?: PayableStatus; paid_at: string | null } }
   | { ok: false; error: string }
 
+export const PAID_AT_NEEDS_PAID = 'Solo una factura pagada lleva fecha de pago: márcala como pagada para registrarla'
+export const PAID_AT_REQUIRED = 'Una factura pagada necesita su fecha de pago: para quitarla, regrésala a pendiente'
+
 /**
- * The payment rule shared by the PATCH route and the MCP write (#109): paid stores the REAL
- * date (today by default), any other status clears it.
+ * The payment rule shared by the PATCH route and the MCP writes (#109): paid stores the REAL date (today
+ * by default), any other status clears it. Without `status` the row's `current` one decides (#157).
  */
 export function resolvePaymentUpdate(
   status: unknown,
   paidAt: unknown,
   today: ISODate,
+  current?: PayableStatus,
 ): PaymentUpdate {
+  if (status === undefined) {
+    if (current !== 'paid') return { ok: false, error: PAID_AT_NEEDS_PAID }
+    if (paidAt === undefined || paidAt === null) return { ok: false, error: PAID_AT_REQUIRED }
+    if (!isRealDate(paidAt)) return { ok: false, error: 'Fecha de pago inválida' }
+    return { ok: true, updates: { paid_at: paidAt } }
+  }
   if (!PAYABLE_STATUSES.includes(status as PayableStatus)) return { ok: false, error: 'Estado inválido' }
-  if (status !== 'paid') return { ok: true, updates: { status: status as PayableStatus, paid_at: null } }
+  if (status !== 'paid') {
+    if (paidAt !== undefined && paidAt !== null) return { ok: false, error: PAID_AT_NEEDS_PAID }
+    return { ok: true, updates: { status: status as PayableStatus, paid_at: null } }
+  }
   if (paidAt !== undefined && paidAt !== null && !isRealDate(paidAt)) {
     return { ok: false, error: 'Fecha de pago inválida' }
   }
@@ -64,10 +77,10 @@ export type PayableUpdateResult = { ok: true; updates: PayableUpdate } | { ok: f
 
 /**
  * The PATCH rules, shared with the MCP's update_payable (#134): sparse, dates that exist
- * (2026-02-30 is a 22008 in Postgres), and status/paid_at through resolvePaymentUpdate.
- * Whether supplier_id exists is the caller's check: it needs the database.
+ * (2026-02-30 is a 22008 in Postgres), and status/paid_at through resolvePaymentUpdate with
+ * the row's `current` status. Whether supplier_id exists is the caller's check: it needs the database.
  */
-export function parsePayableUpdate(body: unknown, today: ISODate): PayableUpdateResult {
+export function parsePayableUpdate(body: unknown, today: ISODate, current: PayableStatus): PayableUpdateResult {
   const raw = (body ?? {}) as Record<string, unknown>
   const updates: PayableUpdate = {}
   if (raw.concept !== undefined) {
@@ -98,14 +111,10 @@ export function parsePayableUpdate(body: unknown, today: ISODate): PayableUpdate
   if (raw.notes !== undefined) {
     updates.notes = typeof raw.notes === 'string' ? raw.notes.trim() || null : null
   }
-  if (raw.status !== undefined) {
-    const payment = resolvePaymentUpdate(raw.status, raw.paid_at, today)
+  if (raw.status !== undefined || raw.paid_at !== undefined) {
+    const payment = resolvePaymentUpdate(raw.status, raw.paid_at, today, current)
     if (!payment.ok) return payment
     Object.assign(updates, payment.updates)
-  } else if (raw.paid_at !== undefined) {
-    // Fix the payment date of an already-paid invoice without touching the status.
-    if (raw.paid_at !== null && !isRealDate(raw.paid_at)) return { ok: false, error: 'Fecha de pago inválida' }
-    updates.paid_at = raw.paid_at as string | null
   }
   return { ok: true, updates }
 }
@@ -292,18 +301,28 @@ export function daysUntilDue(dueDate: ISODate, today: ISODate): number {
   return Math.round((due - now) / 86_400_000)
 }
 
-/** Spanish sentence for one audit row of a payable (ADR-028). `fmtDay` formats a bare ISO date. */
+/** Spanish sentence for one audit row of a payable (ADR-028). The caller formats dates and money (discrete mode). */
 export function describeAuditEvent(
   event: Pick<AuditEvent, 'action' | 'data'>,
   fmtDay: (iso: string) => string,
+  fmtMoney: (amount: number) => string,
 ): string {
-  const to = (event.data.to ?? {}) as { status?: PayableStatus; paid_at?: string | null }
-  const from = (event.data.from ?? {}) as { paid_at?: string | null }
+  type Side = { status?: PayableStatus; paid_at?: string | null; amount?: number; currency?: PayableCurrency }
+  const to = (event.data.to ?? {}) as Side
+  const from = (event.data.from ?? {}) as Side
   switch (event.action) {
     case 'created':
       return 'Registrada'
     case 'deleted':
       return 'Eliminada'
+    case 'amount_changed': {
+      // A currency change names both sides: "$1,500.00 → $80.00" alone would hide it (#157).
+      const currencyChanged = from.currency !== to.currency
+      const money = (side: Side) =>
+        side.amount == null ? '—' : `${fmtMoney(side.amount)}${side.currency ? (currencyChanged ? currencyLabel(side.currency) : currencySuffix(side.currency)) : ''}`
+      const what = from.amount === to.amount ? 'Moneda corregida' : currencyChanged ? 'Monto y moneda corregidos' : 'Monto corregido'
+      return `${what}: ${money(from)} → ${money(to)}`
+    }
     case 'paid_at_changed':
       return `Fecha de pago corregida: ${from.paid_at ? fmtDay(from.paid_at) : '—'} → ${to.paid_at ? fmtDay(to.paid_at) : '—'}`
     case 'status_changed':

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
 import { catalogKey, normalizeCatalogCode } from '@/lib/business-rules'
 import type {
+  CatalogImportResult,
   UrreaCatalogItem,
   UrreaCatalogInsert,
   UrreaCatalogUpdate,
@@ -118,19 +119,8 @@ export function useImportUrreaCatalog() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (formData: FormData) => {
-      const response = await fetch('/api/urrea-catalog/import', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Import failed')
-      }
-
-      return response.json()
-    },
+    mutationFn: (formData: FormData) =>
+      fetchJson<CatalogImportResult>('/api/urrea-catalog/import', { method: 'POST', body: formData }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CATALOG_KEY })
     },

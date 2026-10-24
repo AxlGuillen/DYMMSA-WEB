@@ -2,6 +2,7 @@
 
 > Issue #155 · Fase 0 (mapa, sin código) · Revisado contra el código el 2026-10-22
 > Ver [[02-Arquitectura/MCP-Escrituras/00-Matriz]] · [[02-Arquitectura/API-Routes]] · [[04-Decisiones-Tecnicas/ADR-028-Bitacora-Generica]] · [[04-Decisiones-Tecnicas/ADR-030-MCP-Cobertura-y-Escrituras-Payables]] · [[04-Decisiones-Tecnicas/ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]]
+> **Actualización 2026-10-24 (#157):** el `paid_at` suelto ya no entra en una pendiente o cancelada (`resolvePaymentUpdate` decide con el estado de la fila; 400), el trigger audita monto y moneda (`amount_changed`) y guarda `currency` en sus snapshots, y `DELETE` de un id inexistente responde 404. `PATCH`/`DELETE` viven en `src/lib/payables-store.ts` (`updatePayable`, `deletePayable`): el «store» que proponía esta ficha, sin `parsePayableInsert`/`createPayable` todavía. Las preguntas 5 (auditar monto y moneda) y 6 (el `paid_at` suelto) quedan contestadas; las guardas de transición de las tools siguen fuera de la ruta. Los archivo:línea de abajo describen el código **anterior**.
 
 ## Resumen
 

@@ -561,9 +561,10 @@ export default function DocsPage() {
                 productos. Guardar no cambia el link, y lo que agregues le aparece al cliente como pendiente.
               </p>
               <p>
-                <strong>Ojo:</strong> guardar renueva los productos. Si el cliente ya abrio el link, avisale que
-                recargue la pagina despues de que guardes: lo que tenga marcado sin guardar se pierde. Y recarga
-                tu el detalle antes de editar, para no borrar el avance que el cliente ya guardo.
+                Guardar conserva los productos que siguen y lo que el cliente ya aprobo: mientras la cotizacion
+                esta <strong>En aprobacion</strong>, sus decisiones guardadas no se tocan aunque tu detalle se
+                haya abierto antes. Si el cliente tiene el link abierto, avisale que recargue para ver tus cambios;
+                si quitaste un producto que el tenia marcado, su pagina le pide recargar y no guarda nada a medias.
               </p>
               <p>
                 Los productos agregados en <strong>Aprobada</strong> entran como <strong>Pendientes</strong>: los
@@ -615,7 +616,7 @@ export default function DocsPage() {
                 quedo (le aparece un aviso con cuanto lleva). El enlace sigue vivo hasta que envie.
               </li>
               <li>Al <strong>enviar</strong> la aprobacion definitiva se le pide una <strong>confirmacion</strong> (resumen de cuantos productos y el total) para evitar envios por error.</li>
-              <li>Una vez enviada la decision, la pagina muestra el estado actual y no permite re-aprobar. En el detalle veras la <strong>fecha y hora de aprobacion</strong>.</li>
+              <li>Una vez enviada la decision, la pagina muestra el estado actual y no permite re-aprobar. En el detalle veras la <strong>fecha y hora de aprobacion</strong>: la de la primera vez que se aprobo, aunque despues se vuelva a aprobar o se rechace.</li>
               <li>Al abrir (o recargar) el detalle de la cotizacion ves que productos fueron aprobados y cuales rechazados. Hoy no se envia un aviso por correo: revisa el estado en la lista de cotizaciones.</li>
             </ul>
           </div>
@@ -890,21 +891,31 @@ export default function DocsPage() {
                   <TableCell>Codigo URREA. Es la llave que se cruza con el <code className="rounded bg-muted px-1">model_code</code> de los productos. Acepta el alias <code className="rounded bg-muted px-1">code</code>.</TableCell>
                 </TableRow>
                 <TableRow>
+                  <TableCell><code className="rounded bg-muted px-1">marca</code></TableCell>
+                  <TableCell className="text-muted-foreground">No</TableCell>
+                  <TableCell>URREA, SURTEK, FOY... Si no viene, se asume URREA. Acepta el alias <code className="rounded bg-muted px-1">brand</code>.</TableCell>
+                </TableRow>
+                <TableRow>
                   <TableCell><code className="rounded bg-muted px-1">descripcion</code></TableCell>
                   <TableCell className="text-muted-foreground">No</TableCell>
-                  <TableCell>Descripcion oficial de URREA. Acepta el alias <code className="rounded bg-muted px-1">description</code>.</TableCell>
+                  <TableCell>Descripcion oficial de URREA. Acepta el alias <code className="rounded bg-muted px-1">description</code>. Si el archivo no trae la columna, <strong>Actualizar</strong> conserva la descripcion guardada.</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell><code className="rounded bg-muted px-1">std</code></TableCell>
                   <TableCell className="text-muted-foreground">No</TableCell>
-                  <TableCell>Unidades por paquete. Si no viene o es invalido, se asume 1.</TableCell>
+                  <TableCell>Unidades por paquete; si viene, debe ser un entero mayor que 0 (2.5 o 0 no se aceptan). Una celda vacia es 1. Si el archivo no trae la columna, <strong>Actualizar</strong> conserva el STD guardado de cada codigo (los nuevos quedan en 1) y <strong>Reemplazar</strong> pone 1.</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
             <p className="text-muted-foreground">
-              Al importar puedes elegir <strong>Actualizar</strong> (agrega y actualiza por codigo) o
-              <strong> Reemplazar</strong> (borra el catalogo y carga el nuevo). Los codigos se normalizan
+              Al importar puedes elegir <strong>Actualizar</strong> (agrega y actualiza por codigo y marca) o
+              <strong> Reemplazar</strong> (borra el catalogo y carga el nuevo). Los codigos y marcas se normalizan
               automaticamente (sin espacios y en mayusculas) para que el cruce con los productos funcione.
+            </p>
+            <p className="text-muted-foreground">
+              Antes de guardar se revisa el archivo completo: si una fila no trae codigo, trae un STD invalido o
+              repite un codigo con la misma marca, <strong>no se importa nada</strong> y el aviso dice que filas
+              corregir. Reemplazar es todo o nada: si algo falla, el catalogo queda como estaba.
             </p>
           </div>
 

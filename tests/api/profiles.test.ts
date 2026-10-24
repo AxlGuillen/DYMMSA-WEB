@@ -146,6 +146,28 @@ describe('PATCH /api/profiles/[id]', () => {
     expect(filterValue(activeClient.callsTo('profiles', 'update')[0], 'id')).toBe(OTHER.id)
   })
 
+  test('#157: si el trigger de la BD frena al último admin (carrera tras el conteo), 400 con el mismo mensaje', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        'profiles.select': profilesTable(ME_ADMIN, OTHER, 2),
+        'profiles.update': { data: null, error: { code: '23514', message: 'Debe quedar al menos un administrador' } },
+      },
+    })
+    const res = await patch(OTHER.id, { role: 'member' })
+    expect(res.status).toBe(400)
+    expect((await readJson<{ message: string }>(res)).message).toBe('Debe quedar al menos un administrador')
+  })
+
+  test('la ruta no cambia al dueño: is_owner no viaja en el update', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'profiles.select': profilesTable(ME_ADMIN), 'profiles.update': { data: OTHER, error: null } },
+    })
+    expect((await patch(OTHER.id, { is_owner: true })).status).toBe(400)
+    expect(activeClient.didCall('profiles', 'update')).toBe(false)
+  })
+
   test('id de checador duplicado (23505) → 400 descriptivo', async () => {
     activeClient = createMockSupabase({
       user: AUTH,

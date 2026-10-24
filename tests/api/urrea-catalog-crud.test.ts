@@ -169,6 +169,20 @@ describe('POST /urrea-catalog (create)', () => {
     const res = await listRoute.POST(makeRequest({ code: 'C1' }))
     expect(res.status).toBe(400)
   })
+
+  test.each([[2.5], [0], [-3], ['seis']])('REGLA: STD %j → 400 (antes un decimal llegaba a la BD y daba 500)', async (std) => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await listRoute.POST(makeRequest({ code: 'C1', std }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toMatch(/STD/)
+    expect(activeClient.didCall('urrea_catalog', 'insert')).toBe(false)
+  })
+
+  test('descripción que no es texto → 400', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await listRoute.POST(makeRequest({ code: 'C1', description: 5 }))
+    expect(res.status).toBe(400)
+  })
 })
 
 describe('PATCH /urrea-catalog/[id]', () => {
@@ -195,23 +209,66 @@ describe('PATCH /urrea-catalog/[id]', () => {
     expect(filterValue(rec, 'id')).toBe('1')
     expect(activeClient.updatePayload('urrea_catalog')).toMatchObject({ std: 9 })
   })
+
+  test('REGLA: STD decimal → 400 sin llegar a la BD', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    const res = await itemRoute.PATCH(makeRequest({ std: 2.5 }, { method: 'PATCH' }), makeParams({ id: '1' }))
+    expect(res.status).toBe(400)
+    expect(activeClient.didCall('urrea_catalog', 'update')).toBe(false)
+  })
+
+  test('normaliza código y marca; no existe → 404; duplicado → 400', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.update': { data: { id: '1' }, error: null } },
+    })
+    await itemRoute.PATCH(makeRequest({ code: ' ab ', brand: ' foy ' }, { method: 'PATCH' }), makeParams({ id: '1' }))
+    expect(activeClient.updatePayload('urrea_catalog')).toEqual({ code: 'AB', brand: 'FOY' })
+
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.update': { data: null, error: { code: 'PGRST116' } } },
+    })
+    expect((await itemRoute.PATCH(makeRequest({ std: 2 }, { method: 'PATCH' }), makeParams({ id: '1' }))).status).toBe(404)
+
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.update': { data: null, error: { code: '23505' } } },
+    })
+    expect((await itemRoute.PATCH(makeRequest({ code: 'X' }, { method: 'PATCH' }), makeParams({ id: '1' }))).status).toBe(400)
+  })
 })
 
 describe('DELETE /urrea-catalog/[id]', () => {
+  const ID = '11111111-1111-4111-8111-111111111111'
+  const del = (id = ID) =>
+    itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))
+
   test('401 sin auth', async () => {
     activeClient = createMockSupabase({ user: null })
-    const res = await itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '1' }))
-    expect(res.status).toBe(401)
+    expect((await del()).status).toBe(401)
   })
 
   test('elimina por id', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'urrea_catalog.delete': { data: null, error: null } },
+      responses: { 'urrea_catalog.delete': { data: [{ id: ID }], error: null } },
     })
-    const res = await itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '1' }))
-    expect(res.status).toBe(200)
-    const rec = activeClient.callsTo('urrea_catalog', 'delete')[0]
-    expect(filterValue(rec, 'id')).toBe('1')
+    expect((await del()).status).toBe(200)
+    expect(filterValue(activeClient.callsTo('urrea_catalog', 'delete')[0], 'id')).toBe(ID)
+  })
+
+  test('un id que no existe es 404, no un ok (#157)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.delete': { data: [], error: null } },
+    })
+    expect((await del()).status).toBe(404)
+  })
+
+  test('un id mal formado es 404 sin tocar la BD (#157)', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await del('no-es-uuid')).status).toBe(404)
+    expect(activeClient.callsTo('urrea_catalog', 'delete')).toHaveLength(0)
   })
 })

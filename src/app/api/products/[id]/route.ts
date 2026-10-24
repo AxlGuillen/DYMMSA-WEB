@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import type { EtmProductUpdate } from '@/types/database'
+import { notFound, requireAuth, serverError } from '@/lib/api-helpers'
+import { DomainError } from '@/lib/domain-error'
+import { isUuid } from '@/lib/text'
+import { parseProductInput, updateProduct } from '@/lib/products-store'
 
 interface RouteContext {
   params: Promise<{ id: string }>
-}
-
-/** TEXT NOT NULL columns: normalized to a trimmed string, never null. */
-function text(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
 }
 
 // PATCH /api/products/[id] — update an ETM catalog product
@@ -20,56 +17,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if ('error' in auth) return auth.error
 
     const { id } = await params
-    const body = (await request.json()) as EtmProductUpdate
-
-    const updates: EtmProductUpdate = {}
-
-    if (body.etm !== undefined) {
-      const etm = typeof body.etm === 'string' ? body.etm.trim() : ''
-      if (!etm) return badRequest('El ETM no puede estar vacío')
-      updates.etm = etm
-    }
-    if (body.description !== undefined) updates.description = text(body.description)
-    if (body.description_es !== undefined) updates.description_es = text(body.description_es)
-    // The only nullable text column: '' is stored as null (empty cell).
-    if (body.dymmsa_description !== undefined) {
-      updates.dymmsa_description = text(body.dymmsa_description) || null
-    }
-    if (body.model_code !== undefined) updates.model_code = text(body.model_code)
-    if (body.brand !== undefined) updates.brand = text(body.brand)
-    if (body.price !== undefined) {
-      if (typeof body.price !== 'number' || !Number.isFinite(body.price)) {
-        return badRequest('El precio debe ser un número')
-      }
-      updates.price = body.price
-    }
-    // is_sold is TRI-STATE: `undefined` leaves it alone, but an explicit null IS
-    // persisted — truthiness checks would drop it.
-    if (body.is_sold !== undefined) {
-      if (body.is_sold !== null && typeof body.is_sold !== 'boolean') {
-        return badRequest('is_sold debe ser true, false o null')
-      }
-      updates.is_sold = body.is_sold
-    }
-
-    if (Object.keys(updates).length === 0) return badRequest('No hay cambios para aplicar')
-
-    const { data, error } = await supabase
-      .from('etm_products')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === '23505') return badRequest('Ya existe un producto con ese ETM')
-      if (error.code === 'PGRST116') return notFound('Producto no encontrado')
-      console.error('Error updating etm_product:', error)
-      return serverError('Error al actualizar el producto')
-    }
-
-    return NextResponse.json(data)
+    const body = await request.json().catch(() => null)
+    return NextResponse.json(await updateProduct(supabase, id, parseProductInput(body, { create: false })))
   } catch (error) {
+    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
     console.error('Product update error:', error)
     return serverError('Error al actualizar el producto')
   }
@@ -83,13 +34,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if ('error' in auth) return auth.error
 
     const { id } = await params
+    if (!isUuid(id)) return notFound('Producto no encontrado')
 
-    const { error } = await supabase.from('etm_products').delete().eq('id', id)
+    const { data, error } = await supabase.from('etm_products').delete().eq('id', id).select('id')
 
     if (error) {
       console.error('Error deleting etm_product:', error)
       return serverError('Error al eliminar el producto')
     }
+
+    // Zero rows deleted is a missing id, not a success (#157).
+    if (!data || data.length === 0) return notFound('Producto no encontrado')
 
     return NextResponse.json({ ok: true })
   } catch (error) {
