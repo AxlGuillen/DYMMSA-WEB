@@ -85,7 +85,10 @@ export function rankSatSuggestions(
     .map(({ row }) => ({ clave: row.code, nombre: row.name.trim() }))
 }
 
-/** The one suggestion with every word: what a categoria_sat asked for by name, proposed for the admin to confirm. */
+/**
+ * The one suggestion that starts a word with every searched term (satSearchTerms: up to 4, no filler nor short words),
+ * proposed for the admin to confirm; what categoria_sat asked for by name.
+ */
 export function proposedSatKey(terms: readonly string[], suggestions: readonly SatSuggestion[]): string | null {
   const keys = [...new Set(terms.map(fold))]
   if (keys.length === 0) return null

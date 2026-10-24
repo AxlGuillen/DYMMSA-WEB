@@ -10,7 +10,9 @@ import {
   applyToolResult,
   assignArguments,
   assignChoiceKey,
+  assignedSummary,
   AUTHORIZATION_META,
+  NOTHING_CHOSEN,
   defaultSatChoice,
   initialState,
   newChoiceKey,
@@ -190,7 +192,7 @@ describe('vistas MCP generadas', () => {
       })
     })
 
-    test('asignar manda solo los productos con clave; sin ninguna elegida el botón queda apagado sin regañar', () => {
+    test('asignar manda solo los productos con clave; sin ninguna elegida el botón queda apagado y dice por qué', () => {
       expect(assignArguments(loaded())).toEqual({
         ready: true,
         args: { asignar: [{ producto_id: 16980, clave_sat: '31211507' }], autorizacion: 'firma' },
@@ -200,9 +202,28 @@ describe('vistas MCP generadas', () => {
         { producto_id: 16980, clave_sat: '31211507' },
         { producto_id: 16971, clave_sat: '27111700', clave_sat_tecleada: true },
       ])
-      expect(assignArguments(loaded({ [assignChoiceKey(16980)]: { value: '', typed: '' } }))).toEqual({ ready: false, reason: null })
-      // Without the authorization there is no button at all.
+      expect(assignArguments(loaded({ [assignChoiceKey(16980)]: { value: '', typed: '' } }))).toEqual({
+        ready: false,
+        reason: 'Elige la clave SAT de al menos un producto.',
+      })
+      expect(NOTHING_CHOSEN).toBe('Elige la clave SAT de al menos un producto.')
+      // Without the authorization there is no button at all, so nothing to say.
       expect(assignArguments({ ...loaded(), autorizacion: null })).toEqual({ ready: false, reason: null })
+    })
+
+    test('lo que se le dice al modelo tras asignar: una clave que Odoo no nombró no sale como código (review PR #167)', () => {
+      expect(
+        assignedSummary({
+          asignados: [{ id: 16980, nombre: 'Aerosol viejo', clave_sat: '31211507' }],
+          ya_tenian: [
+            { id: 16971, nombre: 'Mango', clave_sat: '27111700 Llaves' },
+            { id: 5, nombre: 'Brocha', clave_sat: null },
+          ],
+        }),
+      ).toBe(
+        'El administrador asignó la clave SAT en Odoo desde la vista: Aerosol viejo (#16980) → 31211507. Ya tenían clave en Odoo (no se tocó): Mango (#16971) → 27111700 Llaves, Brocha (#5) (ya tenía clave).',
+      )
+      expect(assignedSummary({ asignados: [], ya_tenian: [] })).toBe('El administrador asignó la clave SAT en Odoo desde la vista: ninguna.')
     })
 
     test('un resultado nuevo borra las elecciones y lo asignado', () => {
