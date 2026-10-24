@@ -11,7 +11,7 @@ export const odooSaveQuotationTool = defineTool({
     'Escribe en Odoo lo que mostró odoo_preview_quotation, con los MISMOS datos y su `clave`: crea la cotización en BORRADOR (cliente + lineas) o la edita (folio + lineas). Confirmarla como venta es odoo_confirm_quotation. Nunca la envía al cliente, ni publica ni timbra. Repetir la misma llamada no duplica; si responde que no se sabe si guardó, espera y repite exactamente la misma.',
   input: saveQuotationShape,
   // An edit replaces or removes lines; the `origin` key makes a repeat a no-op (#155).
-  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: true },
   adminOnly: true,
   docs: {
     module: 'Cotizar y facturar',

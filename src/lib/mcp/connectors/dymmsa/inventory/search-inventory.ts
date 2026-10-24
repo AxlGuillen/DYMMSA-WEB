@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { pagination, readOnly } from '@/lib/mcp/core/schema'
+import { pagination } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { searchInventory } from '@/lib/mcp/tools/inventory'
 import { STOCK_FILTERS } from '@/lib/stock-filters'
 
@@ -16,7 +17,7 @@ export const searchInventoryTool = defineTool({
     stockFilter: z.enum(STOCK_FILTERS).optional().describe('Default all'),
     ...pagination,
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Inventario',
     title: 'Buscar en inventario',

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { isoMonth, limit, readOnly } from '@/lib/mcp/core/schema'
+import { isoMonth, limit } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { listPayables } from '@/lib/mcp/tools/payables'
 import { PAYABLE_FILTERS } from '@/lib/payables'
 
@@ -18,7 +19,7 @@ export const listPayablesTool = defineTool({
     concepto: z.string().optional().describe('Texto del concepto (parcial)'),
     limit: limit(100, 50, 'facturas'),
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Finanzas',
     title: 'Facturas por pagar',

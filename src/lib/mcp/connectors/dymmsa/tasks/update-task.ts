@@ -18,7 +18,8 @@ export const updateTaskTool = defineTool({
     state_reason: z.enum(TASK_CLOSE_REASONS).optional().describe('Solo al cerrar (default completed); not_planned = descartada'),
   },
   // Scoped write (#72, ADR-015): comment/prioritize/close, never rewrite human text.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // Priority and state overwrite, and each comment is a new one: not idempotent (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: false, openWorldHint: false },
   docs: {
     module: 'Tareas',
     title: 'Actualizar tarea',

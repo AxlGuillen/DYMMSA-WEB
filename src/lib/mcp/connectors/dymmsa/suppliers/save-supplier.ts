@@ -22,7 +22,8 @@ export const saveSupplierTool = defineTool({
     quitar_marcas: z.array(z.string()).optional(),
   },
   // Scoped write (#134, ADR-037): contact data and brand links; deleting stays in the app.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // An edit overwrites and quitar_marcas unlinks; the name is UNIQUE, so a repeat adds nothing (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   docs: {
     module: 'Proveedores',
     title: 'Guardar proveedor',

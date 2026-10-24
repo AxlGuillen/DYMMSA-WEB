@@ -14,7 +14,8 @@ export const setInventoryLocationTool = defineTool({
     location: z.string().optional().describe('Ubicación física/gaveta, texto libre; omite o vacío para borrarla'),
   },
   // Scoped write (#72, ADR-015): durable metadata, not transactional.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // Overwrites or clears the drawer (destructive); the value is absolute, so a repeat is a no-op (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   docs: {
     module: 'Inventario',
     title: 'Asignar ubicacion en tienda',

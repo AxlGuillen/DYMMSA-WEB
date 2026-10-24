@@ -15,8 +15,8 @@ export const createTaskTool = defineTool({
     description: z.string().optional().describe('Descripción/detalle de la tarea'),
     priority: z.enum(TASK_PRIORITIES).optional(),
   },
-  // Write (ADR-015 phase 2): no readOnlyHint on purpose.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // Write (ADR-015 phase 2). It only adds an issue, and a repeat opens another (#155 C2).
+  hints: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
   docs: {
     module: 'Tareas',
     title: 'Crear tarea',

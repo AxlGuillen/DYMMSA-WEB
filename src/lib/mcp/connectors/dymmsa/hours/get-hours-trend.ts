@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getHoursTrend } from '@/lib/mcp/tools/hours'
 
 export const getHoursTrendTool = defineTool({
@@ -14,7 +14,7 @@ export const getHoursTrendTool = defineTool({
     persona: z.string().optional().describe('Nombre (o parte) de la persona; solo un administrador ve a otros'),
     semanas: z.number().int().min(1).max(26).optional().describe('Semanas a incluir (default 8)'),
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Horas',
     title: 'Tendencia de horas',

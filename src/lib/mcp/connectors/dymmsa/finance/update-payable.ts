@@ -23,7 +23,8 @@ export const updatePayableTool = defineTool({
     cancelar: z.boolean().optional().describe('true = cancelarla'),
   },
   // Scoped write (#134, ADR-037): same rules as the edit popup; deleting stays in the app.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // Overwrites and can cancel; absolute values, so a repeat changes nothing more (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   docs: {
     module: 'Finanzas',
     title: 'Corregir o cancelar factura por pagar',

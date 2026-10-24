@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { pagination, readOnly } from '@/lib/mcp/core/schema'
+import { pagination } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { listQuotations } from '@/lib/mcp/tools/quotations'
 import { QUOTATION_STATUSES } from '@/lib/quotation-status'
 
@@ -16,7 +17,7 @@ export const listQuotationsTool = defineTool({
     search: z.string().optional().describe('Busca en nombre de cotización y nombre del cliente'),
     ...pagination,
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Cotizaciones',
     title: 'Listar cotizaciones',

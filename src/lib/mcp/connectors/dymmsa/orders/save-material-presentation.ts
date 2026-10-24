@@ -17,7 +17,8 @@ export const saveMaterialPresentationTool = defineTool({
     largo_mm: z.number().positive().describe('Largo comercial de la barra u hoja'),
   },
   // Scoped write (#134, ADR-037): a catalog that already builds itself from captures.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // An upsert by its measure: it only adds or refreshes, so a repeat is a no-op (#155 C2).
+  hints: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
   docs: {
     module: 'Ordenes',
     title: 'Registrar medida de material',

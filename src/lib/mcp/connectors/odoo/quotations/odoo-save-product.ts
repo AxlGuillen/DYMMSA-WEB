@@ -12,7 +12,7 @@ export const odooSaveProductTool = defineTool({
     'Solo la llama el botón de la vista de odoo_preview_quotation: da de alta en Odoo los productos nuevos de esa vista previa (bienes, IVA 16, factura por entrega) o les pone la clave SAT elegida a los que no la tienen. Sin la autorización de la vista no escribe nada.',
   input: saveProductShape,
   // Creates or fills an empty key; an existing product or key comes back as ya_existian / ya_tenian (#155, #154).
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  hints: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
   adminOnly: true,
   visibility: ['app'],
   docs: {

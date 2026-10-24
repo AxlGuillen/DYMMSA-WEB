@@ -2,7 +2,7 @@
 
 import { describe, test, expect, vi, afterEach } from 'vitest'
 import { GET as protectedResource } from '@/app/.well-known/oauth-protected-resource/[[...path]]/route'
-import { connectorPath } from '@/lib/mcp/core/define'
+import { connectorPath, toolAnnotations } from '@/lib/mcp/core/define'
 import { MCP_PATH, ODOO_MCP_PATH, protectedResourcePath } from '@/lib/mcp/core/routes'
 import { DYMMSA_BUDGET, dymmsaConnector } from '@/lib/mcp/connectors/dymmsa/connector'
 import { ODOO_BUDGET, odooConnector } from '@/lib/mcp/connectors/odoo/connector'
@@ -54,6 +54,24 @@ describe('cada conector, lo suyo (#155 B3)', () => {
     expect(odooConnector.tools).toEqual(ODOO_TOOLS)
     expect(odooConnector.tools.every((t) => t.connector === 'odoo')).toBe(true)
     expect(dymmsaConnector.tools.filter((t) => odooConnector.tools.includes(t))).toEqual([])
+  })
+
+  test.each([
+    ['DYMMSA-WEB', dymmsaConnector],
+    ['Odoo DYMMSA', odooConnector],
+  ] as const)('ANOTACIONES (R8, #155 C2) de %s: en el cable cada tool lleva las cuatro, y son las de su definición', async (_label, connector) => {
+    const mcp = await connectMcp('admin', authAs('admin'), connector)
+    try {
+      const tools = await mcp.tools()
+      expect(tools.map((t) => t.name)).toEqual(connector.tools.map((t) => t.name))
+      for (const tool of tools) {
+        const definition = connector.tools.find((t) => t.name === tool.name)
+        expect(tool.annotations, tool.name).toEqual(definition && toolAnnotations(definition))
+        expect(Object.keys(tool.annotations ?? {}), tool.name).toEqual(['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'])
+      }
+    } finally {
+      await mcp.close()
+    }
   })
 
   test('cada conector lleva su propio presupuesto, no uno compartido (ADR-041 § Presupuestos)', () => {

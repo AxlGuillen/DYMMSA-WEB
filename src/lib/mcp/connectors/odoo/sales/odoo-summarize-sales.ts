@@ -18,7 +18,7 @@ export const odooSummarizeSalesTool = defineTool({
     agrupar_por: z.enum(['estado', 'cliente', 'vendedor', 'mes']).optional(),
     incluir: z.enum(['confirmadas', 'todas']).optional(),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Ventas y cobranza',
     title: 'Resumen de ventas',

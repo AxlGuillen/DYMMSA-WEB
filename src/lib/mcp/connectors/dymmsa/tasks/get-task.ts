@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { getTask } from '@/lib/mcp/tools/tasks'
 
 export const getTaskTool = defineTool({
@@ -10,7 +10,7 @@ export const getTaskTool = defineTool({
   title: 'Detalle de tarea',
   description: 'Una tarea con su descripción, quién la reportó, prioridad, estado y todos sus comentarios.',
   input: { number: z.number().int().min(1).describe('Número de la tarea (#N)') },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Tareas',
     title: 'Detalle de tarea',

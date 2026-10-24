@@ -17,7 +17,8 @@ export const savePayrollEmployeeTool = defineTool({
     activo: z.boolean().optional().describe('false = darlo de baja'),
   },
   // Scoped write (#134, ADR-037): the employee list only; hours and cuts keep their own rules.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // An edit or the baja overwrites; the name is UNIQUE, so a repeat adds nothing (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   adminOnly: true,
   docs: {
     module: 'Nomina',

@@ -16,7 +16,7 @@ export const odooGetDocumentTool = defineTool({
     folio: z.string().min(1).describe('Folio, p. ej. "F00167", "S00247" o "PAY00068"'),
     tipo: z.enum(DOCUMENT_TYPES).optional().describe('Solo si el prefijo no lo dice: factura (también nota de crédito), venta o pago'),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Contabilidad',
     title: 'Documento por folio',

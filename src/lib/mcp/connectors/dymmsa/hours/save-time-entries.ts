@@ -25,7 +25,8 @@ export const saveTimeEntriesTool = defineTool({
       .optional(),
   },
   // Scoped write (#132, #134; ADR-035): same rules as the app's import and dialog.
-  annotations: { readOnlyHint: false, openWorldHint: false },
+  // A correction overwrites; the import key and UNIQUE entry make a repeat a no-op (#155 C2).
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   adminOnly: true,
   docs: {
     module: 'Horas',

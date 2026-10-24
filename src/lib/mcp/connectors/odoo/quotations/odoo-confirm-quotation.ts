@@ -11,7 +11,7 @@ export const odooConfirmQuotationTool = defineTool({
     'Confirma como VENTA la cotización de Odoo que revisó odoo_preview_quotation con solo el `folio`: el mismo folio y su `clave`, tras mostrar al_confirmar y recibir el sí. Odoo crea la entrega y la fecha pasa a hoy; deshacerlo solo se puede en Odoo. Nunca la envía al cliente ni factura. Si ya estaba confirmada lo dice sin escribir; si responde que no se sabe si quedó, repite la misma llamada.',
   input: confirmQuotationShape,
   // Confirming sets off Odoo's own effects (the delivery) that only Odoo undoes; a retry answers "ya estaba" (#155 B2b).
-  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+  hints: { destructiveHint: true, idempotentHint: true, openWorldHint: true },
   adminOnly: true,
   docs: {
     module: 'Cotizar y facturar',

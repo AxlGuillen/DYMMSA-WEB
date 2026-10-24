@@ -20,7 +20,7 @@ export const odooSearchRecordsTool = defineTool({
     orden: z.string().optional().describe('P. ej. "invoice_date desc"'),
     saltar: z.number().int().min(0).optional().describe('Registros a saltar (paginar)'),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Consultas libres',
     title: 'Buscar registros en Odoo',

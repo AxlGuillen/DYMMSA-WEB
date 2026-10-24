@@ -17,7 +17,7 @@ export const odooAggregateRecordsTool = defineTool({
     agrupar_por: z.string().describe('Campo de agrupación, p. ej. "payment_state", "partner_id" o "invoice_date:month"'),
     metricas: z.array(z.string()).optional().describe('"campo:agregador" (sum|avg|min|max|count), p. ej. ["amount_total:sum"]'),
   },
-  annotations: odooRead,
+  hints: odooRead,
   docs: {
     module: 'Consultas libres',
     title: 'Totales agrupados en Odoo',

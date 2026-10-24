@@ -47,6 +47,12 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   tienen clave.
 
 ### Mejorado
+- **Claude sabe mejor qué hace cada herramienta del asistente antes
+  de usarla.** Cada una le dice ahora si solo consulta, si solo agrega datos
+  (como crear una tarea) o si puede cambiar o quitar algo (como cancelar una
+  factura), y si repetirla duplicaría el registro. Antes, todas las que
+  guardan algo se presentaban como si pudieran borrar. Ninguna cambia lo que
+  hace.
 - **El asistente ahora avisa si le mandas un dato que no existe, en vez de
   ignorarlo.** Si escribe mal un campo, usa un estado que no existe o una
   fecha imposible (como el 30 de febrero), no hace nada: te dice qué falló,

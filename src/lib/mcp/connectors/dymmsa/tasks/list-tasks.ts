@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { page, readOnly } from '@/lib/mcp/core/schema'
+import { page } from '@/lib/mcp/core/schema'
+import { dymmsaRead } from '../shared'
 import { TASK_PRIORITIES } from '@/lib/github'
 import { listTasks, TASK_LIST_STATES } from '@/lib/mcp/tools/tasks'
 
@@ -16,7 +17,7 @@ export const listTasksTool = defineTool({
     priority: z.enum(TASK_PRIORITIES).optional(),
     page: page('30 por página'),
   },
-  annotations: readOnly,
+  hints: dymmsaRead,
   docs: {
     module: 'Tareas',
     title: 'Listar tareas',
