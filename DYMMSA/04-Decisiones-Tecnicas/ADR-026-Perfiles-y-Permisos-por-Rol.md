@@ -36,7 +36,7 @@ Decisiones tomadas con el usuario (2026-09-08): el checador es la verdad (se imp
 
 **Regla:** un permiso por rol nunca se implementa solo ocultando en el frontend.
 
-> **Actualización 2026-10-24 (#157).** Dos reglas que solo vivían en la ruta bajan a la BD: el trigger `profiles_guard_last_admin` rechaza (23514) degradar al último admin para cualquier llamador —también SQL—, con un candado consultivo para que dos degradaciones simultáneas no se vean una a la otra; y `guard_profile_admin_fields()` rechaza (42501) cambiar `is_owner` con sesión, **admin incluido** (no tiene ruta: se cambia por SQL). La ruta conserva su chequeo del último admin para dar el mensaje antes.
+> **Actualización 2026-10-24 (#157).** Dos reglas que solo vivían en la ruta bajan a la BD: el trigger `profiles_guard_last_admin` (`BEFORE UPDATE OF role OR DELETE`) rechaza (23514) degradar o borrar la fila del último admin para cualquier llamador —también SQL, y también si se borra su usuario de Auth por la cascada—, con un candado consultivo para que dos degradaciones simultáneas no se vean una a la otra; y `guard_profile_admin_fields()` rechaza (42501) cambiar `is_owner` con sesión, **admin incluido** (no tiene ruta: se cambia por SQL). La ruta conserva su chequeo del último admin para dar el mensaje antes.
 
 ### 5. `source_clock_in` inmutable como llave de idempotencia
 

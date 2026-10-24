@@ -10,7 +10,7 @@ import { requireSingleMatch } from '@/lib/mcp/core/lookup'
 import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolveSupplier } from './suppliers'
-import { todayInMexico } from '@/lib/format'
+import { formatMoney, todayInMexico } from '@/lib/format'
 import { ISO_MONTH, isRealDate, monthRange } from '@/lib/month'
 import {
   daysUntilDue,
@@ -154,7 +154,7 @@ export async function getPayable(db: Db, callerId: string, ref: string) {
     historial: ((data ?? []) as AuditEvent[]).map((e) => ({
       cuando: e.created_at,
       quien: e.actor_name ?? 'Sistema',
-      que: describeAuditEvent(e, (iso) => iso),
+      que: describeAuditEvent(e, (iso) => iso, formatMoney),
     })),
   }
 }

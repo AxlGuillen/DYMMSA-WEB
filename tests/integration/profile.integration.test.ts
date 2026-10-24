@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { injectSupabaseServer } from '../helpers/setup'
 import { makeRequest, makeParams, readJson } from '../helpers/request'
 import { authedClient, authedClientAs, serviceClient } from './helpers/clients'
-import { resetDb, sql, closePool, LOCAL } from './helpers/db'
+import { resetDb, sql, closePool, getPool, LOCAL } from './helpers/db'
 import * as profileRoute from '@/app/api/profile/route'
 import * as profileById from '@/app/api/profiles/[id]/route'
 
@@ -136,6 +136,31 @@ describe('#157: al menos un administrador, también en la BD', () => {
     await sql(`UPDATE public.profiles SET role = 'admin' WHERE id = $1`, [MEMBER_ID])
     await expect(sql(`UPDATE public.profiles SET role = 'member'`)).rejects.toThrow(/al menos un administrador/)
     expect(await sql(`SELECT id FROM public.profiles WHERE role = 'admin' ORDER BY id`)).toHaveLength(2)
+  })
+
+  test('review PR #171: tampoco se borra la fila del último admin; con otro admin sí', async () => {
+    await expect(sql(`DELETE FROM public.profiles WHERE id = $1`, [ADMIN_ID])).rejects.toMatchObject({
+      code: '23514',
+      message: 'Debe quedar al menos un administrador',
+    })
+    expect((await profileRow(ADMIN_ID)).role).toBe('admin')
+
+    // Rolled back: the seeded users must survive for the other tests (resetDb never re-seeds auth).
+    const client = await getPool().connect()
+    try {
+      await client.query('BEGIN')
+      // A member's row is not guarded.
+      await client.query(`DELETE FROM public.profiles WHERE id = $1`, [MEMBER_ID])
+      await client.query('ROLLBACK')
+      await client.query('BEGIN')
+      await client.query(`UPDATE public.profiles SET role = 'admin' WHERE id = $1`, [MEMBER_ID])
+      const deleted = await client.query(`DELETE FROM public.profiles WHERE id = $1 RETURNING id`, [ADMIN_ID])
+      expect(deleted.rowCount).toBe(1)
+    } finally {
+      await client.query('ROLLBACK')
+      client.release()
+    }
+    expect((await profileRow(ADMIN_ID)).role).toBe('admin')
   })
 
   test('la ruta responde 400 con el mismo mensaje', async () => {

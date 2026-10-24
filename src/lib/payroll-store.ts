@@ -300,6 +300,8 @@ export async function setPeriodClosed(
     throw new Error(`payroll_periods ${closed ? 'close' : 'reopen'}: ${error.message}`)
   }
   if (data) return data as PayrollPeriod
+  // Closing always returns the cut: no row is a failure (→ 500), never a fake "open" answered as success.
+  if (closed) throw new Error('payroll_periods close: la función no devolvió el corte')
   // Never closed = nothing to reopen: a "reopened" stamp would record something that did not happen.
   const current = await loadPeriodRow(db, start)
   return current ?? { start_date: start, status: 'open', closed_at: null, closed_by_name: null, reopened_at: null, reopened_by_name: null }

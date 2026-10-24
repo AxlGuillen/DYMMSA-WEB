@@ -145,6 +145,17 @@ describe('corte', () => {
     expect((await patch(true)).status).toBe(500)
   })
 
+  test('review PR #171: si cerrar no devuelve el corte, es 500 — nunca un «abierto» con 200', async () => {
+    activeClient = client({
+      'rpc.close_payroll_period': { data: null, error: null },
+      'payroll_periods.select': { data: { start_date: SAT, status: 'open' }, error: null },
+    })
+    const res = await periodRoute.PATCH(makeRequest({ closed: true }, { method: 'PATCH' }), startParams())
+    expect(res.status).toBe(500)
+    // The reopen fallback (read the row) is never used for a close.
+    expect(activeClient.callsTo('payroll_periods')).toEqual([])
+  })
+
   test('confirm pasa los borradores del corte a confirmados', async () => {
     activeClient = client({ 'payroll_days.update': { data: [{ id: 'a' }, { id: 'b' }], error: null } })
     const res = await confirmRoute.POST(makeRequest(undefined, { method: 'POST' }), startParams())

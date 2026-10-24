@@ -5,6 +5,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './helpers/render'
 import { PayableForm } from '@/components/finance/PayableForm'
+import { useDiscreteModeStore } from '@/stores/discreteModeStore'
 
 const { createAsync, updateAsync, state } = vi.hoisted(() => ({
   createAsync: vi.fn().mockResolvedValue({}),
@@ -188,5 +189,23 @@ describe('PayableForm — estado y fecha de pago al editar (#100)', () => {
     const history = screen.getByTestId('payable-history')
     expect(history).toHaveTextContent('Marcada como pagada el')
     expect(history).toHaveTextContent('Diego')
+  })
+
+  test('#157: el cambio de monto sale en el historial y respeta el modo discreto', () => {
+    state.isAdmin = true
+    state.events = [{ id: 2, action: 'amount_changed', actor_name: 'Diego', data: { from: { amount: 1500, currency: 'MXN' }, to: { amount: 1800, currency: 'MXN' } }, created_at: new Date().toISOString() }]
+    const { unmount } = renderWithProviders(<PayableForm open onOpenChange={vi.fn()} payable={PAID_ROW} />)
+    expect(screen.getByTestId('payable-history')).toHaveTextContent('Monto corregido: $1,500.00 → $1,800.00')
+    unmount()
+
+    useDiscreteModeStore.setState({ isDiscreteMode: true })
+    try {
+      renderWithProviders(<PayableForm open onOpenChange={vi.fn()} payable={PAID_ROW} />)
+      const history = screen.getByTestId('payable-history')
+      expect(history).toHaveTextContent('Monto corregido')
+      expect(history).not.toHaveTextContent('1,500')
+    } finally {
+      useDiscreteModeStore.setState({ isDiscreteMode: false })
+    }
   })
 })

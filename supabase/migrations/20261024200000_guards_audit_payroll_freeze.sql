@@ -2,7 +2,7 @@
 -- guards_audit_payroll_freeze (#157, «El resto»). Idempotent: the baseline has it.
 --   1. audit_payable(): audits amount/currency (amount_changed) and keeps currency in its snapshots. [behavior change]
 --   2. guard_profile_admin_fields(): is_owner only changes without a session (SQL / service role). [behavior change]
---   3. profiles_guard_last_admin: the last admin cannot be demoted, not even by SQL. [new trigger on profiles]
+--   3. profiles_guard_last_admin: the last admin cannot be demoted or deleted, not even by SQL. [new trigger on profiles]
 --   4. payroll_days.shift_snapshot / area_snapshot + close/reopen functions: a closed cut keeps its totals. [additive]
 -- ============================================================================
 
@@ -95,20 +95,21 @@ LANGUAGE plpgsql
 SET search_path = ''
 AS $$
 BEGIN
-  IF OLD.role = 'admin' AND NEW.role IS DISTINCT FROM 'admin' THEN
+  -- Deleting the row (also an auth user removed by cascade) counts as a demotion (review PR #171).
+  IF OLD.role = 'admin' AND CASE WHEN TG_OP = 'DELETE' THEN true ELSE NEW.role IS DISTINCT FROM 'admin' END THEN
     PERFORM pg_advisory_xact_lock(hashtext('public.profiles.last_admin'));
     IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.role = 'admin' AND p.id <> OLD.id) THEN
       RAISE EXCEPTION 'Debe quedar al menos un administrador'
         USING ERRCODE = '23514';
     END IF;
   END IF;
-  RETURN NEW;
+  RETURN COALESCE(NEW, OLD);
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.guard_last_admin() FROM PUBLIC;
 
 DROP TRIGGER IF EXISTS profiles_guard_last_admin ON public.profiles;
-CREATE TRIGGER profiles_guard_last_admin BEFORE UPDATE OF role ON public.profiles
+CREATE TRIGGER profiles_guard_last_admin BEFORE UPDATE OF role OR DELETE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.guard_last_admin();
 
 -- 4. Payroll freeze (ADR-033): the rules a closed cut was paid with. NULL = open cut, live values.
@@ -143,9 +144,11 @@ BEGIN
   IF p_start IS NULL OR EXTRACT(ISODOW FROM p_start) <> 6 THEN
     RAISE EXCEPTION 'not_period_start';
   END IF;
-  -- The period row is the lock: a concurrent close or reopen waits here.
-  INSERT INTO public.payroll_periods (start_date, status) VALUES (p_start, 'open') ON CONFLICT (start_date) DO NOTHING;
-  SELECT * INTO v_period FROM public.payroll_periods WHERE start_date = p_start FOR UPDATE;
+  -- The period row is the lock. The no-op DO UPDATE locks and returns it even when a concurrent close
+  -- created it first; DO NOTHING + SELECT could come back empty (review PR #171).
+  INSERT INTO public.payroll_periods AS pp (start_date, status) VALUES (p_start, 'open')
+  ON CONFLICT (start_date) DO UPDATE SET status = pp.status
+  RETURNING * INTO v_period;
   IF v_period.status = 'closed' THEN
     RETURN to_jsonb(v_period);
   END IF;
@@ -156,7 +159,8 @@ BEGIN
     RAISE EXCEPTION 'drafts_pending' USING DETAIL = v_drafts::text;
   END IF;
 
-  -- Mirrors payrollArea() in src/lib/payroll.ts: no linked profile means the workshop.
+  -- Mirrors payrollArea() in src/lib/payroll.ts: no linked profile means the workshop. INVOKER, so a profile
+  -- hidden by RLS would freeze as workshop too; unreachable today: only an admin passes payroll_days' RLS.
   UPDATE public.payroll_days d
   SET shift_snapshot = e.shift, area_snapshot = coalesce(p.area, 'workshop')
   FROM public.payroll_employees e

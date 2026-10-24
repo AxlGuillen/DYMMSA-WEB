@@ -1,7 +1,6 @@
 /** Payables math (#84). As in format.ts the clock is ALWAYS injected — nothing here reads `new Date()`. */
 
 import type { AuditEvent, Payable, PayableCurrency, PayableStatus, PayableUpdate } from '@/types/database'
-import { formatMoney } from './format'
 import { isRealDate, monthOf, nextMonth, type ISODate } from './month'
 
 export { monthOf, nextMonth }
@@ -81,7 +80,7 @@ export type PayableUpdateResult = { ok: true; updates: PayableUpdate } | { ok: f
  * (2026-02-30 is a 22008 in Postgres), and status/paid_at through resolvePaymentUpdate with
  * the row's `current` status. Whether supplier_id exists is the caller's check: it needs the database.
  */
-export function parsePayableUpdate(body: unknown, today: ISODate, current?: PayableStatus): PayableUpdateResult {
+export function parsePayableUpdate(body: unknown, today: ISODate, current: PayableStatus): PayableUpdateResult {
   const raw = (body ?? {}) as Record<string, unknown>
   const updates: PayableUpdate = {}
   if (raw.concept !== undefined) {
@@ -302,10 +301,11 @@ export function daysUntilDue(dueDate: ISODate, today: ISODate): number {
   return Math.round((due - now) / 86_400_000)
 }
 
-/** Spanish sentence for one audit row of a payable (ADR-028). `fmtDay` formats a bare ISO date. */
+/** Spanish sentence for one audit row of a payable (ADR-028). The caller formats dates and money (discrete mode). */
 export function describeAuditEvent(
   event: Pick<AuditEvent, 'action' | 'data'>,
   fmtDay: (iso: string) => string,
+  fmtMoney: (amount: number) => string,
 ): string {
   type Side = { status?: PayableStatus; paid_at?: string | null; amount?: number; currency?: PayableCurrency }
   const to = (event.data.to ?? {}) as Side
@@ -319,7 +319,7 @@ export function describeAuditEvent(
       // A currency change names both sides: "$1,500.00 → $80.00" alone would hide it (#157).
       const currencyChanged = from.currency !== to.currency
       const money = (side: Side) =>
-        side.amount == null ? '—' : `${formatMoney(side.amount)}${side.currency ? (currencyChanged ? currencyLabel(side.currency) : currencySuffix(side.currency)) : ''}`
+        side.amount == null ? '—' : `${fmtMoney(side.amount)}${side.currency ? (currencyChanged ? currencyLabel(side.currency) : currencySuffix(side.currency)) : ''}`
       const what = from.amount === to.amount ? 'Moneda corregida' : currencyChanged ? 'Monto y moneda corregidos' : 'Monto corregido'
       return `${what}: ${money(from)} → ${money(to)}`
     }
