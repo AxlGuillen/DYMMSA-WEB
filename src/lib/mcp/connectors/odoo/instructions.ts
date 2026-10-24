@@ -6,12 +6,12 @@ export const ODOO_CREDIT_NOTES_RULE = `Notas de crédito (Odoo): una nota de cr�
 
 export const ODOO_INVOICE_LINK_RULE = `**Vínculo factura↔orden de venta (Odoo)**: la verdad es ordenes_ligadas (el botón "Órdenes de venta" de la factura) y el vínculo línea a línea; origen (invoice_origin) es texto libre y NO prueba el vínculo — una factura con origen pero 0 órdenes ligadas tiene el vínculo roto. Las notas al pie (pedido_pie, "PEDIDO: …") vienen de Odoo, no de capturas.`
 
-/** One line per module; a member gets it without the admin-only writes (#133). */
+/** One line per need; a member gets it without the admin-only writes (#133). */
 export function odooToolMap(admin: boolean): string {
-  return `- Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
-- Contabilidad: odoo_overdue_invoices (cartera vencida o estado de cuenta), odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit, odoo_invoice_link_check (facturas del periodo sin orden de venta ligada — la revisión periódica en una llamada).
-- Ventas y cobranza: odoo_sales_summary, odoo_customer_profile (incluye la cartera del cliente: deuda total, vencido y días promedio de pago), odoo_sale_detail, odoo_receivables_ranking ("¿a quién le cobro primero?" / "¿quién paga más lento?").
-- Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
+  return `- Un folio (F…, S…, PAY…): odoo_get_document. Un cliente: odoo_get_customer (expediente y estado de cuenta). Toda la cartera ("¿a quién le cobro primero?", "¿quién paga más lento?"): odoo_list_receivables.
+- Totales de un periodo: odoo_summarize_invoices, odoo_summarize_sales. Revisiones: odoo_audit_invoice_links (facturas sin orden de venta), odoo_audit_payment_complements (pagos sin REP).
+- Almacén de ODOO: odoo_search_stock (la tienda es search_inventory, del conector DYMMSA-WEB).
+- Primitivas, solo si nada de lo anterior responde: odoo_search_records (también empleados y flotilla: hr.employee, fleet.vehicle, fleet.vehicle.log.services), odoo_aggregate_records.
 ${admin ? '- Cotizar y facturar (solo administradores): odoo_preview_quotation (solo lee: vista previa y clave) → tras el sí, odoo_save_quotation (BORRADOR, editar o confirmar como venta) → odoo_create_draft_invoice (factura completa en BORRADOR). "Haz esta cotización en Odoo" es este flujo, nunca el navegador. Nunca publica, timbra, envía ni crea clientes; los productos nuevos solo con el botón de la vista (odoo_save_product: no la llames tú).\n' : ''}`
 }
 
@@ -27,6 +27,7 @@ ${admin ? 'Antes de cualquier escritura, di exactamente qué vas a hacer y con q
 
 ${ODOO_CREDIT_NOTES_RULE}
 
+- Cartera = facturas abiertas, brutas por factura como la pantalla Clientes; cartera_contable (odoo_get_customer) es el saldo neto de Odoo: no lo cuadres contra la bruta.
 - ${ODOO_INVOICE_LINK_RULE}
 - Moneda: MXN; un documento en otra moneda se reporta sin convertir.`
 }

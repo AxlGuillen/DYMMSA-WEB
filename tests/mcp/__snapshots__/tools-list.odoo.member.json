@@ -1,14 +1,287 @@
 [
   {
-    "name": "odoo_query",
-    "title": "Consulta genérica en Odoo",
-    "description": "Consulta Odoo (el sistema de FACTURACIÓN de la empresa, externo a DYMMSA-WEB) sobre los modelos del catálogo permitido: facturas y sus líneas, pagos, documentos CFDI/REP, contactos, ventas y sus líneas, productos, existencias, empleados (directorio) y flotilla. Úsala para preguntas que las tools curadas no cubran. Devuelve registros normalizados (máx 50). Prefiere odoo_aggregate para totales.",
+    "name": "odoo_get_document",
+    "title": "Documento por folio (Odoo)",
+    "description": "Un documento de Odoo completo por folio; el prefijo elige el tipo y `tipo` lo fuerza. S… = venta o cotización: estado, vendedor, facturas ligadas y líneas pedido/entregado/facturado/por facturar (\"¿qué falta por facturar?\"). PAY… = pago: su complemento de pago (REP) ante el SAT y las facturas que paga. El resto = factura o nota de crédito: montos, saldo, término de pago, notas al pie (\"PEDIDO: …\"), vínculo real con la venta, timbrado CFDI y líneas. Acepta un folio parcial si es único; sin coincidencia o con varias, error. La respuesta trae `tipo`.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "folio": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Folio, p. ej. \"F00167\", \"S00247\" o \"PAY00068\""
+        },
+        "tipo": {
+          "description": "Solo si el prefijo no lo dice: factura (también nota de crédito), venta o pago",
+          "type": "string",
+          "enum": [
+            "factura",
+            "venta",
+            "pago"
+          ]
+        }
+      },
+      "required": [
+        "folio"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_get_customer",
+    "title": "Cliente y estado de cuenta (Odoo)",
+    "description": "Expediente de UN cliente de Odoo por nombre, RFC o #id (gana la coincidencia exacta; ninguna o varias = error con las opciones): contacto, ESTADO DE CUENTA bruto por factura según la fecha de VENCIMIENTO (`vence_desde`/`vence_hasta`; sin fechas ni `incluir` = todo lo vencido + lo que vence este mes, como la pantalla Clientes), notas de crédito aparte sin restar, `cartera_contable` (saldo neto de Odoo y días promedio de pago: no se cuadra contra lo bruto), ventas y facturación. Para toda la cartera, odoo_list_receivables.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cliente": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, RFC o #id, p. ej. \"Andritz\" o \"#24\""
+        },
+        "vence_desde": {
+          "description": "YYYY-MM-DD",
+          "type": "string"
+        },
+        "vence_hasta": {
+          "description": "YYYY-MM-DD",
+          "type": "string"
+        },
+        "incluir": {
+          "description": "Default ambas",
+          "type": "string",
+          "enum": [
+            "vencidas",
+            "por_vencer",
+            "ambas"
+          ]
+        }
+      },
+      "required": [
+        "cliente"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_list_receivables",
+    "title": "Cartera por cobrar (Odoo)",
+    "description": "Toda la cartera de Odoo: \"¿quién nos debe y desde cuándo?\", \"¿a quién le cobro primero?\", \"¿quién paga más lento?\". Cifra bruta por factura abierta, como la pantalla Clientes: totales, `por_cliente` (vencido, por vencer, total y días promedio de pago), las facturas más antiguas y las notas de crédito aparte, sin restar. `ordenar`: vencido (default), total o dias_pago. Para el estado de cuenta de uno, odoo_get_customer.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ordenar": {
+          "description": "Default vencido",
+          "type": "string",
+          "enum": [
+            "vencido",
+            "total",
+            "dias_pago"
+          ]
+        },
+        "limite": {
+          "description": "Clientes y facturas por lista (default 10)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_summarize_invoices",
+    "title": "Resumen de facturación (Odoo)",
+    "description": "Resumen de las facturas de cliente contabilizadas en Odoo por periodo: total facturado y pendiente, agrupado por estado_pago (default), cliente o mes. Úsala para \"¿cómo cerró julio?\" o \"facturación por cliente del año\". Las notas de crédito EMITIDAS EN EL PERIODO van aparte en `notas_credito` (total, sin_aplicar; no restan del facturado) — distinto de las abiertas a hoy que da odoo_list_receivables.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "description": "Desde (YYYY-MM-DD, sobre invoice_date)",
+          "type": "string"
+        },
+        "date_to": {
+          "description": "Hasta (YYYY-MM-DD)",
+          "type": "string"
+        },
+        "group_by": {
+          "type": "string",
+          "enum": [
+            "estado_pago",
+            "cliente",
+            "mes"
+          ]
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_summarize_sales",
+    "title": "Resumen de ventas (Odoo)",
+    "description": "Ventas registradas en Odoo por periodo: total y órdenes, agrupado por estado (default), cliente, vendedor o mes. Por default solo ventas CONFIRMADAS (sale/done); incluir=\"todas\" suma las cotizaciones draft/sent de Odoo. No confundir con las cotizaciones de DYMMSA-WEB.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "description": "Desde (YYYY-MM-DD, sobre date_order)",
+          "type": "string"
+        },
+        "date_to": {
+          "description": "Hasta (YYYY-MM-DD)",
+          "type": "string"
+        },
+        "group_by": {
+          "type": "string",
+          "enum": [
+            "estado",
+            "cliente",
+            "vendedor",
+            "mes"
+          ]
+        },
+        "incluir": {
+          "type": "string",
+          "enum": [
+            "confirmadas",
+            "todas"
+          ]
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_audit_invoice_links",
+    "title": "Facturas sin orden de venta (Odoo)",
+    "description": "Revisión de que cada factura de cliente contabilizada en Odoo esté ligada a su orden de venta, en una llamada: lee las facturas del periodo (default últimos 30 días; opcionalmente un cliente) y devuelve las HUÉRFANAS (sin orden ligada ni origen) y las de VÍNCULO ROTO (el origen menciona una orden pero ninguna está ligada), cada una con folio, cliente, fecha, total, origen, notas al pie (\"PEDIDO: …\") y término de pago. Usa el vínculo real (botón \"Órdenes de venta\"), no el texto del origen. Pensada para la revisión periódica.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "description": "Desde (YYYY-MM-DD, sobre invoice_date); default hace 30 días",
+          "type": "string"
+        },
+        "date_to": {
+          "description": "Hasta (YYYY-MM-DD); default hoy",
+          "type": "string"
+        },
+        "cliente": {
+          "description": "Nombre (o parte) del cliente para acotar",
+          "type": "string"
+        },
+        "incluir_ligadas": {
+          "description": "true = también listar las facturas correctamente ligadas",
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_audit_payment_complements",
+    "title": "Auditoría de complementos de pago (Odoo)",
+    "description": "Barrido de pagos de cliente de Odoo en un rango de fechas, clasificados por su complemento de pago (REP): en regla, SIN REP, o con REP fallido/no válido ante el SAT. El cruce pago→REP es por las facturas conciliadas. Default: últimos 30 días. Úsala para el barrido mensual de \"¿qué pagos se quedaron sin timbrar?\"; el detalle de uno, con odoo_get_document.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "description": "Desde (YYYY-MM-DD); default hace 30 días",
+          "type": "string"
+        },
+        "date_to": {
+          "description": "Hasta (YYYY-MM-DD); default hoy",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_search_stock",
+    "title": "Existencias del almacén (Odoo)",
+    "description": "Existencias en el ALMACÉN DE ODOO, buscando por nombre o código de producto y sumando todas las ubicaciones. ⚠️ NO es el inventario de la tienda: ese es search_inventory, del conector DYMMSA-WEB. Son dos inventarios distintos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "producto": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre o código del producto, p. ej. \"punta de cobre\" o \"510023782\""
+        }
+      },
+      "required": [
+        "producto"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_search_records",
+    "title": "Buscar registros (Odoo)",
+    "description": "Primitiva: lee registros normalizados (máx 50) de un modelo del catálogo permitido de Odoo: facturas y sus líneas, pagos, documentos CFDI/REP, contactos, ventas y sus líneas, productos, existencias, el directorio de empleados (hr.employee) y la flotilla (fleet.vehicle y su bitácora fleet.vehicle.log.services). Úsala solo cuando ninguna tool curada responda: no aplica sus reglas (notas de crédito aparte, solo publicadas o confirmadas, día de Morelia). Para totales, odoo_aggregate_records.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "model": {
           "type": "string",
-          "description": "Modelo Odoo del catálogo, p. ej. \"account.move\""
+          "description": "Modelo Odoo del catálogo, p. ej. \"account.move\" o \"hr.employee\""
         },
         "domain": {
           "description": "Filtros Odoo como tripletas [campo, operador, valor] con AND implícito, p. ej. [[\"payment_state\",\"=\",\"not_paid\"]]",
@@ -56,16 +329,16 @@
     },
     "annotations": {
       "readOnlyHint": true,
-      "openWorldHint": false
+      "openWorldHint": true
     },
     "execution": {
       "taskSupport": "forbidden"
     }
   },
   {
-    "name": "odoo_aggregate",
-    "title": "Agregados en Odoo",
-    "description": "Totales y conteos agrupados calculados POR Odoo (facturación de la empresa, externo) — la forma correcta de responder \"¿cuánto…?\" sin traer registros: agrupa por un campo y suma/promedia métricas. Ej.: facturas por payment_state con amount_total:sum.",
+    "name": "odoo_aggregate_records",
+    "title": "Totales agrupados (Odoo)",
+    "description": "Primitiva: totales y conteos agrupados calculados POR Odoo sobre un modelo del catálogo permitido, sin traer registros: agrupa por un campo y suma/promedia métricas. Ej.: facturas por payment_state con amount_total:sum. No separa notas de crédito ni filtra por estado: la facturación o las ventas de un periodo salen de odoo_summarize_invoices / odoo_summarize_sales.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -109,375 +382,7 @@
     },
     "annotations": {
       "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_overdue_invoices",
-    "title": "Cartera y estado de cuenta (Odoo)",
-    "description": "Sin parámetros: \"¿quién nos debe y desde cuándo?\" — por cliente y las más vencidas. Con `cliente`, `vence_desde`/`vence_hasta` (YYYY-MM-DD, por VENCIMIENTO; solo `cliente` = vencido + este mes) o `incluir`: el ESTADO DE CUENTA, por cliente o el de uno con todas sus facturas. `notas_credito_sin_aplicar` va aparte, sin restar.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "limit": {
-          "description": "Sin cliente: cuántas listar (default 10)",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 50
-        },
-        "cliente": {
-          "description": "Nombre (o parte)",
-          "type": "string",
-          "minLength": 1
-        },
-        "vence_desde": {
-          "type": "string"
-        },
-        "vence_hasta": {
-          "type": "string"
-        },
-        "incluir": {
-          "description": "Default ambas",
-          "type": "string",
-          "enum": [
-            "vencidas",
-            "por_vencer",
-            "ambas"
-          ]
-        }
-      },
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_invoices_summary",
-    "title": "Resumen de facturación (Odoo)",
-    "description": "Resumen de las facturas de cliente contabilizadas en Odoo por periodo: total facturado y pendiente, agrupado por estado_pago (default), cliente o mes. Úsala para \"¿cómo cerró julio?\" o \"facturación por cliente del año\". Las notas de crédito EMITIDAS EN EL PERIODO van aparte en `notas_credito` (total, sin_aplicar; no restan del facturado) — distinto de las abiertas a hoy que da odoo_overdue_invoices.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "date_from": {
-          "description": "Desde (YYYY-MM-DD, sobre invoice_date)",
-          "type": "string"
-        },
-        "date_to": {
-          "description": "Hasta (YYYY-MM-DD)",
-          "type": "string"
-        },
-        "group_by": {
-          "type": "string",
-          "enum": [
-            "estado_pago",
-            "cliente",
-            "mes"
-          ]
-        }
-      },
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_sales_summary",
-    "title": "Resumen de ventas (Odoo)",
-    "description": "Ventas registradas en Odoo (externo) por periodo: total y órdenes, agrupado por estado (default), cliente, vendedor o mes. Por default solo ventas CONFIRMADAS (sale/done); incluir=\"todas\" suma las cotizaciones draft/sent de Odoo. No confundir con las cotizaciones de DYMMSA-WEB.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "date_from": {
-          "description": "Desde (YYYY-MM-DD, sobre date_order)",
-          "type": "string"
-        },
-        "date_to": {
-          "description": "Hasta (YYYY-MM-DD)",
-          "type": "string"
-        },
-        "group_by": {
-          "type": "string",
-          "enum": [
-            "estado",
-            "cliente",
-            "vendedor",
-            "mes"
-          ]
-        },
-        "incluir": {
-          "type": "string",
-          "enum": [
-            "confirmadas",
-            "todas"
-          ]
-        }
-      },
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_customer_profile",
-    "title": "Perfil de cliente (Odoo)",
-    "description": "El expediente completo de un cliente en Odoo (externo) en una llamada: datos de contacto (incl. RFC), su CARTERA como la calcula Odoo (deuda total, vencido y días promedio que tarda en pagar — DSO; saldo contable NETO de notas de crédito, no se cuadra contra la facturación bruta), ventas por estado, facturación con pendiente de pago, sus facturas vencidas con días de atraso y sus notas de crédito abiertas a hoy (`notas_credito_sin_aplicar`: saldo a favor exacto + las últimas 10, no restado de lo pendiente). Busca por nombre parcial; si hay varias coincidencias devuelve la lista para precisar.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "cliente": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Nombre (o parte) del cliente, p. ej. \"GE\" o \"Andritz\""
-        }
-      },
-      "required": [
-        "cliente"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_receivables_ranking",
-    "title": "Ranking de cobranza (Odoo)",
-    "description": "Responde \"¿a quién le cobro primero?\" y \"¿quién paga más lento?\" desde la facturación oficial (Odoo): los clientes (customer_rank > 0) con saldo, con la deuda total, el vencido y los días promedio de pago (DSO) que Odoo calcula por cliente — saldos contables netos de notas de crédito. Devuelve el top por vencido (luego por deuda), el top de los más lentos ENTRE los que hoy tienen saldo (quien paga lento pero está al corriente no aparece) y los totales de esa cartera. Úsala para la revisión semanal de cobranza; para el detalle de uno, odoo_customer_profile.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "limit": {
-          "description": "Cuántos clientes por lista (default 10)",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 50
-        }
-      },
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_invoice_detail",
-    "title": "Detalle de factura (Odoo)",
-    "description": "Una factura de Odoo (externo) completa por folio (p. ej. \"F00167\"): encabezado con montos, saldo, término de pago real y notas al pie (p. ej. \"PEDIDO: …\"), el VÍNCULO con órdenes de venta (cuántas están ligadas de verdad + diagnóstico: ligada / vínculo roto / huérfana), TIMBRADO CFDI (folio fiscal/UUID, estado ante el SAT) y sus líneas con cantidad, unidad (piezas vs cajas) y si cada línea viene de una venta. Acepta folio parcial; con varias coincidencias devuelve la lista.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "folio": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Folio de la factura, p. ej. \"F00167\""
-        }
-      },
-      "required": [
-        "folio"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_sale_detail",
-    "title": "Detalle de venta (Odoo)",
-    "description": "Una orden de venta de Odoo (externo) completa por folio (p. ej. \"S00247\"): encabezado con estado y vendedor, las FACTURAS ligadas (folio, estado, pagada o no) y sus líneas con cantidades PEDIDO/ENTREGADO/FACTURADO/POR FACTURAR y unidad por producto — útil para \"¿ya se entregó todo lo de la venta X?\" o \"¿qué falta por facturar?\" (por_facturar > 0 distingue \"falta facturar\" de \"no queda nada\"). Acepta folio parcial.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "folio": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Folio de la orden de venta, p. ej. \"S00247\""
-        }
-      },
-      "required": [
-        "folio"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_payment_detail",
-    "title": "Detalle de pago con su REP (Odoo)",
-    "description": "Un pago de cliente de Odoo (externo) completo por folio (p. ej. \"PAY00068\"): encabezado, estado del COMPLEMENTO DE PAGO (REP) — timbrado y estado ante el SAT — y el desglose de facturas que paga, cada una con su saldo y su propio CFDI. Acepta folio parcial; con varias coincidencias devuelve la lista.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "folio": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Folio del pago, p. ej. \"PAY00068\""
-        }
-      },
-      "required": [
-        "folio"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_rep_audit",
-    "title": "Auditoría de complementos de pago (Odoo)",
-    "description": "Barrido de pagos de cliente de Odoo (externo) en un rango de fechas, clasificados por su complemento de pago (REP): en regla, SIN REP, o con REP fallido/no válido ante el SAT. El cruce pago→REP es por las facturas conciliadas. Default: últimos 30 días. Úsala para el barrido mensual de \"¿qué pagos se quedaron sin timbrar?\".",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "date_from": {
-          "description": "Desde (YYYY-MM-DD); default hace 30 días",
-          "type": "string"
-        },
-        "date_to": {
-          "description": "Hasta (YYYY-MM-DD); default hoy",
-          "type": "string"
-        }
-      },
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_invoice_link_check",
-    "title": "Facturas sin orden de venta (Odoo)",
-    "description": "Revisión de que cada factura de cliente contabilizada en Odoo esté ligada a su orden de venta, en una llamada: lee las facturas del periodo (default últimos 30 días; opcionalmente un cliente) y devuelve las HUÉRFANAS (sin orden ligada ni origen) y las de VÍNCULO ROTO (el origen menciona una orden pero ninguna está ligada), cada una con folio, cliente, fecha, total, origen, notas al pie (\"PEDIDO: …\") y término de pago. Usa el vínculo real (botón \"Órdenes de venta\"), no el texto del origen. Pensada para la revisión periódica.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "date_from": {
-          "description": "Desde (YYYY-MM-DD, sobre invoice_date); default hace 30 días",
-          "type": "string"
-        },
-        "date_to": {
-          "description": "Hasta (YYYY-MM-DD); default hoy",
-          "type": "string"
-        },
-        "cliente": {
-          "description": "Nombre (o parte) del cliente para acotar",
-          "type": "string"
-        },
-        "incluir_ligadas": {
-          "description": "true = también listar las facturas correctamente ligadas",
-          "type": "boolean"
-        }
-      },
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_stock_check",
-    "title": "Existencias en Odoo",
-    "description": "Existencias en el ALMACÉN DE ODOO (externo), buscando por nombre o código de producto y sumando todas las ubicaciones. ⚠️ NO es el inventario de la tienda de DYMMSA-WEB — para ese usa search_inventory. Son dos inventarios distintos.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "producto": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Nombre o código del producto, p. ej. \"punta de cobre\" o \"510023782\""
-        }
-      },
-      "required": [
-        "producto"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_employee_directory",
-    "title": "Directorio de empleados (Odoo)",
-    "description": "Directorio LABORAL del equipo registrado en Odoo (externo): nombre, puesto, departamento y contacto de trabajo. No incluye — por diseño — nómina, salarios ni datos personales.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "odoo_fleet_status",
-    "title": "Estado de la flotilla (Odoo)",
-    "description": "La flotilla registrada en Odoo (externo): vehículos con placas, conductor asignado, odómetro y estado, más los últimos servicios/mantenimientos de la bitácora.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
+      "openWorldHint": true
     },
     "execution": {
       "taskSupport": "forbidden"

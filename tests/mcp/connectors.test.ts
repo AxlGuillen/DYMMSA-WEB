@@ -11,6 +11,13 @@ import { authAs, connectMcp } from './harness'
 
 afterEach(() => vi.unstubAllEnvs())
 
+/** The 15 names the catalog dropped in #155 B2a (renamed, fused or retired): none may linger in a text the model reads. */
+const RETIRED_NAMES = [
+  'odoo_query', 'odoo_aggregate', 'odoo_overdue_invoices', 'odoo_invoices_summary', 'odoo_sales_summary', 'odoo_customer_profile',
+  'odoo_receivables_ranking', 'odoo_invoice_detail', 'odoo_sale_detail', 'odoo_payment_detail', 'odoo_rep_audit',
+  'odoo_invoice_link_check', 'odoo_stock_check', 'odoo_employee_directory', 'odoo_fleet_status',
+]
+
 async function metadataFor(path: string[]) {
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://supa.test')
   const url = `http://localhost:3000/.well-known/oauth-protected-resource/${path.join('/')}`
@@ -61,6 +68,22 @@ describe('conector Odoo DYMMSA', () => {
     expect(descriptions, `descripciones: ${descriptions}`).toBeLessThanOrEqual(ODOO_BUDGET.descriptionsTotal)
     for (const role of ['admin', 'member'] as const) {
       expect(odooConnector.instructions(role).length, role).toBeLessThanOrEqual(ODOO_BUDGET.instructions)
+    }
+  })
+
+  test('CATÁLOGO (ADR-041 §12): los nombres finales en su orden, y ningún nombre retirado en descripciones ni instrucciones', () => {
+    expect(ODOO_TOOLS.map((t) => t.name)).toEqual([
+      'odoo_get_document', 'odoo_get_customer', 'odoo_list_receivables', 'odoo_summarize_invoices', 'odoo_summarize_sales',
+      'odoo_audit_invoice_links', 'odoo_audit_payment_complements', 'odoo_search_stock', 'odoo_search_records', 'odoo_aggregate_records',
+      'odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice',
+    ])
+    const texts = [
+      ...[...dymmsaConnector.tools, ...odooConnector.tools].map((t) => t.description),
+      ...(['admin', 'member'] as const).flatMap((role) => [odooConnector.instructions(role), dymmsaConnector.instructions(role)]),
+    ]
+    for (const name of RETIRED_NAMES) {
+      const word = new RegExp(`\\b${name}\\b`)
+      expect(texts.filter((text) => word.test(text)), name).toEqual([])
     }
   })
 

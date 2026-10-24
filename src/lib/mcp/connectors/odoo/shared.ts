@@ -4,6 +4,9 @@ import { odooWriter } from '@/lib/odoo/writer'
 import type { ToolView } from '@/lib/mcp/core/define'
 import { MCP_VIEWS } from '@/lib/mcp/views/generated'
 
+/** Odoo is a third-party system others edit (ADR-041 §10): every tool of this connector is open-world. */
+export const odooRead = { readOnlyHint: true, openWorldHint: true } as const
+
 export const domainSchema = z
   .array(z.tuple([z.string(), z.string(), z.unknown()]))
   .optional()

@@ -33,7 +33,7 @@ const DIAGNOSIS_TEXT: Record<LinkDiagnosis, string> = {
   desconocido: 'Odoo no devolvió el conteo de órdenes — no se puede diagnosticar',
 }
 
-export interface InvoiceLinkCheckInput {
+export interface AuditInvoiceLinksInput {
   /** YYYY-MM-DD over invoice_date; default = 30 days ago. */
   date_from?: string
   /** YYYY-MM-DD; default = today. */
@@ -49,7 +49,7 @@ const FIELDS = [
   'invoice_origin', 'narration', 'invoice_payment_term_id',
 ]
 
-export async function odooInvoiceLinkCheck(odoo: OdooCaller, input: InvoiceLinkCheckInput = {}) {
+export async function odooAuditInvoiceLinks(odoo: OdooCaller, input: AuditInvoiceLinksInput = {}) {
   assertDateRange(input.date_from, input.date_to)
   const today = todayIso()
   const from = input.date_from ?? daysAgo(DEFAULT_DAYS, today)
