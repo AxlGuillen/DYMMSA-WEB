@@ -16,6 +16,7 @@ export const getPayableTool = defineTool({
     module: 'Finanzas',
     title: 'Detalle de factura por pagar',
     example: 'Dame el detalle de la factura de Perfiles.',
+    evals: ['Dame el detalle de la factura de Perfiles.', '¿Quién marcó pagada la de Tornillos y cuándo?'],
   },
   handler: ({ factura }, { db, userId }) => getPayable(db, userId, factura),
 })

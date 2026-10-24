@@ -17,6 +17,7 @@ export const odooSaveQuotationTool = defineTool({
     module: 'Cotizar y facturar',
     title: 'Guardar cotizacion en Odoo',
     example: 'Si, guardala. / Cambia el precio de la linea 3 de la S00915.',
+    evals: ['Sí, guarda la cotización tal como la vimos.', 'Confirmo los cambios a la S00915.'],
     limits: 'Solo lo que mostro la vista previa: cotizacion en borrador o editarla. Nunca la confirma ni la envia al cliente, no publica, no timbra ni crea clientes.',
   },
   handler: (input, ctx) => odooSaveQuotation(odooWriteDeps, ctx, input),

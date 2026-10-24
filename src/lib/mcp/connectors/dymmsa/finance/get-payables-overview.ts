@@ -16,6 +16,7 @@ export const getPayablesOverviewTool = defineTool({
     module: 'Finanzas',
     title: 'Resumen de facturas por pagar',
     example: '¿Que debo esta semana?',
+    evals: ['¿Qué debo esta semana?', '¿Cuánto tengo vencido?'],
   },
   handler: (input, { db }) => getPayablesOverview(db, input),
 })

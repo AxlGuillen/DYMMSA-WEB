@@ -19,6 +19,7 @@ export const getPayrollPeriodTool = defineTool({
     module: 'Nomina',
     title: 'Corte de nomina',
     example: '¿Cuantas horas lleva cada quien en el corte de esta semana?',
+    evals: ['¿Cuántas horas lleva cada quien en el corte de esta semana?', '¿Qué días siguen en borrador en la nómina?'],
   },
   handler: (input, { db }) => getPayrollPeriod(db, input),
 })

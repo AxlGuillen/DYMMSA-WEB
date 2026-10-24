@@ -23,6 +23,7 @@ export const odooAuditInvoiceLinksTool = defineTool({
     module: 'Contabilidad',
     title: 'Facturas sin orden de venta',
     example: '¿Que facturas del mes no estan ligadas a su orden de venta?',
+    evals: ['¿Qué facturas del mes no están ligadas a su venta?', '¿Hay facturas con el vínculo roto en octubre?'],
   },
   handler: (input) => odooAuditInvoiceLinks(callOdoo, input),
 })

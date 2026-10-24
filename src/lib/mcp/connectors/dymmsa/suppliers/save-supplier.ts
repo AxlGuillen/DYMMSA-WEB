@@ -28,6 +28,7 @@ export const saveSupplierTool = defineTool({
     module: 'Proveedores',
     title: 'Guardar proveedor',
     example: 'Da de alta a Tornillos MX, 30 dias de credito, surte SURTEK.',
+    evals: ['Da de alta a Tornillos MX con 30 días de crédito y que surta SURTEK.', 'Cámbiale el teléfono a Perfiles del Bajío.'],
     limits: 'Alta o edicion de contacto, dias de credito y marcas ya registradas. No borra proveedores ni crea marcas.',
   },
   handler: (input, { db }) => saveSupplier(db, input),

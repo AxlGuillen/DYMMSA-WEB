@@ -24,6 +24,7 @@ export const saveExcusedDayTool = defineTool({
     module: 'Horas',
     title: 'Guardar dia justificado',
     example: 'El lunes fue feriado.',
+    evals: ['El lunes fue feriado para todos.', 'Diego tuvo salida autorizada el jueves.'],
     limits: 'Feriados y salidas autorizadas, para el equipo o una persona; marca o cambia. No los quita (delete_record).',
   },
   handler: (input, { db, userId }) => saveExcusedDay(db, userId, input),

@@ -19,6 +19,7 @@ export const listTimeImportsTool = defineTool({
     module: 'Horas',
     title: 'Cargas del checador',
     example: '¿Cuando se cargo el ultimo reporte del checador?',
+    evals: ['¿Cuándo se cargó el último reporte del checador?', '¿Cuántas checadas se saltaron por edición manual?'],
   },
   handler: (input, { db }) => listTimeImports(db, input),
 })

@@ -22,6 +22,7 @@ export const searchInventoryTool = defineTool({
     module: 'Inventario',
     title: 'Buscar en inventario',
     example: '¿Tenemos el 6954 y en que gaveta esta?',
+    evals: ['¿Tenemos el 6954 y en qué gaveta está?', '¿Qué productos están por agotarse?'],
   },
   handler: (input, { db }) => searchInventory(db, input),
 })

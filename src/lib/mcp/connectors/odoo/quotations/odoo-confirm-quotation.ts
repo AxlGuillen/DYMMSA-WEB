@@ -17,6 +17,7 @@ export const odooConfirmQuotationTool = defineTool({
     module: 'Cotizar y facturar',
     title: 'Confirmar cotizacion en Odoo',
     example: 'Confirma la S00912 como venta.',
+    evals: ['Confirma la S00912 como venta.', 'Pasa a venta la cotización S00915.'],
     limits: 'Solo la cotizacion que mostro la revision de la vista previa, sin cambios desde entonces. Nunca la envia al cliente, no factura, no publica ni timbra; deshacerla es en Odoo.',
   },
   handler: (input, ctx) => odooConfirmQuotation(odooWriteDeps, ctx, input),

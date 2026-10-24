@@ -22,6 +22,8 @@ export interface ToolManifestEntry {
    * reads. The RLS is still the barrier; this only trims the list the model sees.
    */
   adminOnly?: true
+  /** Writes only the user's yes (two phases with a key): the docs say so (#155 C4). */
+  confirm?: 'two_phase'
 }
 
 export type McpRole = 'admin' | 'member'

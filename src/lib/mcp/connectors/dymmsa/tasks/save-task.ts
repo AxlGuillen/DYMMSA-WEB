@@ -28,6 +28,7 @@ export const saveTaskTool = defineTool({
     module: 'Tareas',
     title: 'Guardar tarea',
     example: 'Registra una tarea: revisar los precios de Truper. / Cierra la tarea 45 y comenta que ya quedo.',
+    evals: ['Registra una tarea: revisar los precios de Truper.', 'Comenta en la 45 que ya quedó y ciérrala.'],
     limits: 'Crea, comenta, prioriza, cierra o reabre. Cambiar el título o la descripción pide tu confirmación. La tarea y los comentarios quedan atribuidos al asistente.',
   },
   plan: (input) => planSaveTask(input),

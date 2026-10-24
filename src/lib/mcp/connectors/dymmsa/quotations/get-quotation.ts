@@ -16,6 +16,7 @@ export const getQuotationTool = defineTool({
     module: 'Cotizaciones',
     title: 'Detalle de cotizacion',
     example: '¿Que aprobo el cliente de la cotizacion de Andritz y ya tiene orden?',
+    evals: ['¿Qué aprobó el cliente en la cotización de Andritz y ya tiene orden?', 'Dame la línea 4 de la cotización de GE con su precio.'],
   },
   handler: ({ cotizacion }, { db }) => getQuotation(db, cotizacion),
 })

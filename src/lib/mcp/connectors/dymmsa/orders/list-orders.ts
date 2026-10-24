@@ -22,6 +22,7 @@ export const listOrdersTool = defineTool({
     module: 'Ordenes',
     title: 'Listar ordenes',
     example: '¿Que ordenes siguen abiertas?',
+    evals: ['¿Qué órdenes siguen abiertas?', 'Dame las órdenes de Truper.'],
   },
   handler: (input, { db }) => listOrders(db, input),
 })

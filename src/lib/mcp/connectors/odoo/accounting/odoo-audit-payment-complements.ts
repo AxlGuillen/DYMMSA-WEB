@@ -20,6 +20,7 @@ export const odooAuditPaymentComplementsTool = defineTool({
     module: 'Contabilidad',
     title: 'Auditoria de complementos de pago',
     example: '¿Que pagos del mes se quedaron sin REP?',
+    evals: ['¿Qué pagos de septiembre se quedaron sin complemento de pago?', '¿Hay REP pendientes de octubre?'],
   },
   handler: (input) => odooAuditPaymentComplements(callOdoo, input),
 })

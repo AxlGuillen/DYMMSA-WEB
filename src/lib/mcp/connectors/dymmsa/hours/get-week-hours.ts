@@ -20,6 +20,7 @@ export const getWeekHoursTool = defineTool({
     module: 'Horas',
     title: 'Horas de la semana',
     example: '¿Cuantas horas llevo esta semana?',
+    evals: ['¿Cuántas horas llevo esta semana?', '¿Cuántas horas hizo Luis la semana pasada?'],
   },
   handler: (input, { db, userId }) => getWeekHours(db, userId, input),
 })

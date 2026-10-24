@@ -18,6 +18,7 @@ export const odooCreateDraftInvoiceTool = defineTool({
     module: 'Cotizar y facturar',
     title: 'Factura en borrador en Odoo',
     example: 'Haz la factura de la S00912.',
+    evals: ['Haz la factura de la S00912.', 'Factura lo entregado de la S00247, en borrador.'],
     limits: 'Primero muestra el resumen y solo con tu si crea el borrador. Factura completa de una venta confirmada y entregada; nunca publica, timbra ni envia; sin anticipos ni parciales.',
   },
   plan: (input, ctx) => planDraftInvoice(odooWriteDeps, ctx, input),

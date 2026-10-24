@@ -24,6 +24,7 @@ export const listPayablesTool = defineTool({
     module: 'Finanzas',
     title: 'Facturas por pagar',
     example: '¿Que facturas vencen este mes?',
+    evals: ['¿Qué facturas vencen este mes?', '¿Qué le debo a Perfiles?'],
   },
   handler: (input, { db }) => listPayables(db, input),
 })

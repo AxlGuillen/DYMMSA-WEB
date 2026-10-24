@@ -30,6 +30,7 @@ export const previewTimeReportTool = defineTool({
     module: 'Horas',
     title: 'Revisar reporte del checador',
     example: 'Revisa el reporte del checador de esta semana antes de cargarlo.',
+    evals: ['Revisa el reporte del checador de esta semana antes de cargarlo.', '¿Cuadra este reporte con sus propios totales?'],
   },
   handler: (input, { db, userId }) => previewTimeReport(db, userId, input),
 })

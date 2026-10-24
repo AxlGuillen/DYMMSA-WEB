@@ -15,7 +15,6 @@ import { writeResult } from '@/lib/mcp/core/envelope'
 import {
   buildWeekView,
   buildWeeklyTrend,
-  EXCUSE_LABELS,
   excusesFor,
   isRealDate,
   weekChartData,

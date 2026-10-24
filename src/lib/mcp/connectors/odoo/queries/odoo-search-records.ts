@@ -25,6 +25,7 @@ export const odooSearchRecordsTool = defineTool({
     module: 'Consultas libres',
     title: 'Buscar registros en Odoo',
     example: '¿Cual es el correo de trabajo de Diego y que camioneta tiene asignada?',
+    evals: ['¿Cuál es el correo de trabajo de Diego y qué camioneta tiene asignada?', 'Lista los servicios de la flotilla de este año.'],
   },
   handler: (input) => odooSearchRecords(callOdoo, input),
 })

@@ -31,6 +31,7 @@ export const deleteRecordTool = defineTool({
     module: 'Borrados',
     title: 'Borrar un registro',
     example: 'Borra la factura de Tornillos que registre dos veces.',
+    evals: ['Borra la factura de Tornillos que registré dos veces.', 'Borra la checada duplicada de Luis del martes a las 8:02.'],
     limits: 'Proveedores, marcas, medidas de material, facturas por pagar (no pagadas), checadas y dias justificados, siempre con tu confirmacion. Nunca cotizaciones, ordenes, productos, inventario ni catalogo.',
   },
   plan: (input, { db, userId }) => planDeleteRecord(db, userId, input),

@@ -22,6 +22,7 @@ export const odooSummarizeInvoicesTool = defineTool({
     module: 'Contabilidad',
     title: 'Resumen de facturacion',
     example: '¿Como cerro julio en facturacion?',
+    evals: ['Facturas de GE de agosto con su total por estado de pago.', '¿Cuánto facturamos en septiembre?'],
   },
   handler: (input) => odooSummarizeInvoices(callOdoo, input),
 })

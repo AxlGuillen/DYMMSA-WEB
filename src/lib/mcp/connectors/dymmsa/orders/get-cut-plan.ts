@@ -16,6 +16,7 @@ export const getCutPlanTool = defineTool({
     module: 'Ordenes',
     title: 'Lista de corte de una orden',
     example: '¿Cuanto tubo necesito para la orden 12 y cuantas barras salen?',
+    evals: ['¿Cuánto tubo necesito para la orden 12 y cuántas barras salen?', '¿Qué placas faltan en la orden de Andritz?'],
   },
   handler: (input, { db }) => getCutPlan(db, input),
 })

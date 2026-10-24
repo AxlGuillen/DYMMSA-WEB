@@ -32,6 +32,7 @@ export const savePayableTool = defineTool({
     module: 'Finanzas',
     title: 'Guardar factura por pagar',
     example: 'Registra una factura de Tornillos MX por $2,500 / Ya pague la de Perfiles / La de Tornillos era por $3,200.',
+    evals: ['Registra la de Tornillos MX por $800, ya la pagué hoy.', 'Ya pagué la de Perfiles, fue ayer.'],
     limits: 'Registra, corrige, paga, regresa a pendiente o cancela. Cambiar cifras o fechas de una pagada pide tu confirmación. Moneda MXN o USD, nunca se convierte; no borra ni reactiva una cancelada.',
   },
   plan: (input, { db }) => planSavePayable(db, input),

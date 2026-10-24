@@ -18,6 +18,7 @@ export const odooPreviewQuotationTool = defineTool({
     module: 'Cotizar y facturar',
     title: 'Vista previa de cotizacion',
     example: 'Haz esta cotizacion en Odoo para GE Power con estos 6 aerosoles a $56.03.',
+    evals: ['Haz esta cotización en Odoo para GE Power: 6 aerosoles a $56.03 y 2 brochas de 4".', 'Cámbiale el precio a la línea 3 de la S00915 a $120.'],
   },
   handler: (input, ctx) => odooPreviewQuotation(odooWriteDeps, ctx, input),
 })

@@ -20,6 +20,7 @@ export const searchProductsTool = defineTool({
     module: 'Catalogos',
     title: 'Buscar productos ETM',
     example: 'Busca el ETM del rodillo de 9 pulgadas.',
+    evals: ['Busca el ETM del rodillo de 9 pulgadas.', '¿Cuánto cuesta el ETM 1180234 y si lo vendemos?'],
   },
   handler: (input, { db }) => searchProducts(db, input),
 })

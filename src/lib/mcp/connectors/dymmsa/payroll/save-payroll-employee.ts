@@ -25,6 +25,7 @@ export const savePayrollEmployeeTool = defineTool({
     module: 'Nomina',
     title: 'Guardar empleado de nomina',
     example: 'Da de alta a un trabajador nuevo en el taller, medio tiempo.',
+    evals: ['Da de alta a Juan, trabajador nuevo del taller, medio tiempo.', 'Da de baja a Pedro.'],
     limits: 'Alta, cambios y baja (desactivar, nunca borrar). No toca horas ni cortes.',
   },
   handler: (input, { db, userId }) => savePayrollEmployee(db, userId, input),

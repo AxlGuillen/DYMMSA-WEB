@@ -16,6 +16,7 @@ export const getMonthClosingTool = defineTool({
     module: 'Finanzas',
     title: 'Cierre del mes',
     example: '¿Como cierra el mes?',
+    evals: ['¿Cómo cierra el mes con lo último de Odoo?', '¿Cuánto cobramos y cuánto pagamos en septiembre?'],
   },
   handler: (input, { db }) => getMonthClosing(db, input),
 })

@@ -22,6 +22,7 @@ export const listTasksTool = defineTool({
     module: 'Tareas',
     title: 'Listar tareas',
     example: '¿Que tareas siguen abiertas?',
+    evals: ['¿Qué tareas altas siguen abiertas?', '¿Qué tareas se descartaron este mes?'],
   },
   handler: (input) => listTasks(input),
 })

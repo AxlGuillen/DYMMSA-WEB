@@ -22,6 +22,7 @@ export const listQuotationsTool = defineTool({
     module: 'Cotizaciones',
     title: 'Listar cotizaciones',
     example: '¿Que cotizaciones esperan aprobacion?',
+    evals: ['¿Qué cotizaciones esperan aprobación?', 'Busca las cotizaciones de Andritz.'],
   },
   handler: (input, { db }) => listQuotations(db, input),
 })

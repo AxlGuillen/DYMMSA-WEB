@@ -18,6 +18,7 @@ export const listProfilesTool = defineTool({
     module: 'Perfil',
     title: 'Perfiles del equipo',
     example: '¿Cual es mi NSS?',
+    evals: ['¿Cuál es mi NSS?', '¿Qué jornada tiene Diego y cuál es su id del checador?'],
   },
   handler: (input, { db, userId }) => listProfiles(db, userId, input),
 })

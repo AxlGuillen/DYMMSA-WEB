@@ -21,6 +21,8 @@ export interface ToolDocs {
   title: string
   /** A question the user could ask that lands on this tool. */
   example: string
+  /** 1–2 real phrases (plan §6, R12) the manual evaluation tries in claude.ai; never part of tools/list. */
+  evals: readonly [string, ...string[]]
   /** Writes only: what the tool will never do. */
   limits?: string
 }

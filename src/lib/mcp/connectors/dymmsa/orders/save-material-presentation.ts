@@ -23,6 +23,7 @@ export const saveMaterialPresentationTool = defineTool({
     module: 'Ordenes',
     title: 'Registrar medida de material',
     example: 'Agrega barra de tubo de 1 pulgada de 6 metros.',
+    evals: ['Agrega una barra de tubo de 1 pulgada de 6 metros.', 'El proveedor vende hojas de placa de 3 mm de 1220 por 2440.'],
     limits: 'Solo registra barras de tubo u hojas de placa, en mm. No borra medidas ni toca la lista de corte.',
   },
   handler: (input, { db }) => saveMaterialPresentation(db, input),

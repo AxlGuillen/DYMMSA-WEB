@@ -16,6 +16,7 @@ export const getOrderTool = defineTool({
     module: 'Ordenes',
     title: 'Detalle de orden',
     example: '¿Que falta por recibir de URREA en la orden 12?',
+    evals: ['¿Qué falta por recibir de URREA en la orden 12?', '¿Qué líneas de la orden de GE salen del stock?'],
   },
   handler: ({ orden }, { db }) => getOrder(db, orden),
 })

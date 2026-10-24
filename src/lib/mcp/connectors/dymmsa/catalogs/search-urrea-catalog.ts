@@ -17,6 +17,7 @@ export const searchUrreaCatalogTool = defineTool({
     module: 'Catalogos',
     title: 'Consultar catalogo URREA',
     example: '¿Cuantas piezas trae el paquete del 6954?',
+    evals: ['¿Cuántas piezas trae el paquete del 6954?', 'Busca en el catálogo URREA algo de tijeras industriales.'],
   },
   handler: (input, { db }) => searchUrreaCatalog(db, input),
 })

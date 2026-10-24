@@ -16,6 +16,7 @@ export const getPurchasePlanTool = defineTool({
     module: 'Ordenes',
     title: 'Planificador de compra',
     example: '¿Que va a mayoreo y que a menudeo en la orden 12?',
+    evals: ['¿Qué va a mayoreo y qué a menudeo en la orden 12?', 'En la orden de GE, ¿qué grupos están por revisar?'],
   },
   handler: (input, { db }) => getPurchasePlan(db, input),
 })

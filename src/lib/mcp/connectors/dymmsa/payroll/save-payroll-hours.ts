@@ -38,6 +38,7 @@ export const savePayrollHoursTool = defineTool({
     module: 'Nomina',
     title: 'Cargar horas de nomina',
     example: 'Esta es la hoja de asistencia de la semana, cargala.',
+    evals: ['Esta es la hoja de asistencia de la semana, cárgala.', 'Trae las horas del checador al corte de esta semana.'],
     limits: 'Solo borradores: no confirma, no cierra cortes, no pisa lo ya confirmado ni crea empleados. Tambien trae las horas del checador de la oficina, como el boton Traer de Horas.',
   },
   handler: (input, { db }) => savePayrollHours(db, input),

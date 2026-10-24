@@ -19,6 +19,7 @@ export const getHoursTrendTool = defineTool({
     module: 'Horas',
     title: 'Tendencia de horas',
     example: '¿Como viene Tania en las ultimas semanas?',
+    evals: ['¿Cómo viene Tania en las últimas semanas?', '¿Cuál es el promedio semanal de Diego?'],
   },
   handler: (input, { db, userId }) => getHoursTrend(db, userId, input),
 })

@@ -22,6 +22,7 @@ export const odooAggregateRecordsTool = defineTool({
     module: 'Consultas libres',
     title: 'Totales agrupados en Odoo',
     example: '¿Cuantas facturas hay por estado de pago y cuanto suman?',
+    evals: ['¿Cuántas ventas en borrador hay por vendedor?', 'Suma lo cotizado por cliente este trimestre.'],
   },
   handler: (input) => odooAggregateRecords(callOdoo, input),
 })

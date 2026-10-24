@@ -15,6 +15,7 @@ export const getTaskTool = defineTool({
     module: 'Tareas',
     title: 'Detalle de tarea',
     example: '¿Que dice la tarea 45?',
+    evals: ['¿Qué dice la tarea 45?', '¿Quién comentó en la tarea 45?'],
   },
   handler: ({ tarea }) => getTask(tarea),
 })

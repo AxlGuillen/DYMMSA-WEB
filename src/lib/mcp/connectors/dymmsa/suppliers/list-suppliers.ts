@@ -21,6 +21,7 @@ export const listSuppliersTool = defineTool({
     module: 'Proveedores',
     title: 'Proveedores de menudeo',
     example: '¿Quien me surte SURTEK y que plazo da?',
+    evals: ['¿Quién me surte SURTEK y qué plazo da?', 'Dame el teléfono de Perfiles del Bajío.'],
   },
   handler: (input, { db }) => listSuppliers(db, input),
 })

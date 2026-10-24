@@ -19,6 +19,7 @@ export const odooSaveProductTool = defineTool({
     module: 'Cotizar y facturar',
     title: 'Alta de productos y clave SAT en Odoo',
     example: '(Botones "Dar de alta" y "Asignar clave SAT" de la vista previa.)',
+    evals: ['Da de alta el producto nuevo con la categoría de pinturas en aerosol (botón de la vista).'],
     limits:
       'Solo desde el boton de la vista previa: da de alta bienes con IVA 16 o pone la clave SAT a un producto que no la tiene. Nunca inventa la clave, no pisa una que ya este en Odoo ni duplica un producto.',
   },

@@ -15,6 +15,7 @@ export const getAppSettingsTool = defineTool({
     module: 'Configuracion',
     title: 'Configuracion de la app',
     example: '¿Que umbrales tiene el planificador de compra?',
+    evals: ['¿Qué umbrales tiene el planificador de compra?', '¿Cuál es el margen por corte?'],
   },
   handler: (_input, { db }) => getAppSettings(db),
 })

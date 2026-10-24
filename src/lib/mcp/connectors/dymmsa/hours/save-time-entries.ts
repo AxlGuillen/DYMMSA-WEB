@@ -33,6 +33,7 @@ export const saveTimeEntriesTool = defineTool({
     module: 'Horas',
     title: 'Guardar checadas',
     example: 'Este es el reporte del checador de la semana, cargalo. / A Tania le falto la salida del miercoles, salio a las 6.',
+    evals: ['Aquí está el reporte del checador de la semana, cárgalo.', 'A Tania le faltó la salida del miércoles, salió a las 6.'],
     limits: 'Carga el reporte (no duplica, no pisa correcciones y no guarda nada si no cuadra con sus totales) o corrige/registra una checada, conservando lo que dijo el checador. No borra checadas.',
   },
   handler: (input, { db, userId }) => saveTimeEntries(db, userId, input),

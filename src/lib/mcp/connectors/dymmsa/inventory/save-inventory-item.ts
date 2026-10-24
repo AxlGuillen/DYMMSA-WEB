@@ -27,6 +27,7 @@ export const saveInventoryItemTool = defineTool({
     module: 'Inventario',
     title: 'Guardar inventario',
     example: 'El 6954 quedo en la gaveta B3.',
+    evals: ['El 6954 quedó en la gaveta B3.', 'Borra la gaveta del 4410.'],
     limits: 'Solo la gaveta de productos ya inventariados. Nunca toca cantidades.',
   },
   handler: async (input, { db }) => commitSaveInventoryItem(db, await planSaveInventoryItem(db, input)),

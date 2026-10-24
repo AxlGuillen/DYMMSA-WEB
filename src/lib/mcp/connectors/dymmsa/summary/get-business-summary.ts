@@ -15,6 +15,7 @@ export const getBusinessSummaryTool = defineTool({
     module: 'Panorama',
     title: 'Resumen del negocio',
     example: '¿Como vamos? Dame el panorama general.',
+    evals: ['¿Cómo vamos? Dame el panorama del negocio.', '¿Cuántas cotizaciones esperan aprobación y cuántas órdenes siguen abiertas?'],
   },
   handler: (_input, { db }) => getBusinessSummary(db),
 })
