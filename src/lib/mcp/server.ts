@@ -1,9 +1,5 @@
-/** The MCP server's instructions and its registry: every tool is a defineTool definition under connectors/ (#155 A3, ADR-041); each call's db comes from the OAuth token, no service_role (ADR-023). */
+/** DYMMSA-WEB's server instructions (#155 A3, ADR-041); what it serves is dymmsaConnector.tools, the one list (review PR #162). */
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { registerTools } from './core/register'
-import { DYMMSA_TOOLS } from './connectors/dymmsa'
-import { ODOO_TOOLS } from './connectors/odoo'
 import type { McpRole } from './manifest'
 import { ODOO_CREDIT_NOTES_RULE, ODOO_INVOICE_LINK_RULE, odooToolMap } from './connectors/odoo/instructions'
 
@@ -57,10 +53,4 @@ Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tare
 ${ODOO_CREDIT_NOTES_RULE}
 
 ${BUSINESS_RULES_MD}`
-}
-
-/** core/register.ts skips the adminOnly definitions for a member (#133); the manifest comes from the same definitions, so they cannot disagree. */
-export function registerDymmsaTools(server: McpServer, role: McpRole): void {
-  // Block A, then block B (ADR-025): the order of tools/list (#155 A3).
-  registerTools(server, [...DYMMSA_TOOLS, ...ODOO_TOOLS], role)
 }

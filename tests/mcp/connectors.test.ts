@@ -33,7 +33,9 @@ describe('rutas de los conectores', () => {
     }
     const odoo = (await (await metadataFor(['api', 'odoo', 'mcp'])).json()) as { resource: string }
     expect(odoo.resource).toBe('http://localhost:3000/api/odoo/mcp')
-    expect((await metadataFor(['api', 'otra'])).status).toBe(404)
+    const missing = await metadataFor(['api', 'otra'])
+    expect(missing.status).toBe(404)
+    expect(missing.headers.get('access-control-allow-origin')).toBe('*')
   })
 })
 

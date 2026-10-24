@@ -9,12 +9,14 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { TOOL_BUDGET, groupByModule, type McpRole } from '@/lib/mcp/manifest'
 import { ADMIN_ONLY_TOOLS, DOCS_MANIFEST, TOOL_MANIFEST, manifestFor, manifestForRole } from '@/lib/mcp/catalog'
-import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
+import { serverInstructions } from '@/lib/mcp/server'
+import { registerTools } from '@/lib/mcp/core/register'
+import { dymmsaConnector } from '@/lib/mcp/connectors/dymmsa/connector'
 import { connectMcp } from './harness'
 
 interface Registered { name: string; description: string; readOnly: boolean; view?: string }
 
-/** What a connector of this role would get in tools/list, captured from the real registry. */
+/** What /api/mcp serves a role in tools/list, captured from the connector's own list. */
 function registryFor(role: McpRole): { tools: Registered[]; resources: { uri: string; mimeType?: string; html: () => Promise<unknown> }[] } {
   const out: Registered[] = []
   const resources: { uri: string; mimeType?: string; html: () => Promise<unknown> }[] = []
@@ -34,7 +36,7 @@ function registryFor(role: McpRole): { tools: Registered[]; resources: { uri: st
       })
     },
   }
-  registerDymmsaTools(stub as unknown as McpServer, role)
+  registerTools(stub as unknown as McpServer, dymmsaConnector.tools, role)
   return { tools: out, resources }
 }
 
