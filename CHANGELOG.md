@@ -83,7 +83,6 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 - [admin] **Siempre queda al menos un administrador**, aunque el cambio no se
   haga desde la pantalla de Equipo. Y la corona de dueño ya no se puede mover
   desde la app.
-
 - **Si editas una cotización mientras el cliente la revisa, su aprobación ya
   no se pierde.** Antes, guardar renovaba todos los productos: si el cliente
   enviaba después, la cotización quedaba Aprobada sin ningún producto

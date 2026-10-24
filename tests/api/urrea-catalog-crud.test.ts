@@ -240,20 +240,35 @@ describe('PATCH /urrea-catalog/[id]', () => {
 })
 
 describe('DELETE /urrea-catalog/[id]', () => {
+  const ID = '11111111-1111-4111-8111-111111111111'
+  const del = (id = ID) =>
+    itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))
+
   test('401 sin auth', async () => {
     activeClient = createMockSupabase({ user: null })
-    const res = await itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '1' }))
-    expect(res.status).toBe(401)
+    expect((await del()).status).toBe(401)
   })
 
   test('elimina por id', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'urrea_catalog.delete': { data: null, error: null } },
+      responses: { 'urrea_catalog.delete': { data: [{ id: ID }], error: null } },
     })
-    const res = await itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '1' }))
-    expect(res.status).toBe(200)
-    const rec = activeClient.callsTo('urrea_catalog', 'delete')[0]
-    expect(filterValue(rec, 'id')).toBe('1')
+    expect((await del()).status).toBe(200)
+    expect(filterValue(activeClient.callsTo('urrea_catalog', 'delete')[0], 'id')).toBe(ID)
+  })
+
+  test('un id que no existe es 404, no un ok (#157)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'urrea_catalog.delete': { data: [], error: null } },
+    })
+    expect((await del()).status).toBe(404)
+  })
+
+  test('un id mal formado es 404 sin tocar la BD (#157)', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await del('no-es-uuid')).status).toBe(404)
+    expect(activeClient.callsTo('urrea_catalog', 'delete')).toHaveLength(0)
   })
 })
