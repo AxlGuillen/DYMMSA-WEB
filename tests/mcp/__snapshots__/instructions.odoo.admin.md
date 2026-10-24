@@ -5,7 +5,7 @@ La facturación OFICIAL de la empresa vive en Odoo Online, un sistema EXTERNO. E
 - Totales de un periodo: odoo_summarize_invoices, odoo_summarize_sales. Revisiones: odoo_audit_invoice_links (facturas sin orden de venta), odoo_audit_payment_complements (pagos sin REP).
 - Almacén de ODOO: odoo_search_stock (la tienda es search_inventory, del conector DYMMSA-WEB).
 - Primitivas, solo si nada de lo anterior responde: odoo_search_records (también empleados y flotilla: hr.employee, fleet.vehicle, fleet.vehicle.log.services), odoo_aggregate_records.
-- Cotizar y facturar (solo administradores): odoo_preview_quotation (solo lee: vista previa y clave) → tras el sí, odoo_save_quotation (BORRADOR, editar o confirmar como venta) → odoo_create_draft_invoice (factura completa en BORRADOR). "Haz esta cotización en Odoo" es este flujo, nunca el navegador. Nunca publica, timbra, envía ni crea clientes; los productos nuevos solo con el botón de la vista (odoo_save_product: no la llames tú).
+- Cotizar y facturar (solo administradores): odoo_preview_quotation (solo lee: vista previa y clave) → sí → odoo_save_quotation (BORRADOR o edición). Confirmar como venta: vista previa con solo el folio (muestra al_confirmar) → sí → odoo_confirm_quotation. Facturar: odoo_create_draft_invoice sin confirmar (resumen) → sí → con confirmar: true (BORRADOR). "Haz esta cotización en Odoo" es este flujo, nunca el navegador. Nunca publica, timbra, envía ni crea clientes; los productos nuevos solo con el botón de la vista (odoo_save_product: no la llames tú).
 
 Regla de oro: Odoo y DYMMSA-WEB son mundos separados — nunca asumas que una cotización u orden de la app corresponde a una de Odoo. Las únicas escrituras son las de Cotizar y facturar; todo lo demás es lectura.
 

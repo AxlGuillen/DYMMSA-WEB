@@ -60,9 +60,11 @@ describe('manifiesto del MCP', () => {
     expect(manifestFor('app').every((t) => !t.name.startsWith('odoo_'))).toBe(true)
   })
 
-  test('REGLA (ADR-040): en Odoo solo escriben las tres de #144, todas de administrador y marcadas como escritura en el registro', () => {
+  test('REGLA (ADR-040): en Odoo solo escriben las de #144 más confirmar (#155 B2b), todas de administrador y marcadas como escritura en el registro', () => {
     const odooWrites = manifestFor('odoo').filter((t) => t.kind === 'write')
-    expect(odooWrites.map((t) => t.name).sort()).toEqual(['odoo_create_draft_invoice', 'odoo_save_product', 'odoo_save_quotation'])
+    expect(odooWrites.map((t) => t.name).sort()).toEqual([
+      'odoo_confirm_quotation', 'odoo_create_draft_invoice', 'odoo_save_product', 'odoo_save_quotation',
+    ])
     for (const w of odooWrites) expect(w.adminOnly, w.name).toBe(true)
     // The preview only reads, but it signs keys: admin-only as well.
     expect(TOOL_MANIFEST.find((t) => t.name === 'odoo_preview_quotation')).toMatchObject({ kind: 'read', adminOnly: true })
@@ -73,7 +75,7 @@ describe('manifiesto del MCP', () => {
   })
 
   test('las tools de administrador existen pero no salen en la documentacion que lee todo el equipo (#123, #133)', () => {
-    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['get_payroll_period', 'list_time_imports', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'record_payroll_hours', 'save_excused_day', 'save_payroll_employee', 'save_time_entries'])
+    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['get_payroll_period', 'list_time_imports', 'odoo_confirm_quotation', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'record_payroll_hours', 'save_excused_day', 'save_payroll_employee', 'save_time_entries'])
     expect(DOCS_MANIFEST.some((t) => t.adminOnly || t.module === 'Nomina' || t.name.includes('payroll'))).toBe(false)
     expect(DOCS_MANIFEST).toHaveLength(TOOL_MANIFEST.length - ADMIN_ONLY_TOOLS.size)
   })

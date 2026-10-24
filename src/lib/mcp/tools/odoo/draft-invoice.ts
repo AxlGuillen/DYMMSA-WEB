@@ -1,6 +1,6 @@
 /**
  * odoo_create_draft_invoice (#144, ADR-040): the FULL invoice of a confirmed sale, as a draft only.
- * Every precondition is read first; afterwards the new invoice is reread to prove it stayed a draft.
+ * Without confirmar it only summarizes (#155 B2b); with it, the draft is created and reread to prove it stayed one.
  */
 
 import { z } from 'zod'
@@ -10,6 +10,8 @@ import { odooWriteEnv } from '@/lib/odoo/env'
 import { idsOf, many2oneId } from '@/lib/odoo/normalize'
 import {
   invoiceReadiness,
+  PICKING_STATE_LABEL,
+  type InvoiceReadiness,
   type OdooProduct,
   type ReadinessInvoice,
   type ReadinessLine,
@@ -26,6 +28,7 @@ type ToolContext = Pick<McpContext, 'db' | 'userId' | 'role'>
 
 export const draftInvoiceShape = {
   folio: z.string().regex(/^S\d{5,}$/i, 'folio de venta de Odoo, ej. S00912').describe('Folio exacto de la venta confirmada'),
+  confirmar: z.literal(true).optional().describe('Crea el borrador; sin esto solo muestra el resumen'),
 }
 
 const draftInvoiceSchema = z.strictObject(draftInvoiceShape)
@@ -40,9 +43,11 @@ export interface DraftInvoiceView {
   readonly moneda: string | null
 }
 
+type SaleRef = { readonly folio: string; readonly id: number; readonly cliente: string | null }
+
 /** odoo_create_draft_invoice's result: always a draft, never posted nor stamped. */
 export interface DraftInvoiceResult {
-  readonly venta: { readonly folio: string; readonly id: number; readonly cliente: string | null }
+  readonly venta: SaleRef
   readonly factura: DraftInvoiceView
   readonly ya_existia?: true
   /** Products on the invoice without a SAT key: add it in Odoo before stamping. */
@@ -51,9 +56,32 @@ export interface DraftInvoiceResult {
   readonly recordatorio: string
 }
 
-const SALE_FIELDS = ['partner_id', 'invoice_status', 'amount_total', 'currency_id', 'invoice_ids', 'picking_ids', 'internal_note']
+export interface InvoiceSummaryLine {
+  readonly producto: string
+  readonly cantidad: number
+  /** Sin IVA, in the sale's currency. */
+  readonly importe: number
+}
+
+/** Without confirmar (#155 B2b): what the draft would carry, so the admin's yes means something. Nothing written. */
+export interface DraftInvoiceSummary {
+  readonly venta: SaleRef
+  /** The whole sale (the assistant only invoices complete ones), never converted; null if a draft exists. */
+  readonly a_facturar: { readonly subtotal: number; readonly total: number; readonly moneda: string | null } | null
+  readonly lineas: readonly InvoiceSummaryLine[]
+  readonly truncado: boolean
+  readonly entrega: string
+  readonly entregas: readonly { readonly folio: string; readonly estado: string }[]
+  readonly borrador_existente: { readonly id: number; readonly total: number; readonly moneda: string | null } | null
+  readonly siguiente_paso: string
+}
+
+const SALE_FIELDS = [
+  'partner_id', 'invoice_status', 'amount_untaxed', 'amount_total', 'currency_id', 'invoice_ids', 'picking_ids', 'internal_note',
+]
 const LINE_FIELDS = [
   'name', 'display_type', 'product_id', 'is_downpayment', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'qty_to_invoice', 'price_unit',
+  'price_subtotal',
 ]
 const INVOICE_FIELDS = ['name', 'state', 'move_type', 'amount_total']
 // What a manual draft looks like (verified on draft 1208): no folio, no auto-post, never sent nor stamped.
@@ -81,7 +109,11 @@ function readinessSale(sale: SaleRecord): ReadinessSale {
   }
 }
 
-async function readLines(reader: OdooCaller, sale: SaleRecord): Promise<ReadinessLine[]> {
+interface InvoiceLine extends ReadinessLine {
+  readonly subtotal: number
+}
+
+async function readLines(reader: OdooCaller, sale: SaleRecord): Promise<InvoiceLine[]> {
   const rows = rowsOf(
     await reader('sale.order.line', 'search_read', {
       domain: [['order_id', '=', sale.id]],
@@ -106,6 +138,7 @@ async function readLines(reader: OdooCaller, sale: SaleRecord): Promise<Readines
       qtyInvoiced: numberOr(row.qty_invoiced, 0),
       qtyToInvoice: numberOr(row.qty_to_invoice, 0),
       price: numberOr(row.price_unit, 0),
+      subtotal: numberOr(row.price_subtotal, 0),
     }
   })
 }
@@ -229,23 +262,41 @@ async function verifyNewDraft(reader: OdooCaller, sale: SaleRecord, before: read
   return { id: invoiceId, folio: NO_FOLIO, estado: 'borrador', total: numberOr(row.amount_total, 0), moneda: many2oneName(row.currency_id) }
 }
 
-/**
- * Reads every precondition of a FULL invoice, then creates it as a draft through the sale's
- * wizard and rereads it. Posting, stamping and sending stay in Odoo, always.
- */
-export async function odooCreateDraftInvoice(
-  deps: OdooQuotationDeps,
-  ctx: ToolContext,
-  raw: DraftInvoiceInput,
-): Promise<DraftInvoiceResult> {
-  // First: the live-admin read counts against the request's budget (#144).
-  const dl = startDeadline()
-  const proof = await requireLiveAdmin(ctx)
-  const input = parseInput(draftInvoiceSchema, raw)
-  // Throws the precise reason (no key, bad URL) before anything is read.
-  odooWriteEnv()
+/** Summary lines shown before the yes; the draft itself always carries every line. */
+export const SUMMARY_LINES_MAX = 50
 
-  const sale = await requireExactSale(deps.reader, input.folio, SALE_FIELDS)
+const QTY_EPSILON = 1e-6
+
+const isGood = (line: InvoiceLine, products: ReadonlyMap<number, InvoiceProduct>) =>
+  line.displayType === false && !(line.productId !== null && products.get(line.productId)?.type === 'service')
+
+/** Goods invoiced "by order" pass readiness undelivered: the summary says so before the yes. */
+function deliveryText(lines: readonly InvoiceLine[], products: ReadonlyMap<number, InvoiceProduct>): string {
+  const goods = lines.filter((line) => isGood(line, products))
+  if (goods.length === 0) return 'Solo servicios: no lleva entrega.'
+  const undelivered = goods.filter((line) => line.qtyDelivered + QTY_EPSILON < line.qty).length
+  if (undelivered === 0) return 'Bienes entregados: la entrega está validada en Odoo.'
+  return `${undelivered} de ${goods.length} bienes sin entregar se facturan por pedido: van en la factura aunque la entrega siga abierta.`
+}
+
+const SUMMARY_NEXT_STEP =
+  'Nada se ha escrito. Muestra el resumen (cliente, total, líneas, entrega) y, tras el sí, repite con el mismo folio y confirmar: true: quedará en BORRADOR, sin folio ni timbre.'
+const SUMMARY_ALREADY =
+  'Nada que crear: la venta ya tiene una factura en borrador. Revisarla, publicarla y timbrarla se hace en Odoo; el asistente nunca timbra.'
+
+interface InvoiceState {
+  readonly sale: SaleRecord
+  readonly venta: SaleRef
+  readonly before: readonly number[]
+  readonly lines: readonly InvoiceLine[]
+  readonly products: ReadonlyMap<number, InvoiceProduct>
+  readonly pickings: readonly { name: string; state: string }[]
+  readonly ready: Exclude<InvoiceReadiness, { estado: 'bloqueada' }>
+}
+
+/** Both phases read the same preconditions; a blocked sale is an error in either. */
+async function readInvoiceState(reader: OdooCaller, folio: string): Promise<InvoiceState> {
+  const sale = await requireExactSale(reader, folio, SALE_FIELDS)
   const readiness = readinessSale(sale)
   // A quotation or a cancelled sale is refused before reading anything else.
   if (sale.state !== 'sale') {
@@ -254,15 +305,68 @@ export async function odooCreateDraftInvoice(
   }
 
   const before = idsOf(sale.raw.invoice_ids)
-  const invoices = await readInvoices(deps.reader, before)
-  const lines = await readLines(deps.reader, sale)
-  const products = await readProducts(deps.reader, lines)
-  const pickings = await readPickings(deps.reader, idsOf(sale.raw.picking_ids))
-  const venta = { folio: sale.name, id: sale.id, cliente: sale.partnerName }
-  const sinClaveSat = withoutSatKey(lines, products)
-
+  const invoices = await readInvoices(reader, before)
+  const lines = await readLines(reader, sale)
+  const products = await readProducts(reader, lines)
+  const pickings = await readPickings(reader, idsOf(sale.raw.picking_ids))
   const ready = invoiceReadiness(readiness, lines, products, pickings, invoices)
   if (ready.estado === 'bloqueada') throw new ToolError(ready.motivo)
+  return { sale, venta: { folio: sale.name, id: sale.id, cliente: sale.partnerName }, before, lines, products, pickings, ready }
+}
+
+function invoiceSummary(state: InvoiceState): DraftInvoiceSummary {
+  const { sale, ready } = state
+  const moneda = many2oneName(sale.raw.currency_id)
+  const invoiceable = ready.estado === 'lista' ? state.lines.filter((l) => l.displayType === false && l.qtyToInvoice > QTY_EPSILON) : []
+  return {
+    venta: state.venta,
+    a_facturar:
+      ready.estado === 'lista'
+        ? { subtotal: numberOr(sale.raw.amount_untaxed, 0), total: numberOr(sale.raw.amount_total, 0), moneda }
+        : null,
+    lineas: invoiceable.slice(0, SUMMARY_LINES_MAX).map((line) => ({
+      producto: line.name || (line.productId !== null ? state.products.get(line.productId)?.name : undefined) || '(sin nombre)',
+      cantidad: line.qtyToInvoice,
+      importe: line.subtotal,
+    })),
+    truncado: invoiceable.length > SUMMARY_LINES_MAX,
+    entrega: deliveryText(state.lines, state.products),
+    entregas: state.pickings.map((p) => ({ folio: p.name, estado: PICKING_STATE_LABEL[p.state] ?? p.state })),
+    borrador_existente: ready.estado === 'ya_existe' ? { id: ready.factura.id, total: ready.factura.total, moneda } : null,
+    siguiente_paso: ready.estado === 'ya_existe' ? SUMMARY_ALREADY : SUMMARY_NEXT_STEP,
+  }
+}
+
+/**
+ * Both phases read every precondition; only confirmar: true creates the draft through the sale's
+ * wizard and rereads it. Posting, stamping and sending stay in Odoo, always.
+ */
+export function odooCreateDraftInvoice(
+  deps: OdooQuotationDeps,
+  ctx: ToolContext,
+  raw: DraftInvoiceInput & { confirmar: true },
+): Promise<DraftInvoiceResult>
+export function odooCreateDraftInvoice(
+  deps: OdooQuotationDeps,
+  ctx: ToolContext,
+  raw: DraftInvoiceInput,
+): Promise<DraftInvoiceResult | DraftInvoiceSummary>
+export async function odooCreateDraftInvoice(
+  deps: OdooQuotationDeps,
+  ctx: ToolContext,
+  raw: DraftInvoiceInput,
+): Promise<DraftInvoiceResult | DraftInvoiceSummary> {
+  // First: the live-admin read counts against the request's budget (#144).
+  const dl = startDeadline()
+  const proof = await requireLiveAdmin(ctx)
+  const input = parseInput(draftInvoiceSchema, raw)
+  // Throws the precise reason (no key, bad URL) before anything is read.
+  odooWriteEnv()
+
+  const state = await readInvoiceState(deps.reader, input.folio)
+  if (!input.confirmar) return invoiceSummary(state)
+  const { sale, venta, before, ready } = state
+  const sinClaveSat = withoutSatKey(state.lines, state.products)
   if (ready.estado === 'ya_existe') {
     // An uncertain create_invoices never reached its trail: say so instead of a silent "ya existía".
     const current = sale.raw.internal_note

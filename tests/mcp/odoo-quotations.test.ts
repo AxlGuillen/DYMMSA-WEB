@@ -1,5 +1,5 @@
 /**
- * odoo_preview_quotation / odoo_save_quotation (#144, ADR-040). The real
+ * odoo_preview_quotation / odoo_save_quotation / odoo_confirm_quotation (#144, ADR-040; #155 B2b). The real
  * keys, the real facade and write catalog run over fakes: nothing reaches Odoo nor Supabase.
  */
 
@@ -8,8 +8,10 @@ import { createHash } from 'node:crypto'
 import { createMockSupabase } from '../helpers/supabase-mock'
 import { fakeOdoo, fakeWriter, throwingWriter, type OdooScript } from '../helpers/fake-odoo'
 import {
+  odooConfirmQuotation,
   odooPreviewQuotation,
   odooSaveQuotation,
+  type ConfirmQuotationInput,
   type PreviewQuotationInput,
   type QuotationPreview,
   type SaveQuotationInput,
@@ -169,6 +171,9 @@ describe('rol y vista previa', () => {
       const { writer, attempts } = throwingWriter()
       await expect(odooPreviewQuotation({ reader: odoo, writer }, who.ctx, CREATE_INPUT)).rejects.toThrow(ADMIN_ONLY_MESSAGE)
       await expect(odooSaveQuotation({ reader: odoo, writer }, who.ctx, { ...CREATE_INPUT, clave: 'x.y' })).rejects.toThrow(
+        ADMIN_ONLY_MESSAGE,
+      )
+      await expect(odooConfirmQuotation({ reader: odoo, writer }, who.ctx, { folio: 'S00912', clave: 'x.y' })).rejects.toThrow(
         ADMIN_ONLY_MESSAGE,
       )
       expect(calls).toEqual([])
@@ -806,7 +811,7 @@ describe('editar', () => {
 
 const REVIEW_LINES = SALE_LINES.slice(0, 2)
 
-describe('confirmar', () => {
+describe('confirmar con odoo_confirm_quotation (#155 B2b)', () => {
   async function reviewKey(): Promise<string> {
     const { data } = await preview({ folio: 's00912' }, editPreviewScript(saleRow(), REVIEW_LINES))
     expect(data).toMatchObject({
@@ -818,7 +823,9 @@ describe('confirmar', () => {
       ],
     })
     expect(data.al_confirmar).toMatch(/^1 línea se podrá facturar en cuanto se confirme/)
-    expect(data.siguiente_paso).toMatch(/confirmar: true y la clave/)
+    // The review now points at the tool of its own, never at the save (#155 B2b).
+    expect(data.siguiente_paso).toMatch(/llama odoo_confirm_quotation con el folio y la clave/)
+    expect(data.siguiente_paso).not.toMatch(/odoo_save_quotation|confirmar: true/)
     return data.clave as string
   }
 
@@ -830,11 +837,14 @@ describe('confirmar', () => {
     ...overrides,
   })
 
+  const confirm = (deps: Parameters<typeof odooConfirmQuotation>[0], clave: string, ctx = context().ctx) =>
+    odooConfirmQuotation(deps, ctx, { folio: 'S00912', clave })
+
   test('confirmar llama action_confirm sin contexto, deja rastro y reporta las entregas', async () => {
     const clave = await reviewKey()
     const { odoo } = fakeOdoo(confirmScript())
     const { writer, calls } = fakeWriter()
-    const result = await odooSaveQuotation({ reader: odoo, writer }, context().ctx, { folio: 'S00912', confirmar: true, clave })
+    const result = await confirm({ reader: odoo, writer }, clave)
 
     expect(calls.map((c) => `${c.model}.${c.method}`)).toEqual(['sale.order.action_confirm', 'sale.order.write'])
     // No context at all: send_email would mail the customer.
@@ -849,7 +859,10 @@ describe('confirmar', () => {
       confirmacion: { entregas: ['OFI/OUT/00650'], facturable_ya: 1 },
     })
     expect(result).not.toHaveProperty('aviso_rastro')
-    expect(result.siguiente_paso).toMatch(/quedó como VENTA confirmada\. Para facturar: odoo_create_draft_invoice/)
+    // Invoicing is offered, never pushed: the summary phase comes first (#155).
+    expect(result.siguiente_paso).toBe(
+      'La S00912 quedó como VENTA confirmada. Si piden facturarla: odoo_create_draft_invoice sin confirmar muestra antes el resumen.',
+    )
   })
 
   test('reintento tras confirmar → ya estaba confirmada, cero escrituras', async () => {
@@ -859,7 +872,7 @@ describe('confirmar', () => {
     const confirmed = saleRow({ state: 'sale', write_date: '2026-10-17 23:05:00', internal_note: trailed })
     const { odoo } = fakeOdoo(confirmScript({ 'sale.order.search_read': [[confirmed], [saleRow({ state: 'sale', picking_ids: [] })]] }))
     const { writer, attempts } = throwingWriter()
-    const result = await odooSaveQuotation({ reader: odoo, writer }, context().ctx, { folio: 'S00912', confirmar: true, clave })
+    const result = await confirm({ reader: odoo, writer }, clave)
     expect(result).toMatchObject({ ya_existia: true, confirmacion: { entregas: [], facturable_ya: 1 } })
     expect(result.siguiente_paso).toBe('La S00912 ya estaba confirmada: no escribí nada.')
     expect(result).not.toHaveProperty('aviso_rastro')
@@ -870,11 +883,7 @@ describe('confirmar', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const clave = await reviewKey()
     const { writer, calls } = fakeWriter({ 'sale.order.action_confirm': [new OdooUncertainWriteError('sale.order.action_confirm', 'quotation', 504)] })
-    const failure = await odooSaveQuotation({ reader: fakeOdoo(confirmScript()).odoo, writer }, context().ctx, {
-      folio: 'S00912',
-      confirmar: true,
-      clave,
-    }).catch((e: unknown) => e)
+    const failure = await confirm({ reader: fakeOdoo(confirmScript()).odoo, writer }, clave).catch((e: unknown) => e)
     expect(failure).toBeInstanceOf(OdooUncertainWriteError)
     // The trail never went out: action_confirm was the last attempt.
     expect(calls.map((c) => c.method)).toEqual(['action_confirm'])
@@ -883,7 +892,7 @@ describe('confirmar', () => {
     const older = `${ORIGINAL_NOTE}<p>Confirmada por el asistente a petición de Ana Admin · 2026-10-01 10:00 · clave 0123456789</p>`
     const { odoo } = fakeOdoo(confirmScript({ 'sale.order.search_read': [[saleRow({ state: 'sale', internal_note: older })], [saleRow({ state: 'sale', picking_ids: [650] })]] }))
     const { writer: never, attempts } = throwingWriter()
-    const retry = await odooSaveQuotation({ reader: odoo, writer: never }, context().ctx, { folio: 'S00912', confirmar: true, clave })
+    const retry = await confirm({ reader: odoo, writer: never }, clave)
     expect(retry).toMatchObject({ ya_existia: true, cotizacion: { estado: 'venta confirmada' } })
     expect(retry.aviso_rastro).toBe(
       'La S00912 está confirmada, pero su nota interna no dice que la confirmó el asistente con esta clave: si fue esta llamada (quedó incierta), anota en Odoo quién la pidió.',
@@ -892,15 +901,80 @@ describe('confirmar', () => {
     expect(attempts).toEqual([])
   })
 
-  test('la vigencia no viaja con una revisión ni con confirmar: se cambia editando', async () => {
+  test('la entrada es solo folio y clave: líneas, cliente o vigencia no entran, y la vigencia se cambia editando', async () => {
     const { odoo, calls } = fakeOdoo({})
     const { writer, ops } = fakeWriter()
     await expect(odooPreviewQuotation({ reader: odoo, writer }, context().ctx, { folio: 'S00912', vigencia: '2026-10-30' })).rejects.toThrow(
       /La vigencia se cambia editando/,
     )
+    const extra = [
+      { folio: 'S00912', lineas: [NOTE_LINE], clave: 'a.b' },
+      { folio: 'S00912', vigencia: '2026-10-30', clave: 'a.b' },
+      { folio: 'S00912', cliente: '#1', clave: 'a.b' },
+      { folio: 'S00912', confirmar: true, clave: 'a.b' },
+    ]
+    for (const input of extra) {
+      await expect(odooConfirmQuotation({ reader: odoo, writer }, context().ctx, input as unknown as ConfirmQuotationInput), JSON.stringify(input)).rejects.toThrow(
+        /^Entrada inválida/,
+      )
+    }
     await expect(
-      odooSaveQuotation({ reader: odoo, writer }, context().ctx, { folio: 'S00912', confirmar: true, vigencia: '2026-10-30', clave: 'a.b' }),
-    ).rejects.toThrow(/La vigencia se cambia editando/)
+      odooConfirmQuotation({ reader: odoo, writer }, context().ctx, { cliente: '#1', clave: 'a.b' } as unknown as ConfirmQuotationInput),
+    ).rejects.toThrow(/^Entrada inválida en folio/)
+    await expect(odooConfirmQuotation({ reader: odoo, writer }, context().ctx, { folio: '912', clave: 'a.b' })).rejects.toThrow(
+      /folio de venta de Odoo, ej\. S00912/,
+    )
+    expect(calls).toEqual([])
+    expect(ops).toEqual([])
+  })
+
+  test('odoo_save_quotation ya no confirma: con solo el folio remite a odoo_confirm_quotation y no acepta confirmar', async () => {
+    const { odoo, calls } = fakeOdoo({})
+    const { writer, ops } = fakeWriter()
+    await expect(odooSaveQuotation({ reader: odoo, writer }, context().ctx, { folio: 'S00912', clave: 'a.b' })).rejects.toThrow(
+      'Con solo el folio no hay nada que guardar: manda las líneas para editarla; para confirmarla como venta, odoo_confirm_quotation con el folio y la clave de la revisión.',
+    )
+    const withConfirm = { folio: 'S00912', confirmar: true, clave: 'a.b' } as unknown as SaveQuotationInput
+    await expect(odooSaveQuotation({ reader: odoo, writer }, context().ctx, withConfirm)).rejects.toThrow(/^Entrada inválida/)
+    // A review key edits nothing either.
+    const clave = await reviewKey()
+    await expect(odooSaveQuotation({ reader: odoo, writer }, context().ctx, { ...EDIT_INPUT, clave })).rejects.toThrow(
+      /para confirmar la venta, no para editar la cotización/,
+    )
+    expect(calls).toEqual([])
+    expect(ops).toEqual([])
+  })
+
+  test('sin clave, alterada, de otro admin, de otra venta o de crear: no lee ni escribe nada', async () => {
+    const clave = await reviewKey()
+    const [payload, signature] = clave.split('.')
+    const flipped = `${payload}.${signature.startsWith('A') ? 'B' : 'A'}${signature.slice(1)}`
+    const createClave = await createKey()
+    const cases: [string, ConfirmQuotationInput, ReturnType<typeof context>, string | RegExp][] = [
+      ['sin clave', { folio: 'S00912', clave: '  ' }, context(), PREVIEW_KEY_MISSING_MESSAGE],
+      ['alterada', { folio: 'S00912', clave: flipped }, context(), PREVIEW_KEY_INVALID_MESSAGE],
+      ['de otro admin', { folio: 'S00912', clave }, context({ userId: 'admin-2' }), PREVIEW_KEY_OTHER_ADMIN_MESSAGE],
+      ['de otra venta', { folio: 'S00913', clave }, context(), PREVIEW_CHANGED_MESSAGE],
+      ['de crear', { folio: 'S00912', clave: createClave }, context(), /para crear una cotización, no para confirmar la venta/],
+    ]
+    for (const [label, input, who, message] of cases) {
+      const { odoo, calls } = fakeOdoo({})
+      const { writer, ops } = fakeWriter()
+      await expect(odooConfirmQuotation({ reader: odoo, writer }, who.ctx, input), label).rejects.toThrow(message)
+      // The key is checked before a single read.
+      expect(calls, label).toEqual([])
+      expect(ops, label).toEqual([])
+    }
+  })
+
+  test('sin llave de escritura no lee ni escribe nada', async () => {
+    const clave = await reviewKey()
+    vi.stubEnv('ODOO_WRITE_API_KEY', '')
+    const { odoo, calls } = fakeOdoo({})
+    const { writer, ops } = fakeWriter()
+    await expect(confirm({ reader: odoo, writer }, clave)).rejects.toThrow(
+      'La escritura en Odoo está deshabilitada en este servidor (falta ODOO_WRITE_API_KEY).',
+    )
     expect(calls).toEqual([])
     expect(ops).toEqual([])
   })
@@ -910,7 +984,7 @@ describe('confirmar', () => {
     const clave = await reviewKey()
     const { odoo } = fakeOdoo(confirmScript())
     const { writer, calls } = fakeWriter({ 'sale.order.write': [new OdooError('Odoo rechazó sale.order.write: boom', 400)] })
-    const result = await odooSaveQuotation({ reader: odoo, writer }, context().ctx, { folio: 'S00912', confirmar: true, clave })
+    const result = await confirm({ reader: odoo, writer }, clave)
 
     expect(calls.map((c) => c.method)).toEqual(['action_confirm', 'write'])
     expect(result.aviso_rastro).toBe('La S00912 quedó confirmada, pero no pude anotar en su nota interna quién la confirmó.')
@@ -918,33 +992,17 @@ describe('confirmar', () => {
     expect(error).toHaveBeenCalledWith('[odoo-write] trail failed after confirming', { saleId: 912, error: 'OdooError' })
   })
 
-  test('confirmar exige folio y prohíbe líneas', async () => {
-    const { odoo, calls } = fakeOdoo({})
-    const { writer, ops } = fakeWriter()
-    await expect(
-      odooSaveQuotation({ reader: odoo, writer }, context().ctx, { folio: 'S00912', confirmar: true, lineas: [NOTE_LINE], clave: 'a.b' }),
-    ).rejects.toThrow(/Confirmar exige el folio y ninguna línea/)
-    await expect(
-      odooSaveQuotation({ reader: odoo, writer }, context().ctx, { cliente: '#1', confirmar: true, clave: 'a.b' }),
-    ).rejects.toThrow(/Confirmar exige el folio/)
-    await expect(odooSaveQuotation({ reader: odoo, writer }, context().ctx, { folio: 'S00912', clave: 'a.b' })).rejects.toThrow(
-      /Con solo el folio no hay nada que guardar/,
-    )
-    expect(calls).toEqual([])
-    expect(ops).toEqual([])
-  })
-
-  test('confirmar sin productos o con la venta modificada no escribe', async () => {
+  test('una clave vieja no confirma: sin productos, con la venta modificada o vencida no escribe', async () => {
     const clave = await reviewKey()
     const { writer, ops } = fakeWriter()
     const empty = fakeOdoo(confirmScript({ 'sale.order.line.search_count': [0] }))
-    await expect(
-      odooSaveQuotation({ reader: empty.odoo, writer }, context().ctx, { folio: 'S00912', confirmar: true, clave }),
-    ).rejects.toThrow('La S00912 no tiene productos: no se puede confirmar.')
+    await expect(confirm({ reader: empty.odoo, writer }, clave)).rejects.toThrow('La S00912 no tiene productos: no se puede confirmar.')
+    // The key pins the write_date the review read: anyone touching the sale since voids it.
     const touched = fakeOdoo(confirmScript({ 'sale.order.search_read': [[saleRow({ write_date: '2026-10-17 22:59:59' })]] }))
-    await expect(
-      odooSaveQuotation({ reader: touched.odoo, writer }, context().ctx, { folio: 'S00912', confirmar: true, clave }),
-    ).rejects.toThrow(PREVIEW_CHANGED_MESSAGE)
+    await expect(confirm({ reader: touched.odoo, writer }, clave)).rejects.toThrow(PREVIEW_CHANGED_MESSAGE)
+    vi.setSystemTime(NOW + 31 * 60_000)
+    const late = fakeOdoo(confirmScript())
+    await expect(confirm({ reader: late.odoo, writer }, clave)).rejects.toThrow(PREVIEW_EXPIRED_MESSAGE)
     expect(ops).toEqual([])
   })
 })

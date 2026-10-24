@@ -16,6 +16,7 @@ import { odooSearchRecordsTool } from './queries/odoo-search-records'
 import { odooAggregateRecordsTool } from './queries/odoo-aggregate-records'
 import { odooPreviewQuotationTool } from './quotations/odoo-preview-quotation'
 import { odooSaveQuotationTool } from './quotations/odoo-save-quotation'
+import { odooConfirmQuotationTool } from './quotations/odoo-confirm-quotation'
 import { odooSaveProductTool } from './quotations/odoo-save-product'
 import { odooCreateDraftInvoiceTool } from './quotations/odoo-create-draft-invoice'
 
@@ -32,6 +33,7 @@ export const ODOO_TOOLS: readonly ToolDefinition[] = [
   odooAggregateRecordsTool,
   odooPreviewQuotationTool,
   odooSaveQuotationTool,
+  odooConfirmQuotationTool,
   odooSaveProductTool,
   odooCreateDraftInvoiceTool,
 ]

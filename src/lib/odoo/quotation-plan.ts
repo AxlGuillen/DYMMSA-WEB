@@ -26,14 +26,14 @@ export interface LineRequest {
 }
 
 export type LineKind = 'producto' | 'nota' | 'seccion'
-export type QuotationMode = 'crear' | 'editar' | 'revisar' | 'confirmar'
+/** Confirming is not a mode: odoo_confirm_quotation takes only the folio and the review key (#155 B2b). */
+export type QuotationMode = 'crear' | 'editar' | 'revisar'
 
 export interface ModeInput {
   readonly cliente?: string
   readonly folio?: string
   readonly lineas?: readonly LineRequest[]
   readonly vigencia?: string
-  readonly confirmar?: boolean
 }
 
 const VALIDITY_NEEDS_LINES =
@@ -58,24 +58,14 @@ export function quotationMode(input: ModeInput): QuotationMode {
   if (hasClient && hasFolio) {
     throw new OdooError('Manda el cliente (para crear) o el folio (para una cotización que ya existe), no los dos.')
   }
-  // Review and confirm never write validity_date: a vigencia there would be signed and ignored.
-  const hasValidity = present(input.vigencia)
-  if (input.confirmar) {
-    if (!hasFolio || hasLines) {
-      throw new OdooError(
-        'Confirmar exige el folio y ninguna línea: guarda antes los cambios y confirma con la clave de una revisión (solo el folio).',
-      )
-    }
-    if (hasValidity) throw new OdooError(VALIDITY_NEEDS_LINES)
-    return 'confirmar'
-  }
-  if (hasFolio && !hasLines && hasValidity) throw new OdooError(VALIDITY_NEEDS_LINES)
+  // A review never writes validity_date: a vigencia there would be signed and ignored.
+  if (hasFolio && !hasLines && present(input.vigencia)) throw new OdooError(VALIDITY_NEEDS_LINES)
   if (hasFolio) return hasLines ? 'editar' : 'revisar'
   if (hasClient) {
     if (!hasLines) throw new OdooError('Para crear una cotización manda el cliente y sus líneas.')
     return 'crear'
   }
-  throw new OdooError('Indica el cliente y las líneas (para crear) o el folio (para revisar, editar o confirmar).')
+  throw new OdooError('Indica el cliente y las líneas (para crear) o el folio (para revisar o editar).')
 }
 
 const PRODUCT_FIELDS = [
@@ -938,7 +928,7 @@ export const SALE_STATE_LABEL: Readonly<Record<string, string>> = Object.freeze(
   cancel: 'cancelada',
 })
 
-const PICKING_STATE_LABEL: Readonly<Record<string, string>> = Object.freeze({
+export const PICKING_STATE_LABEL: Readonly<Record<string, string>> = Object.freeze({
   draft: 'Borrador',
   waiting: 'Esperando otra operación',
   confirmed: 'En espera',
@@ -991,7 +981,7 @@ export function invoiceReadiness(
   invoices: readonly ReadinessInvoice[] = [],
 ): InvoiceReadiness {
   if (sale.state === 'draft' || sale.state === 'sent') {
-    return refuse(`La ${sale.name} sigue como cotización: primero confírmala (con tu sí, odoo_save_quotation con confirmar).`)
+    return refuse(`La ${sale.name} sigue como cotización: primero confírmala (vista previa con el folio y, con tu sí, odoo_confirm_quotation).`)
   }
   if (sale.state === 'cancel') return refuse(`La ${sale.name} está cancelada.`)
   if (sale.state !== 'sale') return refuse(`La ${sale.name} no es una venta confirmada (${sale.state}).`)
