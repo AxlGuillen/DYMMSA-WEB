@@ -1,6 +1,7 @@
 /** App settings, read-only (#109): the thresholds and margins the planners resolve with defaults. */
 
-import { ToolError, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import { resolveThresholds, SETTING_THRESHOLD_MONEY, SETTING_THRESHOLD_PCT } from '@/lib/purchase-plan'
 import { resolveCutMargin, SETTING_CUT_MARGIN_MM } from '@/lib/cut-plan'
 

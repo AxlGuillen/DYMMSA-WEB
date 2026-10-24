@@ -4,7 +4,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase } from '../helpers/supabase-mock'
 import { NGTECO_WEEK } from '../helpers/fixtures/ngteco'
 import { previewTimeReport } from '@/lib/mcp/tools/hours'
-import type { Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
 
 type Handler = (params: unknown) => void
 const host = vi.hoisted(() => ({

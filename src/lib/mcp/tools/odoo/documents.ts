@@ -2,7 +2,7 @@
 
 import type { OdooCaller } from '@/lib/odoo/client'
 import { htmlToText, idsOf, normalizeRecords } from '@/lib/odoo/normalize'
-import { ToolError } from '../../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 import { linkDiagnosis } from './links'
 
 const LINES_LIMIT = 80

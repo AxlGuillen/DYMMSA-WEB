@@ -1,6 +1,9 @@
 /** Suppliers module (#21): the list, the name lookup the payables tools reuse (#109) and save_supplier (#134). */
 
-import { ToolError, requireSingleMatch, sanitizeSearch, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { sanitizeSearch } from '@/lib/text'
+import type { Db } from '@/lib/mcp/core/db'
 import { normalizeBrandTag } from '@/lib/business-rules'
 import { paymentTermsLabel } from '@/lib/payables'
 import { createSupplier, parseSupplierInput, SupplierError, updateSupplier } from '@/lib/suppliers-store'

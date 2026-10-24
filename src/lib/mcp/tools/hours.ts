@@ -3,7 +3,8 @@
  * purpose: the db comes from the caller's token, so RLS decides — a member sees only their own rows.
  */
 
-import { ToolError, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
 import { correctTimeEntry, createManualEntry, importTimeReport, loadClockProfiles, TimeEntryError } from '@/lib/time-entries-store'

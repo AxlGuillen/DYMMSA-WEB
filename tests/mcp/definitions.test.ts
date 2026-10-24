@@ -1,13 +1,16 @@
 /** Contract every defineTool definition keeps (#155 A3, ADR-041): checked per definition, not by hand. */
 
 import { describe, test, expect } from 'vitest'
+import { DYMMSA_TOOLS } from '@/lib/mcp/connectors/dymmsa'
 import { ODOO_TOOLS } from '@/lib/mcp/connectors/odoo'
 import { TOOL_BUDGET } from '@/lib/mcp/manifest'
 
-describe.each(ODOO_TOOLS.map((t) => [t.name, t] as const))('definición %s', (name, tool) => {
+const ALL_TOOLS = [...DYMMSA_TOOLS, ...ODOO_TOOLS]
+
+describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (name, tool) => {
   test('nombre snake_case de hasta 64 caracteres, con el prefijo de su conector', () => {
     expect(name).toMatch(/^[a-z][a-z0-9_]{0,63}$/)
-    if (tool.connector === 'odoo') expect(name.startsWith('odoo_')).toBe(true)
+    expect(name.startsWith('odoo_')).toBe(tool.connector === 'odoo')
   })
 
   test('descripción con contenido y dentro de su tope', () => {
@@ -29,6 +32,6 @@ describe.each(ODOO_TOOLS.map((t) => [t.name, t] as const))('definición %s', (na
 })
 
 test('ningún nombre se repite entre definiciones', () => {
-  const names = ODOO_TOOLS.map((t) => t.name)
+  const names = ALL_TOOLS.map((t) => t.name)
   expect(new Set(names).size).toBe(names.length)
 })

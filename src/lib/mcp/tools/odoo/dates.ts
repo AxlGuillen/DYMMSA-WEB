@@ -1,6 +1,6 @@
 /** Date/range helpers shared by the Odoo tools (review PR #116: one copy instead of four). */
 
-import { ToolError } from '../../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 

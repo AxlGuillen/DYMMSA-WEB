@@ -13,7 +13,9 @@ import { PRODUCTS_UNAUTHORIZED_MESSAGE, verifyProductsAuthorization } from '@/li
 import { LINE_PRICE_MAX, MAX_NEW_PRODUCTS, productName, splitEtm, type ProductForCreation } from '@/lib/odoo/quotation-plan'
 import { ETM_CODE_LIST, type ProductCreateVals } from '@/lib/odoo/write-catalog'
 import type { McpContext } from '../../core/context'
-import { fold, requireLiveAdmin, ToolError } from '../../shared'
+import { fold } from '@/lib/text'
+import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
+import { ToolError } from '@/lib/mcp/core/errors'
 import { parseInput, type OdooQuotationDeps } from './quotations'
 import { isId, rowsOf } from './resolve'
 

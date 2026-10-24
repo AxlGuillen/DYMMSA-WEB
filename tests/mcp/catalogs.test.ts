@@ -4,7 +4,8 @@ import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue } from '../helpers/supabase-mock'
 import { searchProducts } from '@/lib/mcp/tools/products'
 import { searchUrreaCatalog } from '@/lib/mcp/tools/urrea'
-import { ToolError, type Db } from '@/lib/mcp/shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 

@@ -19,7 +19,9 @@ import {
   type StatementRange,
 } from '@/lib/customers'
 import { isRealDate } from '@/lib/month'
-import { fold, requireSingleMatch, ToolError } from '../../shared'
+import { fold } from '@/lib/text'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { ToolError } from '@/lib/mcp/core/errors'
 import { assertDateRange } from './dates'
 
 const MAX_LIMIT = 50

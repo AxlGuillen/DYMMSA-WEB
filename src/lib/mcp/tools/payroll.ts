@@ -4,7 +4,10 @@
  * `is_admin()` — a member reads nothing and writes nothing.
  */
 
-import { ToolError, fold, requireSingleMatch, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import { fold } from '@/lib/text'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
 import { formatDuration, SHIFT_LABELS } from '@/lib/timesheet'

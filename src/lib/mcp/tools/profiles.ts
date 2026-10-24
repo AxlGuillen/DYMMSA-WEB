@@ -3,7 +3,10 @@
  * member see only their own row and an admin the whole team.
  */
 
-import { ToolError, requireSingleMatch, sanitizeSearch, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { sanitizeSearch } from '@/lib/text'
+import type { Db } from '@/lib/mcp/core/db'
 import { avatarPublicUrl } from '@/lib/avatar'
 import { ROLE_LABELS } from '@/lib/profile'
 import { SHIFT_LABELS } from '@/lib/timesheet'

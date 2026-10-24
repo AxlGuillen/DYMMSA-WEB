@@ -2,9 +2,9 @@
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, hasFilter, filterValue } from '../helpers/supabase-mock'
-import { ToolError } from '@/lib/mcp/shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 import { searchInventory, getInventoryStats, setInventoryLocation } from '@/lib/mcp/tools/inventory'
-import { type Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 

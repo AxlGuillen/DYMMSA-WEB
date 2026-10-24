@@ -17,7 +17,8 @@ import {
 } from '@/lib/odoo/quotation-plan'
 import { noteHasTrail } from '@/lib/odoo/writer'
 import type { McpContext } from '../../core/context'
-import { requireLiveAdmin, ToolError } from '../../shared'
+import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
+import { ToolError } from '@/lib/mcp/core/errors'
 import { errorName, noteOf, parseInput, type OdooQuotationDeps } from './quotations'
 import { isId, many2oneName, numberOr, requireExactSale, rowsOf, type SaleRecord } from './resolve'
 

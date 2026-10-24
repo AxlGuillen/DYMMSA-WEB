@@ -11,7 +11,7 @@ import {
   type GitHubComment,
   type GitHubIssue,
 } from '@/lib/github'
-import { ToolError } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 
 /** Fixed reporter: the MCP has no logged-in user (auth is a shared token). */
 const MCP_REPORTER = 'Asistente (MCP)'

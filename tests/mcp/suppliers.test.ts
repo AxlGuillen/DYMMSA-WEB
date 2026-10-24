@@ -2,7 +2,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue, hasFilter, type CallRecord } from '../helpers/supabase-mock'
-import { type Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
 import { listSuppliers, resolveSupplier, saveSupplier } from '@/lib/mcp/tools/suppliers'
 import { createSupplier } from '@/lib/suppliers-store'
 

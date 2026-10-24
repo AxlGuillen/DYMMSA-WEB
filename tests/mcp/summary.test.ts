@@ -3,7 +3,7 @@
 import { describe, test, expect, beforeEach } from 'vitest'
 import { createMockSupabase } from '../helpers/supabase-mock'
 import { getBusinessSummary } from '@/lib/mcp/tools/summary'
-import { type Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 

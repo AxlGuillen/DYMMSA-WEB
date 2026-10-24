@@ -8,7 +8,8 @@ import { createMockSupabase } from '../helpers/supabase-mock'
 import { fakeOdoo, fakeWriter, throwingWriter, type OdooScript } from '../helpers/fake-odoo'
 import { odooPreviewQuotation, type QuotationLineInput, type QuotationPreview } from '@/lib/mcp/tools/odoo/quotations'
 import { odooSaveProduct, SAT_PLACEHOLDER, type SaveProductInput } from '@/lib/mcp/tools/odoo/products-write'
-import { splitResultMeta, type Db } from '@/lib/mcp/shared'
+import { splitResultMeta } from '@/lib/mcp/core/result'
+import type { Db } from '@/lib/mcp/core/db'
 import { OdooUncertainWriteError } from '@/lib/odoo/client'
 import {
   PRODUCTS_AUTHORIZATION_META,

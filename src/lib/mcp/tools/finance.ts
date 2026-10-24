@@ -3,7 +3,8 @@
  * Odoo missing or failing degrades to egresos only — the tool never fails for that (ADR-027).
  */
 
-import { ToolError, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import { todayInMexico } from '@/lib/format'
 import { ISO_MONTH, monthRange } from '@/lib/month'
 import { DEFAULT_PAYABLE_CURRENCY, splitByCurrency, summarizeMonth } from '@/lib/payables'

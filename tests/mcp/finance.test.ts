@@ -2,7 +2,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue, type CallRecord } from '../helpers/supabase-mock'
-import { type Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
 import { getMonthClosing, type IncomeDeps } from '@/lib/mcp/tools/finance'
 import { OdooError } from '@/lib/odoo/client'
 import { todayInMexico } from '@/lib/format'
