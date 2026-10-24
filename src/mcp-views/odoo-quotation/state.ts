@@ -141,6 +141,17 @@ export function altaArguments(state: ViewState): ButtonArgs<AltaArguments> {
   return { ready: true, args: { productos, autorizacion: state.autorizacion } }
 }
 
+/** Why "Asignar clave SAT" is off while every product stays on "sin clave" (review PR #167). */
+export const NOTHING_CHOSEN = 'Elige la clave SAT de al menos un producto.'
+
+/** What the model is told after the assign click; a key Odoo did not name never shows as a fake code. */
+export function assignedSummary(result: SatAssignResult): string {
+  const keyed = (list: readonly { readonly id: number; readonly nombre: string; readonly clave_sat: string | null }[]) =>
+    list.map((p) => `${p.nombre} (#${p.id})${p.clave_sat ? ` → ${p.clave_sat}` : ' (ya tenía clave)'}`).join(', ')
+  const kept = result.ya_tenian.length ? ` Ya tenían clave en Odoo (no se tocó): ${keyed(result.ya_tenian)}.` : ''
+  return `El administrador asignó la clave SAT en Odoo desde la vista: ${keyed(result.asignados) || 'ninguna'}.${kept}`
+}
+
 export interface AssignArguments {
   readonly asignar: readonly ({ readonly producto_id: number } & ChosenKey)[]
   readonly autorizacion: string
@@ -157,6 +168,6 @@ export function assignArguments(state: ViewState): ButtonArgs<AssignArguments> {
     if (!result.ok) return { ready: false, reason: `${item.nombre}: ${result.error}` }
     if (result.key.clave_sat) asignar.push({ producto_id: item.producto_id, ...result.key })
   }
-  if (asignar.length === 0) return { ready: false, reason: null }
+  if (asignar.length === 0) return { ready: false, reason: NOTHING_CHOSEN }
   return { ready: true, args: { asignar, autorizacion: state.autorizacion } }
 }

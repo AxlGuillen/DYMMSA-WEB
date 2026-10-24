@@ -340,6 +340,8 @@ interface SatAdvice {
 const SAT_READ_FAILED = 'No pude leer el catálogo del SAT para sugerir claves: tecléala en la vista o captúrala en Odoo.'
 const SAT_TRUNCATED =
   'El catálogo del SAT trajo demasiadas coincidencias: puede faltar una clave mejor entre las sugeridas (precisa con categoria_sat).'
+const satCut = (count: number) =>
+  `No alcancé a buscar todas las palabras de ${count === 1 ? '1 producto' : `${count} productos`}: su clave SAT puede no estar entre las sugeridas (precisa con categoria_sat o tecléala).`
 
 type SatTarget = Pick<NewProductView, 'clave_sat' | 'categoria_sat' | 'clave_sat_propuesta' | 'sugerencias_sat'>
 
@@ -389,7 +391,8 @@ async function adviseSatKeys(
     ...nextNew.map((p) => categoryAdvice(p.nombre_en_odoo, p)),
     ...nextExisting.map((p) => categoryAdvice(p.nombre, p)),
   ].filter((text): text is string => text !== null)
-  return { nuevos: nextNew, sinClave: nextExisting, avisos: [...avisos, ...(read.truncated ? [SAT_TRUNCATED] : [])] }
+  const limits = [...(read.truncated ? [SAT_TRUNCATED] : []), ...(read.cut.length > 0 ? [satCut(read.cut.length)] : [])]
+  return { nuevos: nextNew, sinClave: nextExisting, avisos: [...avisos, ...limits] }
 }
 
 const offeredKeys = (target: Pick<ProductWithoutSat, 'clave_sat' | 'sugerencias_sat'>) => [

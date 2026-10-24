@@ -189,7 +189,7 @@ tests/
     └── helpers/ # render (QueryClientProvider), stores (resetStores), fixtures
 ```
 
-- **Comando:** `bun run test` (2378 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
+- **Comando:** `bun run test` (2380 tests). Watch: `bun run test:watch`. Coverage: `bun run test:coverage`.
 - **Verificación completa: `bun run check`** (tsc + eslint + vitest) — el mismo comando que corre el CI (`.github/workflows/ci.yml`) en cada PR. **El lint se mantiene en CERO findings**: si un warning es inevitable (ej. `react-hooks/incompatible-library` de react-hook-form), se suprime con `eslint-disable` + comentario del porqué; nunca se deja ruido permanente.
 - ⚠️ **Usar `bun run test`, NO `bun test`** — `bun test` invoca el runner integrado de Bun y falla al toparse con imports de `vitest`.
 - **Backend = unit con mock de Supabase** (sin BD real). El mock reproduce el query builder chainable y registra llamadas para assertions de auth, validación, rollback y side effects de inventario. Valida las columnas del `.select()` de las tablas en `SCHEMA_CHECKED_TABLES` (hoy `quotations`) contra `supabase/schema.sql` y responde 42703 como PostgREST si una no existe. Se agregó porque el mock aceptaba `quotations.quotation_number`, una columna inexistente, y `cut-candidates` llegó a producción con ella. El resto de las tablas acepta cualquier columna; la red real es la integración.
