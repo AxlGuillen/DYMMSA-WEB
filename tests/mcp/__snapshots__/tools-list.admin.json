@@ -1202,7 +1202,7 @@
   {
     "name": "save_excused_day",
     "title": "Guardar día justificado",
-    "description": "Marca, cambia o quita un día justificado, solo si un administrador lo pide. `feriado`: no pide horas. `salida_autorizada`: cuenta como cumplido con lo trabajado. Sin `persona`, todo el equipo; con ella, solo esa persona. Si ya existe, lo actualiza; `quitar: true` lo borra.",
+    "description": "Marca o cambia un día justificado, solo si un administrador lo pide. `feriado`: no pide horas. `salida_autorizada`: cuenta como cumplido con lo trabajado. Sin `persona`, todo el equipo; con ella, solo esa persona. Si ya existe, lo actualiza. Quitar uno es delete_record.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1211,6 +1211,7 @@
           "format": "date"
         },
         "tipo": {
+          "description": "Obligatorio en uno nuevo",
           "type": "string",
           "enum": [
             "feriado",
@@ -1218,14 +1219,12 @@
           ]
         },
         "persona": {
+          "description": "Nombre (o parte) o ref; omitida = todo el equipo",
           "type": "string"
         },
         "nota": {
           "type": "string",
           "maxLength": 200
-        },
-        "quitar": {
-          "type": "boolean"
         }
       },
       "required": [
@@ -1576,6 +1575,90 @@
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "delete_record",
+    "title": "Borrar un registro",
+    "description": "El único borrado: `tipo` = proveedor, marca, medida (de material), factura (pendiente o cancelada), checada o dia_justificado. Dos fases siempre: la primera dice qué se pierde (una checada importada vuelve con el re-import) o qué lo bloquea (un proveedor con facturas, una marca en uso, una factura pagada). Úsala para \"borra la factura que registré dos veces\". Nunca borra cotizaciones, órdenes, productos, inventario ni catálogo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tipo": {
+          "type": "string",
+          "enum": [
+            "proveedor",
+            "marca",
+            "medida",
+            "factura",
+            "checada",
+            "dia_justificado"
+          ]
+        },
+        "referencia": {
+          "description": "Proveedor, marca o factura: nombre o ref",
+          "type": "string"
+        },
+        "persona": {
+          "description": "Checada: la persona (default tú). Día justificado: omitida = todo el equipo",
+          "type": "string"
+        },
+        "fecha": {
+          "description": "Checada o día justificado",
+          "type": "string",
+          "format": "date"
+        },
+        "entrada": {
+          "description": "Checada: su entrada actual, HH:MM",
+          "type": "string"
+        },
+        "material": {
+          "description": "Medida",
+          "type": "string",
+          "enum": [
+            "tubo",
+            "placa"
+          ]
+        },
+        "diametro_mm": {
+          "description": "Medida de tubo",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "espesor_mm": {
+          "description": "Medida de placa",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ancho_mm": {
+          "description": "Medida de placa",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "largo_mm": {
+          "description": "Medida: largo comercial",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tipo"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": false
     },

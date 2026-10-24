@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAdmin, notFound, serverError, isUuid } from '@/lib/api-helpers'
+import { requireAdmin, apiError } from '@/lib/api-helpers'
+import { deleteExcusedDay } from '@/lib/excused-days-store'
 
 // DELETE /api/excused-days/[id] — admin
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -9,17 +10,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     const supabase = await createClient()
     const auth = await requireAdmin(supabase)
     if ('error' in auth) return auth.error
-    if (!isUuid(id)) return notFound('El día justificado no existe')
 
-    const { data, error } = await supabase.from('excused_days').delete().eq('id', id).select('id')
-    if (error) {
-      console.error('Error deleting excused day:', error)
-      return serverError('Error al quitar el día justificado')
-    }
-    if (!data || data.length === 0) return notFound('El día justificado no existe')
+    await deleteExcusedDay(supabase, id)
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error('Excused day DELETE error:', error)
-    return serverError('Error al quitar el día justificado')
+    return apiError(error, 'Error al quitar el día justificado', 'Excused day DELETE error:')
   }
 }

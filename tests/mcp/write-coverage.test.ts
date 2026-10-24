@@ -45,8 +45,8 @@ type Decision =
   | { publica: string }
   | { fuera: string }
 
-// delete_record arrives in commit 5 of this PR; its routes then switch to { tool: 'delete_record' }.
-const DELETE_PENDING = 'delete_record llega en el commit 5 de este PR (#155 C)'
+
+const DELETE_RECORD = 'delete_record'
 const PHASE_D = 'Fase D: '
 
 const COVERAGE: Record<string, Decision> = {
@@ -94,7 +94,7 @@ const COVERAGE: Record<string, Decision> = {
   'PUT orders/[id]/purchase-decisions': { fuera: `${PHASE_D}save_purchase_decisions` },
   'PUT orders/[id]/cut-plan': { fuera: `${PHASE_D}save_cut_plan` },
   'POST material-presentations': { tool: 'save_material_presentation' },
-  'DELETE material-presentations/[id]': { fuera: DELETE_PENDING },
+  'DELETE material-presentations/[id]': { tool: DELETE_RECORD },
 
   // Inventario
   'POST inventory': { fuera: `${PHASE_D}save_inventory_item (alta con cantidad)` },
@@ -115,23 +115,23 @@ const COVERAGE: Record<string, Decision> = {
   // Proveedores y marcas
   'POST suppliers': { tool: 'save_supplier' },
   'PATCH suppliers/[id]': { tool: 'save_supplier' },
-  'DELETE suppliers/[id]': { fuera: DELETE_PENDING },
+  'DELETE suppliers/[id]': { tool: DELETE_RECORD },
   'POST brands': { fuera: 'pendiente de decidir: save_supplier.crear_marcas (ADR-041 §13) no está en el plan de las fases C ni D' },
   'PATCH brands/[id]': { fuera: 'renombrar marcas queda en la app (Auditoría DYMMSA-WEB, resolución 6)' },
-  'DELETE brands/[id]': { fuera: DELETE_PENDING },
+  'DELETE brands/[id]': { tool: DELETE_RECORD },
 
   // Finanzas
   'POST payables': { tool: 'save_payable' },
   'PATCH payables/[id]': { tool: 'save_payable' },
-  'DELETE payables/[id]': { fuera: DELETE_PENDING },
+  'DELETE payables/[id]': { tool: DELETE_RECORD },
 
   // Horas
   'POST time-entries/import': { tool: 'save_time_entries' },
   'POST time-entries': { tool: 'save_time_entries' },
   'PATCH time-entries/[id]': { tool: 'save_time_entries' },
-  'DELETE time-entries/[id]': { fuera: DELETE_PENDING },
+  'DELETE time-entries/[id]': { tool: DELETE_RECORD },
   'POST excused-days': { tool: 'save_excused_day' },
-  'DELETE excused-days/[id]': { fuera: DELETE_PENDING },
+  'DELETE excused-days/[id]': { tool: DELETE_RECORD },
 
   // Equipo y perfil
   'PATCH profile': { fuera: `${PHASE_D}save_profile (lo propio)` },

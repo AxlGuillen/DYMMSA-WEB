@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
+import { requireAuth, apiError, badRequest, notFound, serverError } from '@/lib/api-helpers'
 import { normalizeBrandTag } from '@/lib/business-rules'
-import { isUuid } from '@/lib/text'
+import { deleteBrand } from '@/lib/suppliers-store'
 
 // PATCH /api/brands/[id] — rename (normalized trim+upper)
 export async function PATCH(
@@ -50,40 +50,10 @@ export async function DELETE(
     const supabase = await createClient()
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
-    if (!isUuid(id)) return notFound('Marca no encontrada')
 
-    // Pre-check for a friendly message; the FK without CASCADE is the backstop.
-    const { count, error: countError } = await supabase
-      .from('supplier_brands')
-      .select('*', { count: 'exact', head: true })
-      .eq('brand_id', id)
-
-    if (countError) {
-      console.error('Error checking brand usage:', countError)
-      return serverError('Error al verificar el uso de la marca')
-    }
-    if ((count ?? 0) > 0) {
-      return badRequest(
-        `La marca está asignada a ${count} proveedor${count !== 1 ? 'es' : ''}. Quítala de sus proveedores antes de eliminarla.`,
-      )
-    }
-
-    const { data, error } = await supabase.from('brands').delete().eq('id', id).select('id')
-
-    if (error) {
-      // 23503: the FK blocked it (race between the pre-check and the delete).
-      if (error.code === '23503') {
-        return badRequest('La marca está asignada a proveedores. Quítala antes de eliminarla.')
-      }
-      console.error('Error deleting brand:', error)
-      return serverError('Error al eliminar la marca')
-    }
-    // Zero rows deleted is a missing id, not a success (#157).
-    if (!data || data.length === 0) return notFound('Marca no encontrada')
-
+    await deleteBrand(supabase, id)
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error('Brand delete error:', error)
-    return serverError('Error al eliminar la marca')
+    return apiError(error, 'Error al eliminar la marca', 'Brand delete error:')
   }
 }

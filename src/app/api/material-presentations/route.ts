@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
-import { parsePresentationInput, PRESENTATION_KEY } from '@/lib/cut-plan'
+import { requireAuth, apiError, badRequest, serverError } from '@/lib/api-helpers'
+import { parsePresentationInput } from '@/lib/cut-plan'
+import { upsertPresentation } from '@/lib/materials-store'
 
 /** Postgres numerics arrive as strings from supabase-js; coerce at the boundary. */
 function num(value: unknown): number | null {
@@ -52,20 +53,8 @@ export async function POST(request: NextRequest) {
     const parsed = parsePresentationInput(await request.json())
     if ('error' in parsed) return badRequest(parsed.error)
 
-    const { data, error } = await supabase
-      .from('material_presentations')
-      .upsert({ ...parsed.value, last_used_at: new Date().toISOString() }, { onConflict: PRESENTATION_KEY })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('material-presentations upsert error:', error)
-      return serverError('Error al guardar la presentación')
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json(await upsertPresentation(supabase, parsed.value))
   } catch (error) {
-    console.error('material-presentations error:', error)
-    return serverError()
+    return apiError(error, 'Error interno', 'material-presentations error:')
   }
 }

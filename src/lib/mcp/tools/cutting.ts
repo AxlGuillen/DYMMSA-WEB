@@ -1,6 +1,8 @@
 /** Cut module (ADR-022): net needs per group and bars/sheets per captured presentation (#109); save_material_presentation (#134). */
 
 import { ToolError } from '@/lib/mcp/core/errors'
+import { writeResult } from '@/lib/mcp/core/envelope'
+import { findPresentation, upsertPresentation } from '@/lib/materials-store'
 import type { Db } from '@/lib/mcp/core/db'
 import { orderBrief, resolveOrder } from './orders'
 import {
@@ -9,7 +11,7 @@ import {
   packSheets,
   parsePresentationInput,
   plateNetNeeds,
-  PRESENTATION_KEY,
+
   resolveCutMargin,
   SETTING_CUT_MARGIN_MM,
   tubeNetNeeds,
@@ -114,7 +116,7 @@ export interface SaveMaterialPresentationInput {
   largo_mm: number
 }
 
-const describePresentation = (p: PresentationRow) =>
+export const describePresentation = (p: PresentationRow) =>
   p.material_type === 'tube'
     ? `Barra de tubo de ${formatMm(num(p.diameter_mm))} de diámetro, ${formatMm(num(p.length_mm))} de largo`
     : `Hoja de placa de ${formatMm(num(p.thickness_mm))} de espesor, ${num(p.width_mm)} × ${num(p.length_mm)} mm`
@@ -132,22 +134,11 @@ export async function saveMaterialPresentation(db: Db, input: SaveMaterialPresen
   const row = parsed.value
 
   // Same identity as the UNIQUE NULLS NOT DISTINCT, so the answer can say whether it already existed.
-  let lookup = db.from('material_presentations').select('id')
-  for (const column of PRESENTATION_KEY.split(',') as (keyof PresentationRow)[]) {
-    lookup = row[column] === null ? lookup.is(column, null) : lookup.eq(column, row[column])
-  }
-  const { data: existing, error: lookupError } = await lookup.limit(1).maybeSingle()
-  if (lookupError) throw new ToolError(`Error al leer las medidas: ${lookupError.message}`)
-
-  const { error } = await db
-    .from('material_presentations')
-    .upsert({ ...row, last_used_at: new Date().toISOString() }, { onConflict: PRESENTATION_KEY })
-  if (error) throw new ToolError(`Error al guardar la presentación: ${error.message}`)
-  return {
-    accion: existing ? 'ya_existia' : 'registrada',
-    presentacion: describePresentation(row),
+  const existing = await findPresentation(db, row)
+  await upsertPresentation(db, row)
+  return writeResult(existing ? 'ya_existia' : 'creado', 'medida', describePresentation(row), {
     nota: existing
       ? 'Ya estaba registrada; quedó como la más reciente.'
-      : 'Registrada: get_cut_plan ya calcula con ella cuántas barras u hojas salen. Una medida errónea se borra en la app (Medidas de material).',
-  }
+      : 'Registrada: get_cut_plan ya calcula con ella cuántas barras u hojas salen. Una medida errónea se borra con delete_record.',
+  })
 }

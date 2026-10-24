@@ -10,6 +10,8 @@ import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
 import { correctTimeEntry, createManualEntry, importTimeReport, loadClockProfiles } from '@/lib/time-entries-store'
+import { createExcusedDay, findExcusedDay, updateExcusedDay } from '@/lib/excused-days-store'
+import { writeResult } from '@/lib/mcp/core/envelope'
 import {
   buildWeekView,
   buildWeeklyTrend,
@@ -42,7 +44,7 @@ type Target = Pick<Profile, 'id' | 'display_name' | 'shift'>
 const resolveTarget = (db: Db, callerId: string, persona?: string) =>
   resolvePerson<Target>(db, callerId, persona, 'id, display_name, shift')
 
-async function entriesBetween(db: Db, userId: string, from: string, to: string): Promise<TimeEntry[]> {
+export async function entriesBetween(db: Db, userId: string, from: string, to: string): Promise<TimeEntry[]> {
   const { data, error } = await db
     .from('time_entries')
     .select('*')
@@ -390,6 +392,46 @@ export async function previewTimeReport(db: Db, callerId: string, input: Pick<Sa
   }
 }
 
+export interface SaveExcusedDayInput {
+  fecha: string
+  /** feriado | salida_autorizada (EXCUSE_TOKENS); required for a new one, kept when editing. */
+  tipo?: string
+  /** Omitted = the whole team. */
+  persona?: string
+  nota?: string
+}
+
+/** Marks or changes a holiday / authorized early exit (#134); removing one is delete_record (#155 C6). */
+export async function saveExcusedDay(db: Db, callerId: string, input: SaveExcusedDayInput) {
+  if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
+  const kind = input.tipo === undefined ? undefined : EXCUSE_TOKENS.toDb(input.tipo)
+  if (input.tipo !== undefined && !kind) throw new ToolError(`Tipo inválido "${input.tipo}": usa ${EXCUSE_TOKENS.tokens.join(' | ')}`)
+  const person = input.persona?.trim()
+    ? await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.persona, 'id, display_name')
+    : null
+  const who = person?.display_name ?? 'todo el equipo'
+
+  const current = await findExcusedDay(db, input.fecha, person?.id ?? null)
+  const final = kind ?? current?.kind
+  const parsed = parseExcusedDay({ work_date: input.fecha, kind: final, user_id: person?.id ?? null, note: input.nota ?? current?.note ?? '' })
+  if ('error' in parsed) throw new ToolError(parsed.error)
+
+  const saved = current
+    ? await updateExcusedDay(db, current.id, { kind: parsed.value.kind, note: parsed.value.note ?? null })
+    : await createExcusedDay(db, parsed.value)
+  return writeResult(
+    current ? 'actualizado' : 'creado',
+    'dia_justificado',
+    { fecha: saved.work_date, tipo: EXCUSE_TOKENS.toToken(saved.kind), para: who, nota: saved.note },
+    {
+      nota:
+        saved.kind === 'holiday'
+          ? 'Ese día no pide horas: se descuenta del objetivo de la semana.'
+          : 'Ese día cuenta como cumplido con lo que se trabajó.',
+    },
+  )
+}
+
 /** Same rules as the app's dialog: corrections keep the clock's original and survive the re-import. */
 async function savePunch(db: Db, callerId: string, input: PunchInput) {
   if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
@@ -427,60 +469,3 @@ async function savePunch(db: Db, callerId: string, input: PunchInput) {
   }
 }
 
-const KIND_BY_INPUT = { feriado: 'holiday', salida_autorizada: 'early_release' } as const
-
-export interface SaveExcusedDayInput {
-  fecha: string
-  tipo?: keyof typeof KIND_BY_INPUT
-  /** Omitted = the whole team. */
-  persona?: string
-  nota?: string
-  quitar?: boolean
-}
-
-/** Marks, changes or removes a holiday / authorized early exit (#134); same parser as the route. */
-export async function saveExcusedDay(db: Db, callerId: string, input: SaveExcusedDayInput) {
-  const person = input.persona?.trim()
-    ? await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.persona, 'id, display_name')
-    : null
-  const who = person?.display_name ?? 'todo el equipo'
-  if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
-
-  let existing = db.from('excused_days').select('id, kind, note').eq('work_date', input.fecha)
-  existing = person ? existing.eq('user_id', person.id) : existing.is('user_id', null)
-  const { data: found, error: findError } = await existing.maybeSingle()
-  if (findError) throw new ToolError('No se pudieron leer los días justificados')
-  const current = found as Pick<ExcusedDay, 'id' | 'kind' | 'note'> | null
-
-  if (input.quitar) {
-    if (!current) throw new ToolError(`El ${input.fecha} no está justificado para ${who}`)
-    // RLS filters a non-admin's delete to 0 rows without an error: report only what really happened (review PR #138).
-    const { data: gone, error } = await db.from('excused_days').delete().eq('id', current.id).select('id')
-    if (error) throw new ToolError('No se pudo quitar el día justificado')
-    if (!gone?.length) throw new ToolError('Solo un administrador puede justificar días')
-    return { accion: 'quitado', fecha: input.fecha, para: who, era: EXCUSE_LABELS[current.kind] }
-  }
-
-  const kind = input.tipo ? KIND_BY_INPUT[input.tipo] : current?.kind
-  const parsed = parseExcusedDay({ work_date: input.fecha, kind, user_id: person?.id ?? null, note: input.nota ?? current?.note ?? '' })
-  if ('error' in parsed) throw new ToolError(parsed.error)
-  const { data: written, error } = current
-    ? await db.from('excused_days').update({ kind: parsed.value.kind, note: parsed.value.note }).eq('id', current.id).select('id')
-    : await db.from('excused_days').insert(parsed.value).select('id')
-  if (error) {
-    if (error.code === '42501') throw new ToolError('Solo un administrador puede justificar días')
-    throw new ToolError('No se pudo guardar el día justificado')
-  }
-  if (!written?.length) throw new ToolError('Solo un administrador puede justificar días')
-  return {
-    accion: current ? 'actualizado' : 'marcado',
-    fecha: input.fecha,
-    tipo: EXCUSE_LABELS[parsed.value.kind],
-    para: who,
-    nota: parsed.value.note,
-    efecto:
-      parsed.value.kind === 'holiday'
-        ? 'Ese día no pide horas: se descuenta del objetivo de la semana.'
-        : 'Ese día cuenta como cumplido con lo que se trabajó.',
-  }
-}

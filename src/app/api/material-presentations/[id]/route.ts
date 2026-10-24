@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, notFound, serverError } from '@/lib/api-helpers'
+import { requireAuth, apiError } from '@/lib/api-helpers'
+import { deleteMaterialPresentation } from '@/lib/materials-store'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -14,21 +15,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const { data, error } = await supabase
-      .from('material_presentations')
-      .delete()
-      .eq('id', id)
-      .select('id')
-
-    if (error) {
-      console.error('material-presentations DELETE error:', error)
-      return serverError('Error al eliminar la medida')
-    }
-    if (!data || data.length === 0) return notFound('Medida no encontrada')
-
+    await deleteMaterialPresentation(supabase, id)
     return NextResponse.json({ deleted: id })
   } catch (error) {
-    console.error('material-presentations DELETE error:', error)
-    return serverError()
+    return apiError(error, 'Error interno', 'material-presentations DELETE error:')
   }
 }

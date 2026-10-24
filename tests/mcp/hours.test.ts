@@ -338,54 +338,54 @@ describe('save_time_entries con una checada (#134)', () => {
   })
 })
 
-describe('save_excused_day (#134)', () => {
+
+describe('save_excused_day (#134, sin quitar desde #155 C6)', () => {
+  const DIEGO_ID = 'd1e2f3a4-0000-4000-8000-000000000002'
+  const X1 = 'e1f2a3b4-0000-4000-8000-0000000000e1'
+  const people = profiles([ME, { ...DIEGO, id: DIEGO_ID }])
+  const stored = (over: Record<string, unknown> = {}) => ({ id: X1, work_date: '2026-10-01', user_id: null, kind: 'holiday', note: null, created_by: null, created_at: '', ...over })
+
   test('sin persona marca el feriado para todo el equipo', async () => {
     const client = createMockSupabase({
-      responses: { 'excused_days.select': { data: null, error: null }, 'excused_days.insert': { data: [{ id: 'new' }], error: null } },
+      responses: {
+        'excused_days.select': (rec: CallRecord) => ({ data: rec.op === 'insert' ? stored({ work_date: '2026-11-16', note: 'Revolución' }) : null, error: null }),
+        'excused_days.insert': { data: stored({ work_date: '2026-11-16', note: 'Revolución' }), error: null },
+      },
     })
     const result = await saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16', tipo: 'feriado', nota: 'Revolución' })
-    expect(result).toMatchObject({ accion: 'marcado', tipo: 'Día feriado', para: 'todo el equipo', nota: 'Revolución' })
+    expect(result).toMatchObject({ accion: 'creado', escrito: true, dia_justificado: { fecha: '2026-11-16', tipo: 'feriado', para: 'todo el equipo', nota: 'Revolución' } })
+    expect(result.nota).toMatch(/no pide horas/)
     expect(client.insertPayload('excused_days')).toEqual({ work_date: '2026-11-16', kind: 'holiday', user_id: null, note: 'Revolución' })
     expect(client.callsTo('excused_days', 'select')[0].filters).toContainEqual({ method: 'is', args: ['user_id', null] })
     expect(client.callsTo('profiles')).toEqual([])
   })
 
-  test('con persona: si ya existe ese día lo actualiza conservando su nota; quitar lo borra', async () => {
-    const existing = { id: 'x1', kind: 'holiday', note: 'cita médica' }
+  test('con persona: si ya existe ese día lo actualiza conservando su nota', async () => {
+    const existing = stored({ user_id: DIEGO_ID, note: 'cita médica' })
     const client = createMockSupabase({
       responses: {
-        'profiles.select': profiles([ME, DIEGO]),
+        'profiles.select': people,
         'excused_days.select': { data: existing, error: null },
-        'excused_days.update': { data: [{ id: 'x1' }], error: null },
-        'excused_days.delete': { data: [{ id: 'x1' }], error: null },
+        'excused_days.update': { data: [{ ...existing, kind: 'early_release' }], error: null },
       },
     })
     const result = await saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-10-01', tipo: 'salida_autorizada', persona: 'Diego' })
-    expect(result).toMatchObject({ accion: 'actualizado', tipo: 'Salida autorizada', para: 'Diego', nota: 'cita médica' })
+    expect(result).toMatchObject({ accion: 'actualizado', dia_justificado: { tipo: 'salida_autorizada', para: 'Diego', nota: 'cita médica' } })
     expect(client.updatePayload('excused_days')).toEqual({ kind: 'early_release', note: 'cita médica' })
-    expect(client.callsTo('excused_days', 'select')[0].filters).toContainEqual({ method: 'eq', args: ['user_id', 'u-diego'] })
-
-    const removed = await saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-10-01', persona: 'Diego', quitar: true })
-    expect(removed).toEqual({ accion: 'quitado', fecha: '2026-10-01', para: 'Diego', era: 'Día feriado' })
-    expect(client.callsTo('excused_days', 'delete')[0].filters).toContainEqual({ method: 'eq', args: ['id', 'x1'] })
+    expect(client.callsTo('excused_days', 'select')[0].filters).toContainEqual({ method: 'eq', args: ['user_id', DIEGO_ID] })
   })
 
   test('REGLA: si la RLS filtró la escritura a 0 filas no se reporta éxito (review PR #138)', async () => {
     const client = createMockSupabase({
-      responses: {
-        'excused_days.select': { data: { id: 'x1', kind: 'holiday', note: null }, error: null },
-        'excused_days.update': { data: [], error: null },
-        'excused_days.delete': { data: [], error: null },
-      },
+      responses: { 'excused_days.select': { data: stored(), error: null }, 'excused_days.update': { data: [], error: null } },
     })
     await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16', tipo: 'salida_autorizada' })).rejects.toThrow(/Solo un administrador/)
-    await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16', quitar: true })).rejects.toThrow(/Solo un administrador/)
   })
 
-  test('nuevo sin tipo, quitar uno que no existe o fecha inválida: error sin escribir', async () => {
+  test('nuevo sin tipo, tipo en inglés o fecha inválida: error sin escribir; `quitar` ya no existe', async () => {
     const client = createMockSupabase({ responses: { 'excused_days.select': { data: null, error: null } } })
     await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16' })).rejects.toThrow(/Tipo inválido/)
-    await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16', quitar: true })).rejects.toThrow(/no está justificado para todo el equipo/)
+    await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-11-16', tipo: 'holiday' })).rejects.toThrow(/Tipo inválido "holiday": usa feriado \| salida_autorizada/)
     await expect(saveExcusedDay(asDb(client), 'u-axl', { fecha: '2026-02-30', tipo: 'feriado' })).rejects.toThrow(/Fecha inválida/)
     expect(client.callsTo('excused_days', 'insert')).toEqual([])
     expect(client.callsTo('excused_days', 'delete')).toEqual([])

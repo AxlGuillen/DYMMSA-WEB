@@ -78,7 +78,7 @@ describe('getCutPlan', () => {
 describe('save_material_presentation (#134)', () => {
   test('tubo: mismas reglas y llave del upsert que la ruta; los campos de placa quedan null', async () => {
     const client = createMockSupabase({
-      responses: { 'material_presentations.select': { data: null, error: null }, 'material_presentations.upsert': { data: null, error: null } },
+      responses: { 'material_presentations.select': { data: null, error: null }, 'material_presentations.upsert': { data: { id: 'm9' }, error: null } },
     })
     const result = await saveMaterialPresentation(asDb(client), { tipo: 'tubo', diametro_mm: 25.4, espesor_mm: 3, largo_mm: 6000 })
     const upsert = client.callsTo('material_presentations', 'upsert')[0]
@@ -89,18 +89,19 @@ describe('save_material_presentation (#134)', () => {
     expect(filterValue(lookup, 'diameter_mm')).toBe(25.4)
     expect(filterValue(lookup, 'thickness_mm', 'is')).toBeNull()
     expect(result).toEqual({
-      accion: 'registrada',
-      presentacion: 'Barra de tubo de 25.4 mm de diámetro, 6 m de largo',
+      accion: 'creado',
+      escrito: true,
+      medida: 'Barra de tubo de 25.4 mm de diámetro, 6 m de largo',
       nota: expect.stringMatching(/get_cut_plan/),
     })
   })
 
   test('una placa que ya existía lo dice; sin las medidas de su tipo no escribe', async () => {
     const client = createMockSupabase({
-      responses: { 'material_presentations.select': { data: { id: 'm1' }, error: null }, 'material_presentations.upsert': { data: null, error: null } },
+      responses: { 'material_presentations.select': { data: { id: 'm1' }, error: null }, 'material_presentations.upsert': { data: { id: 'm9' }, error: null } },
     })
     const result = await saveMaterialPresentation(asDb(client), { tipo: 'placa', espesor_mm: 3, ancho_mm: 1220, largo_mm: 2440 })
-    expect(result).toMatchObject({ accion: 'ya_existia', presentacion: 'Hoja de placa de 3 mm de espesor, 1220 × 2440 mm' })
+    expect(result).toMatchObject({ accion: 'ya_existia', escrito: false, medida: 'Hoja de placa de 3 mm de espesor, 1220 × 2440 mm' })
 
     const empty = createMockSupabase()
     await expect(saveMaterialPresentation(asDb(empty), { tipo: 'placa', espesor_mm: 3, largo_mm: 2440 })).rejects.toThrow(/espesor y ancho/)
