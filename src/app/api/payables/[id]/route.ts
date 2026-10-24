@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
+import { requireAuth, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
-import { parsePayableUpdate } from '@/lib/payables'
+import { DomainError } from '@/lib/domain-error'
+import { deletePayable, updatePayable } from '@/lib/payables-store'
 
 // PATCH /api/payables/[id] — sparse updates
 export async function PATCH(
@@ -15,32 +16,9 @@ export async function PATCH(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const parsed = parsePayableUpdate(await request.json(), todayInMexico())
-    if (!parsed.ok) return badRequest(parsed.error)
-    const { updates } = parsed
-    if (Object.keys(updates).length === 0) return badRequest('No hay cambios para guardar')
-
-    if (updates.supplier_id !== undefined) {
-      const { data: supplier } = await supabase
-        .from('suppliers').select('id').eq('id', updates.supplier_id).single()
-      if (!supplier) return notFound('El proveedor no existe')
-    }
-
-    const { data, error } = await supabase
-      .from('payables')
-      .update(updates)
-      .eq('id', id)
-      .select('*, supplier:suppliers(id, name, payment_terms_days)')
-      .single()
-
-    if (error || !data) {
-      if (error?.code === 'PGRST116') return notFound('La factura no existe')
-      console.error('Error updating payable:', error)
-      return serverError('Error al actualizar la factura')
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json(await updatePayable(supabase, id, await request.json(), todayInMexico()))
   } catch (error) {
+    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
     console.error('Payable PATCH error:', error)
     return serverError('Error al actualizar la factura')
   }
@@ -57,15 +35,10 @@ export async function DELETE(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const { error } = await supabase.from('payables').delete().eq('id', id)
-
-    if (error) {
-      console.error('Error deleting payable:', error)
-      return serverError('Error al eliminar la factura')
-    }
-
+    await deletePayable(supabase, id)
     return NextResponse.json({ ok: true })
   } catch (error) {
+    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
     console.error('Payable DELETE error:', error)
     return serverError('Error al eliminar la factura')
   }

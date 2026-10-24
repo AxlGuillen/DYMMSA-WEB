@@ -5,10 +5,11 @@
 import { describe, test, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { injectSupabaseServer } from '../helpers/setup'
-import { makeRequest } from '../helpers/request'
+import { makeRequest, makeParams, readJson } from '../helpers/request'
 import { authedClient, authedClientAs, serviceClient } from './helpers/clients'
 import { resetDb, sql, closePool, LOCAL } from './helpers/db'
 import * as profileRoute from '@/app/api/profile/route'
+import * as profileById from '@/app/api/profiles/[id]/route'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
@@ -57,6 +58,7 @@ describe('profiles: auto-edición', () => {
     ['jornada', { shift: 'full_time' }],
     ['id del checador', { clock_employee_id: 9 }],
     ['área', { area: 'workshop' }],
+    ['dueño', { is_owner: true }],
   ])('un member no puede cambiar su %s (42501) y la fila no se toca', async (_label, change) => {
     const res = await member.from('profiles').update({ display_name: 'Colado', ...change }).eq('id', MEMBER_ID).select()
     expect(res.error?.code).toBe('42501')
@@ -110,6 +112,38 @@ describe('profiles: auto-edición', () => {
     expect(nss.error?.code).toBe('23514')
     const avatar = await member.from('profiles').update({ avatar_path: `${ADMIN_ID}/a.webp` }).eq('id', MEMBER_ID).select()
     expect(avatar.error?.code).toBe('23514')
+  })
+})
+
+describe('#157: al menos un administrador, también en la BD', () => {
+  test('directo por PostgREST el último admin no se degrada (23514); con otro admin sí', async () => {
+    const alone = await admin.from('profiles').update({ role: 'member' }).eq('id', ADMIN_ID).select()
+    expect(alone.error?.code).toBe('23514')
+    expect(alone.error?.message).toBe('Debe quedar al menos un administrador')
+    expect((await profileRow(ADMIN_ID)).role).toBe('admin')
+
+    // With a second admin the first one can step down; then the second is the last one.
+    await sql(`UPDATE public.profiles SET role = 'admin' WHERE id = $1`, [MEMBER_ID])
+    const down = await admin.from('profiles').update({ role: 'member' }).eq('id', ADMIN_ID).select('role')
+    expect(down.error).toBeNull()
+    expect(down.data).toEqual([{ role: 'member' }])
+    const last = await member.from('profiles').update({ role: 'member' }).eq('id', MEMBER_ID).select()
+    expect(last.error?.code).toBe('23514')
+  })
+
+  test('tampoco por SQL ni degradando a todos en un solo UPDATE', async () => {
+    await expect(sql(`UPDATE public.profiles SET role = 'member' WHERE id = $1`, [ADMIN_ID])).rejects.toThrow(/al menos un administrador/)
+    await sql(`UPDATE public.profiles SET role = 'admin' WHERE id = $1`, [MEMBER_ID])
+    await expect(sql(`UPDATE public.profiles SET role = 'member'`)).rejects.toThrow(/al menos un administrador/)
+    expect(await sql(`SELECT id FROM public.profiles WHERE role = 'admin' ORDER BY id`)).toHaveLength(2)
+  })
+
+  test('la ruta responde 400 con el mismo mensaje', async () => {
+    activeClient = admin
+    const res = await profileById.PATCH(makeRequest({ role: 'member' }, { method: 'PATCH' }), makeParams({ id: ADMIN_ID }))
+    expect(res.status).toBe(400)
+    expect((await readJson<{ message: string }>(res)).message).toBe('Debe quedar al menos un administrador')
+    expect((await profileRow(ADMIN_ID)).role).toBe('admin')
   })
 })
 

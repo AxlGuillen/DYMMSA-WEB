@@ -198,7 +198,7 @@ export async function updatePayable(db: Db, input: UpdatePayableInput) {
     status: cancel ? 'cancelled' : undefined,
   }
   const today = todayInMexico()
-  const parsed = parsePayableUpdate(Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)), today)
+  const parsed = parsePayableUpdate(Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)), today, target.status)
   if (!parsed.ok) throw new ToolError(parsed.error.replace(/invoice_date|due_date/, (f) => FIELD_NAMES[f]))
   if (Object.keys(parsed.updates).length === 0) {
     throw new ToolError('No hay cambios: indica qué corregir (concepto, monto, moneda, fechas, proveedor o notas) o cancelar=true.')
@@ -311,7 +311,7 @@ export async function markPayablePaid(db: Db, input: MarkPayablePaidInput) {
       `"${target.concept}" ya estaba pagada el ${target.paid_at}; si quieres corregir la fecha indícala en fecha_pago.`,
     )
   }
-  const payment = resolvePaymentUpdate(pagada ? 'paid' : 'pending', input.fecha_pago, todayInMexico())
+  const payment = resolvePaymentUpdate(pagada ? 'paid' : 'pending', input.fecha_pago, todayInMexico(), target.status)
   if (!payment.ok) throw new ToolError(payment.error)
 
   const { data, error } = await db.from('payables').update(payment.updates).eq('id', target.id).select(SELECT).single()
