@@ -263,13 +263,30 @@ describe('resumen sin confirmar (#155 B2b)', () => {
       truncado: false,
       entrega: 'Bienes entregados: la entrega está validada en Odoo.',
       entregas: [{ folio: 'OFI/OUT/00650', estado: 'Hecha' }],
+      // From the same product read (review PR #165): the mango has no SAT key, the service does.
+      sin_clave_sat: [MANGO.name],
       borrador_existente: null,
       siguiente_paso:
-        'Nada se ha escrito. Muestra el resumen (cliente, total, líneas, entrega) y, tras el sí, repite con el mismo folio y confirmar: true: quedará en BORRADOR, sin folio ni timbre.',
+        'Nada se ha escrito. Muestra el resumen (cliente, total, líneas, entrega, sin clave SAT) y, tras el sí, repite con el mismo folio y confirmar: true: quedará en BORRADOR, sin folio ni timbre.',
     })
-    // The yes writes; the summary never does (sin_clave_sat waits for #154: the read catalog lacks unspsc_code_id).
-    expect(result).not.toHaveProperty('sin_clave_sat')
+    // The yes writes; the summary never does.
     expect(result).not.toHaveProperty('factura')
+  })
+
+  test('confirmar: false es el resumen, no «Entrada inválida» (review PR #165)', async () => {
+    const { odoo, calls } = fakeOdoo(readyScript())
+    const { writer, attempts } = throwingWriter()
+    const result = (await odooCreateDraftInvoice({ reader: odoo, writer }, context().ctx, { folio: 'S00912', confirmar: false })) as DraftInvoiceSummary
+    expect(attempts).toEqual([])
+    expect(calls.every((c) => c.method === 'search_read')).toBe(true)
+    expect(result).toMatchObject({ venta: { folio: 'S00912' }, a_facturar: { total: 2.32 }, sin_clave_sat: [] })
+    expect(result).not.toHaveProperty('factura')
+    // Anything but a boolean is still refused before Odoo.
+    const bad = fakeOdoo({})
+    await expect(
+      odooCreateDraftInvoice({ reader: bad.odoo, writer }, context().ctx, { folio: 'S00912', confirmar: 'sí' } as unknown as DraftInvoiceInput),
+    ).rejects.toThrow(/^Entrada inválida en confirmar/)
+    expect(bad.calls).toEqual([])
   })
 
   test('con borrador ya existente lo dice, sin líneas por facturar ni escritura', async () => {

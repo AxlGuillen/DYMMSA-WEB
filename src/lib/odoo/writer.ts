@@ -1,5 +1,5 @@
 /**
- * The closed facade over the Odoo write transport (#144, ADR-040): six operations whose ids,
+ * The closed facade over the Odoo write transport (#144, ADR-040): seven operations whose ids,
  * context and trail are built HERE, so a tool can't pass context, wizard ids nor internal_note.
  */
 
@@ -106,6 +106,8 @@ export interface OdooWriter {
     keys?: Pick<MarkerKeys, 'k10'>,
   ): Promise<void>
   createProducts(proof: AdminProof, vals: readonly ProductCreateVals[], dl: Deadline): Promise<number[]>
+  /** One SAT key for products that exist (#154): the caller checked they had none and the view offered it. */
+  assignSatKey(proof: AdminProof, productIds: readonly number[], satKeyId: number, dl: Deadline): Promise<void>
   /** Wizard create + create_invoices with the same key: rule 161 lets only its creator use it. */
   createDraftInvoice(proof: AdminProof, saleId: number, dl: Deadline): Promise<void>
 }
@@ -279,6 +281,12 @@ export function createOdooWriter(raw: OdooRawWriter, deps: WriterDeps = {}): Odo
       if (!ids) throw uncertain('product.product.create')
       log({ op: 'product.product.create', ids, actor: proof.userId })
       return ids
+    },
+
+    async assignSatKey(proof, productIds, satKeyId, dl) {
+      assertAdminProof(proof, now())
+      await raw('product.product', 'write', { ids: [...productIds], vals: { unspsc_code_id: satKeyId } }, dl)
+      log({ op: 'product.product.write', ids: [...productIds], actor: proof.userId })
     },
 
     async createDraftInvoice(proof, saleId, dl) {

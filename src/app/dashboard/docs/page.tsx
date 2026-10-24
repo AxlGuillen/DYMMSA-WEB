@@ -561,9 +561,10 @@ export default function DocsPage() {
                 productos. Guardar no cambia el link, y lo que agregues le aparece al cliente como pendiente.
               </p>
               <p>
-                <strong>Ojo:</strong> guardar renueva los productos. Si el cliente ya abrio el link, avisale que
-                recargue la pagina despues de que guardes: lo que tenga marcado sin guardar se pierde. Y recarga
-                tu el detalle antes de editar, para no borrar el avance que el cliente ya guardo.
+                Guardar conserva los productos que siguen y lo que el cliente ya aprobo: mientras la cotizacion
+                esta <strong>En aprobacion</strong>, sus decisiones guardadas no se tocan aunque tu detalle se
+                haya abierto antes. Si el cliente tiene el link abierto, avisale que recargue para ver tus cambios;
+                si quitaste un producto que el tenia marcado, su pagina le pide recargar y no guarda nada a medias.
               </p>
               <p>
                 Los productos agregados en <strong>Aprobada</strong> entran como <strong>Pendientes</strong>: los
@@ -615,7 +616,7 @@ export default function DocsPage() {
                 quedo (le aparece un aviso con cuanto lleva). El enlace sigue vivo hasta que envie.
               </li>
               <li>Al <strong>enviar</strong> la aprobacion definitiva se le pide una <strong>confirmacion</strong> (resumen de cuantos productos y el total) para evitar envios por error.</li>
-              <li>Una vez enviada la decision, la pagina muestra el estado actual y no permite re-aprobar. En el detalle veras la <strong>fecha y hora de aprobacion</strong>.</li>
+              <li>Una vez enviada la decision, la pagina muestra el estado actual y no permite re-aprobar. En el detalle veras la <strong>fecha y hora de aprobacion</strong>: la de la primera vez que se aprobo, aunque despues se vuelva a aprobar o se rechace.</li>
               <li>Al abrir (o recargar) el detalle de la cotizacion ves que productos fueron aprobados y cuales rechazados. Hoy no se envia un aviso por correo: revisa el estado en la lista de cotizaciones.</li>
             </ul>
           </div>

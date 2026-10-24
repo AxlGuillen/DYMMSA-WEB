@@ -35,6 +35,17 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   DYMMSA**, venga de donde venga: antes solo lo cuidaba la ventana de editar
   producto.
 
+### Nuevo
+- [admin] **La clave SAT de los productos ya no hay que sabérsela.** En la
+  vista previa de una cotización de Odoo, cada producto que no tiene clave
+  SAT trae hasta tres sugeridas según su descripción. Eliges una de la lista,
+  tecleas otra o la dejas vacía, y se guarda al darlo de alta. También puedes
+  pedirla por nombre («con la categoría de pinturas en aerosol»). A los
+  productos que ya existen en Odoo sin clave se la pones con el botón
+  «Asignar clave SAT»; si alguien ya la capturó en Odoo, no se cambia. El
+  resumen de la factura en borrador ahora también dice qué productos no
+  tienen clave.
+
 ### Mejorado
 - [admin] **El asistente de Odoo tiene nombres nuevos y menos herramientas.**
   Ahora cada herramienta dice lo que hace («Documento por folio», «Cliente y
@@ -50,6 +61,24 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   con tu sí. Antes de hacer una factura en borrador te enseña un resumen con
   el cliente, el total, las líneas y si ya se entregó; la crea hasta que le
   dices que sí.
+
+### Corregido
+- **Si editas una cotización mientras el cliente la revisa, su aprobación ya
+  no se pierde.** Antes, guardar renovaba todos los productos: si el cliente
+  enviaba después, la cotización quedaba Aprobada sin ningún producto
+  aprobado, y si guardaba avance se borraba lo que ya había marcado. Ahora los
+  productos se conservan al guardar. Si quitaste uno que el cliente tenía
+  marcado, su página le pide recargar y no guarda nada a medias.
+- **Lo que el cliente ya guardó no lo borra un detalle abierto desde antes.**
+  Mientras la cotización está En aprobación, sus decisiones se respetan
+  aunque guardes cambios de precio, cantidad o entrega.
+- **Guardar una cotización ya no la deja vacía ni a medias si algo falla:**
+  los productos, el nombre y el total se guardan juntos, o no se guarda nada.
+- **La fecha de aprobación es siempre la de la primera aprobación.** Ya no
+  cambia si el cliente vuelve a aprobar, ni se borra si después rechaza todo.
+- **El servidor también revisa los productos al guardar** (cantidad entera
+  mayor a 0, precio no negativo y ETM), igual que la pantalla, y te dice qué
+  ETM corregir.
 
 ## 2026-10-23
 
