@@ -12,7 +12,7 @@ function assertFree(key: string, reserved: readonly string[], helper: string): v
   if (reserved.includes(key)) throw new Error(`${helper}: "${key}" is an envelope key`)
 }
 
-/** ref (plan §4): the first 8 hex characters of a UUID, which every resolver accepts; never the whole UUID. */
+/** ref (plan §4): the first 8 hex characters of a UUID, to show; the by-id resolvers accept it from C6, until then they need the full UUID. */
 export function refOf(id: string): string {
   if (!isUuid(id)) throw new Error(`refOf: "${id}" is not a UUID`)
   return id.slice(0, 8).toLowerCase()

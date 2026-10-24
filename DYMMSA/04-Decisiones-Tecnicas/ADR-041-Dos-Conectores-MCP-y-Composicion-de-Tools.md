@@ -294,6 +294,10 @@ Cómo se decidió cada diferencia:
 
 - `preview_time_report` pasa de 1,088 a 2,805 caracteres (su `outputSchema` mide 1,701) y `odoo_preview_quotation` de 2,939 a 3,743 (788). El member no cambia: las dos tools son `adminOnly`.
 - **A Odoo le quedan 131 caracteres de `tools/list`.** No se recortó ninguna descripción. El próximo cambio que agregue texto a una tool de Odoo tendrá que quitar otro o subir el tope en su PR.
+- **Para quien adopte las envolturas (review del PR #173):**
+  - **`ref` todavía no se resuelve.** Los buscadores por id de `payables.ts` y `orders.ts` exigen el UUID completo (`isUuid`), así que un `ref` de 8 caracteres cae en la búsqueda por texto. Las tools que devuelvan `ref` antes de C6 corren ese riesgo: C6 hace que los `get_*` lo acepten (`id::text like '<8hex>%'` y `requireSingleMatch` si hay varias).
+  - **Listas vacías.** En una vista previa `bloqueos` y `avisos` siempre viajan, aunque vengan vacías; en una escritura (`writeResult`) y en un registro (`recordResult`) una lista vacía no viaja. C4 lee `bloqueos`, `clave` y `vence` de la vista previa, no de la escritura.
+  - **`hay_mas` necesita un `total` exacto.** `listResult()` lo calcula contra `total`; con `total: items.length` en una página llena respondería `hay_mas: false` en silencio. Quien lo adopte debe pasar el conteo real (el `count` de PostgREST) o extender el helper para aceptar `total: null`.
 
 **Pendiente (plan §9):** medir en claude.ai si el modelo recibe el texto, el `structuredContent` o los dos. Si son los dos, emitirlo solo donde hay `output`.
 
