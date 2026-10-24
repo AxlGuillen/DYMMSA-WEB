@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getGitHubConfig } from '@/lib/github'
 import { isOdooConfigured, odooEnv } from '@/lib/odoo/env'
 import { appUrl } from '@/lib/mcp/core/env'
-import { MCP_PATH, PROTECTED_RESOURCE_PATH, mcpResourceUrl, supabaseAuthIssuer } from '@/lib/mcp/core/routes'
+import { MCP_PATH, ODOO_MCP_PATH, mcpResourceUrl, protectedResourcePath, supabaseAuthIssuer } from '@/lib/mcp/core/routes'
 import { listQuotations } from '@/lib/mcp/tools/quotations'
 import { listOrders } from '@/lib/mcp/tools/orders'
 import { searchInventory } from '@/lib/mcp/tools/inventory'
@@ -33,6 +33,8 @@ export interface HealthReport {
     oauth_server: HealthCheck
     protected_resource: HealthCheck
     mcp_unauthenticated: HealthCheck
+    odoo_protected_resource: HealthCheck
+    odoo_mcp_unauthenticated: HealthCheck
   }
 }
 
@@ -129,25 +131,25 @@ export async function checkOauthServer(fetchFn: Fetcher = fetch): Promise<Health
   })
 }
 
-/** Our own RFC 9728 metadata responds and advertises the canonical resource URI. */
-export async function checkProtectedResource(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
-  return timed('protected_resource', async () => {
-    const res = await fetchFn(`${appUrl()}${PROTECTED_RESOURCE_PATH}`, {
+/** Our own RFC 9728 metadata responds and advertises the canonical resource URI of that endpoint. */
+export async function checkProtectedResource(fetchFn: Fetcher = fetch, mcpPath: string = MCP_PATH): Promise<HealthCheck> {
+  return timed(`protected_resource ${mcpPath}`, async () => {
+    const res = await fetchFn(`${appUrl()}${protectedResourcePath(mcpPath)}`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     })
     if (!res.ok) throw new Error(`metadata ${res.status}`)
     const body = (await res.json()) as { resource?: string }
-    const expected = mcpResourceUrl(appUrl())
+    const expected = mcpResourceUrl(appUrl(), mcpPath)
     if (body.resource !== expected) throw new Error(`resource inesperado: ${body.resource}`)
   })
 }
 
 /** MCP without a token must return 401 WITH resource_metadata: catches fail-open and mute 401s. */
-export async function checkMcpUnauthenticated(fetchFn: Fetcher = fetch): Promise<HealthCheck> {
+export async function checkMcpUnauthenticated(fetchFn: Fetcher = fetch, mcpPath: string = MCP_PATH): Promise<HealthCheck> {
   const start = Date.now()
   try {
-    const res = await fetchFn(`${appUrl()}${MCP_PATH}`, {
+    const res = await fetchFn(`${appUrl()}${mcpPath}`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -159,17 +161,17 @@ export async function checkMcpUnauthenticated(fetchFn: Fetcher = fetch): Promise
       signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     })
     if (res.status !== 401) {
-      console.error(`Health check "mcp_unauthenticated" failed: esperaba 401, dio ${res.status}`)
+      console.error(`Health check "mcp_unauthenticated ${mcpPath}" failed: esperaba 401, dio ${res.status}`)
       return { status: 'fail' }
     }
     const header = res.headers.get('www-authenticate') ?? ''
     if (!header.includes('resource_metadata')) {
-      console.error('Health check "mcp_unauthenticated" failed: el 401 no trae resource_metadata')
+      console.error(`Health check "mcp_unauthenticated ${mcpPath}" failed: el 401 no trae resource_metadata`)
       return { status: 'fail' }
     }
     return { status: 'ok', latency_ms: Date.now() - start }
   } catch (e) {
-    console.error('Health check "mcp_unauthenticated" failed:', e)
+    console.error(`Health check "mcp_unauthenticated ${mcpPath}" failed:`, e)
     return { status: 'fail' }
   }
 }
@@ -179,7 +181,7 @@ export async function runHealthChecks(deps: {
   fetchFn?: Fetcher
 }): Promise<HealthReport> {
   const fetchFn = deps.fetchFn ?? fetch
-  const [quotations, orders, inventory, storage, github, odoo, oauthServer, protectedResource, mcpUnauthenticated] =
+  const [quotations, orders, inventory, storage, github, odoo, oauthServer, protectedResource, mcpUnauthenticated, odooProtectedResource, odooMcpUnauthenticated] =
     await Promise.all([
       checkQuotations(deps.db),
       checkOrders(deps.db),
@@ -190,11 +192,13 @@ export async function runHealthChecks(deps: {
       checkOauthServer(fetchFn),
       checkProtectedResource(fetchFn),
       checkMcpUnauthenticated(fetchFn),
+      checkProtectedResource(fetchFn, ODOO_MCP_PATH),
+      checkMcpUnauthenticated(fetchFn, ODOO_MCP_PATH),
     ])
 
   // down = a business module cannot operate; degraded = only secondary modules. skip never penalizes.
   let status: HealthReport['status'] = 'ok'
-  const secondary = [storage, github, odoo, oauthServer, protectedResource, mcpUnauthenticated]
+  const secondary = [storage, github, odoo, oauthServer, protectedResource, mcpUnauthenticated, odooProtectedResource, odooMcpUnauthenticated]
   if (secondary.some((c) => c.status === 'fail')) status = 'degraded'
   if (quotations.status === 'fail' || orders.status === 'fail' || inventory.status === 'fail') {
     status = 'down'
@@ -215,6 +219,8 @@ export async function runHealthChecks(deps: {
       oauth_server: oauthServer,
       protected_resource: protectedResource,
       mcp_unauthenticated: mcpUnauthenticated,
+      odoo_protected_resource: odooProtectedResource,
+      odoo_mcp_unauthenticated: odooMcpUnauthenticated,
     },
   }
 }

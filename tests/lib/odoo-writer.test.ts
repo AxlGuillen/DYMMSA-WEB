@@ -33,6 +33,7 @@ import {
   type QuotationKeyKind,
 } from '@/lib/odoo/preview-token'
 import { fakeRawWriter, fakeWriter, testAdminProof, testPreviewGrant, throwingWriter } from '../helpers/fake-odoo'
+import { MCP_MAX_DURATION_S } from '@/lib/mcp/core/http'
 
 const WRITE_KEY = 'write-key-0123456789abcdef'
 const ENV = { url: 'https://odoo.test', apiKey: WRITE_KEY, db: null }
@@ -749,14 +750,13 @@ describe('llave de escritura (#144)', () => {
     }
   })
 
-  test('el presupuesto deja margen bajo el maxDuration de la ruta del MCP', () => {
+  test('el presupuesto deja margen bajo el maxDuration de las rutas del MCP', () => {
     // Auth and the live-admin read run before the tool starts the clock: the budget is smaller.
-    const route = readFileSync(join(process.cwd(), 'src/app/api/[transport]/route.ts'), 'utf8')
-    const segment = /export const maxDuration = (\d+)/.exec(route)
-    const handler = /maxDuration: (\d+)/.exec(route)
-    expect(segment).not.toBeNull()
-    expect(handler?.[1]).toBe(segment?.[1])
-    expect(REQUEST_BUDGET_MS + PRE_TOOL_HEADROOM_MS).toBeLessThanOrEqual(Number(segment?.[1]) * 1000)
+    for (const file of ['src/app/api/[transport]/route.ts', 'src/app/api/odoo/[transport]/route.ts']) {
+      const segment = /export const maxDuration = (\d+)/.exec(readFileSync(join(process.cwd(), file), 'utf8'))
+      expect(Number(segment?.[1]), file).toBe(MCP_MAX_DURATION_S)
+    }
+    expect(REQUEST_BUDGET_MS + PRE_TOOL_HEADROOM_MS).toBeLessThanOrEqual(MCP_MAX_DURATION_S * 1000)
 
     let now = 0
     const dl = startDeadline(undefined, () => now)

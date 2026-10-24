@@ -25,6 +25,7 @@ function getRoutes(dir: string, out: string[] = []): string[] {
 /** Tool that covers the route, or "fuera: <why>" when the assistant must not need it. */
 const COVERAGE: Record<string, string> = {
   '[transport]': 'fuera: es el propio endpoint MCP',
+  'odoo/[transport]': 'fuera: es el endpoint MCP del conector Odoo DYMMSA (#155 B1)',
   'approve/[token]': 'fuera: página pública sin sesión',
   brands: 'list_suppliers (marcas por proveedor)',
   clients: 'odoo_overdue_invoices (sin cliente: cartera por cliente)',

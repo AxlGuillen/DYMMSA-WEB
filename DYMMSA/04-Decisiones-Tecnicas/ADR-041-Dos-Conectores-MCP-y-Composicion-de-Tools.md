@@ -99,6 +99,7 @@ El insumo de esta decisión:
 - **Desde #158** se mide el `tools/list` real en el cable, con anotaciones y estructura JSON.
 - **Conversión:** los topes salieron de 46,000 y 19,000 con el método viejo del stub, convertidos con los factores medidos ese día: ×1.147 para el bloque app (32,891 contra 28,674) y ×1.125 para Odoo (20,272 contra 18,019). Los dos sumandos del stub dan 46,693 y el total medido 46,692: es un carácter de redondeo, no dos mediciones distintas.
 - **En B1** se mide cada conector de verdad y se fijan los topes con esa medición.
+- **Valores de transición de B1** (`ODOO_BUDGET`, review PR #162): mientras «Odoo DYMMSA» sirve las 19 tools de hoy, su tope es **20 tools y 7,000 de descripciones** (medidas: 19 y 6,932). B2a los baja a los 16 / 6,500 de la tabla. El tope de tools no se repite: `ODOO_BUDGET.tools` sale de `TOOL_BUDGET.tools.odoo`.
 - **Después:** se re-miden al cerrar cada fase, y subir un tope es un cambio explícito en su PR.
 
 ## Consecuencias

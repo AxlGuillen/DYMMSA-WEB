@@ -5,8 +5,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { registerDymmsaTools, serverInstructions } from '@/lib/mcp/server'
 import type { McpRole } from '@/lib/mcp/manifest'
+import type { ConnectorDefinition } from '@/lib/mcp/core/define'
+import { registerTools } from '@/lib/mcp/core/register'
+import { dymmsaConnector } from '@/lib/mcp/connectors/dymmsa/connector'
 
 export interface McpHarness {
   client: Client
@@ -29,12 +31,16 @@ export function textOf(result: CallToolResult): string {
 }
 
 /**
- * Same registry and instructions as the /api/mcp route. Calls carry `authInfo`, as the route does.
- * serverInfo stays out on purpose: the route's depends on appUrl() (env); B1 moves it into the connector.
+ * Same tools and instructions as the connector's route (default «DYMMSA-WEB», /api/mcp). Calls carry
+ * `authInfo`, as the route does. serverInfo stays out: it embeds appUrl(), which depends on the env.
  */
-export async function connectMcp(role: McpRole, authInfo: AuthInfo = authAs(role)): Promise<McpHarness> {
-  const server = new McpServer({ name: 'dymmsa', version: 'test' }, { instructions: serverInstructions(role) })
-  registerDymmsaTools(server, role)
+export async function connectMcp(
+  role: McpRole,
+  authInfo: AuthInfo = authAs(role),
+  connector: ConnectorDefinition = dymmsaConnector,
+): Promise<McpHarness> {
+  const server = new McpServer({ name: connector.serverInfo.name, version: 'test' }, { instructions: connector.instructions(role) })
+  registerTools(server, connector.tools, role)
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
   const send = clientSide.send.bind(clientSide)
   clientSide.send = (message, options) => send(message, { ...options, authInfo })
