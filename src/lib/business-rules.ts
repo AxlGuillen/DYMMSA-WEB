@@ -165,7 +165,8 @@ export function receivedForCustomer<T extends ReceptionLike>(item: T): number {
   return Math.min(item.quantity_received, item.quantity_to_order)
 }
 
-/** Excess = max(0, received − ordered): the ONLY thing that enters inventory, by delta. */
+/** Excess = max(0, received − ordered): the ONLY thing that enters inventory, by delta.
+ *  The SQL receive_order_items() applies the same formula when it persists a reception (#157). */
 export function receptionExcess<T extends ReceptionLike>(item: T): number {
   return Math.max(0, item.quantity_received - item.quantity_to_order)
 }

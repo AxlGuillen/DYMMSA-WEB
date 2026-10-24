@@ -13,6 +13,7 @@ import * as createOrder from '@/app/api/quotations/[id]/create-order/route'
 import * as reception from '@/app/api/orders/[id]/confirm-reception/route'
 import * as cancel from '@/app/api/orders/[id]/cancel/route'
 import * as orderRoute from '@/app/api/orders/[id]/route'
+import * as orderStatus from '@/app/api/orders/[id]/status/route'
 import * as orderItems from '@/app/api/orders/[id]/items/route'
 import * as orderItem from '@/app/api/orders/[id]/items/[itemId]/route'
 import * as quotationRoute from '@/app/api/quotations/[id]/route'
@@ -329,6 +330,25 @@ describe('órdenes con stock atómico (#157, integración local)', () => {
     expect(await sql('SELECT 1 FROM orders WHERE id = $1', [orderId])).toHaveLength(0)
   })
 
+  test('REGLA: cancelar mientras se quita una línea nunca devuelve esa línea dos veces', async () => {
+    for (let round = 0; round < 3; round++) {
+      await sql("UPDATE store_inventory SET quantity = 5 WHERE model_code = '60001'")
+      const orderId = await createdOrder([
+        { etm: 'A', model_code: '60001', brand: 'URREA', unit_price: 10, quantity: 2, is_approved: true },
+        { etm: 'B', model_code: '60001', brand: 'URREA', unit_price: 10, quantity: 2, is_approved: true },
+      ])
+      expect(await stockOf()).toBe(1)
+      const [, lineB] = await lines(orderId)
+
+      // Before the fix cancel read the lines outside its transaction, so B could come back twice (7).
+      await Promise.all([
+        cancelOrder(orderId),
+        orderItem.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: orderId, itemId: lineB.id })),
+      ])
+      expect(await stockOf(), `ronda ${round}`).toBe(5)
+    }
+  })
+
   test('REGLA: una orden entregada no se cancela ni pierde líneas; el stock no se mueve', async () => {
     const orderId = await createdOrder([{ etm: 'P', model_code: '60001', brand: 'URREA', unit_price: 10, quantity: 4, is_approved: true }])
     await sql("UPDATE orders SET status = 'delivered' WHERE id = $1", [orderId])
@@ -398,5 +418,60 @@ describe('órdenes con stock atómico (#157, integración local)', () => {
     )
     expect(received.map((r) => Number(r.quantity_received))).toEqual([0, 0])
     expect(await stockOf()).toBe(8)
+  })
+
+  test('REGLA: la recepción es todo o nada (una línea inválida deshace lo ya escrito del lote)', async () => {
+    await sql("INSERT INTO store_inventory (model_code, quantity) VALUES ('ZZ999', 10)")
+    const orderId = await createdOrder([
+      { etm: 'P1', model_code: '60001', brand: 'URREA', unit_price: 10, quantity: 12, is_approved: true },
+      { etm: 'P2', model_code: 'ZZ999', brand: 'URREA', unit_price: 10, quantity: 2, is_approved: true },
+    ])
+    const [p1, p2] = await lines(orderId)
+    expect([p1.quantity_to_order, p2.quantity_to_order]).toEqual([7, 0])
+
+    // 60001 sorts first, so its line and its +3 excess are written before ZZ999 fails.
+    const res = await reception.POST(
+      makeRequest({ items: [
+        { id: p1.id, quantity_received: 10, urrea_status: 'supplied' },
+        { id: p2.id, quantity_received: 3, urrea_status: 'supplied' },
+      ] }, { method: 'POST' }),
+      makeParams({ id: orderId }),
+    )
+    expect(res.status).toBe(400)
+    expect((await readJson<{ message: string }>(res)).message).toMatch(/^P2: no se pidió a URREA/)
+
+    const [{ quantity_received }] = await sql<{ quantity_received: number }>(
+      'SELECT quantity_received FROM order_items WHERE id = $1', [p1.id],
+    )
+    expect(Number(quantity_received)).toBe(0)
+    expect(await stockOf()).toBe(0)
+    expect(await stockOf('ZZ999')).toBe(8)
+  })
+
+  test('REGLA: dos recepciones simultáneas de la misma línea no duplican el excedente', async () => {
+    const { id } = await approvedQuotation()
+    const orderId = (await readJson<{ order_id: string }>(await createFromQuote(id))).order_id
+    const [line] = await lines(orderId)
+    const receive = () =>
+      reception.POST(
+        makeRequest({ items: [{ id: line.id, quantity_received: 10, urrea_status: 'supplied' }] }, { method: 'POST' }),
+        makeParams({ id: orderId }),
+      )
+    const statuses = (await Promise.all([receive(), receive()])).map((r) => r.status)
+    expect(statuses).toEqual([200, 200])
+    expect(await stockOf()).toBe(3) // 7 ordered, 10 received → +3 once, not +6
+  })
+
+  test('REGLA: una orden entregada no regresa a Pedida ni a Recibida', async () => {
+    const orderId = await createdOrder([{ etm: 'P', model_code: '60001', brand: 'URREA', unit_price: 10, quantity: 4, is_approved: true }])
+    await sql("UPDATE orders SET status = 'delivered' WHERE id = $1", [orderId])
+    const patch = (status: string) =>
+      orderStatus.PATCH(makeRequest({ status }, { method: 'PATCH' }), makeParams({ id: orderId }))
+
+    expect((await patch('received')).status).toBe(400)
+    expect((await patch('completed')).status).toBe(200)
+    expect((await patch('delivered')).status).toBe(200)
+    const [o] = await sql<{ status: string }>('SELECT status FROM orders WHERE id = $1', [orderId])
+    expect(o.status).toBe('delivered')
   })
 })

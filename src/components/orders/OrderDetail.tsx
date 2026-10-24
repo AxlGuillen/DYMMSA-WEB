@@ -95,7 +95,7 @@ import {
   receptionExcess,
   statusAfterReceived,
 } from '@/lib/business-rules'
-import { deleteRestoresStock, goodsInStore } from '@/lib/inventory'
+import { canChangeOrderStatus, deleteRestoresStock, goodsInStore } from '@/lib/inventory'
 import { separatorRowClass } from '@/lib/separator-palette'
 import { fetchJson } from '@/lib/fetch-json'
 import type {
@@ -554,7 +554,11 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {ORDER_STATUSES.map((status) => (
-                    <SelectItem key={status.value} value={status.value}>
+                    <SelectItem
+                      key={status.value}
+                      value={status.value}
+                      disabled={!canChangeOrderStatus(order.status, status.value)}
+                    >
                       {status.label}
                     </SelectItem>
                   ))}

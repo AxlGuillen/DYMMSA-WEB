@@ -3,7 +3,7 @@
 import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, filterValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
-import { stockRpc } from '../helpers/stock-rpc'
+import { orderRpc, stockRpc } from '../helpers/stock-rpc'
 import { AUTH } from '../helpers/factories'
 import { makeRequest, makeParams } from '../helpers/request'
 import * as items from '@/app/api/orders/[id]/items/route'
@@ -217,31 +217,37 @@ describe('PATCH /orders/[id]/items/[itemId]', () => {
 describe('DELETE /orders/[id]/items/[itemId]', () => {
   const remove = () => itemById.DELETE(makeRequest(), makeParams({ id: 'o1', itemId: 'it1' }))
 
-  /** remove_order_item_restock as the DB runs it: guard on the status read, then delete + restock. */
-  function removeMock(status: string, item: Record<string, unknown>, stock = stockRpc({ MC1: 5 }), current = { status }) {
+  /** remove_order_item_restock over one in-memory order: guard on the status read, then delete + restock. */
+  function removeMock(status: string, item: Record<string, unknown>, initialStock: Record<string, number> = { MC1: 5 }) {
+    const stock = stockRpc(initialStock)
+    const persisted = line(item)
+    const { order: mockOrder, responses } = orderRpc(stock, {
+      id: 'o1',
+      status,
+      items: [{
+        id: persisted.id, model_code: persisted.model_code, etm: persisted.etm, item_type: 'product',
+        quantity_in_stock: persisted.quantity_in_stock, quantity_received: persisted.quantity_received,
+        quantity_to_order: persisted.quantity_to_order,
+      }],
+    })
     const client = createMockSupabase({
       user: AUTH,
       responses: {
+        ...responses,
         ...order(status),
         'order_items.select': (rec) => rec.single
-          ? { data: line(item), error: null }
+          ? { data: persisted, error: null }
           : { data: [], error: null },
         'orders.update': { data: null, error: null },
-        'rpc.remove_order_item_restock': (rec) => {
-          const p = rec.payload as { p_expected_status: string; p_lines: { model_code: string; quantity: number }[] }
-          if (p.p_expected_status !== current.status) return { data: false, error: null }
-          stock.release(p.p_lines)
-          return { data: true, error: null }
-        },
       },
     })
-    return { client, stock }
+    return { client, stock, mockOrder }
   }
 
   test('404 si el producto no es de la orden', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { ...order('ordered'), 'order_items.select': { data: null, error: null } },
+      responses: { ...order('ordered'), 'order_items.select': { data: null, error: { code: 'PGRST116', message: 'no rows' } } },
     })
     expect((await remove()).status).toBe(404)
   })
@@ -266,16 +272,17 @@ describe('DELETE /orders/[id]/items/[itemId]', () => {
   })
 
   test('quita la línea y devuelve su stock apartado en una sola llamada atómica', async () => {
-    const { client, stock } = removeMock('received', { quantity_in_stock: 2 })
+    const { client, stock, mockOrder } = removeMock('received', { quantity_in_stock: 2 })
     activeClient = client
     const res = await remove()
     expect(res.status).toBe(200)
     expect((await res.json()).total_amount).toBe(0)
     expect(stock.quantity('MC1')).toBe(7) // 5 + 2
-    expect(activeClient.rpcParams('remove_order_item_restock')).toEqual([{
-      p_order_id: 'o1', p_item_id: 'it1', p_expected_status: 'received',
-      p_lines: [{ model_code: 'MC1', quantity: 2 }],
-    }])
+    expect(mockOrder.items).toEqual([])
+    // The DB reads what to give back from the row it deletes (#157).
+    expect(activeClient.rpcParams('remove_order_item_restock')).toEqual([
+      { p_order_id: 'o1', p_item_id: 'it1', p_expected_status: 'received' },
+    ])
     expect(activeClient.didCall('order_items', 'delete')).toBe(false)
   })
 
@@ -283,12 +290,12 @@ describe('DELETE /orders/[id]/items/[itemId]', () => {
     const { client, stock } = removeMock('ordered', { quantity_in_stock: 0, quantity_to_order: 3 })
     activeClient = client
     expect((await remove()).status).toBe(200)
-    expect(activeClient.rpcParams('remove_order_item_restock')[0].p_lines).toEqual([])
     expect(stock.quantity('MC1')).toBe(5)
   })
 
   test('REGLA (#157): si la orden cambió de estado a la mitad → 409 y no devuelve stock', async () => {
-    const { client, stock } = removeMock('ordered', { quantity_in_stock: 2 }, stockRpc({ MC1: 5 }), { status: 'delivered' })
+    const { client, stock, mockOrder } = removeMock('ordered', { quantity_in_stock: 2 })
+    mockOrder.status = 'delivered' // moved by another request after this one read 'ordered'
     activeClient = client
     expect((await remove()).status).toBe(409)
     expect(stock.quantity('MC1')).toBe(5)

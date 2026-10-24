@@ -326,6 +326,16 @@ describe('OrderDetail — orden entregada (#157)', () => {
     expect(screen.getByRole('spinbutton')).toBeInTheDocument() // received input
   })
 
+  test('REGLA: el selector de estado ya no ofrece regresar a Pedido ni a Recibido', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<OrderDetail order={order([orderItem()], { status: 'delivered' })} />)
+    const statusSelect = screen.getAllByRole('combobox').find((c) => c.textContent?.includes('Entregado')) as HTMLElement
+    await user.click(statusSelect)
+    expect(screen.getByRole('option', { name: 'Pedido' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('option', { name: 'Recibido' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('option', { name: 'Completado' })).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
   test('una orden recibida conserva las tres acciones', () => {
     renderWithProviders(<OrderDetail order={order([orderItem()], { status: 'received' })} />)
     expect(screen.getByRole('button', { name: /Cancelar Orden/ })).toBeInTheDocument()

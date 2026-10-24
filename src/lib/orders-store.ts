@@ -8,20 +8,18 @@ import {
   allocateLines,
   calculateDeliveredTotal,
   calculateOrderTotal,
-  receptionExcess,
   stockDemand,
   stockKey,
 } from '@/lib/business-rules'
 import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import {
-  adjustInventory,
+  canChangeOrderStatus,
   deleteRestoresStock,
   goodsInStore,
   isOrderClosed,
   releaseInventory,
   reserveInventory,
   reservedLines,
-  restorationLines,
   type Reservation,
   type StockLine,
 } from '@/lib/inventory'
@@ -74,18 +72,27 @@ const DELIVERED_REMOVE_MESSAGE =
 type OrderRef = { id: string; status: OrderStatus }
 type OrderItemPayload = Omit<OrderItemInsert, 'order_id'>
 
+/** PGRST116 = .single() found no row; anything else is a real failure, not a 404. */
+function isNoRow(error: { code?: string } | null): boolean {
+  return !error || error.code === 'PGRST116'
+}
+
 async function loadOrder(db: SupabaseClient, orderId: string): Promise<OrderRef> {
-  const { data } = await db.from('orders').select('id, status').eq('id', orderId).single()
-  if (!data) throw new OrderError('Orden no encontrada', 'not_found')
-  return data as OrderRef
+  const { data, error } = await db.from('orders').select('id, status').eq('id', orderId).single()
+  if (data) return data as OrderRef
+  if (isNoRow(error)) throw new OrderError('Orden no encontrada', 'not_found')
+  console.error(`[orders] read error orderId=${orderId}`, error)
+  throw new OrderError('Error al leer la orden', 'failed')
 }
 
 async function loadOrderItem(db: SupabaseClient, orderId: string, itemId: string): Promise<{ order: OrderRef; item: OrderItem }> {
   const order = await loadOrder(db, orderId)
   if (isOrderClosed(order.status)) throw new OrderError(CLOSED_MESSAGE)
-  const { data: item } = await db.from('order_items').select('*').eq('id', itemId).eq('order_id', orderId).single()
-  if (!item) throw new OrderError('Producto no encontrado', 'not_found')
-  return { order, item: item as OrderItem }
+  const { data: item, error } = await db.from('order_items').select('*').eq('id', itemId).eq('order_id', orderId).single()
+  if (item) return { order, item: item as OrderItem }
+  if (isNoRow(error)) throw new OrderError('Producto no encontrado', 'not_found')
+  console.error(`[orders] item read error itemId=${itemId}`, error)
+  throw new OrderError('Error al leer el producto', 'failed')
 }
 
 function poolOf(reservations: ReadonlyMap<string, Reservation>): Map<string, number> {
@@ -150,19 +157,6 @@ async function recalculateOrderTotal(db: SupabaseClient, orderId: string): Promi
   const { error: updateError } = await db.from('orders').update({ total_amount: total }).eq('id', orderId)
   if (updateError) console.error(`[order-total] update error orderId=${orderId}`, updateError)
   return total
-}
-
-async function loadRestorationLines(db: SupabaseClient, orderId: string): Promise<StockLine[]> {
-  const { data, error } = await db
-    .from('order_items')
-    .select('model_code, quantity_in_stock, quantity_received, quantity_to_order')
-    .eq('order_id', orderId)
-    .limit(5000)
-  if (error) {
-    console.error(`[order-restock] items read error orderId=${orderId}`, error)
-    throw new OrderError('Error al leer los productos de la orden', 'failed')
-  }
-  return restorationLines(data ?? [])
 }
 
 // ─── Create ─────────────────────────────────────────────────────────────────
@@ -362,42 +356,70 @@ export async function createManualOrder(db: SupabaseClient, input: CreateOrderIn
 
 // ─── Cancel / delete ────────────────────────────────────────────────────────
 
-/** Cancels and returns the stock in ONE transaction, guarded by the status read (#157): a retry restores nothing. */
+/** Cancels and returns the stock in ONE transaction, guarded by the status read (#157): a retry restores nothing.
+ *  The DB reads what to give back under the order lock, so a line removed meanwhile is never returned twice. */
 export async function cancelOrder(db: SupabaseClient, orderId: string): Promise<{ restored: number }> {
   const order = await loadOrder(db, orderId)
   if (order.status === 'cancelled') throw new OrderError('Orden ya está cancelada')
   if (order.status === 'completed') throw new OrderError('No se puede cancelar una orden completada')
   if (!goodsInStore(order.status)) throw new OrderError(DELIVERED_CANCEL_MESSAGE)
 
-  const lines = await loadRestorationLines(db, orderId)
-  const { data, error } = await db.rpc('cancel_order_restock', {
-    p_order_id: orderId,
-    p_expected_status: order.status,
-    p_lines: lines,
-  })
+  const { data, error } = await db.rpc('cancel_order_restock', { p_order_id: orderId, p_expected_status: order.status })
   if (error) {
     console.error(`[cancel-order] error orderId=${orderId}`, error)
     throw new OrderError('Error al cancelar orden', 'failed')
   }
-  if (data !== true) throw new OrderError(CONFLICT_MESSAGE, 'conflict')
-  return { restored: lines.length }
+  if (data == null) throw new OrderError(CONFLICT_MESSAGE, 'conflict')
+  return { restored: Number(data) }
 }
 
 /** Deletes the order (items, cut plan and decisions by CASCADE) and, while in store, returns its stock atomically. */
 export async function deleteOrder(db: SupabaseClient, orderId: string): Promise<void> {
   const order = await loadOrder(db, orderId)
-  // Restoring a cancelled order again would duplicate its stock (ADR-010).
-  const lines = deleteRestoresStock(order.status) ? await loadRestorationLines(db, orderId) : []
   const { data, error } = await db.rpc('delete_order_restock', {
     p_order_id: orderId,
     p_expected_status: order.status,
-    p_lines: lines,
+    // Restoring a cancelled order again would duplicate its stock (ADR-010).
+    p_restock: deleteRestoresStock(order.status),
   })
   if (error) {
     console.error(`[delete-order] error orderId=${orderId}`, error)
     throw new OrderError('Error al eliminar la orden', 'failed')
   }
-  if (data !== true) throw new OrderError(CONFLICT_MESSAGE, 'conflict')
+  if (data == null) throw new OrderError(CONFLICT_MESSAGE, 'conflict')
+}
+
+// ─── Status ─────────────────────────────────────────────────────────────────
+
+// 'cancelled' only through /cancel: it is the one that returns the stock, and DELETE relies on it (ADR-010).
+export const MANUAL_ORDER_STATUSES: readonly OrderStatus[] = ['ordered', 'received', 'delivered', 'completed']
+
+/** Manual status change, guarded by the status read; never back into the store once delivered (#157). */
+export async function setOrderStatus(db: SupabaseClient, orderId: string, body: unknown): Promise<unknown> {
+  const status = (body as { status?: unknown } | null)?.status
+  if (status === 'cancelled') {
+    throw new OrderError('Para cancelar usa "Cancelar orden": es la que restaura el inventario')
+  }
+  if (!MANUAL_ORDER_STATUSES.includes(status as OrderStatus)) throw new OrderError('Estado inválido')
+  const to = status as OrderStatus
+
+  const order = await loadOrder(db, orderId)
+  if (order.status === 'cancelled') throw new OrderError('Una orden cancelada ya no cambia de estado')
+  if (!canChangeOrderStatus(order.status, to)) {
+    throw new OrderError('La orden ya se entregó: no puede regresar a Pedida ni a Recibida')
+  }
+
+  const { data, error } = await db
+    .from('orders')
+    .update({ status: to })
+    .eq('id', orderId)
+    .eq('status', order.status)
+    .select()
+    .single()
+  if (data) return data
+  if (isNoRow(error)) throw new OrderError(CONFLICT_MESSAGE, 'conflict')
+  console.error('Update order status error:', error)
+  throw new OrderError('Error al actualizar el estado', 'failed')
 }
 
 // ─── Lines ──────────────────────────────────────────────────────────────────
@@ -514,23 +536,20 @@ export async function removeOrderItem(
   orderId: string,
   itemId: string,
 ): Promise<{ total_amount: number | null }> {
-  const { order, item } = await loadOrderItem(db, orderId, itemId)
+  const { order } = await loadOrderItem(db, orderId, itemId)
   if (!goodsInStore(order.status)) throw new OrderError(DELIVERED_REMOVE_MESSAGE)
 
-  // Only what the line took from stock goes back, as before #157.
-  const key = stockKey(item.model_code)
-  const lines: StockLine[] = key && item.quantity_in_stock > 0 ? [{ model_code: key, quantity: item.quantity_in_stock }] : []
+  // The DB gives back only what the line took from stock, read from the row it deletes.
   const { data, error } = await db.rpc('remove_order_item_restock', {
     p_order_id: orderId,
     p_item_id: itemId,
     p_expected_status: order.status,
-    p_lines: lines,
   })
   if (error) {
     console.error(`[remove-order-item] error itemId=${itemId}`, error)
     throw new OrderError('Error al quitar el producto', 'failed')
   }
-  if (data !== true) throw new OrderError(CONFLICT_MESSAGE, 'conflict')
+  if (data == null) throw new OrderError(CONFLICT_MESSAGE, 'conflict')
 
   return { total_amount: await recalculateOrderTotal(db, orderId) }
 }
@@ -538,97 +557,74 @@ export async function removeOrderItem(
 // ─── Reception ──────────────────────────────────────────────────────────────
 
 const URREA_STATUSES: readonly UrreaStatus[] = ['pending', 'supplied', 'not_supplied']
+const NOT_IN_ORDER_MESSAGE = 'Uno de los productos de la recepción no pertenece a esta orden'
 
-type PersistedReceptionItem = Pick<OrderItem, 'id' | 'model_code' | 'etm' | 'item_type' | 'quantity_received' | 'quantity_to_order'>
+type ReceptionLine = ConfirmReceptionInput['items'][number]
+
+/** Shape only; membership, URREA order and status are checked by the DB inside the reception transaction. */
+function parseReceptionItems(input: unknown): ReceptionLine[] {
+  const items = (input as { items?: unknown } | null)?.items
+  if (!Array.isArray(items) || items.length === 0) throw new OrderError('Items requeridos')
+  for (const item of items) {
+    if (typeof item !== 'object' || item === null || typeof (item as { id?: unknown }).id !== 'string') {
+      throw new OrderError('Cada producto de la recepción necesita su id')
+    }
+    const { quantity_received, urrea_status } = item as Partial<ReceptionLine>
+    if (typeof quantity_received !== 'number' || !Number.isInteger(quantity_received) || quantity_received < 0) {
+      throw new OrderError('La cantidad recibida debe ser un entero mayor o igual a 0')
+    }
+    if (!URREA_STATUSES.includes(urrea_status as UrreaStatus)) throw new OrderError('Estado de envío inválido')
+  }
+  const lines = items as ReceptionLine[]
+  if (new Set(lines.map((l) => l.id)).size !== lines.length) {
+    throw new OrderError('Un producto viene repetido en la recepción')
+  }
+  return lines.map(({ id, quantity_received, urrea_status }) => ({ id, quantity_received, urrea_status }))
+}
+
+/** The P0001 keys receive_order_items() raises, as the user reads them. */
+function receptionError(error: { code?: string; message?: string; details?: string | null }): OrderError {
+  switch (error.code === 'P0001' ? error.message : undefined) {
+    case 'order_not_found':
+      return new OrderError('Orden no encontrada', 'not_found')
+    case 'order_closed':
+      return new OrderError(CLOSED_MESSAGE)
+    case 'duplicate_item':
+      return new OrderError('Un producto viene repetido en la recepción')
+    case 'item_not_in_order':
+      return new OrderError(NOT_IN_ORDER_MESSAGE)
+    case 'item_not_ordered':
+      return new OrderError(`${error.details || 'Una línea'}: no se pidió a URREA (salió completo de stock), así que no lleva recepción`)
+  }
+  // A malformed id is a bad request, not a server failure.
+  if (error.code === '22P02') return new OrderError(NOT_IN_ORDER_MESSAGE)
+  return pgOrderError(error, undefined, 'Error al confirmar recepción')
+}
+
+type ReceptionWarning = { tag?: unknown; model_code?: unknown; kind?: unknown }
+
+function warningText(w: ReceptionWarning): string {
+  return w.kind === 'missing'
+    ? `${w.tag}: no existe fila de inventario de ${w.model_code} para restar la corrección del excedente.`
+    : `${w.tag}: la corrección dejaría el stock en negativo; se ajustó a 0 (revisa el inventario de ${w.model_code}).`
+}
 
 /** URREA reception (ADR-019): only the EXCESS enters inventory, as a DELTA — re-confirming is idempotent.
- *  Everything is validated before the first write: lines of another order or without a URREA order are rejected (#157). */
+ *  Lines and stock commit in ONE transaction (receive_order_items): a failed inventory write loses nothing (#157). */
 export async function confirmReception(
   db: SupabaseClient,
   orderId: string,
   input: ConfirmReceptionInput,
 ): Promise<ConfirmReceptionResult> {
-  const items = input?.items
-  if (!Array.isArray(items) || items.length === 0) throw new OrderError('Items requeridos')
-  for (const item of items) {
-    if (!Number.isInteger(item.quantity_received) || item.quantity_received < 0) {
-      throw new OrderError('La cantidad recibida debe ser un entero mayor o igual a 0')
-    }
-    if (!URREA_STATUSES.includes(item.urrea_status)) throw new OrderError('Estado de envío inválido')
+  const items = parseReceptionItems(input)
+
+  const { data, error } = await db.rpc('receive_order_items', { p_order_id: orderId, p_items: items })
+  if (error) {
+    if (error.code !== 'P0001') console.error(`[confirm-reception] error orderId=${orderId}`, error)
+    throw receptionError(error)
   }
-  const ids = items.map((item) => item.id)
-  if (new Set(ids).size !== ids.length) throw new OrderError('Un producto viene repetido en la recepción')
-
-  const order = await loadOrder(db, orderId)
-  if (isOrderClosed(order.status)) throw new OrderError(CLOSED_MESSAGE)
-
-  const notInOrder = 'Uno de los productos de la recepción no pertenece a esta orden'
-  const { data: rows, error: readError } = await db
-    .from('order_items')
-    .select('id, model_code, etm, item_type, quantity_received, quantity_to_order')
-    .eq('order_id', orderId)
-    .in('id', ids)
-  if (readError) {
-    // A malformed id is a bad request, not a server failure.
-    if (readError.code === '22P02') throw new OrderError(notInOrder)
-    console.error(`[confirm-reception] items read error orderId=${orderId}`, readError)
-    throw new OrderError('Error al leer los productos de la orden', 'failed')
-  }
-  const persisted = new Map(((rows ?? []) as PersistedReceptionItem[]).map((row) => [row.id, row]))
-  for (const item of items) {
-    const current = persisted.get(item.id)
-    if (!current) throw new OrderError(notInOrder)
-    if (current.item_type !== 'separator' && current.quantity_to_order <= 0) {
-      const tag = current.model_code || current.etm
-      throw new OrderError(`${tag}: no se pidió a URREA (salió completo de stock), así que no lleva recepción`)
-    }
-  }
-
-  let inventoryUpdated = 0
-  const warnings: string[] = []
-
-  for (const item of items) {
-    const current = persisted.get(item.id)
-    if (!current || current.item_type === 'separator') continue
-
-    // Delta assumes quantity_to_order stays stable across receptions; revisit if it becomes editable (ADR-019).
-    const delta =
-      receptionExcess({ quantity_received: item.quantity_received, quantity_to_order: current.quantity_to_order }) -
-      receptionExcess(current)
-    const tag = current.etm || current.model_code || item.id
-
-    // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential writes: a failure stops the batch
-    const { error: updateError } = await db
-      .from('order_items')
-      .update({ quantity_received: item.quantity_received, urrea_status: item.urrea_status })
-      .eq('id', item.id)
-      .eq('order_id', orderId)
-    if (updateError) {
-      throw pgOrderError(updateError, undefined, 'Error al actualizar la recepción')
-    }
-
-    const code = stockKey(current.model_code)
-    if (delta === 0 || !code) continue
-
-    let adjustment
-    try {
-      // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential writes: a failure stops the batch
-      adjustment = await adjustInventory(db, code, delta)
-    } catch (error) {
-      console.error(`[confirm-reception] inventory error model=${code}`, error)
-      throw new OrderError('Error al ajustar el inventario', 'failed')
-    }
-    if (adjustment.missing) {
-      warnings.push(`${tag}: no existe fila de inventario de ${code} para restar la corrección del excedente.`)
-      continue
-    }
-    if (adjustment.clamped) {
-      warnings.push(
-        `${tag}: la corrección dejaría el stock en negativo; se ajustó a 0 (revisa el inventario de ${code}).`,
-      )
-    }
-    inventoryUpdated++
-  }
+  const result = (data ?? {}) as { inventory_updated?: unknown; warnings?: unknown }
+  const warnings = Array.isArray(result.warnings) ? (result.warnings as ReceptionWarning[]).map(warningText) : []
 
   // Total = in_stock (already reserved) + min(received, ordered) unless not_supplied; excess is never billed.
   const { data: allItems, error: totalReadError } = await db
@@ -646,5 +642,5 @@ export async function confirmReception(
     if (totalError) console.error(`[confirm-reception] total update error orderId=${orderId}`, totalError)
   }
 
-  return { success: true, inventory_updated: inventoryUpdated, warnings }
+  return { success: true, inventory_updated: Number(result.inventory_updated) || 0, warnings }
 }

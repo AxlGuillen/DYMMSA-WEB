@@ -1,9 +1,11 @@
 /**
- * In-memory stand-in for the atomic stock functions of #157 (reserve/release/adjust_inventory),
- * same semantics as the SQL, so route tests assert the resulting stock instead of payloads.
- * The real functions are covered against the local DB in tests/integration/orders.integration.test.ts.
+ * In-memory stand-ins for the atomic stock functions of #157, same semantics as the SQL, so route tests
+ * assert the resulting stock and order instead of payloads. They reuse the JS rules the SQL mirrors
+ * (computeRestoration, receptionExcess); the real functions run in tests/integration/orders.integration.test.ts.
  */
 
+import { receptionExcess } from '@/lib/business-rules'
+import { computeRestoration } from '@/lib/inventory'
 import type { CallRecord, MockResult } from './supabase-mock'
 
 type Row = { quantity: number; location: string | null }
@@ -17,6 +19,8 @@ function consolidate(lines: Line[] | undefined): Array<[string, number]> {
   }
   return [...byCode].sort(([a], [b]) => a.localeCompare(b))
 }
+
+const params = (rec: CallRecord) => (rec.payload ?? {}) as Record<string, unknown>
 
 export function stockRpc(initial: Record<string, number | Row> = {}) {
   const stock = new Map<string, Row>()
@@ -37,7 +41,19 @@ export function stockRpc(initial: Record<string, number | Row> = {}) {
     return touched
   }
 
-  const params = (rec: CallRecord) => (rec.payload ?? {}) as Record<string, unknown>
+  /** adjust_inventory: positive adds (creating the row), negative clamps at 0. */
+  const adjust = (code: string, delta: number): { clamped: boolean; missing: boolean } => {
+    const row = stock.get(code)
+    if (delta > 0) {
+      if (row) row.quantity += delta
+      else stock.set(code, { quantity: delta, location: null })
+      return { clamped: false, missing: false }
+    }
+    if (!row) return { clamped: false, missing: true }
+    const target = row.quantity + delta
+    row.quantity = Math.max(0, target)
+    return { clamped: target < 0, missing: false }
+  }
 
   const responses: Record<string, (rec: CallRecord) => MockResult> = {
     'rpc.reserve_inventory': (rec) => {
@@ -52,27 +68,101 @@ export function stockRpc(initial: Record<string, number | Row> = {}) {
       return { data: result, error: null }
     },
     'rpc.release_inventory': (rec) => ({ data: release(params(rec).p_lines as Line[]), error: null }),
-    'rpc.adjust_inventory': (rec) => {
-      const code = params(rec).p_model_code as string
-      const delta = params(rec).p_delta as number
-      const row = stock.get(code)
-      if (delta > 0) {
-        if (row) row.quantity += delta
-        else stock.set(code, { quantity: delta, location: null })
-        return { data: { quantity: stock.get(code)!.quantity, clamped: false, missing: false }, error: null }
-      }
-      if (!row) return { data: { quantity: null, clamped: false, missing: true }, error: null }
-      const target = row.quantity + delta
-      row.quantity = Math.max(0, target)
-      return { data: { quantity: row.quantity, clamped: target < 0, missing: false }, error: null }
-    },
   }
 
   return {
     stock,
     responses,
     release,
+    adjust,
     /** Current quantity of a code; undefined = no row. */
     quantity: (code: string) => stock.get(code)?.quantity,
   }
+}
+
+export interface MockOrderLine {
+  id: string
+  model_code: string
+  etm?: string
+  item_type?: 'product' | 'separator'
+  quantity_in_stock: number
+  quantity_received: number
+  quantity_to_order: number
+  urrea_status?: string
+}
+
+export interface MockOrder {
+  id: string
+  /** 'deleted' once delete_order_restock ran. */
+  status: string
+  items: MockOrderLine[]
+}
+
+const raise = (message: string, details?: string): MockResult => ({
+  data: null,
+  error: { code: 'P0001', message, details: details ?? null },
+})
+
+/** The order-level functions (cancel/delete/remove/receive) over one in-memory order and its stock. */
+export function orderRpc(stock: ReturnType<typeof stockRpc>, order: MockOrder) {
+  const guard = (rec: CallRecord) =>
+    params(rec).p_order_id === order.id && params(rec).p_expected_status === order.status
+  const restockLines = () =>
+    computeRestoration(order.items.filter((i) => i.item_type !== 'separator'))
+      .map(({ model_code, quantityToRestore }) => ({ model_code, quantity: quantityToRestore }))
+
+  const responses: Record<string, (rec: CallRecord) => MockResult> = {
+    'rpc.cancel_order_restock': (rec) => {
+      if (!guard(rec) || order.status === 'cancelled') return { data: null, error: null }
+      order.status = 'cancelled'
+      return { data: stock.release(restockLines()), error: null }
+    },
+    'rpc.delete_order_restock': (rec) => {
+      if (!guard(rec)) return { data: null, error: null }
+      const lines = params(rec).p_restock === true ? restockLines() : []
+      order.status = 'deleted'
+      order.items = []
+      return { data: stock.release(lines), error: null }
+    },
+    'rpc.remove_order_item_restock': (rec) => {
+      if (!guard(rec)) return { data: null, error: null }
+      const line = order.items.find((i) => i.id === params(rec).p_item_id)
+      if (!line) return { data: null, error: null }
+      order.items = order.items.filter((i) => i !== line)
+      return { data: stock.release([{ model_code: line.model_code, quantity: line.quantity_in_stock }]), error: null }
+    },
+    'rpc.receive_order_items': (rec) => {
+      if (params(rec).p_order_id !== order.id || order.status === 'deleted') return raise('order_not_found')
+      if (order.status === 'completed' || order.status === 'cancelled') return raise('order_closed')
+      const items = params(rec).p_items as { id: string; quantity_received: number; urrea_status: string }[]
+      if (new Set(items.map((i) => i.id)).size !== items.length) return raise('duplicate_item')
+      if (items.some((i) => !order.items.some((l) => l.id === i.id))) return raise('item_not_in_order')
+
+      // Validate before writing: the SQL raises and rolls the whole batch back.
+      const pairs = items
+        .map((input) => ({ input, line: order.items.find((l) => l.id === input.id)! }))
+        .filter(({ line }) => line.item_type !== 'separator')
+        .sort((a, b) => a.line.model_code.localeCompare(b.line.model_code))
+      const unordered = pairs.find(({ line }) => line.quantity_to_order <= 0)
+      if (unordered) return raise('item_not_ordered', unordered.line.etm || unordered.line.model_code)
+
+      let updated = 0
+      const warnings: { tag: string; model_code: string; kind: string }[] = []
+      for (const { input, line } of pairs) {
+        const delta =
+          receptionExcess({ quantity_received: input.quantity_received, quantity_to_order: line.quantity_to_order }) -
+          receptionExcess(line)
+        line.quantity_received = input.quantity_received
+        line.urrea_status = input.urrea_status
+        if (delta === 0 || !line.model_code.trim()) continue
+        const tag = line.etm || line.model_code || line.id
+        const { clamped, missing } = stock.adjust(line.model_code, delta)
+        if (missing) { warnings.push({ tag, model_code: line.model_code, kind: 'missing' }); continue }
+        if (clamped) warnings.push({ tag, model_code: line.model_code, kind: 'clamped' })
+        updated++
+      }
+      return { data: { inventory_updated: updated, warnings }, error: null }
+    },
+  }
+  return { order, responses }
 }

@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  adjustInventory,
+  canChangeOrderStatus,
   computeRestoration,
   deleteRestoresStock,
   goodsInStore,
@@ -9,7 +9,6 @@ import {
   releaseInventory,
   reserveInventory,
   reservedLines,
-  restorationLines,
 } from '@/lib/inventory'
 import { createMockSupabase } from '../helpers/supabase-mock'
 
@@ -192,17 +191,25 @@ describe('goodsInStore / isOrderClosed (#157)', () => {
   })
 })
 
-describe('restorationLines / reservedLines (#157)', () => {
-  test('consolida computeRestoration por model_code: una devolución por código', () => {
-    const items = [
-      makeItem({ model_code: 'MC-001', quantity_in_stock: 3, quantity_received: 0 }),
-      makeItem({ model_code: 'MC-001', quantity_in_stock: 2, quantity_received: 1 }),
-      makeItem({ model_code: 'MC-002', quantity_in_stock: 0, quantity_received: 0 }),
-    ]
-    expect(restorationLines(items)).toEqual([{ model_code: 'MC-001', quantity: 6 }])
+describe('canChangeOrderStatus (#157)', () => {
+  test('REGLA: entregada o completada nunca regresa a pedida ni recibida', () => {
+    for (const from of ['delivered', 'completed'] as const) {
+      expect(canChangeOrderStatus(from, 'ordered'), from).toBe(false)
+      expect(canChangeOrderStatus(from, 'received'), from).toBe(false)
+    }
   })
 
-  test('reservedLines devuelve solo lo que sí se apartó', () => {
+  test('entregada ↔ completada, quedarse igual y avanzar desde tienda siguen permitidos', () => {
+    expect(canChangeOrderStatus('delivered', 'completed')).toBe(true)
+    expect(canChangeOrderStatus('completed', 'delivered')).toBe(true)
+    expect(canChangeOrderStatus('delivered', 'delivered')).toBe(true)
+    expect(canChangeOrderStatus('ordered', 'delivered')).toBe(true)
+    expect(canChangeOrderStatus('received', 'ordered')).toBe(true)
+  })
+})
+
+describe('reservedLines (#157)', () => {
+  test('devuelve solo lo que sí se apartó', () => {
     const reservations = new Map([
       ['A', { reserved: 4, location: 'G1' }],
       ['B', { reserved: 0, location: null }],
@@ -232,8 +239,6 @@ describe('funciones atómicas de stock (#157)', () => {
     const client = createMockSupabase()
     expect((await reserveInventory(asDb(client), [])).size).toBe(0)
     expect(await releaseInventory(asDb(client), [])).toBe(0)
-    expect(await adjustInventory(asDb(client), 'A', 0)).toEqual({ quantity: null, clamped: false, missing: false })
-    expect(await adjustInventory(asDb(client), '  ', 5)).toEqual({ quantity: null, clamped: false, missing: false })
     expect(client._rpcCalls).toEqual([])
   })
 
@@ -242,19 +247,9 @@ describe('funciones atómicas de stock (#157)', () => {
       responses: {
         'rpc.reserve_inventory': { data: null, error: { message: 'boom' } },
         'rpc.release_inventory': { data: null, error: { message: 'boom' } },
-        'rpc.adjust_inventory': { data: null, error: { message: 'boom' } },
       },
     })
     await expect(reserveInventory(asDb(client), [{ model_code: 'A', quantity: 1 }])).rejects.toThrow(/reserve_inventory/)
     await expect(releaseInventory(asDb(client), [{ model_code: 'A', quantity: 1 }])).rejects.toThrow(/release_inventory/)
-    await expect(adjustInventory(asDb(client), 'A', -1)).rejects.toThrow(/adjust_inventory/)
-  })
-
-  test('adjustInventory pasa el delta y lee clamped / missing', async () => {
-    const client = createMockSupabase({
-      responses: { 'rpc.adjust_inventory': { data: { quantity: 0, clamped: true, missing: false }, error: null } },
-    })
-    expect(await adjustInventory(asDb(client), 'A', -8)).toEqual({ quantity: 0, clamped: true, missing: false })
-    expect(client.rpcParams('adjust_inventory')).toEqual([{ p_model_code: 'A', p_delta: -8 }])
   })
 })

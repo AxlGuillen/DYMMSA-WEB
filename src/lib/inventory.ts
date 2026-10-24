@@ -1,7 +1,7 @@
 /** Inventory: pure rules plus the atomic stock functions of the DB (#157) — never read → compute → write. */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { receivedForCustomer, stockKey } from '@/lib/business-rules'
+import { receivedForCustomer } from '@/lib/business-rules'
 import type { OrderStatus } from '@/types/database'
 
 /** The goods are still in the store: cancel already returned them, and a delivered/completed order
@@ -20,6 +20,12 @@ export function isOrderClosed(status: OrderStatus): boolean {
   return status === 'completed' || status === 'cancelled'
 }
 
+/** Manual status change (#157): once the goods left (delivered/completed) the order never goes back
+ *  to ordered/received — that would re-open cancel and return stock the customer already has. */
+export function canChangeOrderStatus(from: OrderStatus, to: OrderStatus): boolean {
+  return from === to || goodsInStore(from) || !goodsInStore(to)
+}
+
 type RestorableItem = {
   model_code: string | null
   quantity_in_stock: number
@@ -27,8 +33,8 @@ type RestorableItem = {
   quantity_to_order: number
 }
 
-/** Restore on cancel/delete: stock taken + min(received, ordered). The excess is NOT restored —
- *  it already entered on reception and adding it back would duplicate it (ADR-019). */
+/** Restore on cancel/delete: stock taken + min(received, ordered); the excess already entered on
+ *  reception (ADR-019). The SQL order_restock_lines() mirrors it inside the cancel/delete transaction. */
 export function computeRestoration<T extends RestorableItem>(
   items: T[]
 ): Array<{ model_code: string; quantityToRestore: number }> {
@@ -47,15 +53,6 @@ export function computeRestoration<T extends RestorableItem>(
 export interface StockLine {
   model_code: string
   quantity: number
-}
-
-/** computeRestoration consolidated by model_code, as release_inventory takes it. */
-export function restorationLines<T extends RestorableItem>(items: T[]): StockLine[] {
-  const byCode = new Map<string, number>()
-  for (const { model_code, quantityToRestore } of computeRestoration(items)) {
-    byCode.set(model_code, (byCode.get(model_code) ?? 0) + quantityToRestore)
-  }
-  return [...byCode].map(([model_code, quantity]) => ({ model_code, quantity }))
 }
 
 export interface Reservation {
@@ -98,27 +95,4 @@ export async function releaseInventory(db: SupabaseClient, lines: StockLine[]): 
   const { data, error } = await db.rpc('release_inventory', { p_lines: lines })
   if (error) throw new Error(`release_inventory: ${error.message}`)
   return toInt(data)
-}
-
-export interface StockAdjustment {
-  /** Stock after the move; null when nothing moved. */
-  quantity: number | null
-  /** A negative delta hit 0: part of it could not be subtracted. */
-  clamped: boolean
-  /** A negative delta found no row to subtract from. */
-  missing: boolean
-}
-
-/** Reception delta (ADR-019): positive adds (creating the row), negative subtracts clamped at 0. */
-export async function adjustInventory(db: SupabaseClient, modelCode: string, delta: number): Promise<StockAdjustment> {
-  const none: StockAdjustment = { quantity: null, clamped: false, missing: false }
-  if (delta === 0 || !stockKey(modelCode)) return none
-  const { data, error } = await db.rpc('adjust_inventory', { p_model_code: modelCode, p_delta: delta })
-  if (error) throw new Error(`adjust_inventory: ${error.message}`)
-  const r = (data ?? {}) as { quantity?: unknown; clamped?: unknown; missing?: unknown }
-  return {
-    quantity: r.quantity == null ? null : toInt(r.quantity),
-    clamped: r.clamped === true,
-    missing: r.missing === true,
-  }
 }
