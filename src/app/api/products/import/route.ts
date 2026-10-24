@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api-helpers'
-import { DomainError } from '@/lib/domain-error'
+import { requireAuth, apiError } from '@/lib/api-helpers'
 import { importProducts, parseProductSheet } from '@/lib/products-store'
 import type { ProductImportMode, ProductImportResult } from '@/types/database'
 
@@ -32,8 +31,6 @@ export async function POST(request: NextRequest) {
     const result: ProductImportResult = { ...written, errors: written.errors + withoutEtm, total: sheet.length }
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
-    console.error('Import error:', error)
-    return NextResponse.json({ message: 'Error al procesar el archivo' }, { status: 500 })
+    return apiError(error, 'Error al procesar el archivo', 'Import error:')
   }
 }

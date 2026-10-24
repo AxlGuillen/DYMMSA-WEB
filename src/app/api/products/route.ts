@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, serverError } from '@/lib/api-helpers'
-import { DomainError } from '@/lib/domain-error'
+import { requireAuth, apiError, serverError } from '@/lib/api-helpers'
 import { createProduct, parseProductInput } from '@/lib/products-store'
 
 const SORT_COLUMNS = ['etm', 'description_es', 'model_code', 'price'] as const
@@ -74,8 +73,6 @@ export async function POST(request: NextRequest) {
     const product = await createProduct(supabase, parseProductInput(body, { create: true }))
     return NextResponse.json(product, { status: 201 })
   } catch (error) {
-    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
-    console.error('Product create error:', error)
-    return serverError('Error al crear el producto')
+    return apiError(error, 'Error al crear el producto', 'Product create error:')
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, serverError } from '@/lib/api-helpers'
-import { OrderError, setOrderStatus } from '@/lib/orders-store'
+import { requireAuth, apiError } from '@/lib/api-helpers'
+import { setOrderStatus } from '@/lib/orders-store'
 
 export async function PATCH(
   request: NextRequest,
@@ -16,8 +16,6 @@ export async function PATCH(
 
     return NextResponse.json(await setOrderStatus(supabase, id, await request.json()))
   } catch (error) {
-    if (error instanceof OrderError) return NextResponse.json(error.body, { status: error.status })
-    console.error('PATCH order status error:', error)
-    return serverError()
+    return apiError(error, 'Error al actualizar el estado', 'PATCH order status error:')
   }
 }

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { normalizeCatalogBrand } from '@/lib/business-rules'
-import { requireAuth, serverError } from '@/lib/api-helpers'
-import { DomainError } from '@/lib/domain-error'
+import { requireAuth, apiError, serverError } from '@/lib/api-helpers'
 import { createCatalogItem, parseCatalogItemInput } from '@/lib/urrea-catalog-store'
 
 const SORT_FIELDS = ['code', 'brand', 'description', 'std'] as const
@@ -77,8 +76,6 @@ export async function POST(request: NextRequest) {
     const item = await createCatalogItem(supabase, parseCatalogItemInput(body, { create: true }))
     return NextResponse.json(item, { status: 201 })
   } catch (error) {
-    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
-    console.error('URREA catalog create error:', error)
-    return serverError('Error al crear el producto')
+    return apiError(error, 'Error al crear el producto', 'URREA catalog create error:')
   }
 }

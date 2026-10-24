@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, serverError } from '@/lib/api-helpers'
+import { requireAuth, apiError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
-import { DomainError } from '@/lib/domain-error'
 import { deletePayable, updatePayable } from '@/lib/payables-store'
 
 // PATCH /api/payables/[id] — sparse updates
@@ -18,9 +17,7 @@ export async function PATCH(
 
     return NextResponse.json(await updatePayable(supabase, id, await request.json(), todayInMexico()))
   } catch (error) {
-    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
-    console.error('Payable PATCH error:', error)
-    return serverError('Error al actualizar la factura')
+    return apiError(error, 'Error al actualizar la factura', 'Payable PATCH error:')
   }
 }
 
@@ -38,8 +35,6 @@ export async function DELETE(
     await deletePayable(supabase, id)
     return NextResponse.json({ ok: true })
   } catch (error) {
-    if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
-    console.error('Payable DELETE error:', error)
-    return serverError('Error al eliminar la factura')
+    return apiError(error, 'Error al eliminar la factura', 'Payable DELETE error:')
   }
 }

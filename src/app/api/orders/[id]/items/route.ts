@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api-helpers'
-import { addOrderItem, OrderError } from '@/lib/orders-store'
+import { requireAuth, apiError } from '@/lib/api-helpers'
+import { addOrderItem } from '@/lib/orders-store'
 
 export async function POST(
   request: NextRequest,
@@ -16,8 +16,6 @@ export async function POST(
 
     return NextResponse.json(await addOrderItem(supabase, id, await request.json()))
   } catch (error) {
-    if (error instanceof OrderError) return NextResponse.json(error.body, { status: error.status })
-    console.error('Add order item error:', error)
-    return NextResponse.json({ message: 'Error interno' }, { status: 500 })
+    return apiError(error, 'Error interno', 'Add order item error:')
   }
 }
