@@ -45,6 +45,7 @@ export type RawWriteCall = OdooCall & { remainingMs: number }
 const DEFAULT_WRITE_RESULTS: Readonly<Record<string, unknown>> = {
   'sale.order.write': true,
   'sale.order.action_confirm': true,
+  'product.product.write': true,
   'sale.advance.payment.inv.create_invoices': true,
 }
 

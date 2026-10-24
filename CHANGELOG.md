@@ -5,6 +5,17 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-10-24
 
+### Nuevo
+- [admin] **La clave SAT de los productos ya no hay que sabérsela.** En la
+  vista previa de una cotización de Odoo, cada producto que no tiene clave
+  SAT trae hasta tres sugeridas según su descripción. Eliges una de la lista,
+  tecleas otra o la dejas vacía, y se guarda al darlo de alta. También puedes
+  pedirla por nombre («con la categoría de pinturas en aerosol»). A los
+  productos que ya existen en Odoo sin clave se la pones con el botón
+  «Asignar clave SAT»; si alguien ya la capturó en Odoo, no se cambia. El
+  resumen de la factura en borrador ahora también dice qué productos no
+  tienen clave.
+
 ### Mejorado
 - [admin] **El asistente de Odoo tiene nombres nuevos y menos herramientas.**
   Ahora cada herramienta dice lo que hace («Documento por folio», «Cliente y

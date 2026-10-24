@@ -28,7 +28,8 @@ type ToolContext = Pick<McpContext, 'db' | 'userId' | 'role'>
 
 export const draftInvoiceShape = {
   folio: z.string().regex(/^S\d{5,}$/i, 'folio de venta de Odoo, ej. S00912').describe('Folio exacto de la venta confirmada'),
-  confirmar: z.literal(true).optional().describe('Crea el borrador; sin esto solo muestra el resumen'),
+  // A boolean, not literal(true): `confirmar: false` is a summary, never "Entrada inválida" (review PR #165).
+  confirmar: z.boolean().optional().describe('true crea el borrador; sin esto solo muestra el resumen'),
 }
 
 const draftInvoiceSchema = z.strictObject(draftInvoiceShape)
@@ -72,6 +73,8 @@ export interface DraftInvoiceSummary {
   readonly truncado: boolean
   readonly entrega: string
   readonly entregas: readonly { readonly folio: string; readonly estado: string }[]
+  /** Products the draft would carry without a SAT key (#154); empty unless the sale is ready. */
+  readonly sin_clave_sat: readonly string[]
   readonly borrador_existente: { readonly id: number; readonly total: number; readonly moneda: string | null } | null
   readonly siguiente_paso: string
 }
@@ -280,7 +283,7 @@ function deliveryText(lines: readonly InvoiceLine[], products: ReadonlyMap<numbe
 }
 
 const SUMMARY_NEXT_STEP =
-  'Nada se ha escrito. Muestra el resumen (cliente, total, líneas, entrega) y, tras el sí, repite con el mismo folio y confirmar: true: quedará en BORRADOR, sin folio ni timbre.'
+  'Nada se ha escrito. Muestra el resumen (cliente, total, líneas, entrega, sin clave SAT) y, tras el sí, repite con el mismo folio y confirmar: true: quedará en BORRADOR, sin folio ni timbre.'
 const SUMMARY_ALREADY =
   'Nada que crear: la venta ya tiene una factura en borrador. Revisarla, publicarla y timbrarla se hace en Odoo; el asistente nunca timbra.'
 
@@ -332,6 +335,8 @@ function invoiceSummary(state: InvoiceState): DraftInvoiceSummary {
     truncado: invoiceable.length > SUMMARY_LINES_MAX,
     entrega: deliveryText(state.lines, state.products),
     entregas: state.pickings.map((p) => ({ folio: p.name, estado: PICKING_STATE_LABEL[p.state] ?? p.state })),
+    // readProducts() already read unspsc_code_id: no extra call (review PR #165).
+    sin_clave_sat: ready.estado === 'lista' ? withoutSatKey(state.lines, state.products) : [],
     borrador_existente: ready.estado === 'ya_existe' ? { id: ready.factura.id, total: ready.factura.total, moneda } : null,
     siguiente_paso: ready.estado === 'ya_existe' ? SUMMARY_ALREADY : SUMMARY_NEXT_STEP,
   }

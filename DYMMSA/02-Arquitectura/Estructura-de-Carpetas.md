@@ -145,7 +145,7 @@ src/
 │   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); describeAuditEvent (#100); re-exporta month.ts
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
 │   ├── customers.ts              # Cartera y estado de cuenta: rango por vencimiento, líneas, totales (issue #145, ADR-039)
-│   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145)
+│   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145); sat-keys.ts ordena las claves SAT sugeridas (#154)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
 │   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores, resultado/_meta, schema, lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool, ConnectorDefinition), register (registro derivado) y http (connectorRoute: la ruta de cada conector)
 │   ├── mcp/connectors/dymmsa/    # Las 36 tools de DYMMSA-WEB, una definición por archivo por módulo (summary, quotations, orders, inventory, catalogs, suppliers, finance, hours, profiles, payroll, tasks, settings) (#155 A3b)

@@ -51,7 +51,7 @@ afterEach(() => {
 
 describe('run() y _meta (#144)', () => {
   test('el token de productos viaja en _meta y nunca en el texto', async () => {
-    const { autorizacion } = issueProductsAuthorization(testAdminProof(), PRODUCTS)
+    const { autorizacion } = issueProductsAuthorization(testAdminProof(), { alta: PRODUCTS })
     const data = { modo: 'crear', productos_para_alta: PRODUCTS, puede_guardar: true }
 
     const result = await callThroughSdk(async () => withResultMeta(data, { [PRODUCTS_AUTHORIZATION_META]: autorizacion }))

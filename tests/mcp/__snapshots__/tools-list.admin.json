@@ -1554,7 +1554,7 @@
   {
     "name": "odoo_search_records",
     "title": "Buscar registros (Odoo)",
-    "description": "Primitiva: lee registros normalizados (máx 50) de un modelo del catálogo permitido de Odoo: facturas y sus líneas, pagos, documentos CFDI/REP, contactos, ventas y sus líneas, productos, existencias, el directorio de empleados (hr.employee) y la flotilla (fleet.vehicle y su bitácora fleet.vehicle.log.services). Úsala solo cuando ninguna tool curada responda: no aplica sus reglas (notas de crédito aparte, solo publicadas o confirmadas, día de Morelia). Para totales, odoo_aggregate_records.",
+    "description": "Primitiva: lee registros normalizados (máx 50) de un modelo del catálogo permitido de Odoo: facturas y sus líneas, pagos, documentos CFDI/REP, contactos, ventas y sus líneas, productos, existencias, las claves SAT (product.unspsc.code), el directorio de empleados (hr.employee) y la flotilla (fleet.vehicle y su bitácora fleet.vehicle.log.services). Úsala solo cuando ninguna tool curada responda: no aplica sus reglas (notas de crédito aparte, solo publicadas o confirmadas, día de Morelia). Para totales, odoo_aggregate_records.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1670,7 +1670,7 @@
   {
     "name": "odoo_preview_quotation",
     "title": "Vista previa de cotización (Odoo)",
-    "description": "SOLO LEE: arma la vista previa de una cotización de Odoo y firma la `clave` que exigen odoo_save_quotation y odoo_confirm_quotation (vale 30 min). Crear: `cliente` (nombre, RFC o #id; nunca se crean clientes) + `lineas`, la lista COMPLETA: cada producto con codigo, etm o producto_id, cantidad y precio unitario sin IVA; nota/seccion para textos. Editar: `folio` + `lineas` (parte de lineas_como_entrada). Revisar o confirmar: solo `folio`. En Claude se ve como tabla; los productos que falten se dan de alta con su botón. Muestra el resumen (bloqueos, avisos, al_confirmar) y espera el sí antes de guardar.",
+    "description": "SOLO LEE: arma la vista previa de una cotización de Odoo y firma la `clave` que exigen odoo_save_quotation y odoo_confirm_quotation (vale 30 min). Crear: `cliente` (nombre, RFC o #id; nunca se crean clientes) + `lineas`, la lista COMPLETA: cada producto con codigo, etm o producto_id, cantidad y precio unitario sin IVA; nota/seccion para textos. Editar: `folio` + `lineas` (parte de lineas_como_entrada). Revisar o confirmar: solo `folio`. En Claude se ve como tabla: con sus botones se dan de alta los productos que falten y se elige la clave SAT de los que no la tienen. Muestra el resumen (bloqueos, avisos, al_confirmar) y espera el sí antes de guardar.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1725,9 +1725,15 @@
                 "maxLength": 200
               },
               "clave_sat": {
-                "description": "Solo producto nuevo",
+                "description": "Sin clave en Odoo: solo la que dio el usuario",
                 "type": "string",
                 "pattern": "^\\d{8}$"
+              },
+              "categoria_sat": {
+                "description": "Sin clave en Odoo: texto para sugerirla, ej. «pinturas en aerosol»",
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 80
               },
               "cantidad": {
                 "type": "number",
@@ -1841,9 +1847,15 @@
                 "maxLength": 200
               },
               "clave_sat": {
-                "description": "Solo producto nuevo",
+                "description": "Sin clave en Odoo: solo la que dio el usuario",
                 "type": "string",
                 "pattern": "^\\d{8}$"
+              },
+              "categoria_sat": {
+                "description": "Sin clave en Odoo: texto para sugerirla, ej. «pinturas en aerosol»",
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 80
               },
               "cantidad": {
                 "type": "number",
@@ -1941,12 +1953,13 @@
   },
   {
     "name": "odoo_save_product",
-    "title": "Alta de productos (Odoo)",
-    "description": "Solo la llama el botón de la vista de odoo_preview_quotation: da de alta en Odoo los productos nuevos de esa vista previa (bienes, IVA 16, factura por entrega). Sin la autorización de la vista no crea nada.",
+    "title": "Alta de productos y clave SAT (Odoo)",
+    "description": "Solo la llama el botón de la vista de odoo_preview_quotation: da de alta en Odoo los productos nuevos de esa vista previa (bienes, IVA 16, factura por entrega) o les pone la clave SAT elegida a los que no la tienen. Sin la autorización de la vista no escribe nada.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "productos": {
+          "description": "Alta: productos_para_alta con su clave elegida",
           "minItems": 1,
           "maxItems": 40,
           "type": "array",
@@ -1980,6 +1993,9 @@
               "clave_sat": {
                 "type": "string",
                 "pattern": "^\\d{8}$"
+              },
+              "clave_sat_tecleada": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -1988,18 +2004,44 @@
               "precio"
             ],
             "additionalProperties": false
-          },
-          "description": "productos_para_alta, tal cual"
+          }
+        },
+        "asignar": {
+          "description": "Clave SAT de productos que ya existen",
+          "minItems": 1,
+          "maxItems": 40,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "producto_id": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "clave_sat": {
+                "type": "string",
+                "pattern": "^\\d{8}$"
+              },
+              "clave_sat_tecleada": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "producto_id",
+              "clave_sat"
+            ],
+            "additionalProperties": false
+          }
         },
         "autorizacion": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 4000,
+          "maxLength": 8000,
           "description": "La de la vista previa"
         }
       },
       "required": [
-        "productos",
         "autorizacion"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#"
@@ -2024,7 +2066,7 @@
   {
     "name": "odoo_create_draft_invoice",
     "title": "Factura en borrador (Odoo)",
-    "description": "Factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`). Sin `confirmar` no escribe: devuelve el resumen (cliente, total y líneas a facturar, entrega, si ya hay borrador); muéstralo y, tras el sí, repite con confirmar: true. Revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.",
+    "description": "Factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`). Sin `confirmar` no escribe: devuelve el resumen (cliente, total y líneas a facturar, entrega, productos sin clave SAT, si ya hay borrador); muéstralo y, tras el sí, repite con confirmar: true. Revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2034,9 +2076,8 @@
           "description": "Folio exacto de la venta confirmada"
         },
         "confirmar": {
-          "description": "Crea el borrador; sin esto solo muestra el resumen",
-          "type": "boolean",
-          "const": true
+          "description": "true crea el borrador; sin esto solo muestra el resumen",
+          "type": "boolean"
         }
       },
       "required": [

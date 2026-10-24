@@ -60,6 +60,11 @@ export const ODOO_CATALOG: Record<string, CatalogEntry> = {
     label: 'Existencias por ubicación (almacén de Odoo)',
     fields: ['product_id', 'location_id', 'quantity', 'available_quantity'],
   },
+  // The SAT's public catalog (#154, ADR-040 2026-10-24): code and name only, for "¿qué clave SAT llevan…?".
+  'product.unspsc.code': {
+    label: 'Claves SAT de producto (UNSPSC)',
+    fields: ['code', 'name'],
+  },
 
   // hr.employee: work directory ONLY. Payroll, salaries and personal data (bank, CURP,
   // birth date) never enter this whitelist.
