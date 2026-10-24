@@ -11,6 +11,12 @@ export const TOKEN = '22222222-2222-4222-8222-222222222222'
 /** Deterministic line ids: lineId(1) … lineId(n). */
 export const lineId = (n: number) => `33333333-3333-4333-8333-${String(n).padStart(12, '0')}`
 
+/** The columns update_quotation sets from the payload (supabase/migrations/20261024120000_atomic_quotation_writes.sql). */
+const UPDATED_COLUMNS = [
+  'item_type', 'section_label', 'separator_color', 'etm', 'description', 'description_es', 'dymmsa_description',
+  'model_code', 'brand', 'unit_price', 'quantity', 'delivery_time', 'is_sold',
+] as const
+
 export interface FakeLine {
   id: string
   item_type: 'product' | 'separator'
@@ -100,9 +106,11 @@ export function quotationDb(opts: Options = {}) {
         : existing && quotation.status === 'sent_for_approval'
           ? existing.is_approved
           : ((columns.is_approved as boolean | null | undefined) ?? null)
+      // Every column the real UPDATE assigns: a key missing from the payload becomes NULL there, not the old value.
+      const assigned = Object.fromEntries(UPDATED_COLUMNS.map((col) => [col, (columns as Record<string, unknown>)[col] ?? null]))
       return {
         ...(existing ?? {}),
-        ...(columns as Partial<FakeLine>),
+        ...assigned,
         id: existing ? existing.id : `new-${++fresh}`,
         is_approved,
         sort_order: pos,

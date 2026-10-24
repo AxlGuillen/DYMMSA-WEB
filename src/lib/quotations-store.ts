@@ -88,6 +88,12 @@ function lineShapeError(item: Record<string, unknown>): string | null {
       return `ETM "${tagOf(item)}": ${field === 'quantity' ? 'la cantidad' : 'el precio'} debe ser un número.`
     }
   }
+  for (const field of ['is_sold', 'is_approved'] as const) {
+    const value = item[field]
+    if (value != null && typeof value !== 'boolean') {
+      return `ETM "${tagOf(item)}": ${field === 'is_sold' ? '«lo vendemos»' : 'la aprobación'} debe ser sí, no o vacío.`
+    }
+  }
   return null
 }
 

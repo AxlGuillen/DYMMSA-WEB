@@ -539,8 +539,8 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  // Line ids survive a save since #157; updated_at (bumped by every quotation write) is what
-  // tells us the refetched data is new.
+  // Line ids survive a save since #157; updated_at moves with header writes. The client's progress only
+  // touches the lines, which is harmless: under review the stored decision wins (#157).
   const itemsSignature = `${quotation.updated_at}|${quotation.quotation_items.map((i) => i.id).join('|')}`
 
   // oxlint-disable-next-line react-doctor/no-cascading-set-state -- intentional pattern; structural refactor tracked separately

@@ -62,6 +62,11 @@ describe('parseQuotationInput', () => {
       .toMatch(/Tipo de línea inválido/)
     expect(parseError({ name: 'Q', customer_name: 'A', items: [product({ etm: 'E2', unit_price: '100' })] }).message)
       .toMatch(/E2.*precio debe ser un número/)
+    // A non-boolean reaches the DB as 22P02 (500) without this check (review PR #166).
+    expect(parseError({ name: 'Q', customer_name: 'A', items: [product({ etm: 'E3', is_sold: 'si' })] }))
+      .toMatchObject({ offendingEtm: 'E3', message: expect.stringMatching(/lo vendemos/) })
+    expect(parseError({ name: 'Q', customer_name: 'A', items: [product({ etm: 'E4', is_approved: 1 })] }).message)
+      .toMatch(/E4.*aprobación/)
   })
 })
 

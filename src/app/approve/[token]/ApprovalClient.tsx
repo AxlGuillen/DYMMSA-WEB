@@ -160,6 +160,7 @@ export function ApprovalClient({ quotation, token }: Props) {
   const approvedIds = () => decisions.filter((d) => d.is_approved).map((d) => d.item_id)
 
   const postDecisions = async (finalize: boolean) => {
+    setStaleMessage(null)
     const res = await fetch(`/api/approve/${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

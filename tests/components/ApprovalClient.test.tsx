@@ -134,6 +134,26 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
     }
   })
 
+  test('el aviso de recargar se quita en cuanto un guardado sale bien (review PR #166)', async () => {
+    const message = 'DYMMSA actualizó esta cotización mientras la revisabas. No se guardó nada: recarga la página.'
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message, code: 'stale_items' }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }))
+    try {
+      const user = userEvent.setup()
+      renderWithProviders(<ApprovalClient quotation={sentQuotation()} token="tok-1" />)
+      await user.click(screen.getByRole('button', { name: /aprobar todos/i }))
+      await user.click(screen.getByRole('button', { name: /guardar avance/i }))
+      expect(await screen.findByRole('alert')).toHaveTextContent(message)
+
+      await user.click(screen.getByRole('button', { name: /guardar avance/i }))
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+      await vi.waitFor(() => expect(screen.queryByText(message)).not.toBeInTheDocument())
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
   test('colores de sección: rotan por índice y el override guardado gana (issue #73)', () => {
     const quotation = sentQuotation()
     // sep-b carries a manual override; sep-a stays automatic.
