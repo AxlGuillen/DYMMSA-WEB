@@ -79,7 +79,7 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
     try {
       const result = await importProducts.mutateAsync(formData)
       toast.success('Importacion completada', {
-        description: `${result.imported} productos importados, ${result.updated} actualizados, ${result.errors} errores`,
+        description: `${result.imported} productos importados, ${result.updated} actualizados, ${result.skipped ?? 0} sin cambios, ${result.errors} errores`,
       })
       onOpenChange(false)
       setFile(null)
@@ -102,7 +102,8 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
         <DialogHeader>
           <DialogTitle>Importar desde Excel</DialogTitle>
           <DialogDescription>
-            Sube un archivo Excel con las columnas: ETM, DESCRIPTION, DESCRIPCION, MODELO, PRECIO, MARCA
+            Sube un archivo Excel con las columnas ETM y MODEL_CODE (obligatorias) y, si las tienes,
+            DESCRIPTION, DESCRIPTION_ES, PRICE y BRAND
           </DialogDescription>
         </DialogHeader>
 
@@ -179,7 +180,7 @@ export function ExcelImporter({ open, onOpenChange }: ExcelImporterProps) {
                     Actualizar y agregar
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Sobreescribe existentes y añade nuevos
+                    Añade nuevos y actualiza existentes; una celda vacía no borra lo guardado
                   </p>
                 </div>
               </label>
