@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { allocateInventory, calculateOrderTotal } from '@/lib/business-rules'
 import { requireAuth } from '@/lib/api-helpers'
-
-interface AddOrderItemInput {
-  etm: string
-  description: string
-  model_code: string
-  brand: string
-  unit_price: number
-  quantity_approved: number
-}
+import { addOrderItem, OrderError } from '@/lib/orders-store'
 
 export async function POST(
   request: NextRequest,
@@ -23,99 +14,9 @@ export async function POST(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const { data: order } = await supabase
-      .from('orders')
-      .select('id, status, total_amount')
-      .eq('id', id)
-      .single()
-
-    if (!order) return NextResponse.json({ message: 'Orden no encontrada' }, { status: 404 })
-    if (['completed', 'cancelled'].includes(order.status)) {
-      return NextResponse.json(
-        { message: 'No se puede modificar una orden completada o cancelada' },
-        { status: 400 }
-      )
-    }
-
-    const { etm, description, model_code, brand, unit_price, quantity_approved } =
-      (await request.json()) as AddOrderItemInput
-
-    if (!quantity_approved || quantity_approved < 1) {
-      return NextResponse.json({ message: 'La cantidad debe ser mayor a 0' }, { status: 400 })
-    }
-    if (unit_price == null || unit_price < 0) {
-      return NextResponse.json({ message: 'El precio no puede ser negativo' }, { status: 400 })
-    }
-
-    let quantityInStock = 0
-    let quantityToOrder = quantity_approved
-
-    if (model_code) {
-      const { data: inv } = await supabase
-        .from('store_inventory')
-        .select('quantity')
-        .eq('model_code', model_code)
-        .single()
-
-      if (inv) {
-        const allocation = allocateInventory(quantity_approved, inv.quantity)
-        quantityInStock = allocation.inStock
-        quantityToOrder = allocation.toOrder
-
-        if (quantityInStock > 0) {
-          await supabase
-            .from('store_inventory')
-            .update({ quantity: inv.quantity - quantityInStock })
-            .eq('model_code', model_code)
-        }
-      }
-    }
-
-    const { data: maxSortData } = await supabase
-      .from('order_items')
-      .select('sort_order')
-      .eq('order_id', id)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .single()
-
-    const nextSortOrder = (maxSortData?.sort_order ?? -1) + 1
-
-    const { data: newItem, error: insertError } = await supabase
-      .from('order_items')
-      .insert({
-        order_id:          id,
-        sort_order:        nextSortOrder,
-        etm:               etm || '',
-        model_code:        model_code || '',
-        description:       description || '',
-        brand:             brand || '',
-        quantity_approved,
-        quantity_in_stock: quantityInStock,
-        quantity_to_order: quantityToOrder,
-        quantity_received: 0,
-        urrea_status:      'pending',
-        unit_price,
-      })
-      .select()
-      .single()
-
-    if (insertError) {
-      console.error('Add order item error:', insertError)
-      return NextResponse.json({ message: 'Error al agregar el producto' }, { status: 500 })
-    }
-
-    const { data: allItems } = await supabase
-      .from('order_items')
-      .select('unit_price, quantity_approved, item_type')
-      .eq('order_id', id)
-      .limit(5000)
-
-    const newTotal = calculateOrderTotal(allItems ?? [])
-    await supabase.from('orders').update({ total_amount: newTotal }).eq('id', id)
-
-    return NextResponse.json({ item: newItem, total_amount: newTotal })
+    return NextResponse.json(await addOrderItem(supabase, id, await request.json()))
   } catch (error) {
+    if (error instanceof OrderError) return NextResponse.json(error.body, { status: error.status })
     console.error('Add order item error:', error)
     return NextResponse.json({ message: 'Error interno' }, { status: 500 })
   }
