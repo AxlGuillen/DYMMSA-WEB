@@ -15,6 +15,28 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   tenías permisos guardados para estas herramientas en Claude, te los volverá
   a pedir.
 
+### Corregido
+- **La fecha de pago solo se guarda en facturas pagadas.** Antes se le podía
+  poner «Pagada el» a una factura pendiente o cancelada sin cambiarle el
+  estado, y quedaba con una fecha que no correspondía. Ahora el sistema lo
+  rechaza con un aviso: primero se marca como pagada.
+- **Borrar algo que ya no existe ahora avisa.** Al eliminar un proveedor, una
+  marca, una factura por pagar o un producto del inventario que alguien más
+  ya había borrado, el sistema decía que todo salió bien; ahora dice que ya
+  no existe.
+- [admin] **El historial de una factura ahora registra cambios de monto y de
+  moneda.** Si alguien corrige el monto o cambia pesos por dólares, el
+  historial dice de cuánto a cuánto y quién lo hizo. Al registrar o borrar una
+  factura, el historial también guarda su moneda.
+- [admin] **Un corte de nómina cerrado ya no cambia solo.** Si después de
+  cerrar un corte se cambiaba la jornada de un empleado en Nómina o el área
+  (oficina o taller) de una persona en Equipo, los totales de ese corte ya
+  pagado se recalculaban. Ahora el corte guarda la jornada y el área que tenía
+  al cerrarse; si lo reabres, vuelve a usar las actuales.
+- [admin] **Siempre queda al menos un administrador**, aunque el cambio no se
+  haga desde la pantalla de Equipo. Y la corona de dueño ya no se puede mover
+  desde la app.
+
 ## 2026-10-20
 
 ### Nuevo

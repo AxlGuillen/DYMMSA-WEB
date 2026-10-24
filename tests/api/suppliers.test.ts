@@ -277,13 +277,35 @@ describe('DELETE /api/suppliers/[id]', () => {
       (await supplierById.DELETE(makeRequest(), makeParams({ id: 's1' }))).status,
     ).toBe(401)
 
+    const id = '5a5a5a5a-0000-4000-8000-000000000001'
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'suppliers.delete': { data: null, error: null } },
+      responses: { 'suppliers.delete': { data: [{ id }], error: null } },
     })
-    const res = await supplierById.DELETE(makeRequest(), makeParams({ id: 's1' }))
+    const res = await supplierById.DELETE(makeRequest(), makeParams({ id }))
     expect(res.status).toBe(200)
-    expect(filterValue(activeClient.callsTo('suppliers', 'delete')[0], 'id')).toBe('s1')
+    expect(filterValue(activeClient.callsTo('suppliers', 'delete')[0], 'id')).toBe(id)
+  })
+
+  test('#157: un proveedor que no existe → 404 (no ok); un id que no es uuid → 404 sin consultar', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'suppliers.delete': { data: [], error: null } } })
+    const missing = await supplierById.DELETE(makeRequest(), makeParams({ id: '5a5a5a5a-0000-4000-8000-000000000002' }))
+    expect(missing.status).toBe(404)
+    expect((await readJson<{ message: string }>(missing)).message).toBe('El proveedor no existe')
+
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await supplierById.DELETE(makeRequest(), makeParams({ id: 's1' }))).status).toBe(404)
+    expect(activeClient.callsTo('suppliers')).toEqual([])
+  })
+
+  test('con facturas registradas (FK 23503) → 400 descriptivo', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'suppliers.delete': { data: null, error: { code: '23503', message: 'fk' } } },
+    })
+    const res = await supplierById.DELETE(makeRequest(), makeParams({ id: '5a5a5a5a-0000-4000-8000-000000000001' }))
+    expect(res.status).toBe(400)
+    expect((await readJson<{ message: string }>(res)).message).toMatch(/facturas por pagar/)
   })
 })
 

@@ -10,6 +10,9 @@ export const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador'
 export const AREA_LABELS: Record<ProfileArea, string> = { office: 'Oficina', workshop: 'Taller' }
 export const AREAS: readonly ProfileArea[] = ['office', 'workshop']
 
+/** Same text as the profiles_guard_last_admin trigger (#157): the route says it first, the DB backs it. */
+export const LAST_ADMIN_MESSAGE = 'Debe quedar al menos un administrador'
+
 export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, area, created_at, updated_at'
 /** Admin reads: the rate embedded from its admin-only table (review PR #137). */
 export const PROFILE_WITH_PAY_COLUMNS = `${PROFILE_COLUMNS}, profile_pay(hourly_rate)`

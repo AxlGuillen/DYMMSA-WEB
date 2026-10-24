@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
 import { normalizeBrandTag } from '@/lib/business-rules'
+import { isUuid } from '@/lib/text'
 
 // PATCH /api/brands/[id] — rename (normalized trim+upper)
 export async function PATCH(
@@ -49,6 +50,7 @@ export async function DELETE(
     const supabase = await createClient()
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
+    if (!isUuid(id)) return notFound('Marca no encontrada')
 
     // Pre-check for a friendly message; the FK without CASCADE is the backstop.
     const { count, error: countError } = await supabase
@@ -66,7 +68,7 @@ export async function DELETE(
       )
     }
 
-    const { error } = await supabase.from('brands').delete().eq('id', id)
+    const { data, error } = await supabase.from('brands').delete().eq('id', id).select('id')
 
     if (error) {
       // 23503: the FK blocked it (race between the pre-check and the delete).
@@ -76,6 +78,8 @@ export async function DELETE(
       console.error('Error deleting brand:', error)
       return serverError('Error al eliminar la marca')
     }
+    // Zero rows deleted is a missing id, not a success (#157).
+    if (!data || data.length === 0) return notFound('Marca no encontrada')
 
     return NextResponse.json({ ok: true })
   } catch (error) {

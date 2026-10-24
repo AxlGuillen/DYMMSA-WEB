@@ -2,6 +2,7 @@
 
 > Issue #155 · Fase 0 (mapa, sin código) · Revisado contra el código el 2026-10-22
 > Ver [[02-Arquitectura/MCP-Escrituras/00-Matriz]] · [[02-Arquitectura/API-Routes]] · [[04-Decisiones-Tecnicas/ADR-026-Perfiles-y-Permisos-por-Rol]] · [[04-Decisiones-Tecnicas/ADR-032-Mi-Perfil-Auto-Edicion-y-NSS]] · [[02-Arquitectura/MCP-Escrituras/Nomina]]
+> **Actualización 2026-10-24 (#157):** la pregunta 5 quedó contestada en la BD. `guard_profile_admin_fields()` rechaza (42501) cualquier cambio de `is_owner` con sesión, admin incluido, y el trigger nuevo `profiles_guard_last_admin` rechaza (23514) degradar al último admin para cualquiera, también SQL; la ruta conserva su chequeo y mapea el 23514 a su mismo 400. La pregunta 6 también: cerrar un corte de Nómina congela el área (y la jornada) de sus días, así que cambiar el área en Equipo ya no mueve cortes cerrados. Los archivo:línea de abajo describen el código **anterior**.
 
 ## Resumen
 
