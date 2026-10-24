@@ -75,7 +75,7 @@ describe('conector Odoo DYMMSA', () => {
     expect(ODOO_TOOLS.map((t) => t.name)).toEqual([
       'odoo_get_document', 'odoo_get_customer', 'odoo_list_receivables', 'odoo_summarize_invoices', 'odoo_summarize_sales',
       'odoo_audit_invoice_links', 'odoo_audit_payment_complements', 'odoo_search_stock', 'odoo_search_records', 'odoo_aggregate_records',
-      'odoo_preview_quotation', 'odoo_save_quotation', 'odoo_save_product', 'odoo_create_draft_invoice',
+      'odoo_preview_quotation', 'odoo_save_quotation', 'odoo_confirm_quotation', 'odoo_save_product', 'odoo_create_draft_invoice',
     ])
     const texts = [
       ...[...dymmsaConnector.tools, ...odooConnector.tools].map((t) => t.description),
@@ -89,7 +89,31 @@ describe('conector Odoo DYMMSA', () => {
 
   test('sus instrucciones no prometen escrituras a un member', () => {
     expect(odooConnector.instructions('member')).toMatch(/SOLO lectura/)
-    expect(odooConnector.instructions('member')).not.toMatch(/odoo_save_quotation|Cotizar y facturar \(solo/)
+    expect(odooConnector.instructions('member')).not.toMatch(/odoo_save_quotation|odoo_confirm_quotation|Cotizar y facturar \(solo/)
     expect(odooConnector.instructions('admin')).toMatch(/odoo_preview_quotation/)
+  })
+
+  test('CICLO DE VIDA (#155 B2b): confirmar es su propia tool con folio y clave, y facturar pasa por el resumen', async () => {
+    const admin = await connectMcp('admin', authAs('admin'), odooConnector)
+    const member = await connectMcp('member', authAs('member'), odooConnector)
+    try {
+      const tools = await admin.tools()
+      const confirm = tools.find((t) => t.name === 'odoo_confirm_quotation')
+      expect(Object.keys(confirm?.inputSchema.properties ?? {}).sort()).toEqual(['clave', 'folio'])
+      expect(confirm?.inputSchema.required?.sort()).toEqual(['clave', 'folio'])
+      expect(confirm?.annotations).toEqual({ readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true })
+      expect(Object.keys(tools.find((t) => t.name === 'odoo_save_quotation')?.inputSchema.properties ?? {})).not.toContain('confirmar')
+      const invoice = tools.find((t) => t.name === 'odoo_create_draft_invoice')
+      expect(Object.keys(invoice?.inputSchema.properties ?? {}).sort()).toEqual(['confirmar', 'folio'])
+      expect(invoice?.inputSchema.required).toEqual(['folio'])
+      expect(invoice?.annotations).toEqual({ readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true })
+      // The instructions name the three steps in order.
+      expect(odooConnector.instructions('admin')).toMatch(
+        /odoo_preview_quotation.*→ sí → odoo_save_quotation.*solo el folio \(muestra al_confirmar\) → sí → odoo_confirm_quotation.*odoo_create_draft_invoice sin confirmar \(resumen\) → sí → con confirmar: true/,
+      )
+      expect((await member.tools()).map((t) => t.name)).not.toContain('odoo_confirm_quotation')
+    } finally {
+      await Promise.all([admin.close(), member.close()])
+    }
   })
 })

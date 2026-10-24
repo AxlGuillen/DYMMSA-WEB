@@ -391,7 +391,7 @@
   {
     "name": "odoo_preview_quotation",
     "title": "Vista previa de cotización (Odoo)",
-    "description": "SOLO LEE: arma la vista previa de una cotización de Odoo y firma la `clave` que exige odoo_save_quotation (vale 30 min). Crear: `cliente` (nombre, RFC o #id; nunca se crean clientes) + `lineas`, la lista COMPLETA: cada producto con codigo, etm o producto_id, cantidad y precio unitario sin IVA; nota/seccion para textos. Editar: `folio` + `lineas` (parte de lineas_como_entrada). Revisar o confirmar: solo `folio`. En Claude se ve como tabla; los productos que falten se dan de alta con su botón. Muestra el resumen (bloqueos, avisos, al_confirmar) y espera el sí antes de guardar.",
+    "description": "SOLO LEE: arma la vista previa de una cotización de Odoo y firma la `clave` que exigen odoo_save_quotation y odoo_confirm_quotation (vale 30 min). Crear: `cliente` (nombre, RFC o #id; nunca se crean clientes) + `lineas`, la lista COMPLETA: cada producto con codigo, etm o producto_id, cantidad y precio unitario sin IVA; nota/seccion para textos. Editar: `folio` + `lineas` (parte de lineas_como_entrada). Revisar o confirmar: solo `folio`. En Claude se ve como tabla; los productos que falten se dan de alta con su botón. Muestra el resumen (bloqueos, avisos, al_confirmar) y espera el sí antes de guardar.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -507,7 +507,7 @@
   {
     "name": "odoo_save_quotation",
     "title": "Guardar cotización (Odoo)",
-    "description": "Escribe en Odoo lo que mostró odoo_preview_quotation, con los MISMOS datos y su `clave`: crea la cotización en BORRADOR, la edita (folio + lineas) o la confirma como venta (folio + confirmar: true, tras mostrar al_confirmar y recibir el sí). Nunca la envía al cliente, ni publica ni timbra. Repetir la misma llamada no duplica; si responde que no se sabe si guardó, espera y repite exactamente la misma.",
+    "description": "Escribe en Odoo lo que mostró odoo_preview_quotation, con los MISMOS datos y su `clave`: crea la cotización en BORRADOR (cliente + lineas) o la edita (folio + lineas). Confirmarla como venta es odoo_confirm_quotation. Nunca la envía al cliente, ni publica ni timbra. Repetir la misma llamada no duplica; si responde que no se sabe si guardó, espera y repite exactamente la misma.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -603,11 +603,6 @@
           "description": "Vence el (YYYY-MM-DD)",
           "type": "string"
         },
-        "confirmar": {
-          "description": "Confirmar como venta: solo folio, sin lineas",
-          "type": "boolean",
-          "const": true
-        },
         "clave": {
           "type": "string",
           "minLength": 1,
@@ -616,6 +611,41 @@
         }
       },
       "required": [
+        "clave"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_confirm_quotation",
+    "title": "Confirmar cotización (Odoo)",
+    "description": "Confirma como VENTA la cotización de Odoo que revisó odoo_preview_quotation con solo el `folio`: el mismo folio y su `clave`, tras mostrar al_confirmar y recibir el sí. Odoo crea la entrega y la fecha pasa a hoy; deshacerlo solo se puede en Odoo. Nunca la envía al cliente ni factura. Si ya estaba confirmada lo dice sin escribir; si responde que no se sabe si quedó, repite la misma llamada.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "folio": {
+          "type": "string",
+          "pattern": "^S\\d{5,}$",
+          "description": "Folio que revisó la vista previa"
+        },
+        "clave": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "La clave de esa revisión"
+        }
+      },
+      "required": [
+        "folio",
         "clave"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#"
@@ -715,7 +745,7 @@
   {
     "name": "odoo_create_draft_invoice",
     "title": "Factura en borrador (Odoo)",
-    "description": "Crea la factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`), tras decir cuál y recibir el sí. Antes revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.",
+    "description": "Factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`). Sin `confirmar` no escribe: devuelve el resumen (cliente, total y líneas a facturar, entrega, si ya hay borrador); muéstralo y, tras el sí, repite con confirmar: true. Revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -723,6 +753,11 @@
           "type": "string",
           "pattern": "^S\\d{5,}$",
           "description": "Folio exacto de la venta confirmada"
+        },
+        "confirmar": {
+          "description": "Crea el borrador; sin esto solo muestra el resumen",
+          "type": "boolean",
+          "const": true
         }
       },
       "required": [

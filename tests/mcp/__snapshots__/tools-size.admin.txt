@@ -1,7 +1,7 @@
-# tools/list (admin): 50 tools, 50528 caracteres en el cable
+# tools/list (admin): 51 tools, 51604 caracteres en el cable
   3510  record_payroll_hours
-  2612  odoo_preview_quotation
-  2580  odoo_save_quotation
+  2638  odoo_preview_quotation
+  2451  odoo_save_quotation
   1517  odoo_search_records
   1311  create_payable
   1268  odoo_aggregate_records
@@ -18,8 +18,10 @@
   1052  list_quotations
   1013  preview_time_report
   1004  save_material_presentation
+  1002  odoo_create_draft_invoice
    991  list_payables
    971  get_week_hours
+   947  odoo_confirm_quotation
    935  list_orders
    920  odoo_list_receivables
    909  odoo_summarize_invoices
@@ -32,7 +34,6 @@
    795  get_profiles
    786  list_suppliers
    784  save_excused_day
-   770  odoo_create_draft_invoice
    769  get_cut_plan
    749  get_payroll_period
    747  get_purchase_plan

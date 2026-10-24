@@ -1,6 +1,6 @@
 /**
  * Odoo quotations from the assistant (#144, ADR-040): the preview only reads and signs a key; the
- * save writes exactly what was previewed (create, edit or confirm) and never posts nor stamps.
+ * save writes exactly what was previewed (create or edit), the confirm turns a reviewed one into a sale.
  */
 
 import { z } from 'zod'
@@ -109,17 +109,26 @@ export const previewQuotationShape = {
   vigencia: isoDate.optional().describe('Vence el (YYYY-MM-DD)'),
 }
 
+const previewKey = z.string().min(1).max(4000)
+
 export const saveQuotationShape = {
   ...previewQuotationShape,
-  confirmar: z.literal(true).optional().describe('Confirmar como venta: solo folio, sin lineas'),
-  clave: z.string().min(1).max(4000).describe('La clave de la vista previa'),
+  clave: previewKey.describe('La clave de la vista previa'),
+}
+
+// Minimal on purpose (#155 B2b): confirming never carries lines, so it doesn't load their schema.
+export const confirmQuotationShape = {
+  folio: folio.describe('Folio que revisó la vista previa'),
+  clave: previewKey.describe('La clave de esa revisión'),
 }
 
 const previewSchema = z.strictObject(previewQuotationShape)
 const saveSchema = z.strictObject(saveQuotationShape)
+const confirmSchema = z.strictObject(confirmQuotationShape)
 
 export type PreviewQuotationInput = z.infer<typeof previewSchema>
 export type SaveQuotationInput = z.infer<typeof saveSchema>
+export type ConfirmQuotationInput = z.infer<typeof confirmSchema>
 
 /** What the handler injects: the read-only caller and the closed writer facade. */
 export interface OdooQuotationDeps {
@@ -346,7 +355,7 @@ interface PreviewParts {
 function previewNextStep(modo: QuotationPreview['modo'], canSave: boolean, hasNew: boolean): string {
   if (!canSave) return `${NOTHING_SAVED} Corrige lo que dicen los bloqueos y vuelve a pedir la vista previa.`
   if (modo === 'revisar') {
-    return `${NOTHING_SAVED} Para confirmarla como venta: muestra al_confirmar, espera el sí y llama odoo_save_quotation con el folio, confirmar: true y la clave. Para editarla: pide la vista previa con el folio y lineas (parte de lineas_como_entrada).`
+    return `${NOTHING_SAVED} Para confirmarla como venta: muestra al_confirmar, espera el sí y llama odoo_confirm_quotation con el folio y la clave. Para editarla: pide la vista previa con el folio y lineas (parte de lineas_como_entrada).`
   }
   if (hasNew) {
     return `${NOTHING_SAVED} Los productos nuevos solo se dan de alta con el botón de la vista (Claude web, escritorio o móvil). Sin vista, dalos de alta en Odoo o quita esas líneas y vuelve a pedir la vista previa.`
@@ -518,18 +527,24 @@ export async function odooPreviewQuotation(
     throw new ToolError(`La vigencia ${input.vigencia} ya pasó: usa hoy o una fecha posterior.`)
   }
   if (mode === 'crear') return previewCreate(deps.reader, proof, input, lines)
-  if (mode === 'editar' || mode === 'revisar') return previewExisting(deps.reader, proof, input, lines, mode)
-  throw new ToolError('La vista previa no confirma: pide la revisión con solo el folio.')
+  return previewExisting(deps.reader, proof, input, lines, mode)
 }
 
-interface SaveRun {
+interface KeyedRun {
   readonly reader: OdooCaller
   readonly writer: OdooWriter
   readonly proof: AdminProof
   readonly verified: VerifiedQuotationKey
+  readonly dl: Deadline
+}
+
+interface SaveRun extends KeyedRun {
   readonly input: SaveQuotationInput
   readonly lines: readonly LineRequest[]
-  readonly dl: Deadline
+}
+
+interface ConfirmRun extends KeyedRun {
+  readonly folio: string
 }
 
 /** A key from a clean preview can't land here with blocks, unless Odoo changed in between. */
@@ -683,7 +698,7 @@ async function saveCreate(run: SaveRun): Promise<QuotationSaveResult> {
   const folioText = saved.cotizacion.folio ?? `id ${saleId}`
   return {
     ...saved,
-    siguiente_paso: `Quedó como cotización en BORRADOR (${folioText}); no se le envió al cliente. Para confirmarla como venta: odoo_preview_quotation con el folio (revisión), muestra al_confirmar y, tras el sí, odoo_save_quotation con el folio, confirmar: true y la clave.`,
+    siguiente_paso: `Quedó como cotización en BORRADOR (${folioText}); no se le envió al cliente. Para confirmarla como venta: odoo_preview_quotation con el folio (revisión), muestra al_confirmar y, tras el sí, odoo_confirm_quotation con el folio y la clave.`,
   }
 }
 
@@ -729,8 +744,8 @@ async function saveEdit(run: SaveRun): Promise<QuotationSaveResult> {
   }
 }
 
-async function saveConfirm(run: SaveRun): Promise<QuotationSaveResult> {
-  const sale = await requireExactSale(run.reader, run.input.folio ?? '', SAVE_SALE_FIELDS)
+async function confirmReviewed(run: ConfirmRun): Promise<QuotationSaveResult> {
+  const sale = await requireExactSale(run.reader, run.folio, SAVE_SALE_FIELDS)
   if (sale.id !== run.verified.claims.s) throw new ToolError(PREVIEW_CHANGED_MESSAGE)
   const marker = { k10: run.verified.markers.k10 }
   // Before the write_date lock: a retry after a confirm that did land answers "ya estaba".
@@ -774,8 +789,14 @@ async function saveConfirm(run: SaveRun): Promise<QuotationSaveResult> {
     ...saved,
     ...(reread?.confirmacion ? { confirmacion: reread.confirmacion } : {}),
     ...(avisoRastro ? { aviso_rastro: avisoRastro } : {}),
-    siguiente_paso: `La ${sale.name} quedó como VENTA confirmada. Para facturar: odoo_create_draft_invoice (la factura queda en borrador; se timbra en Odoo).`,
+    // No push to invoice (#155): the summary phase of odoo_create_draft_invoice runs only when asked.
+    siguiente_paso: `La ${sale.name} quedó como VENTA confirmada. Si piden facturarla: odoo_create_draft_invoice sin confirmar muestra antes el resumen.`,
   }
+}
+
+/** Checked before a single read: a missing key never reaches Odoo. */
+function requireKey(raw: { clave?: unknown } | undefined): void {
+  if (typeof raw?.clave !== 'string' || !raw.clave.trim()) throw new ToolError(PREVIEW_KEY_MISSING_MESSAGE)
 }
 
 /**
@@ -790,19 +811,38 @@ export async function odooSaveQuotation(
   // First: the live-admin read counts against the request's budget (#144).
   const dl = startDeadline()
   const proof = await requireLiveAdmin(ctx)
-  if (typeof raw?.clave !== 'string' || !raw.clave.trim()) throw new ToolError(PREVIEW_KEY_MISSING_MESSAGE)
+  requireKey(raw)
   const input = parseInput(saveSchema, raw)
   // Throws the precise reason (no key, bad URL) before anything is read.
   odooWriteEnv()
   const mode = quotationMode(input)
   if (mode === 'revisar') {
-    throw new ToolError('Con solo el folio no hay nada que guardar: manda las líneas para editar, o confirmar: true para confirmarla.')
+    throw new ToolError(
+      'Con solo el folio no hay nada que guardar: manda las líneas para editarla; para confirmarla como venta, odoo_confirm_quotation con el folio y la clave de la revisión.',
+    )
   }
   const lines = input.lineas ?? []
   assertQuotationLines(lines, mode)
   const verified = verifyQuotationKey(proof, input.clave, { kind: mode, input })
   const run: SaveRun = { reader: deps.reader, writer: deps.writer, proof, verified, input, lines, dl }
-  if (mode === 'crear') return saveCreate(run)
-  if (mode === 'editar') return saveEdit(run)
-  return saveConfirm(run)
+  return mode === 'crear' ? saveCreate(run) : saveEdit(run)
+}
+
+/**
+ * Confirms as a sale the quotation a review preview (folio only) showed (#155 B2b): the key binds
+ * admin, sale and write_date, so a stale one never confirms; a retry after it landed answers "ya estaba".
+ */
+export async function odooConfirmQuotation(
+  deps: OdooQuotationDeps,
+  ctx: ToolContext,
+  raw: ConfirmQuotationInput,
+): Promise<QuotationSaveResult> {
+  // First: the live-admin read counts against the request's budget (#144).
+  const dl = startDeadline()
+  const proof = await requireLiveAdmin(ctx)
+  requireKey(raw)
+  const input = parseInput(confirmSchema, raw)
+  odooWriteEnv()
+  const verified = verifyQuotationKey(proof, input.clave, { kind: 'confirmar', input })
+  return confirmReviewed({ reader: deps.reader, writer: deps.writer, proof, verified, folio: input.folio, dl })
 }
