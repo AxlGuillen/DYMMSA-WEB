@@ -141,9 +141,9 @@ describe('clave de la vista previa (#144)', () => {
     expect(verifyQuotationKey(proofAt(NOW), clave, { kind: 'crear', input: reordered }, { now: NOW }).expired).toBe(false)
   })
 
-  test('la clave de revisar sirve para confirmar', () => {
+  test('la clave de revisar sirve para confirmar (odoo_confirm_quotation manda folio y clave, #155 B2b)', () => {
     const { clave, markers } = issueQuotationKey(proofAt(NOW), REVIEW_TARGET, { now: NOW })
-    const confirm = { folio: 'S00912', confirmar: true, clave }
+    const confirm = { folio: 'S00912', clave }
     const verified = verifyQuotationKey(proofAt(NOW), clave, { kind: 'confirmar', input: confirm }, { now: NOW })
     expect(verified.markers).toEqual(markers)
     expect(verified.claims).toMatchObject({ k: 'confirmar', p: 1, s: 912, w: '2026-10-17 22:47:43' })
@@ -167,7 +167,7 @@ describe('clave de la vista previa (#144)', () => {
       ],
       vigencia: '2026-11-30 ',
       cliente: undefined,
-      confirmar: undefined,
+      clave: 'no es contenido',
     }
     expect(canonicalQuotationInput(messy)).toEqual(canonicalQuotationInput(tidy))
     expect(quotationContentHash(messy)).toBe(quotationContentHash(tidy))
@@ -265,7 +265,7 @@ describe('clave de la vista previa (#144)', () => {
 
   test('solo una clave vigente se vuelve permiso de escribir; copias y permisos ajenos no sirven', () => {
     const { clave, markers } = issueQuotationKey(proofAt(NOW), REVIEW_TARGET, { now: NOW })
-    const confirm = { kind: 'confirmar' as const, input: { folio: 'S00912', confirmar: true } }
+    const confirm = { kind: 'confirmar' as const, input: { folio: 'S00912' } }
     const verified = verifyQuotationKey(proofAt(NOW), clave, confirm, { now: NOW })
     const grant = grantPreviewWrite(verified, { now: NOW })
     expect(grant).toEqual({ kind: 'confirmar', userId: ADMIN, partnerId: 1, saleId: 912, markers, expiresAt: NOW + PREVIEW_TTL_MS })

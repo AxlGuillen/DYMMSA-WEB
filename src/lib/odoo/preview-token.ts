@@ -79,13 +79,12 @@ const productsClaims = z.strictObject({
 
 export type ProductsKeyClaims = z.infer<typeof productsClaims>
 
-/** What the preview and the save both receive after zod; any other field is hashed too. */
+/** What the preview and the save (or the confirm) receive after zod; any other field is hashed too. */
 export interface QuotationKeyInput {
   readonly cliente?: string
   readonly folio?: string
   readonly lineas?: readonly Readonly<Record<string, unknown>>[]
   readonly vigencia?: string
-  readonly confirmar?: boolean
   readonly clave?: string
 }
 
@@ -99,8 +98,8 @@ export function canonicalJson(value: unknown): string {
   return JSON.stringify(value, sorted) ?? 'null'
 }
 
-// The save repeats the preview with `clave` (and `confirmar`): neither is content.
-const NOT_CONTENT: ReadonlySet<string> = new Set(['clave', 'confirmar'])
+// The save and the confirm repeat the preview with its `clave`, which is not content.
+const NOT_CONTENT: ReadonlySet<string> = new Set(['clave'])
 
 /** Line values that only restate the default: written or omitted, the preview is the same. */
 const LINE_DEFAULTS: ReadonlyMap<string, unknown> = new Map([['descuento', 0]])
@@ -125,7 +124,7 @@ function canonicalLine(line: unknown): unknown {
   )
 }
 
-/** Runs after zod so a review key ({folio}) also fits the confirmation ({folio, confirmar}); line order counts. */
+/** Runs after zod so a review key ({folio}) also fits odoo_confirm_quotation ({folio, clave}); line order counts. */
 export function canonicalQuotationInput(input: QuotationKeyInput): Record<string, unknown> {
   const canonical: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(input)) {
