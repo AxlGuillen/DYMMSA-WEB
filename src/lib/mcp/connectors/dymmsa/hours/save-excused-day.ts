@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { isoDate } from '@/lib/mcp/core/schema'
 import { saveExcusedDay } from '@/lib/mcp/tools/hours'
 
 export const saveExcusedDayTool = defineTool({
@@ -10,7 +11,7 @@ export const saveExcusedDayTool = defineTool({
   description:
     'Marca, cambia o quita un día justificado, solo si un administrador lo pide. `feriado`: no pide horas. `salida_autorizada`: cuenta como cumplido con lo trabajado. Sin `persona`, todo el equipo; con ella, solo esa persona. Si ya existe, lo actualiza; `quitar: true` lo borra.',
   input: {
-    fecha: z.string().describe('YYYY-MM-DD'),
+    fecha: isoDate,
     tipo: z.enum(['feriado', 'salida_autorizada']).optional(),
     persona: z.string().optional(),
     nota: z.string().max(200).optional(),

@@ -949,12 +949,13 @@ describe('editar', () => {
     ])
     expect(edit.data.clave).toBeNull()
 
-    // Sent back as it is, zod says why instead of a bare "inválida".
+    // Sent back as it is, zod says why in Spanish, with the caller's own input corrected as the example (#155 C1).
     const { odoo } = fakeOdoo({})
     const { writer } = throwingWriter()
     const echoed = { folio: 'S00912', lineas: [{ linea_id: 7004, producto_id: 30889, cantidad: 1, precio: -500 }] }
     await expect(odooPreviewQuotation({ reader: odoo, writer }, context().ctx, echoed)).rejects.toThrow(
-      'Entrada inválida en lineas.0.precio: debe ser al menos 0. Revisa el formato y repite.',
+      'Entrada inválida en odoo_preview_quotation: «lineas.0.precio»: debe ser al menos 0. Corrige ese valor y repite la llamada. ' +
+        'Ej.: {"folio":"S00912","lineas":[{"linea_id":7004,"producto_id":30889,"cantidad":1,"precio":0}]}',
     )
   })
 
@@ -1109,7 +1110,7 @@ describe('confirmar con odoo_confirm_quotation (#155 B2b)', () => {
     }
     await expect(
       odooConfirmQuotation({ reader: odoo, writer }, context().ctx, { cliente: '#1', clave: 'a.b' } as unknown as ConfirmQuotationInput),
-    ).rejects.toThrow(/^Entrada inválida en folio/)
+    ).rejects.toThrow(/^Entrada inválida en odoo_confirm_quotation: el campo «cliente» no existe; falta «folio», que es obligatorio/)
     await expect(odooConfirmQuotation({ reader: odoo, writer }, context().ctx, { folio: '912', clave: 'a.b' })).rejects.toThrow(
       /folio de venta de Odoo, ej\. S00912/,
     )
@@ -1231,7 +1232,9 @@ describe('fallos', () => {
     const { odoo, calls } = fakeOdoo({})
     const { writer } = throwingWriter()
     const bad = { cliente: '#1', lineas: [{ codigo: '5467', cantidad: 1, precio: 1, inventado: true }] } as unknown as PreviewQuotationInput
-    await expect(odooPreviewQuotation({ reader: odoo, writer }, context().ctx, bad)).rejects.toThrow(/^Entrada inválida en lineas\.0/)
+    await expect(odooPreviewQuotation({ reader: odoo, writer }, context().ctx, bad)).rejects.toThrow(
+      /^Entrada inválida en odoo_preview_quotation: el campo «inventado» no existe en «lineas\.0»/,
+    )
     await expect(odooPreviewQuotation({ reader: odoo, writer }, context().ctx, { folio: '912' })).rejects.toThrow(
       /folio de venta de Odoo, ej\. S00912/,
     )

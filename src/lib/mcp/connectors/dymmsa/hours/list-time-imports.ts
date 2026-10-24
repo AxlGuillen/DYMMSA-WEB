@@ -1,6 +1,5 @@
-import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { limit, readOnly } from '@/lib/mcp/core/schema'
 import { listTimeImports } from '@/lib/mcp/tools/hours'
 
 export const listTimeImportsTool = defineTool({
@@ -11,7 +10,7 @@ export const listTimeImportsTool = defineTool({
   description:
     'Bitácora de los reportes semanales del checador cargados a la app: periodo, archivo, checadas insertadas/actualizadas y las saltadas por edición manual. Solo un administrador ve filas.',
   input: {
-    limit: z.number().int().min(1).max(50).optional().describe('Cuántas cargas listar (default 10)'),
+    limit: limit(50, 10, 'cargas'),
   },
   annotations: readOnly,
   adminOnly: true,

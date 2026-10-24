@@ -1,7 +1,7 @@
 # ADR-041: dos conectores MCP (DYMMSA-WEB y Odoo DYMMSA) y reglas de composición de tools
 
 **Fecha:** 2026-10-22
-**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector».
+**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector». **C1 hecho (2026-10-24):** entrada estricta, errores en español y `DomainError`; ver § «C1: contrato de entrada y errores».
 **Relacionado:** [[ADR-015-MCP-Interno]] · [[ADR-023-MCP-OAuth]] · [[ADR-025-Bloque-Odoo-MCP]] · [[ADR-033-Nomina-Horas-por-Corte]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]] · [[ADR-040-Escrituras-Acotadas-en-Odoo]] · issue #155
 
 ## Contexto
@@ -116,6 +116,58 @@ El insumo de esta decisión:
 - **Ningún tope cambia:** todo cabe en los de la tabla de arriba. Los de `tools/list` y descripciones se miden con la lista del admin, la más grande.
 - **Instrucciones de DYMMSA-WEB:** bajan de 7,945 a 5,978 caracteres para el admin y de 6,793 a 5,371 para el member. Salen el bloque B, el mapa de Odoo, la regla de notas de crédito y la del vínculo factura↔venta, que ya viven en el conector Odoo. La regla de oro pasa a «dos conectores, sin vínculo», con qué hacer si piden llevar algo de un lado al otro. **Quedan 22 caracteres de margen:** la próxima línea que se agregue tendrá que quitar otra (C6 las reescribe con los enums en español, decisión 7).
 - **Con los dos conectores prendidos,** el admin paga 52,558 de `tools/list` en el cable, igual que antes de B3 con uno solo, pero ahora cada chat puede prender solo el que necesita.
+
+## C1: contrato de entrada y errores (2026-10-24)
+
+Cumple la decisión 8 (entrada estricta de golpe, sin semana de registro) y la parte de errores de la decisión 11.
+
+**Lo que se encontró en el SDK** (responde la pregunta de [[02-Arquitectura/MCP-Escrituras/01-Plan]] §9):
+- **El SDK 1.26 sí acepta entrada estricta sin parche.** `registerTool` y `registerAppTool` (ext-apps 1.3.2) tipan `inputSchema` como `ZodRawShapeCompat | AnySchema`. En runtime, `normalizeObjectSchema` devuelve tal cual un `z.object` de zod 4, así que el SDK parsea con el modo del schema y su `toJSONSchema` (zod mini, `io: 'input'`) emite `additionalProperties: false` para un `z.strictObject`. El raw shape de antes lo envolvía en `z.object` en modo *strip*: por eso se descartaban los campos desconocidos.
+- **El mensaje del SDK no sirve tal cual.** Ante un parse fallido responde `Input validation error: Invalid arguments for tool X: ` seguido de `ZodError.message`, que en zod 4 es el JSON de los issues: prefijo en inglés y un volcado con `code`/`path`.
+- **Cómo se resolvió, todo en el core:** `core/register.ts` registra `strictInput(nombre, shape)` (`core/schema.ts`). Es el `z.strictObject` con un último check que corre aunque haya otros issues (`when: () => true`), arma el mensaje en español y **lanza** un `ToolError`. El SDK convierte cualquier error que no sea `McpError` dentro de `validateToolInput` en `isError` con solo su texto, así que **el prefijo en inglés no llega al modelo**. Los tests del harness con el SDK real (`tests/mcp/strict-input.test.ts`) fallan si una versión nueva del SDK cambia eso.
+
+**El mensaje** (`core/input-error.ts`), en tres partes:
+- **Qué falló.** Primero los campos desconocidos, con sugerencia si es un error de dedo («¿quisiste decir «status»?»); después los obligatorios que faltan, en una sola frase; después el resto. El motivo sale del mensaje propio del schema; si no hay, de la versión en español de los límites, y si no, del locale `es` de zod.
+- **Qué corregir.** Los campos válidos del nivel donde estaba el campo desconocido, marcando los obligatorios.
+- **Ejemplo válido.** Es la propia llamada corregida: los campos desconocidos renombrados a su sugerencia o quitados, y los valores inválidos reemplazados por una muestra válida. Si mide más de 300 caracteres, se usa uno mínimo con los obligatorios. El ejemplo siempre se valida contra la tool, y un regex sin muestra registrada (la clave SAT) nunca se inventa: el campo sale del ejemplo. `definitions.test.ts` exige que todas las tools den un ejemplo aceptable.
+
+**El locale `es` se aplica por mensaje, nunca con `z.config()`.** Uno global cambiaría también los mensajes zod de las rutas de la app según el orden en que cargue el proceso.
+
+**Primitivas y enums.**
+- **Primitivas en `core/schema.ts`:** `isoDate` (`isRealDate`, anuncia `format: date`), `isoMonth`, `limit(max, default, qué?)`, `page(nota?)` y `withSample`. `limit` y `page` arman su texto completo (tope y default), así que no se les pone `.describe()` encima (review PR #170).
+- **Enums de constantes del dominio:** `QUOTATION_STATUSES`, `ORDER_STATUSES`, `PAYABLE_FILTERS`, `PAYABLE_CURRENCIES`, `TASK_PRIORITIES`/`TASK_STATES`/`TASK_CLOSE_REASONS` y `STOCK_FILTERS`. Sus listas salen de las descripciones.
+- **Lo que cambió:** las 10 listas cerradas que eran `z.string()` y las 24 fechas y meses de los dos conectores. Los handlers ya no ignoran un estado desconocido: es error.
+- **Se conservan los tokens de hoy.** Pasar los de DYMMSA-WEB a español es C6.
+
+**Parámetros de Odoo en español** (los difirió B2a). Esto **reemplaza la excepción declarada** de [[02-Arquitectura/MCP-Escrituras/Auditoria-Odoo]] §5.2 para las primitivas: sus parámetros también van en español. Lo que sigue en el vocabulario de Odoo son los **valores**: modelos, campos dentro de los filtros, `orden` y `agrupar_por`.
+
+| Tool | Antes | Ahora |
+|---|---|---|
+| `odoo_summarize_invoices`, `odoo_summarize_sales` | `date_from`, `date_to`, `group_by` | `desde`, `hasta`, `agrupar_por` |
+| `odoo_audit_invoice_links`, `odoo_audit_payment_complements` | `date_from`, `date_to` | `desde`, `hasta` |
+| `odoo_search_records` | `model`, `domain`, `fields`, `limit`, `order`, `offset` | `modelo`, `filtros`, `campos`, `limite`, `orden`, `saltar` |
+| `odoo_aggregate_records` | `model`, `domain`, `group_by`, `metrics` | `modelo`, `filtros`, `agrupar_por`, `metricas` |
+
+Un nombre viejo es error con los campos nuevos: no se aceptan alias. La vista `odoo-quotation` no manda ninguno de esos nombres, así que no se reconstruyó.
+
+**Errores de dominio.**
+- **La base:** `src/lib/domain-error.ts` (`invalid` 400, `not_found` 404, `forbidden` 403, `conflict` 409, `failed` 500). Es idéntica byte a byte a la de #157, para que las dos ramas se unan sin conflicto.
+- **Los stores:** `SupplierError`, `PayrollError` y `TimeEntryError` la extienden sin cambiar su uso.
+- **Las rutas:** las de esos stores responden `apiError(e, fallback, log)`.
+- **El MCP:** los mapea una sola vez en `toToolResult` (`core/errors.ts`). Se borraron los `asTool` de horas y nómina y el `try/catch` de proveedores.
+- **Cualquier otra excepción** es «Error interno en `<tool>`», con un log que dice qué tool falló y cuánto tardó.
+- **`DomainError('failed')`** conserva su mensaje («Error al crear el proveedor»), como antes (pregunta 9 de la auditoría del código).
+
+**Medidas** (en el cable; los topes no cambian):
+
+| Conector | Rol | Tools | `tools/list` | Descripciones | Instrucciones |
+|---|---|---|---|---|---|
+| DYMMSA-WEB | admin | 36 de 45 | 33,957 de 53,000 (+1,066) | 12,584 de 19,000 (−341) | 5,978 de 6,000 |
+| DYMMSA-WEB | member | 29 | 24,764 | 8,117 | 5,371 |
+| Odoo DYMMSA | admin | 15 de 16 | 20,059 de 21,500 (+392) | 6,333 de 6,500 | 2,891 de 3,000 |
+| Odoo DYMMSA | member | 10 | 10,689 | 4,179 | 2,113 |
+
+`additionalProperties: false` en cada objeto y los enums cuestan bytes. Quitar las listas de valores de las descripciones y el «YYYY-MM-DD» de las fechas, que ya anuncian `format: date`, compensa una parte.
 
 ## Consecuencias
 

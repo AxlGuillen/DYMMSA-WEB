@@ -1,6 +1,5 @@
-import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { isoMonth, readOnly } from '@/lib/mcp/core/schema'
 import { getMonthClosing } from '@/lib/mcp/tools/finance'
 
 export const getMonthClosingTool = defineTool({
@@ -10,7 +9,7 @@ export const getMonthClosingTool = defineTool({
   title: 'Cierre del mes',
   description:
     'Cómo cierra un mes: egresos de la app (pagado, pendiente del mes, vencido arrastrado) + ingresos leídos de Odoo (cobrado, por cobrar, vencido por cobrar, notas de crédito aparte) y el cierre real/proyectado. Si Odoo no está disponible lo dice y el cierre refleja solo egresos. mes = YYYY-MM (default actual).',
-  input: { mes: z.string().optional().describe('Mes, YYYY-MM (default actual)') },
+  input: { mes: isoMonth.optional().describe('Default el actual') },
   annotations: readOnly,
   docs: {
     module: 'Finanzas',

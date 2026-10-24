@@ -2,19 +2,12 @@
 
 import { calculateLineTotal, calculateQuotationTotal, isProductItem } from '@/lib/business-rules'
 import { normalizePagination } from '@/lib/mcp/core/schema'
+import { QUOTATION_STATUSES } from '@/lib/quotation-status'
 import { sanitizeSearch } from '@/lib/text'
 import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import { findOrderByQuotation } from './orders'
 import type { Quotation, QuotationStatus, QuotationWithItems } from '@/types/database'
-
-const STATUSES: QuotationStatus[] = [
-  'draft',
-  'sent_for_approval',
-  'approved',
-  'rejected',
-  'converted_to_order',
-]
 
 export interface ListQuotationsInput {
   status?: string
@@ -24,6 +17,10 @@ export interface ListQuotationsInput {
 }
 
 export async function listQuotations(db: Db, input: ListQuotationsInput) {
+  // An unknown status is an error, never a filter dropped in silence (#155 C1).
+  if (input.status && !QUOTATION_STATUSES.includes(input.status as QuotationStatus)) {
+    throw new ToolError(`Estado inválido "${input.status}": usa ${QUOTATION_STATUSES.join(' | ')}`)
+  }
   const { page, pageSize, from, to } = normalizePagination(input)
 
   let query = db.from('quotations').select('*, quotation_items(count)', { count: 'exact' })
@@ -32,9 +29,7 @@ export async function listQuotations(db: Db, input: ListQuotationsInput) {
   if (search) {
     query = query.or(`customer_name.ilike.%${search}%,name.ilike.%${search}%`)
   }
-  if (input.status && STATUSES.includes(input.status as QuotationStatus)) {
-    query = query.eq('status', input.status)
-  }
+  if (input.status) query = query.eq('status', input.status)
 
   const { data, error, count } = await query
     .order('created_at', { ascending: false })

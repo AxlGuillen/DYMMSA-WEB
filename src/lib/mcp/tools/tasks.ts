@@ -8,6 +8,8 @@ import {
   mapComment,
   mapIssueToTask,
   priorityToLabel,
+  TASK_PRIORITIES,
+  TASK_STATES,
   type GitHubComment,
   type GitHubIssue,
 } from '@/lib/github'
@@ -22,8 +24,15 @@ export interface ListTasksInput {
   page?: number
 }
 
+export const TASK_LIST_STATES = [...TASK_STATES, 'all'] as const
+
 export async function listTasks(input: ListTasksInput) {
-  const state = ['open', 'closed', 'all'].includes(input.state ?? '') ? (input.state as string) : 'open'
+  const state = input.state ?? 'open'
+  // An unknown filter is an error, never "open" in silence (#155 C1).
+  if (!(TASK_LIST_STATES as readonly string[]).includes(state)) throw new ToolError(`state inválido "${state}": usa ${TASK_LIST_STATES.join(' | ')}`)
+  if (input.priority !== undefined && !isTaskPriority(input.priority)) {
+    throw new ToolError(`priority inválida "${input.priority}": usa ${TASK_PRIORITIES.join(' | ')}`)
+  }
   const page = Math.max(1, Math.floor(input.page ?? 1))
 
   const qs = new URLSearchParams({
@@ -65,12 +74,15 @@ export interface CreateTaskInput {
   priority?: string
 }
 
-/** Mirrors POST /api/tasks; an invalid priority is ignored. */
+/** Mirrors POST /api/tasks, but strict like its siblings: an unknown priority is an error, never dropped (#155 C1). */
 export async function createTask(input: CreateTaskInput) {
   const title = input.title?.trim()
   if (!title) throw new ToolError('El título es obligatorio')
+  if (input.priority !== undefined && !isTaskPriority(input.priority)) {
+    throw new ToolError(`priority inválida "${input.priority}": usa ${TASK_PRIORITIES.join(' | ')}`)
+  }
 
-  const labels = input.priority && isTaskPriority(input.priority) ? [priorityToLabel(input.priority)] : []
+  const labels = input.priority ? [priorityToLabel(input.priority)] : []
 
   const issue = await fetchGitHub<GitHubIssue>('/issues', {
     method: 'POST',

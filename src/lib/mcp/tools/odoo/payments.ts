@@ -120,19 +120,19 @@ export async function odooPaymentDetail(odoo: OdooCaller, input: { folio: string
 }
 
 export interface AuditPaymentComplementsInput {
-  date_from?: string
-  date_to?: string
+  desde?: string
+  hasta?: string
 }
 
 const AUDIT_LIMIT = 50
 
 /** REP docs are fetched without a date filter (the REP arrives later); the PUE/PPD call is lazy — 100% PUE needs no REP. */
 export async function odooAuditPaymentComplements(odoo: OdooCaller, input: AuditPaymentComplementsInput = {}) {
-  assertDateRange(input.date_from, input.date_to)
+  assertDateRange(input.desde, input.hasta)
   const today = todayIso()
   // Default sweep: the last ~30 days.
-  const from = input.date_from ?? daysAgo(30, today)
-  const to = input.date_to ?? today
+  const from = input.desde ?? daysAgo(30, today)
+  const to = input.hasta ?? today
 
   const payments = normalizeRecords(
     await odoo('account.payment', 'search_read', {

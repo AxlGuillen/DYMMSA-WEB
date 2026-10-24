@@ -31,10 +31,16 @@ describe('listQuotations', () => {
     expect(filterValue(call, 'status')).toBe('approved')
   })
 
-  test('ignora status inválido y sanitiza la búsqueda para .or()', async () => {
+  test('un status inválido es error, nunca un filtro ignorado (#155 C1)', async () => {
+    const client = createMockSupabase({ responses: { quotations: { data: [], count: 0 } } })
+    await expect(listQuotations(asDb(client), { status: 'no-existe' })).rejects.toThrow(/Estado inválido "no-existe": usa draft \| sent_for_approval/)
+    expect(client.callsTo('quotations', 'select')).toEqual([])
+  })
+
+  test('sanitiza la búsqueda para .or()', async () => {
     const client = createMockSupabase({ responses: { quotations: { data: [], count: 0 } } })
 
-    await listQuotations(asDb(client), { status: 'no-existe', search: 'AC%M,E' })
+    await listQuotations(asDb(client), { search: 'AC%M,E' })
 
     const call = client.callsTo('quotations', 'select')[0]
     expect(hasFilter(call, 'status')).toBe(false)

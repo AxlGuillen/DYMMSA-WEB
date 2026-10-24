@@ -24,7 +24,8 @@
       "required": [
         "folio"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -47,12 +48,12 @@
           "description": "Nombre, RFC o #id, p. ej. \"Andritz\" o \"#24\""
         },
         "vence_desde": {
-          "description": "YYYY-MM-DD",
-          "type": "string"
+          "type": "string",
+          "format": "date"
         },
         "vence_hasta": {
-          "description": "YYYY-MM-DD",
-          "type": "string"
+          "type": "string",
+          "format": "date"
         },
         "incluir": {
           "description": "Default ambas",
@@ -67,7 +68,8 @@
       "required": [
         "cliente"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -94,13 +96,14 @@
           ]
         },
         "limite": {
-          "description": "Clientes y facturas por lista (default 10)",
+          "description": "Máx 50 clientes y facturas por lista (default 10)",
           "type": "integer",
           "minimum": 1,
           "maximum": 50
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -117,15 +120,16 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "date_from": {
-          "description": "Desde (YYYY-MM-DD, sobre invoice_date)",
-          "type": "string"
+        "desde": {
+          "description": "Sobre invoice_date",
+          "type": "string",
+          "format": "date"
         },
-        "date_to": {
-          "description": "Hasta (YYYY-MM-DD)",
-          "type": "string"
+        "hasta": {
+          "type": "string",
+          "format": "date"
         },
-        "group_by": {
+        "agrupar_por": {
           "type": "string",
           "enum": [
             "estado_pago",
@@ -134,7 +138,8 @@
           ]
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -151,15 +156,16 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "date_from": {
-          "description": "Desde (YYYY-MM-DD, sobre date_order)",
-          "type": "string"
+        "desde": {
+          "description": "Sobre date_order",
+          "type": "string",
+          "format": "date"
         },
-        "date_to": {
-          "description": "Hasta (YYYY-MM-DD)",
-          "type": "string"
+        "hasta": {
+          "type": "string",
+          "format": "date"
         },
-        "group_by": {
+        "agrupar_por": {
           "type": "string",
           "enum": [
             "estado",
@@ -176,7 +182,8 @@
           ]
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -193,13 +200,15 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "date_from": {
-          "description": "Desde (YYYY-MM-DD, sobre invoice_date); default hace 30 días",
-          "type": "string"
+        "desde": {
+          "description": "Sobre invoice_date; default hace 30 días",
+          "type": "string",
+          "format": "date"
         },
-        "date_to": {
-          "description": "Hasta (YYYY-MM-DD); default hoy",
-          "type": "string"
+        "hasta": {
+          "description": "Default hoy",
+          "type": "string",
+          "format": "date"
         },
         "cliente": {
           "description": "Nombre (o parte) del cliente para acotar",
@@ -210,7 +219,8 @@
           "type": "boolean"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -227,16 +237,19 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "date_from": {
-          "description": "Desde (YYYY-MM-DD); default hace 30 días",
-          "type": "string"
+        "desde": {
+          "description": "Default hace 30 días",
+          "type": "string",
+          "format": "date"
         },
-        "date_to": {
-          "description": "Hasta (YYYY-MM-DD); default hoy",
-          "type": "string"
+        "hasta": {
+          "description": "Default hoy",
+          "type": "string",
+          "format": "date"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -262,7 +275,8 @@
       "required": [
         "producto"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -279,11 +293,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "model": {
+        "modelo": {
           "type": "string",
           "description": "Modelo Odoo del catálogo, p. ej. \"account.move\" o \"hr.employee\""
         },
-        "domain": {
+        "filtros": {
           "description": "Filtros Odoo como tripletas [campo, operador, valor] con AND implícito, p. ej. [[\"payment_state\",\"=\",\"not_paid\"]]",
           "type": "array",
           "items": {
@@ -299,33 +313,35 @@
             ]
           }
         },
-        "fields": {
+        "campos": {
           "description": "Campos a devolver (subset del catálogo; omite para todos los permitidos)",
           "type": "array",
           "items": {
             "type": "string"
           }
         },
-        "limit": {
-          "description": "Máx registros (default 20)",
+        "limite": {
+          "description": "Máx 50 registros (default 20)",
           "type": "integer",
           "minimum": 1,
           "maximum": 50
         },
-        "order": {
-          "description": "Orden, p. ej. \"invoice_date desc\"",
+        "orden": {
+          "description": "P. ej. \"invoice_date desc\"",
           "type": "string"
         },
-        "offset": {
+        "saltar": {
+          "description": "Registros a saltar (paginar)",
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
         }
       },
       "required": [
-        "model"
+        "modelo"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -342,11 +358,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "model": {
+        "modelo": {
           "type": "string",
           "description": "Modelo Odoo del catálogo"
         },
-        "domain": {
+        "filtros": {
           "description": "Filtros Odoo como tripletas [campo, operador, valor] con AND implícito, p. ej. [[\"payment_state\",\"=\",\"not_paid\"]]",
           "type": "array",
           "items": {
@@ -362,12 +378,12 @@
             ]
           }
         },
-        "group_by": {
+        "agrupar_por": {
           "type": "string",
           "description": "Campo de agrupación, p. ej. \"payment_state\", \"partner_id\" o \"invoice_date:month\""
         },
-        "metrics": {
-          "description": "Métricas \"campo:agregador\" (sum|avg|min|max|count), p. ej. [\"amount_total:sum\"]",
+        "metricas": {
+          "description": "\"campo:agregador\" (sum|avg|min|max|count), p. ej. [\"amount_total:sum\"]",
           "type": "array",
           "items": {
             "type": "string"
@@ -375,10 +391,11 @@
         }
       },
       "required": [
-        "model",
-        "group_by"
+        "modelo",
+        "agrupar_por"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,

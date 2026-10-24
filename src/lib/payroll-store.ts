@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { DomainError } from '@/lib/domain-error'
 import { normalizeEntryTimes, type ISODate } from '@/lib/timesheet'
 import {
   buildPayrollView,
@@ -31,9 +32,9 @@ import type {
 } from '@/types/database'
 
 /** A rule the user broke (→ 400 / ToolError); anything else is a real failure. */
-export class PayrollError extends Error {
+export class PayrollError extends DomainError {
   constructor(message: string) {
-    super(message)
+    super(message, 'invalid')
     this.name = 'PayrollError'
   }
 }

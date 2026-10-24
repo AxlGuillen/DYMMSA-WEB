@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { isoDate } from '@/lib/mcp/core/schema'
+import { PAYABLE_CURRENCIES } from '@/lib/payables'
 import { updatePayable } from '@/lib/mcp/tools/payables'
 
 export const updatePayableTool = defineTool({
@@ -13,9 +15,9 @@ export const updatePayableTool = defineTool({
     factura: z.string().min(1).describe('UUID, o parte del concepto / nombre del proveedor'),
     concepto: z.string().optional(),
     monto: z.number().positive().optional().describe('Mayor a 0'),
-    moneda: z.enum(['MXN', 'USD']).optional(),
-    fecha_factura: z.string().optional().describe('YYYY-MM-DD'),
-    vencimiento: z.string().optional().describe('YYYY-MM-DD'),
+    moneda: z.enum(PAYABLE_CURRENCIES).optional(),
+    fecha_factura: isoDate.optional(),
+    vencimiento: isoDate.optional(),
     proveedor: z.string().optional().describe('Otro proveedor (nombre o parte)'),
     notas: z.string().optional().describe('Texto vacío las borra'),
     cancelar: z.boolean().optional().describe('true = cancelarla'),

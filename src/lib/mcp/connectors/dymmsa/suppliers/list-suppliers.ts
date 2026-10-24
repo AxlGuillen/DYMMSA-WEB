@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
-import { readOnly } from '@/lib/mcp/core/schema'
+import { limit, readOnly } from '@/lib/mcp/core/schema'
 import { listSuppliers } from '@/lib/mcp/tools/suppliers'
 
 export const listSuppliersTool = defineTool({
@@ -13,7 +13,7 @@ export const listSuppliersTool = defineTool({
   input: {
     buscar: z.string().optional().describe('Texto a buscar en nombre, teléfono, whatsapp o email'),
     marca: z.string().optional().describe('Marca que debe surtir, p. ej. "SURTEK"'),
-    limit: z.number().int().min(1).max(100).optional().describe('Máx proveedores (default 50)'),
+    limit: limit(100, 50, 'proveedores'),
   },
   annotations: readOnly,
   docs: {

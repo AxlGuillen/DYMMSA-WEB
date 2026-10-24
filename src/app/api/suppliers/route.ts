@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
-import { createSupplier, parseSupplierInput, SupplierError } from '@/lib/suppliers-store'
+import { requireAuth, apiError, badRequest, serverError } from '@/lib/api-helpers'
+import { createSupplier, parseSupplierInput } from '@/lib/suppliers-store'
 import type { Brand, SupplierWithBrands } from '@/types/database'
 
 const SORT_FIELDS = ['name', 'updated_at'] as const
@@ -114,10 +114,6 @@ export async function POST(request: NextRequest) {
     const supplier = await createSupplier(supabase, parsed.value, (body.brandIds as string[] | undefined) ?? [])
     return NextResponse.json(supplier, { status: 201 })
   } catch (error) {
-    if (error instanceof SupplierError) {
-      return error.kind === 'failed' ? serverError(error.message) : badRequest(error.message)
-    }
-    console.error('Supplier create error:', error)
-    return serverError('Error al crear el proveedor')
+    return apiError(error, 'Error al crear el proveedor', 'Supplier create error:')
   }
 }

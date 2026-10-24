@@ -3,11 +3,14 @@
 
 import { NextResponse } from 'next/server'
 
-export type TaskPriority = 'low' | 'medium' | 'high' | 'highest'
-export type TaskState = 'open' | 'closed'
+export const TASK_PRIORITIES = ['low', 'medium', 'high', 'highest'] as const
+export type TaskPriority = (typeof TASK_PRIORITIES)[number]
+export const TASK_STATES = ['open', 'closed'] as const
+export type TaskState = (typeof TASK_STATES)[number]
 
 /** completed = done; not_planned = discarded. */
-export type TaskCloseReason = 'completed' | 'not_planned'
+export const TASK_CLOSE_REASONS = ['completed', 'not_planned'] as const
+export type TaskCloseReason = (typeof TASK_CLOSE_REASONS)[number]
 
 export interface Task {
   number: number
@@ -45,7 +48,7 @@ export function priorityToLabel(p: TaskPriority): string {
 }
 
 export function isTaskPriority(v: unknown): v is TaskPriority {
-  return v === 'low' || v === 'medium' || v === 'high' || v === 'highest'
+  return TASK_PRIORITIES.includes(v as TaskPriority)
 }
 
 /** Highest severity label wins when several are present. */

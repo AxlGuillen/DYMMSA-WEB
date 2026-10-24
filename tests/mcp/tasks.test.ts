@@ -82,10 +82,17 @@ describe('createTask', () => {
     expect(payload.body).toContain('Detalle')
   })
 
-  test('prioridad inválida no agrega label', async () => {
+  test('una prioridad inválida es error con las válidas, sin crear nada (#155 C1)', async () => {
+    await expect(createTask({ title: 'Con prioridad rara', priority: 'urgent' })).rejects.toThrow(
+      'priority inválida "urgent": usa low | medium | high | highest',
+    )
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  test('sin prioridad no agrega label', async () => {
     fetchSpy.mockResolvedValueOnce(gh(201, issue({ number: 10 })))
 
-    await createTask({ title: 'Sin prioridad', priority: 'urgent' })
+    await createTask({ title: 'Sin prioridad' })
 
     const payload = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))
     expect(payload.labels).toEqual([])

@@ -9,12 +9,12 @@ import { assertDateRange } from './dates'
 const MAX_LIMIT = 50
 
 export interface SearchRecordsInput {
-  model: string
-  domain?: DomainTriple[]
-  fields?: string[]
-  limit?: number
-  order?: string
-  offset?: number
+  modelo: string
+  filtros?: DomainTriple[]
+  campos?: string[]
+  limite?: number
+  orden?: string
+  saltar?: number
 }
 
 /** Validates EVERY order column — checking only the first let hidden fields through (PR #66). */
@@ -27,89 +27,89 @@ function assertOrderAllowed(model: string, order: string): void {
 }
 
 export async function odooSearchRecords(odoo: OdooCaller, input: SearchRecordsInput) {
-  const fields = allowedFields(input.model, input.fields)
-  const domain = input.domain ?? []
-  assertDomainAllowed(input.model, domain)
-  if (input.order) assertOrderAllowed(input.model, input.order)
+  const fields = allowedFields(input.modelo, input.campos)
+  const domain = input.filtros ?? []
+  assertDomainAllowed(input.modelo, domain)
+  if (input.orden) assertOrderAllowed(input.modelo, input.orden)
 
-  const limit = Math.min(MAX_LIMIT, Math.max(1, input.limit ?? 20))
-  const records = await odoo(input.model, 'search_read', {
+  const limit = Math.min(MAX_LIMIT, Math.max(1, input.limite ?? 20))
+  const records = await odoo(input.modelo, 'search_read', {
     domain,
     fields,
     limit,
-    offset: Math.max(0, input.offset ?? 0),
-    ...(input.order ? { order: input.order } : {}),
+    offset: Math.max(0, input.saltar ?? 0),
+    ...(input.orden ? { order: input.orden } : {}),
   })
   // narration is HTML in Odoo; the server digests, the model interprets (review PR #116).
   const items = normalizeRecords(records).map((item) =>
     'narration' in item ? { ...item, narration: htmlToText(item.narration) } : item,
   )
   return {
-    model: input.model,
+    model: input.modelo,
     count: items.length,
     // undefined disappears on serialize: warn only when the limit was filled.
     nota: items.length === limit
-      ? `Se devolvió el máximo (${limit}); usa offset o filtra más para ver el resto.`
+      ? `Se devolvió el máximo (${limit}); usa saltar o filtra más para ver el resto.`
       : undefined,
     items,
   }
 }
 
 export interface AggregateRecordsInput {
-  model: string
-  domain?: DomainTriple[]
-  group_by: string
-  metrics?: string[]
+  modelo: string
+  filtros?: DomainTriple[]
+  agrupar_por: string
+  metricas?: string[]
 }
 
 const AGGREGATORS = new Set(['sum', 'avg', 'min', 'max', 'count'])
 
 export async function odooAggregateRecords(odoo: OdooCaller, input: AggregateRecordsInput) {
-  catalogEntry(input.model)
-  const domain = input.domain ?? []
-  assertDomainAllowed(input.model, domain)
-  assertDomainAllowed(input.model, [[input.group_by, '=', null]])
+  catalogEntry(input.modelo)
+  const domain = input.filtros ?? []
+  assertDomainAllowed(input.modelo, domain)
+  assertDomainAllowed(input.modelo, [[input.agrupar_por, '=', null]])
 
-  const metrics = input.metrics ?? []
+  const metrics = input.metricas ?? []
   for (const metric of metrics) {
     const [field, agg] = metric.split(':')
     if (!agg || !AGGREGATORS.has(agg)) {
       throw new ToolError(`Métrica inválida "${metric}": usa el formato campo:sum|avg|min|max|count`)
     }
-    assertDomainAllowed(input.model, [[field, '=', null]])
+    assertDomainAllowed(input.modelo, [[field, '=', null]])
   }
 
-  const groups = await odoo(input.model, 'read_group', {
+  const groups = await odoo(input.modelo, 'read_group', {
     domain,
     fields: metrics,
-    groupby: [input.group_by],
+    groupby: [input.agrupar_por],
   })
-  return { model: input.model, agrupado_por: input.group_by, grupos: normalizeGroups(groups) }
+  return { model: input.modelo, agrupado_por: input.agrupar_por, grupos: normalizeGroups(groups) }
 }
 
 /** Unsigned like the app loader: a signed instance must not net by accident (ADR-027 §8). */
 const abs = (v: unknown) => Math.abs((v as number) ?? 0)
 
 export interface SummarizeInvoicesInput {
-  date_from?: string
-  date_to?: string
-  group_by?: 'estado_pago' | 'cliente' | 'mes'
+  desde?: string
+  hasta?: string
+  agrupar_por?: 'estado_pago' | 'cliente' | 'mes'
 }
 
-const GROUP_FIELD: Record<NonNullable<SummarizeInvoicesInput['group_by']>, string> = {
+const GROUP_FIELD: Record<NonNullable<SummarizeInvoicesInput['agrupar_por']>, string> = {
   estado_pago: 'payment_state',
   cliente: 'partner_id',
   mes: 'invoice_date:month',
 }
 
 export async function odooSummarizeInvoices(odoo: OdooCaller, input: SummarizeInvoicesInput = {}) {
-  assertDateRange(input.date_from, input.date_to)
+  assertDateRange(input.desde, input.hasta)
   const period: DomainTriple[] = [
-    ...(input.date_from ? [['invoice_date', '>=', input.date_from] as DomainTriple] : []),
-    ...(input.date_to ? [['invoice_date', '<=', input.date_to] as DomainTriple] : []),
+    ...(input.desde ? [['invoice_date', '>=', input.desde] as DomainTriple] : []),
+    ...(input.hasta ? [['invoice_date', '<=', input.hasta] as DomainTriple] : []),
   ]
   const domain: DomainTriple[] = [['move_type', '=', 'out_invoice'], ['state', '=', 'posted'], ...period]
-  const groupBy = GROUP_FIELD[input.group_by ?? 'estado_pago']
+  const groupBy = GROUP_FIELD[input.agrupar_por ?? 'estado_pago']
 
   const grupos = normalizeGroups(
     await odoo('account.move', 'read_group', {
@@ -128,8 +128,8 @@ export async function odooSummarizeInvoices(odoo: OdooCaller, input: SummarizeIn
   )
 
   return {
-    periodo: { desde: input.date_from ?? 'inicio', hasta: input.date_to ?? 'hoy' },
-    agrupado_por: input.group_by ?? 'estado_pago',
+    periodo: { desde: input.desde ?? 'inicio', hasta: input.hasta ?? 'hoy' },
+    agrupado_por: input.agrupar_por ?? 'estado_pago',
     total_facturado: grupos.reduce((sum, g) => sum + ((g.amount_total as number) ?? 0), 0),
     total_pendiente: grupos.reduce((sum, g) => sum + ((g.amount_residual as number) ?? 0), 0),
     grupos,

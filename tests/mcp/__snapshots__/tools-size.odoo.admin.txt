@@ -1,16 +1,16 @@
-# tools/list (admin): 15 tools, 19667 caracteres en el cable
-  2861  odoo_preview_quotation
-  2623  odoo_save_quotation
-  1769  odoo_save_product
-  1555  odoo_search_records
-  1268  odoo_aggregate_records
-  1204  odoo_audit_invoice_links
-  1157  odoo_get_customer
-  1118  odoo_get_document
-  1019  odoo_create_draft_invoice
-   947  odoo_confirm_quotation
-   920  odoo_list_receivables
-   909  odoo_summarize_invoices
-   828  odoo_summarize_sales
-   826  odoo_audit_payment_complements
-   663  odoo_search_stock
+# tools/list (admin): 15 tools, 20059 caracteres en el cable
+  2893  odoo_preview_quotation
+  2655  odoo_save_quotation
+  1798  odoo_save_product
+  1629  odoo_search_records
+  1298  odoo_aggregate_records
+  1219  odoo_audit_invoice_links
+  1164  odoo_get_customer
+  1147  odoo_get_document
+  1048  odoo_create_draft_invoice
+   976  odoo_confirm_quotation
+   956  odoo_list_receivables
+   912  odoo_summarize_invoices
+   841  odoo_audit_payment_complements
+   831  odoo_summarize_sales
+   692  odoo_search_stock

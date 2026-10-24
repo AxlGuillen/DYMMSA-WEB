@@ -6,7 +6,8 @@
     "inputSchema": {
       "type": "object",
       "properties": {},
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -19,13 +20,20 @@
   {
     "name": "list_quotations",
     "title": "Listar cotizaciones",
-    "description": "Lista cotizaciones con filtros. Úsala para preguntas como \"¿qué cotizaciones esperan aprobación?\" o buscar por cliente. status: draft | sent_for_approval | approved | rejected | converted_to_order. Nota: total_amount aquí es el monto SELLADO en la fila; en cotizaciones aprobadas editables puede quedar desfasado de los ítems actuales — usa get_quotation para el total recalculado en vivo.",
+    "description": "Lista cotizaciones con filtros. Úsala para preguntas como \"¿qué cotizaciones esperan aprobación?\" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; en cotizaciones aprobadas editables puede quedar desfasado de los ítems actuales — usa get_quotation para el total recalculado en vivo.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "status": {
           "description": "Filtrar por estado exacto",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "draft",
+            "sent_for_approval",
+            "approved",
+            "rejected",
+            "converted_to_order"
+          ]
         },
         "search": {
           "description": "Busca en nombre de cotización y nombre del cliente",
@@ -44,7 +52,8 @@
           "maximum": 100
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -69,7 +78,8 @@
       "required": [
         "id"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -82,13 +92,20 @@
   {
     "name": "list_orders",
     "title": "Listar órdenes",
-    "description": "Lista órdenes de compra con filtros. status: ordered | received | delivered | completed | cancelled. Úsala para \"¿qué órdenes siguen abiertas?\" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; usa get_order para el total recalculado en vivo desde los ítems.",
+    "description": "Lista órdenes de compra con filtros. Úsala para \"¿qué órdenes siguen abiertas?\" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; usa get_order para el total recalculado en vivo desde los ítems.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "status": {
           "description": "Filtrar por estado exacto",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "ordered",
+            "received",
+            "delivered",
+            "completed",
+            "cancelled"
+          ]
         },
         "search": {
           "description": "Busca en nombre de orden y nombre del cliente",
@@ -107,7 +124,8 @@
           "maximum": 100
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -132,7 +150,8 @@
       "required": [
         "id"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -158,7 +177,8 @@
       "required": [
         "orden"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -207,7 +227,8 @@
         "tipo",
         "largo_mm"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -233,7 +254,8 @@
       "required": [
         "orden"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -246,7 +268,7 @@
   {
     "name": "search_inventory",
     "title": "Buscar en inventario",
-    "description": "Stock de tienda por model_code, con ubicación física (gaveta) cuando hay existencias. stockFilter: in_stock (>5) | low_stock (1-5) | sin_stock (0) | all. Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
+    "description": "Stock de tienda por model_code, con ubicación física (gaveta) cuando hay existencias. stockFilter: with_stock (>0), in_stock (>5), low_stock (1-5), sin_stock (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -255,8 +277,15 @@
           "type": "string"
         },
         "stockFilter": {
-          "description": "all | in_stock | low_stock | sin_stock",
-          "type": "string"
+          "description": "Default all",
+          "type": "string",
+          "enum": [
+            "all",
+            "with_stock",
+            "in_stock",
+            "low_stock",
+            "sin_stock"
+          ]
         },
         "page": {
           "description": "Página (1-indexada, default 1)",
@@ -271,7 +300,8 @@
           "maximum": 100
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -301,7 +331,8 @@
       "required": [
         "model_code"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -338,7 +369,8 @@
       "required": [
         "query"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -363,7 +395,8 @@
       "required": [
         "query"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -389,13 +422,14 @@
           "type": "string"
         },
         "limit": {
-          "description": "Máx proveedores (default 50)",
+          "description": "Máx 100 proveedores (default 50)",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -462,7 +496,8 @@
           }
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -475,17 +510,23 @@
   {
     "name": "list_payables",
     "title": "Facturas por pagar",
-    "description": "Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (pending | overdue = pendientes ya vencidas | paid | cancelled), mes de VENCIMIENTO (YYYY-MM), proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.",
+    "description": "Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (overdue = pendientes ya vencidas), mes de VENCIMIENTO, proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "estado": {
-          "description": "pending | overdue | paid | cancelled",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "pending",
+            "overdue",
+            "paid",
+            "cancelled"
+          ]
         },
         "mes": {
-          "description": "Mes de vencimiento, YYYY-MM",
-          "type": "string"
+          "description": "Mes de vencimiento",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
         },
         "proveedor": {
           "description": "Nombre (o parte) del proveedor",
@@ -496,13 +537,14 @@
           "type": "string"
         },
         "limit": {
-          "description": "Máx facturas (default 50)",
+          "description": "Máx 100 facturas (default 50)",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -528,7 +570,8 @@
       "required": [
         "factura"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -546,11 +589,13 @@
       "type": "object",
       "properties": {
         "mes": {
-          "description": "Mes, YYYY-MM (default actual)",
-          "type": "string"
+          "description": "Default el actual",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -577,14 +622,16 @@
           "type": "boolean"
         },
         "fecha_pago": {
-          "description": "Fecha REAL de pago, YYYY-MM-DD (default hoy)",
-          "type": "string"
+          "description": "Fecha REAL de pago (default hoy)",
+          "type": "string",
+          "format": "date"
         }
       },
       "required": [
         "factura"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -626,11 +673,13 @@
         },
         "fecha_factura": {
           "type": "string",
-          "description": "Fecha de la factura, YYYY-MM-DD"
+          "format": "date",
+          "description": "Fecha de la factura"
         },
         "vencimiento": {
-          "description": "Vencimiento, YYYY-MM-DD (default: fecha + plazo del proveedor)",
-          "type": "string"
+          "description": "Default: fecha + plazo del proveedor",
+          "type": "string",
+          "format": "date"
         },
         "notas": {
           "description": "Notas",
@@ -643,7 +692,8 @@
         "monto",
         "fecha_factura"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -681,12 +731,12 @@
           ]
         },
         "fecha_factura": {
-          "description": "YYYY-MM-DD",
-          "type": "string"
+          "type": "string",
+          "format": "date"
         },
         "vencimiento": {
-          "description": "YYYY-MM-DD",
-          "type": "string"
+          "type": "string",
+          "format": "date"
         },
         "proveedor": {
           "description": "Otro proveedor (nombre o parte)",
@@ -704,7 +754,8 @@
       "required": [
         "factura"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -722,11 +773,13 @@
       "type": "object",
       "properties": {
         "mes": {
-          "description": "Mes, YYYY-MM (default actual)",
-          "type": "string"
+          "description": "Default el actual",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -748,11 +801,13 @@
           "type": "string"
         },
         "fecha": {
-          "description": "Cualquier día de la semana, YYYY-MM-DD (default hoy)",
-          "type": "string"
+          "description": "Cualquier día de la semana (default hoy)",
+          "type": "string",
+          "format": "date"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -780,7 +835,8 @@
           "maximum": 26
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -798,13 +854,14 @@
       "type": "object",
       "properties": {
         "limit": {
-          "description": "Cuántas cargas listar (default 10)",
+          "description": "Máx 50 cargas (default 10)",
           "type": "integer",
           "minimum": 1,
           "maximum": 50
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -842,7 +899,8 @@
       "required": [
         "filas"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -891,7 +949,7 @@
             },
             "fecha": {
               "type": "string",
-              "description": "YYYY-MM-DD"
+              "format": "date"
             },
             "entrada_actual": {
               "type": "string"
@@ -910,10 +968,12 @@
           },
           "required": [
             "fecha"
-          ]
+          ],
+          "additionalProperties": false
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -932,7 +992,7 @@
       "properties": {
         "fecha": {
           "type": "string",
-          "description": "YYYY-MM-DD"
+          "format": "date"
         },
         "tipo": {
           "type": "string",
@@ -955,7 +1015,8 @@
       "required": [
         "fecha"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -977,7 +1038,8 @@
           "type": "string"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -995,11 +1057,13 @@
       "type": "object",
       "properties": {
         "fecha": {
-          "description": "Cualquier día del corte, YYYY-MM-DD (default hoy)",
-          "type": "string"
+          "description": "Cualquier día del corte (default hoy)",
+          "type": "string",
+          "format": "date"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -1031,7 +1095,8 @@
               },
               "fecha": {
                 "type": "string",
-                "description": "Día trabajado, YYYY-MM-DD"
+                "format": "date",
+                "description": "Día trabajado"
               },
               "horas": {
                 "type": "number",
@@ -1055,18 +1120,20 @@
               "empleado",
               "fecha",
               "horas"
-            ]
+            ],
+            "additionalProperties": false
           }
         },
         "traer_de_horas": {
           "type": "boolean"
         },
         "fecha": {
-          "description": "YYYY-MM-DD",
-          "type": "string"
+          "type": "string",
+          "format": "date"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -1115,7 +1182,8 @@
           "type": "boolean"
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -1128,26 +1196,37 @@
   {
     "name": "list_tasks",
     "title": "Listar tareas",
-    "description": "Tareas del equipo (GitHub Issues del repo). state: open | closed | all (default open). priority: low | medium | high | highest. Las cerradas incluyen si se completaron o se descartaron.",
+    "description": "Tareas del equipo (GitHub Issues del repo), abiertas por default. Las cerradas incluyen si se completaron o se descartaron.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "state": {
-          "description": "open | closed | all",
-          "type": "string"
+          "description": "Default open",
+          "type": "string",
+          "enum": [
+            "open",
+            "closed",
+            "all"
+          ]
         },
         "priority": {
-          "description": "low | medium | high | highest",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "highest"
+          ]
         },
         "page": {
-          "description": "Página (30 por página)",
+          "description": "Página (1-indexada, default 1; 30 por página)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         }
       },
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -1174,7 +1253,8 @@
       "required": [
         "number"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -1187,7 +1267,7 @@
   {
     "name": "create_task",
     "title": "Crear tarea",
-    "description": "Crea una tarea nueva (GitHub Issue del repo). ESCRIBE: usa solo cuando el usuario pida registrar una tarea/pendiente. title es obligatorio; description opcional; priority opcional (low | medium | high | highest). La tarea queda como reportada por \"Asistente (MCP)\". Devuelve la tarea creada con su número (#N) y URL.",
+    "description": "Crea una tarea nueva (GitHub Issue del repo). ESCRIBE: usa solo cuando el usuario pida registrar una tarea/pendiente. title es obligatorio; description y priority opcionales. La tarea queda como reportada por \"Asistente (MCP)\". Devuelve la tarea creada con su número (#N) y URL.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1201,14 +1281,20 @@
           "type": "string"
         },
         "priority": {
-          "description": "low | medium | high | highest",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "highest"
+          ]
         }
       },
       "required": [
         "title"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -1221,7 +1307,7 @@
   {
     "name": "update_task",
     "title": "Actualizar tarea",
-    "description": "Actualiza una tarea existente (GitHub Issue). ESCRIBE: usa solo cuando el usuario pida comentar, cambiar la prioridad o cerrar/reabrir una tarea. Acepta cualquier combinación de: comment (se publica atribuido a \"Asistente (MCP)\"), priority (low | medium | high | highest, o \"none\" para quitarla) y state (open | closed; al cerrar, state_reason \"completed\" o \"not_planned\" = descartada). NO edita título ni descripción — eso se hace en la app.",
+    "description": "Actualiza una tarea existente (GitHub Issue). ESCRIBE: usa solo cuando el usuario pida comentar, cambiar la prioridad o cerrar/reabrir una tarea. Acepta cualquier combinación de: comment (se publica atribuido a \"Asistente (MCP)\"), priority (\"none\" la quita) y state (al cerrar, state_reason not_planned = descartada). NO edita título ni descripción — eso se hace en la app.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1236,22 +1322,38 @@
           "type": "string"
         },
         "priority": {
-          "description": "low | medium | high | highest, o \"none\" para quitarla",
-          "type": "string"
+          "description": "\"none\" la quita",
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "highest",
+            "none"
+          ]
         },
         "state": {
-          "description": "open (reabrir) | closed (cerrar)",
-          "type": "string"
+          "description": "open reabre, closed cierra",
+          "type": "string",
+          "enum": [
+            "open",
+            "closed"
+          ]
         },
         "state_reason": {
-          "description": "Solo al cerrar: completed (default) | not_planned (descartada)",
-          "type": "string"
+          "description": "Solo al cerrar (default completed); not_planned = descartada",
+          "type": "string",
+          "enum": [
+            "completed",
+            "not_planned"
+          ]
         }
       },
       "required": [
         "task_number"
       ],
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -1268,7 +1370,8 @@
     "inputSchema": {
       "type": "object",
       "properties": {},
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,

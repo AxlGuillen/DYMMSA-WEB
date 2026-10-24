@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAdmin, badRequest, serverError } from '@/lib/api-helpers'
-import { createEmployee, loadEmployees, PayrollError } from '@/lib/payroll-store'
+import { requireAdmin, apiError, badRequest, serverError } from '@/lib/api-helpers'
+import { createEmployee, loadEmployees } from '@/lib/payroll-store'
 import { parseEmployeeInput } from '@/lib/payroll'
 
 // GET /api/payroll/employees — payroll's own list of people (admin)
@@ -29,8 +29,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(await createEmployee(supabase, parsed.value), { status: 201 })
   } catch (error) {
-    if (error instanceof PayrollError) return badRequest(error.message)
-    console.error('Payroll employees POST error:', error)
-    return serverError('Error al crear el empleado')
+    return apiError(error, 'Error al crear el empleado', 'Payroll employees POST error:')
   }
 }

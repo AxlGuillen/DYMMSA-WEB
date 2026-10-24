@@ -20,13 +20,13 @@ const ANDRITZ = {
 describe('catálogo fase 2', () => {
   test('res.partner y sale.order ya son consultables vía odoo_search_records', async () => {
     const { odoo } = fakeOdoo({ 'res.partner.search_read': [[ANDRITZ]] })
-    const result = await odooSearchRecords(odoo, { model: 'res.partner', limit: 1 })
+    const result = await odooSearchRecords(odoo, { modelo: 'res.partner', limite: 1 })
     expect(result.items[0].country_id).toBe('Mexico')
   })
 
   test('mobile NO está en la whitelist (no existe en Odoo 19)', async () => {
     const { odoo } = fakeOdoo({})
-    await expect(odooSearchRecords(odoo, { model: 'res.partner', fields: ['mobile'] })).rejects.toThrow(/mobile/)
+    await expect(odooSearchRecords(odoo, { modelo: 'res.partner', campos: ['mobile'] })).rejects.toThrow(/mobile/)
   })
 })
 
@@ -38,7 +38,7 @@ describe('odoo_summarize_sales', () => {
         { state: 'done', state_count: 10, amount_untaxed: 90000, amount_total: 104400, __domain: [] },
       ]],
     })
-    const result = await odooSummarizeSales(odoo, { date_from: '2026-07-01', date_to: '2026-07-31' })
+    const result = await odooSummarizeSales(odoo, { desde: '2026-07-01', hasta: '2026-07-31' })
 
     const domain = calls[0].payload.domain as unknown[][]
     expect(domain).toContainEqual(['state', 'in', ['sale', 'done']])
@@ -54,7 +54,7 @@ describe('odoo_summarize_sales', () => {
         { user_id: [2, 'Diego Baltazar Esquivel'], user_id_count: 500, amount_total: 17000000, __domain: [] },
       ]],
     })
-    await odooSummarizeSales(odoo, { incluir: 'todas', group_by: 'vendedor' })
+    await odooSummarizeSales(odoo, { incluir: 'todas', agrupar_por: 'vendedor' })
     expect(calls[0].payload.domain).toContainEqual(['state', '!=', 'cancel'])
     expect(calls[0].payload.groupby).toEqual(['user_id'])
   })

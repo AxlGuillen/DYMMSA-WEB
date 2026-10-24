@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, serverError } from '@/lib/api-helpers'
+import { QUOTATION_STATUSES } from '@/lib/quotation-status'
 import type { Quotation, QuotationWithCount, QuotationStatus } from '@/types/database'
-
-const STATUSES: QuotationStatus[] = [
-  'draft',
-  'sent_for_approval',
-  'approved',
-  'rejected',
-  'converted_to_order',
-]
 
 /** Strips the characters that break PostgREST's `.or()` filter syntax. */
 function sanitizeSearch(raw: string): string {
@@ -29,7 +22,7 @@ export async function GET(request: NextRequest) {
     const search = sanitizeSearch(searchParams.get('search') ?? '')
 
     const statusParam = searchParams.get('status') ?? 'all'
-    const status = STATUSES.includes(statusParam as QuotationStatus)
+    const status = QUOTATION_STATUSES.includes(statusParam as QuotationStatus)
       ? (statusParam as QuotationStatus)
       : 'all'
 

@@ -32,7 +32,7 @@ type CallResult = { content: { type: string; text: string }[]; isError?: boolean
 /** One throwaway tool whose handler is run() itself: what the client gets is what the host gets. */
 async function callThroughSdk(fn: () => Promise<unknown>): Promise<CallResult> {
   const server = new McpServer({ name: 'dymmsa', version: 'test' })
-  server.registerTool('prueba', { description: 'prueba' }, () => run({ authInfo: AUTH }, fn))
+  server.registerTool('prueba', { description: 'prueba' }, () => run('prueba', { authInfo: AUTH }, fn))
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test', version: '1' })
   await Promise.all([server.connect(serverSide), client.connect(clientSide)])
@@ -76,7 +76,7 @@ describe('run() y _meta (#144)', () => {
       envuelto: withResultMeta({ ok: true }, { [PRODUCTS_AUTHORIZATION_META]: 'secreto' }),
     }))
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toBe('Error interno al ejecutar la herramienta')
+    expect(result.content[0].text).toBe('Error interno en prueba')
     expect(JSON.stringify(result)).not.toContain('secreto')
     expect(error).toHaveBeenCalled()
   })

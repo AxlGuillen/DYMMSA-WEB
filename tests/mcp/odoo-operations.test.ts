@@ -10,7 +10,7 @@ describe('catálogo fases 3-4', () => {
   test('la nómina queda fuera por diseño: hr.employee no expone campos sensibles', async () => {
     const { odoo } = fakeOdoo({})
     for (const field of ['wage', 'contract_id', 'birthday']) {
-      await expect(odooSearchRecords(odoo, { model: 'hr.employee', fields: [field] })).rejects.toThrow(
+      await expect(odooSearchRecords(odoo, { modelo: 'hr.employee', campos: [field] })).rejects.toThrow(
         /no está en el catálogo/,
       )
     }
@@ -19,7 +19,7 @@ describe('catálogo fases 3-4', () => {
   test('qty_available NO es consultable (computado no-almacenado: Odoo revienta al filtrar)', async () => {
     const { odoo } = fakeOdoo({})
     await expect(
-      odooSearchRecords(odoo, { model: 'product.product', domain: [['qty_available', '>', 0]] }),
+      odooSearchRecords(odoo, { modelo: 'product.product', filtros: [['qty_available', '>', 0]] }),
     ).rejects.toThrow(/No se puede filtrar/)
   })
 })
@@ -35,17 +35,17 @@ describe('directorio y flotilla con odoo_search_records', () => {
         { id: 4, name: 'Nissan/Frontier/NC-6802-A', license_plate: 'NC-6802-A', driver_id: [14, 'Diego Baltazar Esquivel'], odometer: 0, odometer_unit: 'kilometers', model_id: [11, 'Nissan/Frontier'], state_id: [1, 'Incompleto'] },
       ]],
     })
-    const people = await odooSearchRecords(odoo, { model: 'hr.employee', domain: [['name', 'ilike', 'Diego']] })
+    const people = await odooSearchRecords(odoo, { modelo: 'hr.employee', filtros: [['name', 'ilike', 'Diego']] })
     expect(people.items[0]).toMatchObject({ name: 'Diego Baltazar Esquivel', work_email: 'x@y.com', job_title: null, department_id: 'Administration' })
 
-    const cars = await odooSearchRecords(odoo, { model: 'fleet.vehicle', domain: [['driver_id', 'ilike', 'Diego']] })
+    const cars = await odooSearchRecords(odoo, { modelo: 'fleet.vehicle', filtros: [['driver_id', 'ilike', 'Diego']] })
     expect(cars.items[0]).toMatchObject({ license_plate: 'NC-6802-A', driver_id: 'Diego Baltazar Esquivel', model_id: 'Nissan/Frontier' })
     expect(calls.map((c) => c.model)).toEqual(['hr.employee', 'fleet.vehicle'])
   })
 
   test('la bitácora de servicios de la flotilla también es del catálogo', async () => {
     const { odoo } = fakeOdoo({ 'fleet.vehicle.log.services.search_read': [[]] })
-    await expect(odooSearchRecords(odoo, { model: 'fleet.vehicle.log.services', order: 'date desc' })).resolves.toMatchObject({ count: 0, items: [] })
+    await expect(odooSearchRecords(odoo, { modelo: 'fleet.vehicle.log.services', orden: 'date desc' })).resolves.toMatchObject({ count: 0, items: [] })
   })
 })
 
