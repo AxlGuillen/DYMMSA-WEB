@@ -89,6 +89,8 @@ export interface MockOrderLine {
   quantity_received: number
   quantity_to_order: number
   urrea_status?: string
+  sort_order?: number
+  unit_price?: number
 }
 
 export interface MockOrder {
@@ -130,6 +132,31 @@ export function orderRpc(stock: ReturnType<typeof stockRpc>, order: MockOrder) {
       if (!line) return { data: null, error: null }
       order.items = order.items.filter((i) => i !== line)
       return { data: stock.release([{ model_code: line.model_code, quantity: line.quantity_in_stock }]), error: null }
+    },
+    'rpc.add_order_item': (rec) => {
+      if (params(rec).p_order_id !== order.id || order.status === 'deleted') return raise('order_not_found')
+      if (order.status === 'completed' || order.status === 'cancelled') return raise('order_closed')
+      if (order.status !== 'ordered' && order.status !== 'received') return raise('order_delivered')
+      const item = params(rec).p_item as {
+        etm: string; description: string; model_code: string; brand: string; unit_price: number; quantity_approved: number
+      }
+      const row = stock.stock.get(item.model_code)
+      const reserved = item.model_code.trim() && row ? Math.min(Math.max(row.quantity, 0), item.quantity_approved) : 0
+      if (row) row.quantity -= reserved
+      const line: MockOrderLine = {
+        id: `new-${order.items.length + 1}`,
+        model_code: item.model_code,
+        etm: item.etm,
+        item_type: 'product',
+        quantity_in_stock: reserved,
+        quantity_received: 0,
+        quantity_to_order: item.quantity_approved - reserved,
+        urrea_status: 'pending',
+        sort_order: Math.max(-1, ...order.items.map((i) => i.sort_order ?? 0)) + 1,
+        unit_price: item.unit_price,
+      }
+      order.items.push(line)
+      return { data: { ...line, order_id: order.id, description: item.description, brand: item.brand, quantity_approved: item.quantity_approved }, error: null }
     },
     'rpc.receive_order_items': (rec) => {
       if (params(rec).p_order_id !== order.id || order.status === 'deleted') return raise('order_not_found')

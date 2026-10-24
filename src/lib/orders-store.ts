@@ -23,7 +23,7 @@ import {
   type Reservation,
   type StockLine,
 } from '@/lib/inventory'
-import { explainPgError, type PgErrorInput } from '@/lib/supabase-errors'
+import { explainPgError, type InspectableItem, type PgErrorInput } from '@/lib/supabase-errors'
 import type {
   ConfirmReceptionInput,
   ConfirmReceptionResult,
@@ -136,10 +136,15 @@ async function reserveOrRollback(
 }
 
 /** explainPgError → OrderError (ADR-009); `fallback` replaces the raw DB message of a non-rule failure. */
-function pgOrderError(error: PgErrorInput | null, items?: OrderItemPayload[], fallback?: string): OrderError {
+function pgOrderError(error: PgErrorInput | null, items?: InspectableItem[], fallback?: string): OrderError {
   const info = explainPgError(error, items)
   if (info.isConstraintViolation) return new OrderError(info.userMessage, 'invalid', info.offendingEtm)
   return new OrderError(fallback ?? info.userMessage, 'failed', info.offendingEtm)
+}
+
+/** The key a DB order function raised on purpose (P0001), or undefined for any other error. */
+function ruleKey(error: { code?: string; message?: string }): string | undefined {
+  return error.code === 'P0001' ? error.message : undefined
 }
 
 /** Approved total after a line changes. Logged, not thrown: the line write already happened and a retry would repeat it. */
@@ -424,7 +429,8 @@ export async function setOrderStatus(db: SupabaseClient, orderId: string, body: 
 
 // ─── Lines ──────────────────────────────────────────────────────────────────
 
-/** Adds a line: reserves its stock first and gives it back if the insert fails (#157). */
+/** Adds a line in ONE transaction (add_order_item): the order stays locked while its stock is reserved,
+ *  so a concurrent cancel either sees the line and returns its stock, or the add fails (#157). */
 export async function addOrderItem(
   db: SupabaseClient,
   orderId: string,
@@ -444,55 +450,30 @@ export async function addOrderItem(
   if (typeof unitPrice !== 'number' || !Number.isFinite(unitPrice) || unitPrice < 0) {
     throw new OrderError('El precio no puede ser negativo')
   }
-  const modelCode = text(raw.model_code)
 
-  const { data: maxSort } = await db
-    .from('order_items')
-    .select('sort_order')
-    .eq('order_id', orderId)
-    .order('sort_order', { ascending: false })
-    .limit(1)
-    .single()
-  const sortOrder = ((maxSort as { sort_order?: number } | null)?.sort_order ?? -1) + 1
-
-  const line = { model_code: modelCode, quantity }
-  let reservations: Map<string, Reservation>
-  try {
-    reservations = await reserveInventory(db, stockDemand([line]))
-  } catch (error) {
-    console.error(`[add-order-item] reserve error orderId=${orderId}`, error)
-    throw new OrderError('Error al apartar el inventario', 'failed')
-  }
-  const [allocation] = allocateLines([line], poolOf(reservations))
-
-  const payload: OrderItemPayload = {
-    sort_order: sortOrder,
-    item_type: 'product',
-    section_label: null,
+  const item = {
     etm: text(raw.etm),
-    model_code: modelCode,
     description: text(raw.description),
+    model_code: text(raw.model_code),
     brand: text(raw.brand),
-    quantity_approved: quantity,
-    quantity_in_stock: allocation.inStock,
-    quantity_to_order: allocation.toOrder,
-    quantity_received: 0,
-    urrea_status: 'pending',
-    delivery_time: 'immediate',
     unit_price: unitPrice,
+    quantity_approved: quantity,
   }
-  const { data: newItem, error } = await db
-    .from('order_items')
-    .insert({ ...payload, order_id: orderId })
-    .select()
-    .single()
+  const { data, error } = await db.rpc('add_order_item', { p_order_id: orderId, p_item: item })
   if (error) {
-    console.error(`[add-order-item] insert error orderId=${orderId}`, error)
-    await giveBack(db, reservations, 'add-order-item')
-    throw pgOrderError(error, [payload], 'Error al agregar el producto')
+    switch (ruleKey(error)) {
+      case 'order_not_found':
+        throw new OrderError('Orden no encontrada', 'not_found')
+      case 'order_closed':
+        throw new OrderError(CLOSED_MESSAGE)
+      case 'order_delivered':
+        throw new OrderError(DELIVERED_ADD_MESSAGE)
+    }
+    console.error(`[add-order-item] error orderId=${orderId}`, error)
+    throw pgOrderError(error, [item], 'Error al agregar el producto')
   }
 
-  return { item: newItem, total_amount: await recalculateOrderTotal(db, orderId) }
+  return { item: data, total_amount: await recalculateOrderTotal(db, orderId) }
 }
 
 const DELIVERY_TIMES = Object.keys(DELIVERY_TIME_LABELS) as DeliveryTime[]
@@ -584,7 +565,7 @@ function parseReceptionItems(input: unknown): ReceptionLine[] {
 
 /** The P0001 keys receive_order_items() raises, as the user reads them. */
 function receptionError(error: { code?: string; message?: string; details?: string | null }): OrderError {
-  switch (error.code === 'P0001' ? error.message : undefined) {
+  switch (ruleKey(error)) {
     case 'order_not_found':
       return new OrderError('Orden no encontrada', 'not_found')
     case 'order_closed':

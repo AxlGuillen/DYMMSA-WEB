@@ -349,6 +349,30 @@ describe('órdenes con stock atómico (#157, integración local)', () => {
     }
   })
 
+  test('REGLA: cancelar mientras se agrega una línea nunca deja stock apartado en una orden cancelada', async () => {
+    for (let round = 0; round < 4; round++) {
+      await sql("UPDATE store_inventory SET quantity = 5 WHERE model_code = '60001'")
+      const orderId = await createdOrder([
+        { etm: 'A', model_code: '60001', brand: 'URREA', unit_price: 10, quantity: 2, is_approved: true },
+      ])
+      expect(await stockOf()).toBe(3)
+
+      const [, added] = await Promise.all([
+        cancelOrder(orderId),
+        orderItems.POST(
+          makeRequest({ etm: 'B', model_code: '60001', description: 'B', brand: 'URREA', unit_price: 10, quantity_approved: 2 }),
+          makeParams({ id: orderId }),
+        ),
+      ])
+      // Either the line landed first and the cancel gave its stock back, or the add was refused.
+      expect([200, 400]).toContain(added.status)
+      expect((await lines(orderId)).length, `ronda ${round}`).toBe(added.status === 200 ? 2 : 1)
+      expect(await stockOf(), `ronda ${round}`).toBe(5)
+      const [o] = await sql<{ status: string }>('SELECT status FROM orders WHERE id = $1', [orderId])
+      expect(o.status).toBe('cancelled')
+    }
+  })
+
   test('REGLA: una orden entregada no se cancela ni pierde líneas; el stock no se mueve', async () => {
     const orderId = await createdOrder([{ etm: 'P', model_code: '60001', brand: 'URREA', unit_price: 10, quantity: 4, is_approved: true }])
     await sql("UPDATE orders SET status = 'delivered' WHERE id = $1", [orderId])

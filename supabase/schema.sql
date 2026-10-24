@@ -969,7 +969,7 @@ GRANT ALL ON public.profile_pay TO service_role;
 
 -- ============================================================================
 -- Atomic order stock (#157, migration atomic_order_stock): store_inventory moves by model_code under a
--- row lock; cancel/delete/remove a line and reception write and restock in one transaction. INVOKER, no anon.
+-- row lock; add/remove a line, cancel, delete and reception write and move stock in one transaction. INVOKER, no anon.
 -- ============================================================================
 -- Reserve: least(stock, asked) per model_code under FOR UPDATE; repeated codes are summed first.
 CREATE OR REPLACE FUNCTION public.reserve_inventory(p_lines jsonb)
@@ -992,7 +992,8 @@ BEGIN
     GROUP BY 1
     ORDER BY 1
   LOOP
-    CONTINUE WHEN v_line.quantity <= 0;
+    -- least() skips NULLs: a missing quantity must reserve nothing, not the whole stock.
+    CONTINUE WHEN coalesce(v_line.quantity, 0) <= 0;
 
     SELECT i.quantity, i.location INTO v_stock, v_location
     FROM public.store_inventory i
@@ -1160,6 +1161,55 @@ BEGIN
 END;
 $$;
 
+-- Add a line: the order lock keeps a concurrent cancel from missing it, so its stock always comes back.
+-- Errors: P0001 with message order_not_found | order_closed | order_delivered, and nothing is reserved.
+CREATE OR REPLACE FUNCTION public.add_order_item(p_order_id uuid, p_item jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_status text;
+  v_qty integer := (p_item->>'quantity_approved')::integer;
+  v_code text := coalesce(p_item->>'model_code', '');
+  v_reserved integer := 0;
+  v_sort integer;
+  v_row public.order_items;
+BEGIN
+  SELECT o.status INTO v_status FROM public.orders o WHERE o.id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'order_not_found';
+  END IF;
+  IF v_status IN ('completed', 'cancelled') THEN
+    RAISE EXCEPTION 'order_closed';
+  END IF;
+  IF v_status NOT IN ('ordered', 'received') THEN
+    RAISE EXCEPTION 'order_delivered';
+  END IF;
+
+  IF btrim(v_code) <> '' THEN
+    v_reserved := coalesce((public.reserve_inventory(
+      jsonb_build_array(jsonb_build_object('model_code', v_code, 'quantity', v_qty))
+    )->0->>'reserved')::integer, 0);
+  END IF;
+
+  SELECT coalesce(max(oi.sort_order), -1) + 1 INTO v_sort FROM public.order_items oi WHERE oi.order_id = p_order_id;
+
+  -- Same split as allocateLines() in src/lib/business-rules.ts: stock first, the rest is ordered from URREA.
+  INSERT INTO public.order_items (
+    order_id, sort_order, item_type, etm, model_code, description, brand,
+    quantity_approved, quantity_in_stock, quantity_to_order, quantity_received, urrea_status, unit_price
+  ) VALUES (
+    p_order_id, v_sort, 'product', coalesce(p_item->>'etm', ''), v_code, coalesce(p_item->>'description', ''),
+    coalesce(p_item->>'brand', ''), v_qty, v_reserved, v_qty - v_reserved, 0, 'pending', (p_item->>'unit_price')::numeric
+  )
+  RETURNING * INTO v_row;
+
+  RETURN to_jsonb(v_row);
+END;
+$$;
+
 -- Reception in one transaction (ADR-019): lines and their excess delta commit together, so a failed
 -- inventory write never leaves a received quantity whose excess a retry would read as delta 0.
 -- Errors: P0001 with message order_not_found | order_closed | duplicate_item | item_not_in_order |
@@ -1246,6 +1296,7 @@ REVOKE ALL ON FUNCTION public.order_restock_lines(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.cancel_order_restock(uuid, text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.delete_order_restock(uuid, text, boolean) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.remove_order_item_restock(uuid, uuid, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.add_order_item(uuid, jsonb) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.receive_order_items(uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.reserve_inventory(jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.release_inventory(jsonb) TO authenticated;
@@ -1254,4 +1305,5 @@ GRANT EXECUTE ON FUNCTION public.order_restock_lines(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_order_restock(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_order_restock(uuid, text, boolean) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.remove_order_item_restock(uuid, uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.add_order_item(uuid, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.receive_order_items(uuid, jsonb) TO authenticated;

@@ -30,6 +30,29 @@ describe('POST /orders/[id]/items', () => {
     items.POST(makeRequest(body), makeParams({ id: 'o1' }))
   const valid = { etm: 'E9', description: 'Pinza', model_code: 'MC1', brand: 'URREA', unit_price: 50, quantity_approved: 4 }
 
+  /** add_order_item over one in-memory order: locks it, checks it is still in store, reserves and inserts. */
+  function addMock(status: string, initialStock: Record<string, number> = { MC1: 10 }) {
+    const stock = stockRpc(initialStock)
+    const { order: mockOrder, responses } = orderRpc(stock, {
+      id: 'o1',
+      status,
+      items: [{ id: 'it1', model_code: 'MC1', etm: 'E1', item_type: 'product', quantity_in_stock: 3, quantity_received: 0, quantity_to_order: 0, sort_order: 7, unit_price: 100 }],
+    })
+    const client = createMockSupabase({
+      user: AUTH,
+      responses: {
+        ...responses,
+        ...order(status),
+        'order_items.select': () => ({
+          data: mockOrder.items.map((i) => ({ unit_price: i.unit_price, quantity_approved: i.quantity_in_stock + i.quantity_to_order, item_type: 'product' })),
+          error: null,
+        }),
+        'orders.update': { data: null, error: null },
+      },
+    })
+    return { client, stock, mockOrder }
+  }
+
   test('404 si la orden no existe', async () => {
     activeClient = createMockSupabase({ user: AUTH, responses: { 'orders.select': { data: null, error: null } } })
     expect((await add(valid)).status).toBe(404)
@@ -37,85 +60,81 @@ describe('POST /orders/[id]/items', () => {
 
   test('400 en una orden completada o cancelada', async () => {
     for (const status of ['completed', 'cancelled']) {
-      activeClient = createMockSupabase({ user: AUTH, responses: order(status) })
+      activeClient = addMock(status).client
       expect((await add(valid)).status, status).toBe(400)
       expect(activeClient._rpcCalls, status).toEqual([])
     }
   })
 
   test('REGLA (#157): a una orden entregada ya no se le agregan productos ni se aparta stock', async () => {
-    activeClient = createMockSupabase({ user: AUTH, responses: order('delivered') })
+    const { client, stock } = addMock('delivered')
+    activeClient = client
     const res = await add(valid)
     expect(res.status).toBe(400)
     expect((await res.json()).message).toMatch(/entregada/)
     expect(activeClient._rpcCalls).toEqual([])
-    expect(activeClient.didCall('order_items', 'insert')).toBe(false)
+    expect(stock.quantity('MC1')).toBe(10)
   })
 
-  test('400 con cantidad no entera o menor a 1, o precio inválido, sin apartar stock', async () => {
+  test('400 con cantidad no entera o menor a 1, o precio inválido, sin llamar a la BD', async () => {
     for (const body of [
       { ...valid, quantity_approved: 1.5 },
       { ...valid, quantity_approved: 0 },
       { ...valid, unit_price: -1 },
       { ...valid, unit_price: undefined },
     ]) {
-      activeClient = createMockSupabase({ user: AUTH, responses: order('ordered') })
+      activeClient = addMock('ordered').client
       expect((await add(body)).status).toBe(400)
       expect(activeClient._rpcCalls).toEqual([])
     }
   })
 
-  test('aparta del stock, inserta al final y recalcula el total', async () => {
-    const stock = stockRpc({ MC1: 10 })
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: {
-        ...stock.responses,
-        ...order('received'),
-        'order_items.select': (rec) => rec.single
-          ? { data: { sort_order: 7 }, error: null }
-          : { data: [line(), { unit_price: 50, quantity_approved: 4, item_type: 'product' }], error: null },
-        'order_items.insert': { data: { id: 'new' }, error: null },
-        'orders.update': { data: null, error: null },
-      },
-    })
+  test('aparta, inserta al final y recalcula el total en una sola llamada atómica', async () => {
+    const { client, stock, mockOrder } = addMock('received')
+    activeClient = client
     const res = await add(valid)
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.item).toEqual({ id: 'new' })
+    expect(body.item).toMatchObject({ order_id: 'o1', sort_order: 8, quantity_in_stock: 4, quantity_to_order: 0 })
     expect(body.total_amount).toBe(500) // 100×3 + 50×4
-
-    const inserted = activeClient.insertPayload<Record<string, unknown>>('order_items')
-    expect(inserted).toMatchObject({ order_id: 'o1', sort_order: 8, quantity_in_stock: 4, quantity_to_order: 0 })
     expect(stock.quantity('MC1')).toBe(6)
+    expect(mockOrder.items).toHaveLength(2)
+    expect(activeClient.rpcParams('add_order_item')).toEqual([{ p_order_id: 'o1', p_item: valid }])
+    // Reservation and insert happen inside the function, never as loose writes from the route.
+    expect(activeClient.didCall('order_items', 'insert')).toBe(false)
+    expect(activeClient.rpcParams('reserve_inventory')).toEqual([])
   })
 
-  test('REGLA (#157): si el insert falla, el stock apartado regresa', async () => {
-    const stock = stockRpc({ MC1: 3 })
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: {
-        ...stock.responses,
-        ...order('ordered'),
-        'order_items.insert': { data: null, error: { message: 'connection reset' } },
-      },
-    })
+  test('stock parcial: lo que falta se pide a URREA', async () => {
+    activeClient = addMock('ordered', { MC1: 3 }).client
     const res = await add(valid)
-    expect(res.status).toBe(500)
-    expect((await res.json()).message).toBe('Error al agregar el producto')
-    // Before #157 the 3 stayed deducted for a line that was never saved.
-    expect(stock.quantity('MC1')).toBe(3)
-    expect(activeClient.didCall('orders', 'update')).toBe(false)
+    expect((await res.json()).item).toMatchObject({ quantity_in_stock: 3, quantity_to_order: 1 })
   })
 
-  test('una violación de regla en el insert → 400 descriptivo, también devuelve el stock', async () => {
-    const stock = stockRpc({ MC1: 3 })
+  test('REGLA (#157): si la orden se canceló a la mitad, el alta falla y no aparta nada', async () => {
+    const { client, stock, mockOrder } = addMock('ordered')
+    mockOrder.status = 'cancelled' // a concurrent cancel won the order lock after this request read 'ordered'
+    activeClient = client
+    const res = await add(valid)
+    expect(res.status).toBe(400)
+    expect((await res.json()).message).toBe('No se puede modificar una orden completada o cancelada')
+    expect(stock.quantity('MC1')).toBe(10)
+    expect(mockOrder.items).toHaveLength(1)
+  })
+
+  test('si se entregó a la mitad, el mensaje es el de entregada', async () => {
+    const { client, mockOrder } = addMock('ordered')
+    mockOrder.status = 'delivered'
+    activeClient = client
+    expect((await (await add(valid)).json()).message).toMatch(/entregada/)
+  })
+
+  test('una violación de regla en el insert → 400 descriptivo', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
       responses: {
-        ...stock.responses,
         ...order('ordered'),
-        'order_items.insert': {
+        'rpc.add_order_item': {
           data: null,
           error: { code: '23514', message: 'violates check constraint "order_items_unit_price_check"' },
         },
@@ -123,19 +142,29 @@ describe('POST /orders/[id]/items', () => {
     })
     const res = await add({ ...valid, etm: 'NEG' })
     expect(res.status).toBe(400)
-    expect(stock.quantity('MC1')).toBe(3)
+    expect((await res.json()).message).toMatch(/precio negativo/)
+  })
+
+  test('un error inesperado de la BD es 500', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: {
+        ...order('ordered'),
+        'rpc.add_order_item': { data: null, error: { code: '08006', message: 'connection failure' } },
+      },
+    })
+    const res = await add(valid)
+    expect(res.status).toBe(500)
+    expect((await res.json()).message).toBe('Error al agregar el producto')
   })
 
   test('sin model_code no aparta nada: todo va a pedir', async () => {
-    activeClient = createMockSupabase({
-      user: AUTH,
-      responses: { ...order('ordered'), 'order_items.insert': { data: { id: 'new' }, error: null } },
-    })
-    expect((await add({ ...valid, model_code: '' })).status).toBe(200)
-    expect(activeClient._rpcCalls).toEqual([])
-    expect(activeClient.insertPayload<Record<string, unknown>>('order_items')).toMatchObject({
-      quantity_in_stock: 0, quantity_to_order: 4,
-    })
+    const { client, stock } = addMock('ordered')
+    activeClient = client
+    const res = await add({ ...valid, model_code: '' })
+    expect(res.status).toBe(200)
+    expect((await res.json()).item).toMatchObject({ quantity_in_stock: 0, quantity_to_order: 4 })
+    expect(stock.quantity('MC1')).toBe(10)
   })
 })
 
