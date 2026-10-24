@@ -27,23 +27,25 @@ export interface ToolManifestEntry {
 export type McpRole = 'admin' | 'member'
 
 /**
- * Budget every tool must fit in (#133, ADR-034). Raising a cap is an explicit decision in the
+ * Per-tool caps both connectors share (#133, ADR-034). Raising a cap is an explicit decision in the
  * PR, with its why: each new tool has to earn its place or replace another.
  */
 export const TOOL_BUDGET = {
-  /** Odoo 16 → 20 for the four #144 writes (ADR-040); back to 16 with the final catalog (#155 B2a, ADR-041). */
-  tools: { app: 36, odoo: 16 },
   /** Characters of description per tool; the exceptions carry a guide the model needs in full. */
   description: 1000,
   descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
-  /** 18,000 → 18,500 for the #134 writes (ADR-037); → 20,000 for the four Odoo tools of #144 (ADR-040). */
-  descriptionsTotal: 20_000,
-  /** Characters of the admin's tools/list on the wire, every field included (#155 A1). The 47,000 of #144 measured a proxy
-   *  without annotations or JSON structure; on the wire the same list is 53,163, and 54,000 leaves ~1.6% of slack. */
-  listTotal: 54_000,
-  /** Characters of the server instructions, per role. 7,500 → 8,000 for the admin's Odoo write flow (#144). */
-  instructions: 8000,
 } as const
+
+/**
+ * Caps of one connector (ADR-041 § Presupuestos), next to its definition: DYMMSA_BUDGET and ODOO_BUDGET.
+ * tools/list is the admin's, on the wire with every field (#155 A1); instructions are per role.
+ */
+export interface ConnectorBudget {
+  tools: number
+  listTotal: number
+  descriptionsTotal: number
+  instructions: number
+}
 
 /** Entries grouped by module, in first-appearance order. */
 export function groupByModule(entries: readonly ToolManifestEntry[]): { module: string; tools: ToolManifestEntry[] }[] {

@@ -1,11 +1,11 @@
 import type { ConnectorDefinition } from '@/lib/mcp/core/define'
 import { appUrl } from '@/lib/mcp/core/env'
-import { TOOL_BUDGET } from '@/lib/mcp/manifest'
+import type { ConnectorBudget } from '@/lib/mcp/manifest'
 import { odooInstructions } from './instructions'
 import { ODOO_TOOLS } from '.'
 
-/** Caps of this connector (ADR-041), tools/list on the wire. B2b: 15 tools, 18,713 on the wire, 6,161 of descriptions. */
-export const ODOO_BUDGET = { tools: TOOL_BUDGET.tools.odoo, listTotal: 21_500, descriptionsTotal: 6_500, instructions: 3_000 } as const
+/** Caps of this connector (ADR-041), tools/list on the wire. B3: 15 tools, 19,667 on the wire, 6,333 of descriptions, 2,891 of instructions. */
+export const ODOO_BUDGET: ConnectorBudget = { tools: 16, listTotal: 21_500, descriptionsTotal: 6_500, instructions: 3_000 }
 
 /** «Odoo DYMMSA» at /api/odoo/mcp (#155 B1, ADR-041): the company's official invoicing, alone. */
 export const odooConnector: ConnectorDefinition = {
@@ -20,4 +20,5 @@ export const odooConnector: ConnectorDefinition = {
   },
   tools: ODOO_TOOLS,
   instructions: odooInstructions,
+  budget: ODOO_BUDGET,
 }

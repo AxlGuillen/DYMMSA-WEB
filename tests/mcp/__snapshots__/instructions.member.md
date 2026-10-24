@@ -1,8 +1,5 @@
-# MCP DYMMSA — mapa de herramientas
+# MCP DYMMSA-WEB (la app de cotizaciones e inventario) — mapa de herramientas
 
-Las tools se dividen en DOS bloques que NO se cruzan:
-
-## Bloque A — DYMMSA-WEB (la app de cotizaciones e inventario)
 - Panorama: get_business_summary (úsala primero para contexto global; trae los conteos por estado y la salud del inventario).
 - Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió).
 - Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escritura save_material_presentation para registrar una barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
@@ -15,20 +12,14 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 - Perfiles del equipo: get_profiles (nombre, rol, jornada, id del checador, NSS y foto). Solo lectura; la BD decide por persona como en horas. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
 
-## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
-La facturación OFICIAL de la empresa, en un sistema EXTERNO. SOLO lectura.
-- Un folio (F…, S…, PAY…): odoo_get_document. Un cliente: odoo_get_customer (expediente y estado de cuenta). Toda la cartera ("¿a quién le cobro primero?", "¿quién paga más lento?"): odoo_list_receivables.
-- Totales de un periodo: odoo_summarize_invoices, odoo_summarize_sales. Revisiones: odoo_audit_invoice_links (facturas sin orden de venta), odoo_audit_payment_complements (pagos sin REP).
-- Almacén de ODOO: odoo_search_stock (la tienda es search_inventory, del conector DYMMSA-WEB).
-- Primitivas, solo si nada de lo anterior responde: odoo_search_records (también empleados y flotilla: hr.employee, fleet.vehicle, fleet.vehicle.log.services), odoo_aggregate_records.
+## Dos conectores, sin vínculo
+La facturación OFICIAL (facturas, cobros, cartera, almacén) vive en Odoo, un sistema EXTERNO con su propio conector, «Odoo DYMMSA»; aquí solo llega por get_month_closing (notas de crédito aparte: saldo a favor, nunca se restan).
+- Ningún registro de aquí es uno de Odoo aunque coincidan nombre, monto o código: no los cruces ni sumes.
+- Si piden llevar algo de un lado al otro, di que son sistemas separados y que el puente es el usuario: nunca asumas que una cotización de aquí es una de Odoo.
 
-Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una de Odoo. Las únicas escrituras del MCP son las que cada bloque marca como escritura; todo lo demás es lectura.
+Las únicas escrituras son las que el mapa marca; todo lo demás es lectura. Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
 
-Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
-
-Notas de crédito (Odoo): una nota de crédito sin aplicar es SALDO A FAVOR del cliente, no deuda. Las tools la reportan aparte (campos notas_credito*) y NUNCA la restan del vencido ni del por cobrar — es decisión del negocio (no se sabe si el cliente la usará o si se aplicará a una factura). No hagas ese neteo tú tampoco.
-
-# Reglas de negocio DYMMSA (referencia para el asistente)
+# Reglas de negocio DYMMSA
 
 - **Flujo**: cotización (draft → sent_for_approval → approved/rejected → converted_to_order) → orden (ordered → received → delivered → completed | cancelled).
 - **Separadores** (item_type='separator') son encabezados de sección: nunca cuentan en totales, conteos ni aprobaciones.
@@ -44,6 +35,4 @@ Notas de crédito (Odoo): una nota de crédito sin aplicar es SALDO A FAVOR del 
 - **Cierre del mes** = cobrado (Odoo) − pagado (app); proyectado = real − pendiente del mes − vencido arrastrado. Sin Odoo el cierre solo refleja egresos.
 - **Cambiar el estado de una cotización regenera su approval_token** → el link de aprobación compartido antes muere.
 - **Tareas** = GitHub Issues del repo; prioridad por label priority:*, "Descartada" = cerrada como not_planned.
-- **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB. Las cotizaciones/órdenes de aquí y las de Odoo son mundos separados — no asumas cruces entre ambos.
-- **Vínculo factura↔orden de venta (Odoo)**: la verdad es ordenes_ligadas (el botón "Órdenes de venta" de la factura) y el vínculo línea a línea; origen (invoice_origin) es texto libre y NO prueba el vínculo — una factura con origen pero 0 órdenes ligadas tiene el vínculo roto. Las notas al pie (pedido_pie, "PEDIDO: …") vienen de Odoo, no de capturas.
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.

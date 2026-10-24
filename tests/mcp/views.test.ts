@@ -24,7 +24,8 @@ import {
 import type { QuotationPreview } from '@/lib/mcp/tools/odoo/quotations'
 import { SAT_PLACEHOLDER } from '@/lib/odoo/sat-keys'
 import { join } from 'node:path'
-import { connectMcp } from './harness'
+import { odooConnector } from '@/lib/mcp/connectors/odoo/connector'
+import { authAs, connectMcp } from './harness'
 
 describe('vistas MCP generadas', () => {
   test('cada vista está generada y al día con su código (si falla: bun run build:mcp-views)', () => {
@@ -70,9 +71,12 @@ describe('vistas MCP generadas', () => {
   })
 
   test('cotización de Odoo con el SDK real: la vista previa trae su vista, el alta de productos solo la ve la vista y un member no ve nada (#144)', async () => {
-    const admin = await connectMcp('admin')
-    const member = await connectMcp('member')
+    const admin = await connectMcp('admin', authAs('admin'), odooConnector)
+    const member = await connectMcp('member', authAs('member'), odooConnector)
+    const dymmsa = await connectMcp('admin')
     try {
+      // Since #155 B3 the view lives only in «Odoo DYMMSA».
+      expect((await dymmsa.client.listResources()).resources.map((r) => r.uri)).toEqual(['ui://dymmsa/time-report.html'])
       const list = await admin.tools()
       const preview = list.find((t) => t.name === 'odoo_preview_quotation')
       expect(preview?._meta).toMatchObject({ ui: { resourceUri: 'ui://dymmsa/odoo-quotation.html' } })
@@ -89,7 +93,7 @@ describe('vistas MCP generadas', () => {
         expect(memberTools, name).not.toContain(name)
       }
     } finally {
-      await Promise.all([admin.close(), member.close()])
+      await Promise.all([admin.close(), member.close(), dymmsa.close()])
     }
   })
 

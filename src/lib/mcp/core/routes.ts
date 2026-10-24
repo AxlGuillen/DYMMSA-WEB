@@ -1,9 +1,12 @@
-/** MCP route constants (ADR-023), safe on client and server. */
+/** MCP route constants (ADR-023). Server-only like the rest of lib/mcp: client-boundary.test.ts keeps it out of client bundles. */
 
 export const MCP_PATH = '/api/mcp'
 
 /** The Odoo DYMMSA connector (#155 B1, ADR-041): same app, same OAuth, its own endpoint. */
 export const ODOO_MCP_PATH = '/api/odoo/mcp'
+
+/** How each connector is named in Claude (ADR-041 §1); the docs and the consent screen say these names. */
+export const CONNECTOR_NAMES = { dymmsa: 'DYMMSA-WEB', odoo: 'Odoo DYMMSA' } as const
 
 /** Every MCP endpoint this app serves; anything else gets no protected-resource metadata. */
 export const MCP_PATHS: readonly string[] = [MCP_PATH, ODOO_MCP_PATH]

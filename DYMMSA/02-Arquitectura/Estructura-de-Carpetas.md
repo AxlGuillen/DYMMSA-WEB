@@ -149,7 +149,7 @@ src/
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
 │   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores, resultado/_meta, schema, lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool, ConnectorDefinition), register (registro derivado) y http (connectorRoute: la ruta de cada conector)
 │   ├── mcp/connectors/dymmsa/    # Las 36 tools de DYMMSA-WEB, una definición por archivo por módulo (summary, quotations, orders, inventory, catalogs, suppliers, finance, hours, profiles, payroll, tasks, settings) (#155 A3b)
-│   ├── mcp/connectors/*/connector.ts # Definición de cada conector: ruta, serverInfo, tools e instrucciones (#155 B1)
+│   ├── mcp/connectors/*/connector.ts # Definición de cada conector: ruta, serverInfo, tools, instrucciones y presupuesto (#155 B1; desde B3 cada uno sirve solo las suyas)
 │   ├── mcp/connectors/odoo/      # Las 15 tools del conector Odoo, una definición por archivo por módulo (queries, accounting, sales, operations, quotations) (#155 A3a, nombres finales en B2a, odoo_confirm_quotation en B2b); el index.ts de cada conector fija el orden de tools/list
 │   ├── mcp/catalog.ts            # Catálogo para docs y consentimiento derivado de las definiciones; solo servidor (#155 A3)
 │   ├── mcp/tools/                # Implementaciones de las tools (lo que corre el handler de cada definición)

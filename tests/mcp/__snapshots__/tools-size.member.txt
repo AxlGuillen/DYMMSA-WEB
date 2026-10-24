@@ -1,26 +1,17 @@
-# tools/list (member): 39 tools, 34374 caracteres en el cable
-  1555  odoo_search_records
+# tools/list (member): 29 tools, 23926 caracteres en el cable
   1311  create_payable
-  1268  odoo_aggregate_records
   1239  update_payable
   1237  save_supplier
   1219  update_task
-  1204  odoo_audit_invoice_links
-  1157  odoo_get_customer
-  1118  odoo_get_document
   1067  mark_payable_paid
   1052  list_quotations
   1004  save_material_presentation
    991  list_payables
    971  get_week_hours
    935  list_orders
-   920  odoo_list_receivables
-   909  odoo_summarize_invoices
    903  set_inventory_location
    861  search_inventory
    842  create_task
-   828  odoo_summarize_sales
-   826  odoo_audit_payment_complements
    814  search_products
    795  get_profiles
    786  list_suppliers
@@ -28,7 +19,6 @@
    747  get_purchase_plan
    738  get_hours_trend
    685  list_tasks
-   663  odoo_search_stock
    645  get_month_closing
    622  get_payables_overview
    603  get_payable

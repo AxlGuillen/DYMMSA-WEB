@@ -1,11 +1,12 @@
-/** Two connectors, one app (#155 B1, ADR-041): each endpoint announces its own resource and fits its budget. */
+/** Two connectors, one app (#155 B1, ADR-041): each endpoint announces its own resource and fits its own budget. */
 
 import { describe, test, expect, vi, afterEach } from 'vitest'
 import { GET as protectedResource } from '@/app/.well-known/oauth-protected-resource/[[...path]]/route'
 import { connectorPath } from '@/lib/mcp/core/define'
 import { MCP_PATH, ODOO_MCP_PATH, protectedResourcePath } from '@/lib/mcp/core/routes'
-import { dymmsaConnector } from '@/lib/mcp/connectors/dymmsa/connector'
+import { DYMMSA_BUDGET, dymmsaConnector } from '@/lib/mcp/connectors/dymmsa/connector'
 import { ODOO_BUDGET, odooConnector } from '@/lib/mcp/connectors/odoo/connector'
+import { DYMMSA_TOOLS } from '@/lib/mcp/connectors/dymmsa'
 import { ODOO_TOOLS } from '@/lib/mcp/connectors/odoo'
 import { authAs, connectMcp } from './harness'
 
@@ -46,31 +47,47 @@ describe('rutas de los conectores', () => {
   })
 })
 
-describe('conector Odoo DYMMSA', () => {
-  test('solo sirve tools de Odoo, y DYMMSA-WEB las sigue sirviendo mientras dura la transición (B1 → B3)', () => {
-    expect(odooConnector.tools.every((t) => t.connector === 'odoo')).toBe(true)
+describe('cada conector, lo suyo (#155 B3)', () => {
+  test('DYMMSA-WEB sirve solo las tools de la app y Odoo DYMMSA solo las de Odoo: ninguna se sirve en los dos', () => {
+    expect(dymmsaConnector.tools).toEqual(DYMMSA_TOOLS)
+    expect(dymmsaConnector.tools.every((t) => t.connector === 'dymmsa' && !t.name.startsWith('odoo_'))).toBe(true)
     expect(odooConnector.tools).toEqual(ODOO_TOOLS)
-    expect(ODOO_TOOLS.every((t) => dymmsaConnector.tools.includes(t))).toBe(true)
+    expect(odooConnector.tools.every((t) => t.connector === 'odoo')).toBe(true)
+    expect(dymmsaConnector.tools.filter((t) => odooConnector.tools.includes(t))).toEqual([])
   })
 
-  test('PRESUPUESTO (ADR-041): tools, tools/list en el cable, descripciones e instrucciones por rol', async () => {
-    const mcp = await connectMcp('admin', authAs('admin'), odooConnector)
+  test('cada conector lleva su propio presupuesto, no uno compartido (ADR-041 § Presupuestos)', () => {
+    expect(dymmsaConnector.budget).toBe(DYMMSA_BUDGET)
+    expect(odooConnector.budget).toBe(ODOO_BUDGET)
+    expect(DYMMSA_BUDGET).not.toBe(ODOO_BUDGET)
+  })
+
+  test.each([
+    ['DYMMSA-WEB', dymmsaConnector],
+    ['Odoo DYMMSA', odooConnector],
+  ] as const)('PRESUPUESTO (ADR-041) de %s: tools, tools/list en el cable, descripciones e instrucciones por rol, contra sus propios topes', async (label, connector) => {
+    const { budget } = connector
+    const mcp = await connectMcp('admin', authAs('admin'), connector)
     let tools: Awaited<ReturnType<typeof mcp.tools>>
     try {
       tools = await mcp.tools()
     } finally {
       await mcp.close()
     }
-    expect(tools.length).toBeLessThanOrEqual(ODOO_BUDGET.tools)
+    expect(tools.length, `${label}: ${tools.length} tools, tope ${budget.tools}`).toBeLessThanOrEqual(budget.tools)
+    // The schema is half of what the client pays (review PR #136): measured on the real wire, as the snapshot does.
     const list = tools.reduce((n, t) => n + JSON.stringify(t).length, 0)
-    expect(list, `tools/list: ${list}`).toBeLessThanOrEqual(ODOO_BUDGET.listTotal)
+    expect(list, `${label}: tools/list ${list} caracteres, tope ${budget.listTotal}`).toBeLessThanOrEqual(budget.listTotal)
     const descriptions = tools.reduce((n, t) => n + (t.description ?? '').length, 0)
-    expect(descriptions, `descripciones: ${descriptions}`).toBeLessThanOrEqual(ODOO_BUDGET.descriptionsTotal)
+    expect(descriptions, `${label}: descripciones ${descriptions} caracteres, tope ${budget.descriptionsTotal}`).toBeLessThanOrEqual(budget.descriptionsTotal)
     for (const role of ['admin', 'member'] as const) {
-      expect(odooConnector.instructions(role).length, role).toBeLessThanOrEqual(ODOO_BUDGET.instructions)
+      const len = connector.instructions(role).length
+      expect(len, `${label}: instrucciones (${role}) ${len} caracteres, tope ${budget.instructions}`).toBeLessThanOrEqual(budget.instructions)
     }
   })
+})
 
+describe('conector Odoo DYMMSA', () => {
   test('CATÁLOGO (ADR-041 §12): los nombres finales en su orden, y ningún nombre retirado en descripciones ni instrucciones', () => {
     expect(ODOO_TOOLS.map((t) => t.name)).toEqual([
       'odoo_get_document', 'odoo_get_customer', 'odoo_list_receivables', 'odoo_summarize_invoices', 'odoo_summarize_sales',

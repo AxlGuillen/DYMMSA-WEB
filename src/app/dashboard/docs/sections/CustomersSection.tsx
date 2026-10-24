@@ -20,7 +20,7 @@ export function CustomersSection() {
       <Note>
         Lo que se manda al cliente lleva solo su nombre, folios, fechas y montos: <strong>ni RFC ni datos de contacto</strong>.
         Las notas de credito sin aplicar se muestran aparte como saldo a favor y <strong>no se restan</strong> de lo que debe.
-        El asistente da la misma informacion: pidele el estado de cuenta de un cliente con su periodo.
+        El asistente da la misma informacion con el conector «Odoo DYMMSA»: pidele el estado de cuenta de un cliente con su periodo.
       </Note>
     </DocSection>
   )
