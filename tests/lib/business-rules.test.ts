@@ -10,6 +10,9 @@ import {
   calculateOrderTotal,
   calculateDeliveredTotal,
   allocateInventory,
+  allocateLines,
+  stockDemand,
+  stockKey,
   validateAllocationInvariant,
   receivedForCustomer,
   receptionExcess,
@@ -435,6 +438,55 @@ describe('allocateInventory', () => {
   test('inStock is never negative', () => {
     const { inStock } = allocateInventory(5, -3)
     expect(inStock).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('stockDemand / allocateLines (#157)', () => {
+  test('suma la demanda por model_code y salta líneas sin código o sin cantidad', () => {
+    expect(stockDemand([
+      { model_code: 'A', quantity: 5 },
+      { model_code: 'B', quantity: 2 },
+      { model_code: 'A', quantity: 5 },
+      { model_code: '  ', quantity: 9 },
+      { model_code: null, quantity: 9 },
+      { model_code: 'C', quantity: 0 },
+    ])).toEqual([{ model_code: 'A', quantity: 10 }, { model_code: 'B', quantity: 2 }])
+  })
+
+  test('REGLA: líneas con el mismo código comparten UN pool, en orden (stock 6, dos de 5 → 5 + 1)', () => {
+    const lines = [{ model_code: 'A', quantity: 5 }, { model_code: 'A', quantity: 5 }]
+    expect(allocateLines(lines, new Map([['A', 6]]))).toEqual([
+      { inStock: 5, toOrder: 0 },
+      { inStock: 1, toOrder: 4 },
+    ])
+  })
+
+  test('cada código tiene su propio pool; sin código o sin stock todo va a pedir', () => {
+    const lines = [
+      { model_code: 'A', quantity: 3 },
+      { model_code: 'B', quantity: 4 },
+      { model_code: '', quantity: 2 },
+      { model_code: 'Z', quantity: 1 },
+    ]
+    expect(allocateLines(lines, new Map([['A', 10], ['B', 1]]))).toEqual([
+      { inStock: 3, toOrder: 0 },
+      { inStock: 1, toOrder: 3 },
+      { inStock: 0, toOrder: 2 },
+      { inStock: 0, toOrder: 1 },
+    ])
+  })
+
+  test('INVARIANTE: en stock + a pedir = aprobado en cada línea, y lo apartado nunca supera el pool', () => {
+    const lines = [5, 3, 8, 1].map((quantity) => ({ model_code: 'A', quantity }))
+    const allocations = allocateLines(lines, new Map([['A', 9]]))
+    allocations.forEach((a, i) => expect(a.inStock + a.toOrder).toBe(lines[i].quantity))
+    expect(allocations.reduce((sum, a) => sum + a.inStock, 0)).toBe(9)
+  })
+
+  test('stockKey respeta el código exacto (así cruza store_inventory) y descarta el vacío', () => {
+    expect(stockKey(' 6954')).toBe(' 6954')
+    expect(stockKey('   ')).toBeNull()
+    expect(stockKey(undefined)).toBeNull()
   })
 })
 
