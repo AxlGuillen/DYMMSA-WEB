@@ -1,6 +1,6 @@
 /**
- * The assistant's catalog for the docs page and the consent screen (#118, #133), derived from the tool
- * definitions. Server-only: the docs page receives it as a prop instead of importing it on the client.
+ * The assistant's catalog for the docs page and the consent screen (#118, #133), from both connectors' definitions
+ * (`block` = which one serves it, #155 B3). Server-only: the docs page receives it as a prop.
  */
 
 import type { McpRole, ToolBlock, ToolManifestEntry } from './manifest'

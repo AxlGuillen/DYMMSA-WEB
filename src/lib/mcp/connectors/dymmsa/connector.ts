@@ -1,10 +1,14 @@
 import type { ConnectorDefinition } from '@/lib/mcp/core/define'
 import { appUrl } from '@/lib/mcp/core/env'
+import type { ConnectorBudget } from '@/lib/mcp/manifest'
 import { serverInstructions } from '@/lib/mcp/server'
-import { ODOO_TOOLS } from '@/lib/mcp/connectors/odoo'
 import { DYMMSA_TOOLS } from '.'
 
-/** «DYMMSA-WEB» at /api/mcp. It keeps the Odoo tools until users add «Odoo DYMMSA» (#155 B1 → B3). */
+/** Caps of this connector (ADR-041), tools/list on the wire. B3: 36 tools, 32,891 on the wire, 12,925 of descriptions, 5,978 of instructions.
+ *  The instructions cap is tight on purpose: a new line has to take another out (or raise it explicitly in its PR). */
+export const DYMMSA_BUDGET: ConnectorBudget = { tools: 45, listTotal: 53_000, descriptionsTotal: 19_000, instructions: 6_000 }
+
+/** «DYMMSA-WEB» at /api/mcp: only the app's own tools since #155 B3; Odoo is «Odoo DYMMSA». */
 export const dymmsaConnector: ConnectorDefinition = {
   id: 'dymmsa',
   basePath: '/api',
@@ -12,10 +16,12 @@ export const dymmsaConnector: ConnectorDefinition = {
   serverInfo: {
     name: 'dymmsa',
     title: 'DYMMSA',
-    version: '2.2.0',
+    // Major bump: B3 dropped the odoo_* tools from this endpoint.
+    version: '3.0.0',
     websiteUrl: appUrl(),
     icons: [{ src: `${appUrl()}/dymmsa-logo.webp`, mimeType: 'image/webp' }],
   },
-  tools: [...DYMMSA_TOOLS, ...ODOO_TOOLS],
+  tools: DYMMSA_TOOLS,
   instructions: serverInstructions,
+  budget: DYMMSA_BUDGET,
 }

@@ -38,10 +38,13 @@ describe('rutas MCP con mcp-handler', () => {
     expect(names(body).every((n) => n.startsWith('odoo_'))).toBe(true)
   })
 
-  test('/api/mcp autenticado sirve DYMMSA-WEB', async () => {
-    const { status, body } = await rpc(dymmsaPost as Handler, '/api/mcp', 'admin')
-    expect(status).toBe(200)
-    expect(names(body)).toContain('get_business_summary')
+  test('/api/mcp autenticado sirve DYMMSA-WEB y ya no lista ninguna tool de Odoo (#155 B3)', async () => {
+    for (const token of ['admin', 'member']) {
+      const { status, body } = await rpc(dymmsaPost as Handler, '/api/mcp', token)
+      expect(status, token).toBe(200)
+      expect(names(body), token).toContain('get_business_summary')
+      expect(names(body).filter((n) => n.startsWith('odoo_')), token).toEqual([])
+    }
   })
 
   test('un member no recibe las tools de administrador en ninguna de las dos rutas', async () => {
@@ -57,8 +60,8 @@ describe('rutas MCP con mcp-handler', () => {
     expect(res.headers.get('www-authenticate')).toContain('/.well-known/oauth-protected-resource/api/odoo/mcp')
   })
 
-  test('el handler de Odoo no contesta en la ruta de DYMMSA-WEB: el match es por basePath', async () => {
-    const { status } = await rpc(odooPost as Handler, '/api/mcp', 'admin')
-    expect(status).toBe(404)
+  test('ningún handler contesta en la ruta del otro: el match es por basePath', async () => {
+    expect((await rpc(odooPost as Handler, '/api/mcp', 'admin')).status).toBe(404)
+    expect((await rpc(dymmsaPost as Handler, '/api/odoo/mcp', 'admin')).status).toBe(404)
   })
 })

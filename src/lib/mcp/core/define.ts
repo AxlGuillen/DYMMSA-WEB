@@ -6,7 +6,7 @@
 import type { z } from 'zod'
 import type { Implementation, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import type { McpContext } from './context'
-import type { McpRole, ToolKind } from '../manifest'
+import type { ConnectorBudget, McpRole, ToolKind } from '../manifest'
 
 export type ConnectorId = 'dymmsa' | 'odoo'
 
@@ -59,6 +59,8 @@ export interface ConnectorDefinition {
   serverInfo: Implementation
   tools: readonly ToolDefinition[]
   instructions(role: McpRole): string
+  /** Its own caps (ADR-041), measured by tests/mcp/connectors.test.ts. */
+  budget: ConnectorBudget
 }
 
 export const connectorPath = (connector: Pick<ConnectorDefinition, 'basePath'>) => `${connector.basePath}/mcp`
