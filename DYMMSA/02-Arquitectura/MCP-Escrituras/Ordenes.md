@@ -3,6 +3,7 @@
 > Issue #155 · Fase 0 (mapa, sin código) · Revisado contra el código el 2026-10-22
 > Ver [[02-Arquitectura/MCP-Escrituras/00-Matriz]] · [[02-Arquitectura/API-Routes]] · [[02-Arquitectura/MCP-Escrituras/Ordenes-compra-y-corte]]
 > ADRs: [[04-Decisiones-Tecnicas/ADR-010-Reapertura-Cotizaciones]] · [[04-Decisiones-Tecnicas/ADR-019-Recepcion-Excedente]] · [[04-Decisiones-Tecnicas/ADR-034-MCP-Reglas-de-Crecimiento]]
+> **Actualización 2026-10-23 (#157):** los bugs de stock de esta ficha (duplicados al crear, reintentos de cancelar/borrar, entregadas, recepción sin `order_id` ni guarda de `quantity_to_order`, `POST`/`PATCH /items`) están arreglados. Toda la lógica vive en `src/lib/orders-store.ts` y el stock se mueve con las funciones atómicas de la migración `atomic_order_stock` ([[02-Arquitectura/Base-de-Datos]]). Los archivo:línea de abajo describen el código **anterior**.
 
 ## Resumen
 

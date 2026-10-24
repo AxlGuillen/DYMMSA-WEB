@@ -141,7 +141,7 @@ src/
 │   ├── domain-error.ts           # DomainError(kind): base de los errores de los stores, status por kind (#155 C1, #157)
 │   ├── order-status.ts           # ORDER_STATUSES (el enum del MCP, #155 C1)
 │   ├── stock-filters.ts          # STOCK_FILTERS: una lista para /api/inventory, useInventory y el MCP (#155 C1)
-│   ├── inventory.ts              # computeRestoration (pura) + restoreOrderInventory (DB)
+│   ├── inventory.ts              # computeRestoration y estados en tienda (puras) + envoltorios de las funciones atómicas de stock (#157)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
 │   ├── github.ts                 # Cliente GitHub Issues (módulo Tareas): fetchGitHub + mapeos puros
 │   ├── month.ts                  # ISODate, ISO_MONTH, monthOf, nextMonth, monthRange — sin imports de la app (#94)
