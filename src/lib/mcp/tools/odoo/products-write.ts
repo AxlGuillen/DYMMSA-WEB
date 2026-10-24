@@ -83,10 +83,15 @@ export interface KeyedProduct extends SavedProduct {
   readonly clave_sat: string
 }
 
+/** Already keyed in Odoo; clave_sat null when Odoo has one but sent no name for it. */
+export interface AlreadyKeyedProduct extends SavedProduct {
+  readonly clave_sat: string | null
+}
+
 /** The assign result (#154): a key someone captured in Odoo since the preview is reported, never replaced. */
 export interface SatAssignResult {
   readonly asignados: readonly KeyedProduct[]
-  readonly ya_tenian: readonly KeyedProduct[]
+  readonly ya_tenian: readonly AlreadyKeyedProduct[]
 }
 
 /** What a refusal says was left undone: the alta keeps its messages word for word (#154). */
@@ -107,7 +112,10 @@ interface KeyChoice {
   readonly clave_sat_tecleada?: boolean
 }
 
-/** A key the preview did not offer passes only if the admin typed it; either way the catalog is read before writing. */
+/**
+ * A key the preview did not offer passes only if marked as typed. clave_sat_tecleada travels unsigned by design, so ks
+ * only catches view mistakes; the real locks are a (which products) and the catalog lookup before writing.
+ */
 function assertOffered(choice: KeyChoice, offered: readonly string[] | undefined): void {
   if (choice.clave_sat && choice.clave_sat_tecleada !== true && !offered?.includes(choice.clave_sat)) {
     throw new ToolError(PRODUCTS_CHANGED_MESSAGE)
@@ -274,10 +282,10 @@ async function createProducts(
 
 type Assignment = z.infer<typeof satAssignment>
 
-/** many2one [id, name]: whatever Odoo has there counts as a key, even an odd one. */
-function currentKey(value: unknown): string | null {
+/** many2one [id, name]: any id counts as a key, named or not (an "#id" would read like a SAT code). */
+function currentKey(value: unknown): { readonly label: string | null } | null {
   if (!Array.isArray(value) || !isId(value[0])) return null
-  return many2oneName(value) ?? `#${value[0]}`
+  return { label: many2oneName(value) }
 }
 
 /** Existing products the preview flagged (claims.a), each with an offered or typed key; one write per key. */
@@ -298,7 +306,7 @@ async function assignSatKeys(
   }
 
   const ids = [...seen].sort((a, b) => a - b)
-  const current = new Map<number, { name: string; key: string | null }>()
+  const current = new Map<number, { name: string; key: { readonly label: string | null } | null }>()
   for (const row of rowsOf(
     await deps.reader('product.product', 'search_read', {
       domain: [['id', 'in', ids]],
@@ -315,13 +323,13 @@ async function assignSatKeys(
   const gone = ids.find((id) => !current.has(id))
   if (gone !== undefined) throw new ToolError(`El producto #${gone} ya no está en Odoo: vuelve a pedir la vista previa. ${ASSIGN.nothing}`)
 
-  const yaTenian: KeyedProduct[] = []
+  const yaTenian: AlreadyKeyedProduct[] = []
   const pending: KeyedProduct[] = []
   for (const entry of entries) {
     const product = current.get(entry.producto_id)
     if (!product) continue
     // Captured in Odoo since the preview: whoever did it wins (#154).
-    if (product.key) yaTenian.push({ id: entry.producto_id, nombre: product.name, clave_sat: product.key })
+    if (product.key) yaTenian.push({ id: entry.producto_id, nombre: product.name, clave_sat: product.key.label })
     else pending.push({ id: entry.producto_id, nombre: product.name, clave_sat: entry.clave_sat })
   }
   if (pending.length === 0) return { asignados: [], ya_tenian: yaTenian }
