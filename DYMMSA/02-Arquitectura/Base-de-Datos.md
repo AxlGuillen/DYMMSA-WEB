@@ -276,7 +276,7 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `value` | jsonb | No | — | | |
 | `updated_at` | timestamptz | No | `now()` | trigger | |
 
-**Keys actuales:** `purchase_threshold_money` (default 100 MXN) · `purchase_threshold_pct` (default 0.8).
+**Keys actuales:** `purchase_threshold_money` (default 100 MXN) · `purchase_threshold_pct` (default 0.8) · `cut_margin_mm` (default 20, **0 válido**; margen por corte del módulo de corte, `cut-plan.ts`).
 
 ---
 
@@ -314,12 +314,12 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `invoice_date` | date | No | — | | |
 | `due_date` | date | No | — | | Pre-llenada en UI: `invoice_date + payment_terms_days`; editable |
 | `status` | text | No | `'pending'` | CHECK `pending·paid·cancelled` | |
-| `paid_at` | date | Sí | — | | Fecha REAL de pago; →paid default hoy, →pending se limpia |
+| `paid_at` | date | Sí | — | | Fecha REAL de pago; →paid default hoy, →pending se limpia. Solo una pagada lleva fecha: la API rechaza (400) un `paid_at` cuyo estado resultante no es `paid` (#157) |
 | `notes` | text | Sí | — | | |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
 Índice: `idx_payables_status_due_date (status, due_date)`.
-Trigger `payables_audit` (AFTER INSERT/UPDATE/DELETE) → `audit_payable()` escribe en `audit_events` (issue #100, ADR-028).
+Trigger `payables_audit` (AFTER INSERT/UPDATE/DELETE) → `audit_payable()` escribe en `audit_events` (issue #100, ADR-028). Desde #157 también audita **monto y moneda** (`amount_changed`).
 
 ---
 
@@ -333,14 +333,14 @@ Trigger `payables_audit` (AFTER INSERT/UPDATE/DELETE) → `audit_payable()` escr
 | `id` | bigint | No | identity | PK | |
 | `entity_type` | text | No | — | | `'payable'` hoy |
 | `entity_id` | uuid | No | — | | Sin FK a propósito: el evento sobrevive al borrado de la entidad |
-| `action` | text | No | — | | `created` · `status_changed` · `paid_at_changed` · `deleted` |
+| `action` | text | No | — | sin CHECK | `created` · `status_changed` · `paid_at_changed` · `amount_changed` (#157: `{ from, to }` con `amount` y `currency`) · `deleted` |
 | `actor_id` | uuid | Sí | — | **sin FK** (review PR #106) | `auth.uid()` del que hizo el cambio; NULL con service role. Sin FK: la bitácora nunca falla la escritura que registra |
 | `actor_name` | text | Sí | — | | **Snapshot** del `display_name` de ese día |
-| `data` | jsonb | No | `'{}'` | | `{ from, to }` en cambios; snapshot de la fila en created/deleted |
+| `data` | jsonb | No | `'{}'` | | `{ from, to }` en cambios; snapshot de la fila en created (`concept, amount, currency, supplier_id, status`) y deleted (lo mismo + `paid_at`). `currency` entra desde #157 |
 | `created_at` | timestamptz | No | `now()` | | |
 
 Índice: `idx_audit_events_entity (entity_type, entity_id, created_at DESC)`.
-RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRANT solo SELECT, sin `anon`). Función `audit_payable()` SECURITY DEFINER con `search_path = ''`, `REVOKE EXECUTE FROM PUBLIC`.
+RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRANT solo SELECT, sin `anon`). Función `audit_payable()` SECURITY DEFINER con `search_path = ''`, `REVOKE EXECUTE FROM PUBLIC`. **Un evento por tipo de cambio** (#157): un UPDATE que cambia estado y monto deja `status_changed` **y** `amount_changed`; concepto, fechas, proveedor y notas siguen sin auditarse.
 
 ---
 
@@ -421,10 +421,10 @@ RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRAN
 | `nss` | text | Sí | — | CHECK `^[0-9]{11}$` | Número de Seguridad Social (Mi perfil, #122). Lo editan la persona y el admin; el dígito verificador se valida en la API |
 | `avatar_path` | text | Sí | — | CHECK `profiles_avatar_own_folder` (empieza con `<id>/`) | Ruta de la foto en el bucket `avatars`; NULL = avatar de iniciales |
 | `area` | text | No | `'office'` | CHECK `office·workshop` | Oficina o taller (2026-10-05): agrupa el selector de Mi semana y el Resumen del equipo. Solo el admin |
-| `is_owner` | boolean | No | `false` | índice único parcial `profiles_single_owner` (a lo más uno) | Dueño del negocio: corona en Equipo (2026-10-01). Lo protege el trigger de campos de admin |
+| `is_owner` | boolean | No | `false` | índice único parcial `profiles_single_owner` (a lo más uno) | Dueño del negocio: corona en Equipo (2026-10-01). **Sin ruta de escritura:** con sesión nadie lo cambia, tampoco el admin (#157); solo SQL / service role |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
-RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **o fila propia** (#122). Como la RLS no restringe columnas, el trigger `profiles_guard_admin_fields` → `guard_profile_admin_fields()` rechaza con 42501 los cambios a `role`, `clock_employee_id` y `shift` si quien edita no es admin (sin `auth.uid()` —service role, SQL directo— pasa). Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
+RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **o fila propia** (#122). Como la RLS no restringe columnas, el trigger `profiles_guard_admin_fields` → `guard_profile_admin_fields()` rechaza con 42501 los cambios a `role`, `clock_employee_id`, `shift` y `area` si quien edita no es admin, y **cualquier cambio de `is_owner` con `auth.uid()`, admin incluido** (#157); sin `auth.uid()` —service role, SQL directo— pasa. El trigger `profiles_guard_last_admin` (`BEFORE UPDATE OF role OR DELETE`) → `guard_last_admin()` (INVOKER, `search_path = ''`) rechaza con **23514** «Debe quedar al menos un administrador» degradar o **borrar la fila** del último admin (también si se borra su usuario de Auth, por la cascada), **para todos** (también SQL); un candado consultivo serializa dos degradaciones simultáneas (#157; la ruta lo dice antes con el mismo texto). Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
 
 **Storage `avatars`** (#122): bucket público, 2 MB, JPEG/PNG/WebP. Policies en `storage.objects`: SELECT/INSERT/DELETE solo cuando la primera carpeta de la ruta es el `auth.uid()` de quien llama. La de SELECT existe porque borrar (`remove`) la necesita, **no** porque las fotos sean privadas: el bucket es público y la app pinta la foto de los demás por URL. Lo que se protege es la ruta (`avatar_path` solo la leen su dueño y el admin) y que nadie suba ni borre en carpeta ajena.
 
@@ -534,6 +534,8 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `note` | text | Sí | — | | |
 | `source` | text | No | `'manual'` | CHECK `sheet`/`hours`/`manual` | Hoja (MCP), checador o captura |
 | `status` | text | No | `'draft'` | CHECK `draft`/`confirmed` | Solo `confirmed` suma |
+| `shift_snapshot` | text | Sí | — | CHECK `full_time`/`part_time` (`payroll_days_shift_snapshot_check`) | Jornada del empleado **al cerrar el corte** (#157). NULL = corte abierto: cuenta la jornada viva |
+| `area_snapshot` | text | Sí | — | CHECK `office`/`workshop` (`payroll_days_area_snapshot_check`) | Área (la de `payrollArea()`: perfil ligado, si no taller) **al cerrar el corte** (#157). NULL = la viva |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
 **`payroll_periods`** — sin fila = corte abierto.
@@ -546,6 +548,12 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `reopened_at` / `reopened_by_name` | timestamptz / text | Sí | — | | Snapshot de quién reabrió |
 
 RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll_days_guard_closed` → `guard_closed_payroll_period()` (INVOKER, `search_path=''`): INSERT/UPDATE/DELETE de un día cuyo corte está `closed` → 23514, también con service_role. El multiplicador de fin de semana no se guarda (sale de la fecha en `src/lib/payroll.ts`).
+
+**Cerrar y reabrir (#157)** — dos funciones INVOKER (`search_path = ''`, EXECUTE `authenticated`/`service_role`, sin `PUBLIC`/`anon`; la RLS `is_admin()` sigue decidiendo), que llama `setPeriodClosed()`:
+- `close_payroll_period(p_start date, p_actor_name text) → jsonb`: bloquea la fila del corte con un upsert que siempre la devuelve (la crea abierta si no existía; dos cierres simultáneos esperan uno al otro, review PR #171), exige cero borradores (P0001 `drafts_pending`, DETAIL = el conteo), escribe `shift_snapshot`/`area_snapshot` de cada día del corte **y después** pasa el corte a `closed` con su sello — en ese orden y en una transacción, porque el trigger de arriba rechaza escribir un día de un corte ya cerrado. Un corte ya cerrado se devuelve tal cual: conserva el primer sello y su snapshot.
+- `reopen_payroll_period(p_start date, p_actor_name text) → jsonb | null`: pasa el corte a `open` con `reopened_*` y **después** limpia el snapshot de sus días; `null` = no estaba cerrado (no sella nada).
+
+Los totales (`buildPayrollView()` → `dayRules()`) usan el snapshot cuando existe y los valores vivos (`payroll_employees.shift`, `payrollArea()`) si no: cambiar la jornada o el área ya no mueve un corte cerrado.
 
 ---
 
@@ -591,3 +599,4 @@ RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll
 | `20261007035652` | `profile_pay_admin_only` | `profiles.hourly_rate` → tabla `profile_pay` (solo admin); el trigger de campos de admin deja de nombrar la tarifa (review PR #137) |
 | `20261024090750` (archivo `20261023170000`) | `atomic_order_stock` | Nueve funciones de stock atómico para las órdenes (#157): `reserve_inventory`, `release_inventory`, `adjust_inventory`, `order_restock_lines`, `cancel_order_restock`, `delete_order_restock`, `remove_order_item_restock`, `add_order_item`, `receive_order_items`. Sin cambios de datos. Aplicada el 2026-10-24 antes del merge (ver `supabase/migrations-log.md`) |
 | `20261024155153` (archivo `20261024120000`) | `atomic_quotation_writes` | #157: funciones `update_quotation` y `submit_quotation_approval` (ver arriba) y CHECK `NOT VALID` de `delivery_time` e `item_type` en `quotation_items`. Aditiva: no toca datos. Se aplica **antes** del deploy del código que la llama |
+| `20261024165733` (archivo `20261024200000`) | `guards_audit_payroll_freeze` | #157 «El resto»: `audit_payable()` audita monto/moneda (`amount_changed`) y guarda `currency`; `guard_profile_admin_fields()` congela `is_owner` para cualquier sesión; trigger nuevo `profiles_guard_last_admin`; `payroll_days.shift_snapshot`/`area_snapshot` + `close_payroll_period()`/`reopen_payroll_period()`. Ver `supabase/migrations-log.md` |

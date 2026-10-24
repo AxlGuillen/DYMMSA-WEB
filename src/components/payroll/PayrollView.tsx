@@ -164,7 +164,7 @@ export function PayrollView() {
                         <button
                           type="button"
                           disabled={view.closed}
-                          onClick={() => setTarget({ employee: row.employee, area: row.area, date: view.dates[i], day })}
+                          onClick={() => setTarget({ employee: row.employee, area: row.area, shift: row.shift, date: view.dates[i], day })}
                           aria-label={`${row.employee.name}, ${PERIOD_DAY_LABELS[i]} ${formatDayMonth(view.dates[i])}`}
                           className={`w-full rounded-md px-2 py-1.5 text-sm tabular-nums transition-colors enabled:hover:cursor-pointer enabled:hover:bg-muted ${
                             day?.status === 'draft' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : ''

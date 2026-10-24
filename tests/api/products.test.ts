@@ -258,8 +258,9 @@ describe('PATCH /products/[id] — is_sold tri-estado', () => {
 })
 
 describe('DELETE /products/[id]', () => {
-  const del = () =>
-    itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '1' }))
+  const ID = '11111111-1111-4111-8111-111111111111'
+  const del = (id = ID) =>
+    itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))
 
   test('401 sin auth', async () => {
     activeClient = createMockSupabase({ user: null })
@@ -269,9 +270,23 @@ describe('DELETE /products/[id]', () => {
   test('elimina por id', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'etm_products.delete': { data: null, error: null } },
+      responses: { 'etm_products.delete': { data: [{ id: ID }], error: null } },
     })
     expect((await del()).status).toBe(200)
-    expect(filterValue(activeClient.callsTo('etm_products', 'delete')[0], 'id')).toBe('1')
+    expect(filterValue(activeClient.callsTo('etm_products', 'delete')[0], 'id')).toBe(ID)
+  })
+
+  test('un id que no existe es 404, no un ok (#157)', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'etm_products.delete': { data: [], error: null } },
+    })
+    expect((await del()).status).toBe(404)
+  })
+
+  test('un id mal formado es 404 sin tocar la BD (#157)', async () => {
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await del('no-es-uuid')).status).toBe(404)
+    expect(activeClient.callsTo('etm_products', 'delete')).toHaveLength(0)
   })
 })

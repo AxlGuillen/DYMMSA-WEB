@@ -33,6 +33,7 @@ import { useSuppliers } from '@/hooks/useSuppliers'
 import { useCreatePayable, useUpdatePayable, usePayableEvents } from '@/hooks/usePayables'
 import { useProfile } from '@/hooks/useProfile'
 import { useDateFormat } from '@/hooks/useDateFormat'
+import { useCurrency } from '@/hooks/useCurrency'
 import { DEFAULT_PAYABLE_CURRENCY, describeAuditEvent, dueDateFrom, paymentTermsLabel, PAYABLE_CURRENCIES, PAYABLE_STATUS_LABELS, PAYABLE_STATUSES } from '@/lib/payables'
 import { formatRelative, parseNumber, todayInMexico } from '@/lib/format'
 import { ApiError } from '@/lib/fetch-json'
@@ -355,6 +356,8 @@ function PayableFormBody({
 function PayableHistory({ payableId }: { payableId: string }) {
   const { data, isLoading, isError } = usePayableEvents(payableId, true)
   const fmtDay = useDateFormat()
+  // Amounts in the trail follow discrete mode like every other amount on screen (#157).
+  const fmtMoney = useCurrency()
   return (
     <div className="rounded-md border p-3" data-testid="payable-history">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Historial</p>
@@ -366,7 +369,7 @@ function PayableHistory({ payableId }: { payableId: string }) {
           {data.map((e) => (
             <li key={e.id} className="flex items-baseline justify-between gap-3">
               <span className="min-w-0 truncate">
-                {describeAuditEvent(e, fmtDay)}
+                {describeAuditEvent(e, fmtDay, fmtMoney)}
                 <span className="text-muted-foreground"> · {e.actor_name ?? 'Sistema'}</span>
               </span>
               <span className="shrink-0 text-xs text-muted-foreground">{formatRelative(e.created_at)}</span>

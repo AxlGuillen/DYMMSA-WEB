@@ -204,7 +204,7 @@ export interface PayableWithSupplier extends Payable {
   paid_by?: { name: string | null; at: string } | null
 }
 
-export type AuditAction = 'created' | 'status_changed' | 'paid_at_changed' | 'deleted'
+export type AuditAction = 'created' | 'status_changed' | 'paid_at_changed' | 'amount_changed' | 'deleted'
 
 /** One row of the audit trail (`audit_events`), written by a DB trigger; admins only. */
 export interface AuditEvent {
@@ -571,6 +571,9 @@ export interface PayrollDay {
   note: string | null
   source: PayrollDaySource
   status: PayrollDayStatus
+  /** The employee's shift and area when the cut closed; null while open (#157: closing freezes the totals). */
+  shift_snapshot: ProfileShift | null
+  area_snapshot: ProfileArea | null
   created_at: string
   updated_at: string
 }

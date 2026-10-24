@@ -764,20 +764,24 @@ CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles
 CREATE UNIQUE INDEX profiles_single_owner ON public.profiles (is_owner) WHERE is_owner;
 
 -- RLS cannot restrict columns (#122): without this a member could promote themself via their own row.
+-- is_owner has no write path (#157): with a session (admin too) it never changes; only SQL / service role.
 CREATE OR REPLACE FUNCTION public.guard_profile_admin_fields()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
 AS $$
 BEGIN
+  IF (SELECT auth.uid()) IS NOT NULL AND NEW.is_owner IS DISTINCT FROM OLD.is_owner THEN
+    RAISE EXCEPTION 'El dueño del negocio solo se cambia por SQL, no desde la app'
+      USING ERRCODE = '42501';
+  END IF;
   IF (SELECT auth.uid()) IS NOT NULL AND NOT public.is_admin() AND (
     NEW.role IS DISTINCT FROM OLD.role
     OR NEW.clock_employee_id IS DISTINCT FROM OLD.clock_employee_id
     OR NEW.shift IS DISTINCT FROM OLD.shift
-    OR NEW.is_owner IS DISTINCT FROM OLD.is_owner
     OR NEW.area IS DISTINCT FROM OLD.area
   ) THEN
-    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada, el área, el id del checador o el dueño'
+    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada, el área o el id del checador'
       USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
@@ -785,6 +789,29 @@ END;
 $$;
 CREATE TRIGGER profiles_guard_admin_fields BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.guard_profile_admin_fields();
+
+-- At least one admin, for every caller (#157): the route says it first, the DB backs it. The advisory
+-- lock serializes two demotions (or deletes) that would each see the other admin. Text = LAST_ADMIN_MESSAGE.
+CREATE OR REPLACE FUNCTION public.guard_last_admin()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  -- Deleting the row (also an auth user removed by cascade) counts as a demotion (review PR #171).
+  IF OLD.role = 'admin' AND (CASE WHEN TG_OP = 'DELETE' THEN true ELSE NEW.role IS DISTINCT FROM 'admin' END) THEN
+    PERFORM pg_advisory_xact_lock(hashtext('public.profiles.last_admin'));
+    IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.role = 'admin' AND p.id <> OLD.id) THEN
+      RAISE EXCEPTION 'Debe quedar al menos un administrador'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.guard_last_admin() FROM PUBLIC;
+CREATE TRIGGER profiles_guard_last_admin BEFORE UPDATE OF role OR DELETE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_last_admin();
 
 -- Perfil automático por usuario nuevo. Corre como supabase_auth_admin, que no tiene
 -- permisos en public: SECURITY DEFINER es obligatorio. Si falla, el alta aborta a propósito.
@@ -1019,7 +1046,7 @@ CREATE TABLE public.audit_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   entity_type text NOT NULL,                  -- 'payable' hoy; otras entidades después
   entity_id uuid NOT NULL,
-  action text NOT NULL,                       -- created | status_changed | paid_at_changed | deleted
+  action text NOT NULL,                       -- created | status_changed | paid_at_changed | amount_changed | deleted
   actor_id uuid,                              -- sin FK: un INSERT de bitácora jamás tumba la escritura del usuario
   actor_name text,                            -- snapshot del display_name de ese día
   data jsonb NOT NULL DEFAULT '{}'::jsonb,    -- { from, to } o el snapshot de la fila
@@ -1034,6 +1061,8 @@ CREATE POLICY "Admins read audit events" ON public.audit_events
 
 -- DEFINER: inserta saltando la RLS de audit_events y lee profiles como owner
 -- para el snapshot del nombre. auth.uid() es NULL con service_role.
+-- One row per kind of change (#157: amount_changed covers amount and currency); concept, dates,
+-- supplier and notes edits are not audited.
 CREATE OR REPLACE FUNCTION public.audit_payable()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1043,38 +1072,47 @@ AS $$
 DECLARE
   v_actor uuid := (SELECT auth.uid());
   v_name text;
-  v_action text;
-  v_data jsonb;
 BEGIN
+  IF TG_OP = 'UPDATE'
+     AND OLD.status IS NOT DISTINCT FROM NEW.status
+     AND OLD.paid_at IS NOT DISTINCT FROM NEW.paid_at
+     AND OLD.amount IS NOT DISTINCT FROM NEW.amount
+     AND OLD.currency IS NOT DISTINCT FROM NEW.currency THEN
+    RETURN NEW;
+  END IF;
+
   SELECT display_name INTO v_name FROM public.profiles WHERE id = v_actor;
 
   IF TG_OP = 'INSERT' THEN
-    v_action := 'created';
-    v_data := jsonb_build_object(
-      'concept', NEW.concept, 'amount', NEW.amount,
+    INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+    VALUES ('payable', NEW.id, 'created', v_actor, v_name, jsonb_build_object(
+      'concept', NEW.concept, 'amount', NEW.amount, 'currency', NEW.currency,
       'supplier_id', NEW.supplier_id, 'status', NEW.status
-    );
+    ));
   ELSIF TG_OP = 'DELETE' THEN
-    v_action := 'deleted';
-    v_data := jsonb_build_object(
-      'concept', OLD.concept, 'amount', OLD.amount,
+    INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+    VALUES ('payable', OLD.id, 'deleted', v_actor, v_name, jsonb_build_object(
+      'concept', OLD.concept, 'amount', OLD.amount, 'currency', OLD.currency,
       'supplier_id', OLD.supplier_id, 'status', OLD.status, 'paid_at', OLD.paid_at
-    );
+    ));
   ELSE
-    IF OLD.status IS NOT DISTINCT FROM NEW.status
-       AND OLD.paid_at IS NOT DISTINCT FROM NEW.paid_at THEN
-      RETURN NEW;  -- concept/amount/notes edits are not audited (yet)
+    IF OLD.status IS DISTINCT FROM NEW.status OR OLD.paid_at IS DISTINCT FROM NEW.paid_at THEN
+      INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+      VALUES ('payable', NEW.id,
+        CASE WHEN OLD.status IS DISTINCT FROM NEW.status THEN 'status_changed' ELSE 'paid_at_changed' END,
+        v_actor, v_name, jsonb_build_object(
+          'from', jsonb_build_object('status', OLD.status, 'paid_at', OLD.paid_at),
+          'to',   jsonb_build_object('status', NEW.status, 'paid_at', NEW.paid_at)
+        ));
     END IF;
-    v_action := CASE WHEN OLD.status IS DISTINCT FROM NEW.status
-                     THEN 'status_changed' ELSE 'paid_at_changed' END;
-    v_data := jsonb_build_object(
-      'from', jsonb_build_object('status', OLD.status, 'paid_at', OLD.paid_at),
-      'to',   jsonb_build_object('status', NEW.status, 'paid_at', NEW.paid_at)
-    );
+    IF OLD.amount IS DISTINCT FROM NEW.amount OR OLD.currency IS DISTINCT FROM NEW.currency THEN
+      INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+      VALUES ('payable', NEW.id, 'amount_changed', v_actor, v_name, jsonb_build_object(
+        'from', jsonb_build_object('amount', OLD.amount, 'currency', OLD.currency),
+        'to',   jsonb_build_object('amount', NEW.amount, 'currency', NEW.currency)
+      ));
+    END IF;
   END IF;
-
-  INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
-  VALUES ('payable', COALESCE(NEW.id, OLD.id), v_action, v_actor, v_name, v_data);
 
   RETURN COALESCE(NEW, OLD);
 END;
@@ -1121,11 +1159,16 @@ CREATE TABLE public.payroll_days (
   status text NOT NULL DEFAULT 'draft',       -- draft | confirmed
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  -- The shift and area the closed cut was paid with (#157); NULL = open cut, live values.
+  shift_snapshot text,
+  area_snapshot text,
   CONSTRAINT payroll_days_employee_date_key UNIQUE (employee_id, work_date),
   CONSTRAINT payroll_days_worked_check CHECK (worked_minutes BETWEEN 0 AND 1440),
   CONSTRAINT payroll_days_missed_check CHECK (missed_minutes BETWEEN 0 AND 1440),
   CONSTRAINT payroll_days_source_check CHECK (source IN ('sheet', 'hours', 'manual')),
-  CONSTRAINT payroll_days_status_check CHECK (status IN ('draft', 'confirmed'))
+  CONSTRAINT payroll_days_status_check CHECK (status IN ('draft', 'confirmed')),
+  CONSTRAINT payroll_days_shift_snapshot_check CHECK (shift_snapshot IS NULL OR shift_snapshot IN ('full_time', 'part_time')),
+  CONSTRAINT payroll_days_area_snapshot_check CHECK (area_snapshot IS NULL OR area_snapshot IN ('office', 'workshop'))
 );
 CREATE INDEX idx_payroll_days_date ON public.payroll_days (work_date);
 CREATE TRIGGER payroll_days_set_updated_at BEFORE UPDATE ON public.payroll_days
@@ -1170,6 +1213,86 @@ END;
 $$;
 CREATE TRIGGER payroll_days_guard_closed BEFORE INSERT OR UPDATE OR DELETE ON public.payroll_days
   FOR EACH ROW EXECUTE FUNCTION public.guard_closed_payroll_period();
+
+-- Close (#157): snapshot first, flip the status last, in one transaction: the guard above refuses any
+-- write to a closed cut. Errors: P0001 not_period_start | drafts_pending (DETAIL = count).
+-- An already closed cut is returned as is: its first stamp and its snapshot stay.
+CREATE OR REPLACE FUNCTION public.close_payroll_period(p_start date, p_actor_name text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_period public.payroll_periods;
+  v_drafts integer;
+BEGIN
+  IF p_start IS NULL OR EXTRACT(ISODOW FROM p_start) <> 6 THEN
+    RAISE EXCEPTION 'not_period_start';
+  END IF;
+  -- The period row is the lock. The no-op DO UPDATE locks and returns it even when a concurrent close
+  -- created it first; DO NOTHING + SELECT could come back empty (review PR #171).
+  INSERT INTO public.payroll_periods AS pp (start_date, status) VALUES (p_start, 'open')
+  ON CONFLICT (start_date) DO UPDATE SET status = pp.status
+  RETURNING * INTO v_period;
+  IF v_period.status = 'closed' THEN
+    RETURN to_jsonb(v_period);
+  END IF;
+
+  SELECT count(*) INTO v_drafts FROM public.payroll_days
+  WHERE status = 'draft' AND work_date BETWEEN p_start AND p_start + 6;
+  IF v_drafts > 0 THEN
+    RAISE EXCEPTION 'drafts_pending' USING DETAIL = v_drafts::text;
+  END IF;
+
+  -- Mirrors payrollArea() in src/lib/payroll.ts: no linked profile means the workshop. INVOKER, so a profile
+  -- hidden by RLS would freeze as workshop too; unreachable today: only an admin passes the RLS of payroll_days.
+  UPDATE public.payroll_days d
+  SET shift_snapshot = e.shift, area_snapshot = coalesce(p.area, 'workshop')
+  FROM public.payroll_employees e
+  LEFT JOIN public.profiles p ON p.id = e.profile_id
+  WHERE e.id = d.employee_id AND d.work_date BETWEEN p_start AND p_start + 6;
+
+  UPDATE public.payroll_periods
+  SET status = 'closed', closed_at = now(), closed_by_name = p_actor_name
+  WHERE start_date = p_start
+  RETURNING * INTO v_period;
+  RETURN to_jsonb(v_period);
+END;
+$$;
+
+-- Reopen: the status flips first so the guard lets the snapshot go. NULL = it was not closed (nothing stamped).
+CREATE OR REPLACE FUNCTION public.reopen_payroll_period(p_start date, p_actor_name text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_period public.payroll_periods;
+BEGIN
+  IF p_start IS NULL OR EXTRACT(ISODOW FROM p_start) <> 6 THEN
+    RAISE EXCEPTION 'not_period_start';
+  END IF;
+  UPDATE public.payroll_periods
+  SET status = 'open', reopened_at = now(), reopened_by_name = p_actor_name
+  WHERE start_date = p_start AND status = 'closed'
+  RETURNING * INTO v_period;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
+  UPDATE public.payroll_days
+  SET shift_snapshot = NULL, area_snapshot = NULL
+  WHERE work_date BETWEEN p_start AND p_start + 6
+    AND (shift_snapshot IS NOT NULL OR area_snapshot IS NOT NULL);
+  RETURN to_jsonb(v_period);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.close_payroll_period(date, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.reopen_payroll_period(date, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.close_payroll_period(date, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.reopen_payroll_period(date, text) TO authenticated, service_role;
 
 ALTER TABLE public.payroll_employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payroll_days ENABLE ROW LEVEL SECURITY;

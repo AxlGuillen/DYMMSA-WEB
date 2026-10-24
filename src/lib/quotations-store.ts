@@ -3,6 +3,7 @@
  * (#155 D6): one server-side validation, the create with its rollback and the edit in one DB transaction.
  */
 
+import { DomainError } from '@/lib/domain-error'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { processAutoLearn, type QuotationAutoLearnResult } from '@/lib/auto-learn'
 import { calculateQuotationTotal, isProductItem, resolveDymmsaDescription } from '@/lib/business-rules'
@@ -13,29 +14,21 @@ import { isUuid } from '@/lib/text'
 import { fetchCatalogDescriptionMapOrNull } from '@/lib/urrea-catalog'
 import type { DeliveryTime, QuotationItemRow, QuotationStatus } from '@/types/database'
 
-type QuotationErrorKind = 'invalid' | 'not_found' | 'conflict' | 'failed'
-
-const STATUS_BY_KIND: Record<QuotationErrorKind, number> = { invalid: 400, not_found: 404, conflict: 409, failed: 500 }
-
-/** A rule the user broke (400/404), a concurrent change (409) or a write that failed (500). */
-export class QuotationError extends Error {
+/** A rule the user broke (400/404), a concurrent change (409) or a write that failed (500); base in domain-error.ts. */
+export class QuotationError extends DomainError {
   constructor(
     message: string,
-    readonly kind: QuotationErrorKind = 'invalid',
+    kind: 'invalid' | 'not_found' | 'conflict' | 'failed' = 'invalid',
     readonly offendingEtm?: string,
     /** Machine-readable reason a client branches on (e.g. the approval page's `stale_items`). */
     readonly code?: string,
   ) {
-    super(message)
+    super(message, kind)
     this.name = 'QuotationError'
   }
 
-  get status(): number {
-    return STATUS_BY_KIND[this.kind]
-  }
-
   /** Response body; the ETM travels when it is known (ADR-009). */
-  get body(): { message: string; offendingEtm?: string; code?: string } {
+  override get body(): { message: string; offendingEtm?: string; code?: string } {
     return {
       message: this.message,
       ...(this.offendingEtm && { offendingEtm: this.offendingEtm }),

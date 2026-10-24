@@ -2,7 +2,7 @@ import { describe, test, expect, vi } from 'vitest'
 import { createMockSupabase, MockSupabaseClient, findFilter, filterValue } from '../helpers/supabase-mock'
 import { injectSupabaseServer } from '../helpers/setup'
 import { AUTH } from '../helpers/factories'
-import { makeRequest, makeParams } from '../helpers/request'
+import { makeRequest, makeParams, readJson } from '../helpers/request'
 import * as listRoute from '@/app/api/inventory/route'
 import * as statsRoute from '@/app/api/inventory/stats/route'
 import * as itemRoute from '@/app/api/inventory/[id]/route'
@@ -259,13 +259,28 @@ describe('DELETE /inventory/[id]', () => {
   })
 
   test('elimina por id', async () => {
+    const id = '1a1a1a1a-0000-4000-8000-000000000001'
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'store_inventory.delete': { data: null, error: null } },
+      responses: { 'store_inventory.delete': { data: [{ id }], error: null } },
     })
-    const res = await itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '1' }))
+    const res = await itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))
     expect(res.status).toBe(200)
     const rec = activeClient.callsTo('store_inventory', 'delete')[0]
-    expect(filterValue(rec, 'id')).toBe('1')
+    expect(filterValue(rec, 'id')).toBe(id)
+  })
+
+  test('#157: un id que no existe → 404 (no ok); uno que no es uuid → 404 sin consultar', async () => {
+    activeClient = createMockSupabase({
+      user: AUTH,
+      responses: { 'store_inventory.delete': { data: [], error: null } },
+    })
+    const missing = await itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '1a1a1a1a-0000-4000-8000-000000000002' }))
+    expect(missing.status).toBe(404)
+    expect((await readJson<{ message: string }>(missing)).message).toBe('Producto no encontrado')
+
+    activeClient = createMockSupabase({ user: AUTH })
+    expect((await itemRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '1' }))).status).toBe(404)
+    expect(activeClient.callsTo('store_inventory')).toEqual([])
   })
 })

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, serverError } from '@/lib/api-helpers'
+import { notFound, requireAuth, serverError } from '@/lib/api-helpers'
 import { DomainError } from '@/lib/domain-error'
+import { isUuid } from '@/lib/text'
 import { parseCatalogItemInput, updateCatalogItem } from '@/lib/urrea-catalog-store'
 
 interface RouteContext {
@@ -33,13 +34,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if ('error' in auth) return auth.error
 
     const { id } = await params
+    if (!isUuid(id)) return notFound('Producto no encontrado')
 
-    const { error } = await supabase.from('urrea_catalog').delete().eq('id', id)
+    const { data, error } = await supabase.from('urrea_catalog').delete().eq('id', id).select('id')
 
     if (error) {
       console.error('Error deleting urrea_catalog item:', error)
       return serverError('Error al eliminar el producto')
     }
+
+    // Zero rows deleted is a missing id, not a success (#157).
+    if (!data || data.length === 0) return notFound('Producto no encontrado')
 
     return NextResponse.json({ ok: true })
   } catch (error) {

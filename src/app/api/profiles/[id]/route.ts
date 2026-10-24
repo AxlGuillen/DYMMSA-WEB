@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
-import { AREAS, PROFILE_WITH_PAY_COLUMNS, parseDisplayName, parseHourlyRate, parseNss, presentProfile, type PayEmbed } from '@/lib/profile'
+import { AREAS, LAST_ADMIN_MESSAGE, PROFILE_WITH_PAY_COLUMNS, parseDisplayName, parseHourlyRate, parseNss, presentProfile, type PayEmbed } from '@/lib/profile'
 import type { Profile, ProfileArea, ProfileRole, ProfileShift, ProfileUpdate } from '@/types/database'
 
 const ROLES: ProfileRole[] = ['admin', 'member']
@@ -64,17 +64,18 @@ export async function PATCH(
       .from('profiles').select('id, role').eq('id', id).single()
     if (!current) return notFound('El perfil no existe')
 
-    // Never leave the team without an admin.
+    // Never leave the team without an admin; the profiles_guard_last_admin trigger backs it (#157).
     if (updates.role === 'member' && (current as Pick<Profile, 'role'>).role === 'admin') {
       const { count } = await supabase
         .from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'admin')
-      if ((count ?? 0) <= 1) return badRequest('Debe quedar al menos un administrador')
+      if ((count ?? 0) <= 1) return badRequest(LAST_ADMIN_MESSAGE)
     }
 
     if (Object.keys(updates).length > 0) {
       const { error } = await supabase.from('profiles').update(updates).eq('id', id)
       if (error) {
         if (error.code === '23505') return badRequest('Ese id de checador ya está asignado a otro usuario')
+        if (error.code === '23514' && error.message.includes(LAST_ADMIN_MESSAGE)) return badRequest(LAST_ADMIN_MESSAGE)
         console.error('Error updating profile:', error)
         return serverError('Error al actualizar el perfil')
       }

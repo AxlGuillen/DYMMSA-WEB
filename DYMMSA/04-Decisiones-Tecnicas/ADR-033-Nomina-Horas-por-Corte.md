@@ -53,6 +53,18 @@ corte listas, sin duplicar lo que la oficina ya checa.
    service_role y por PostgREST directo. La ruta revisa antes solo para dar un mensaje claro. El
    trigger y `payrollPeriod()` calculan el sábado con la misma expresión (`(dow + 1) % 7`).
    Reabrir es explícito y deja `reopened_at` / `reopened_by_name`; quién cerró se conserva.
+
+   > **Actualización 2026-10-24 (#157, decisión del usuario: congelar al cerrar).** El trigger
+   > congelaba los **minutos**, pero la jornada (`payroll_employees.shift`) y el área del perfil
+   > ligado (`payrollArea()`) se leían en vivo: cambiarlas recalculaba el reparto normal/extra y el
+   > sábado de cortes **cerrados**. Ahora cerrar guarda `shift_snapshot`/`area_snapshot` en cada día
+   > del corte y `buildPayrollView()` → `dayRules()` los usa cuando existen (los vivos si no).
+   > Cerrar y reabrir pasan a dos funciones INVOKER (`close_payroll_period`/`reopen_payroll_period`):
+   > cerrar escribe el snapshot **antes** de pasar el corte a `closed` —si no, este mismo trigger
+   > lo rechazaría— en una transacción con el chequeo de borradores (P0001 `drafts_pending`);
+   > reabrir pasa a `open` primero y luego limpia el snapshot. Cerrar un corte ya cerrado **ya no
+   > re-sella**: devuelve el corte como está (el snapshot no se puede reescribir con el corte
+   > cerrado, y el primer sello es el que importa). Sigue sin guardarse ningún monto ni multiplicador.
 7. **"Prellenar y congelar" con Horas** (decisión del usuario). Nómina no lee `time_entries` en
    vivo: "Traer de Horas" copia los minutos por día como borrador y, una vez confirmados o
    cerrado el corte, corregir una checada el lunes ya no mueve una nómina pagada. Una checada sin

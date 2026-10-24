@@ -300,17 +300,18 @@ describe('PATCH /api/time-entries/[id] (corrección con rastro)', () => {
   })
 
   test('DELETE solo admin', async () => {
+    const id = '7e7e7e7e-0000-4000-8000-000000000001'
     activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_MEMBER) } })
-    const denied = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'te-1' }))
+    const denied = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))
     expect(denied.status).toBe(403)
 
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'profiles.select': withRole(ME_ADMIN), 'time_entries.delete': { data: [{ id: 'te-1' }], error: null } },
+      responses: { 'profiles.select': withRole(ME_ADMIN), 'time_entries.delete': { data: [{ id }], error: null } },
     })
-    const ok = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'te-1' }))
+    const ok = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))
     expect(ok.status).toBe(200)
-    expect(filterValue(activeClient.callsTo('time_entries', 'delete')[0], 'id')).toBe('te-1')
+    expect(filterValue(activeClient.callsTo('time_entries', 'delete')[0], 'id')).toBe(id)
   })
 
   test('DELETE de una checada inexistente → 404', async () => {
@@ -318,8 +319,16 @@ describe('PATCH /api/time-entries/[id] (corrección con rastro)', () => {
       user: AUTH,
       responses: { 'profiles.select': withRole(ME_ADMIN), 'time_entries.delete': { data: [], error: null } },
     })
+    const res = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: '7e7e7e7e-0000-4000-8000-000000000002' }))
+    expect(res.status).toBe(404)
+  })
+
+  test('#157: DELETE con un id que no es uuid → 404 sin llegar a la BD (antes 500 por 22P02)', async () => {
+    activeClient = createMockSupabase({ user: AUTH, responses: { 'profiles.select': withRole(ME_ADMIN) } })
     const res = await entryById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'nope' }))
     expect(res.status).toBe(404)
+    expect((await readJson<{ message: string }>(res)).message).toBe('La checada no existe')
+    expect(activeClient.callsTo('time_entries')).toEqual([])
   })
 })
 
