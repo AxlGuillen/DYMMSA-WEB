@@ -95,7 +95,7 @@ import {
   receptionExcess,
   statusAfterReceived,
 } from '@/lib/business-rules'
-import { deleteRestoresStock } from '@/lib/inventory'
+import { canChangeOrderStatus, deleteRestoresStock, goodsInStore } from '@/lib/inventory'
 import { separatorRowClass } from '@/lib/separator-palette'
 import { fetchJson } from '@/lib/fetch-json'
 import type {
@@ -456,6 +456,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
   }, [order.order_items])
   const isCancelled = order.status === 'cancelled'
   const isCompleted = order.status === 'completed'
+  // Delivered already left with the customer: no cancel, no added or removed lines (#157).
+  const stockOpen = goodsInStore(order.status)
 
   const totalAmount = order.total_amount
 
@@ -552,7 +554,11 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {ORDER_STATUSES.map((status) => (
-                    <SelectItem key={status.value} value={status.value}>
+                    <SelectItem
+                      key={status.value}
+                      value={status.value}
+                      disabled={!canChangeOrderStatus(order.status, status.value)}
+                    >
                       {status.label}
                     </SelectItem>
                   ))}
@@ -597,7 +603,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
             Imprimir
           </Button>
 
-          {!isCancelled && !isCompleted && (
+          {stockOpen && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -761,13 +767,15 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </CardTitle>
               {!isCompleted && !isCancelled && (
                 <CardDescription>
-                  Edita precios, agrega o elimina productos, y registra las cantidades recibidas
+                  {stockOpen
+                    ? 'Edita precios, agrega o elimina productos, y registra las cantidades recibidas'
+                    : 'Entregada: edita precios y registra las cantidades recibidas; ya no se agregan ni quitan productos'}
                 </CardDescription>
               )}
             </div>
             <div className="flex items-center gap-2">
               <ColumnPicker tableId="order-detail-items" columns={itemColumns} />
-              {!isCompleted && !isCancelled && (
+              {stockOpen && (
                 <Button size="sm" variant="outline" onClick={() => setAddItemOpen(true)}>
                   <Plus className="size-4 mr-1.5" />
                   Agregar
@@ -1019,14 +1027,16 @@ export function OrderDetail({ order }: OrderDetailProps) {
                             >
                               <Pencil className="size-3.5" />
                             </Button>
-                            <Button
-                              size="icon" variant="ghost"
-                              className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setDeletingItemId(item.id)}
-                              title="Eliminar producto"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
+                            {stockOpen && (
+                              <Button
+                                size="icon" variant="ghost"
+                                className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeletingItemId(item.id)}
+                                title="Eliminar producto"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       )}
