@@ -82,6 +82,21 @@ tr.total td { background: var(--bg-soft); border-top: 1px solid var(--border); }
 .new-products { margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-soft); }
 .new-products ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 
+.sat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.sat-label { font-size: 12px; color: var(--text-soft); }
+.sat select, .sat input {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+.sat input { width: 9.5em; font-variant-numeric: tabular-nums; }
+.error:empty { display: none; }
+
 .footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; margin-top: 14px; }
 .new-products .footer { margin-top: 10px; }
 .hint { color: var(--text-soft); font-size: 13px; margin-right: auto; }

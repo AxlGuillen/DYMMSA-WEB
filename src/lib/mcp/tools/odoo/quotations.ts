@@ -37,6 +37,7 @@ import {
   NOTE_ECHO_MAX,
   planQuotationLines,
   priceDifferences,
+  productsWithoutSat,
   quotationMode,
   SALE_STATE_LABEL,
   unechoableWarnings,
@@ -47,7 +48,9 @@ import {
   type PreviewLine,
   type PriceDifference,
   type ProductForCreation,
+  type ProductWithoutSat,
 } from '@/lib/odoo/quotation-plan'
+import { proposedSatKey } from '@/lib/odoo/sat-keys'
 import { ORIGIN_PREFIX, originMarker } from '@/lib/odoo/write-catalog'
 import { noteHasKeyMarker, ownedSaleLines, type OdooNote, type OdooWriter } from '@/lib/odoo/writer'
 import type { AdminProof } from '@/lib/odoo/write-guard'
@@ -59,12 +62,14 @@ import {
   many2oneName,
   numberOr,
   readSaleLines,
+  readSatSuggestions,
   requireExactSale,
   resolvePartnerForWrite,
   resolveProductsForWrite,
   rowsOf,
   saleFromRow,
   type SaleRecord,
+  type SatSuggestionsRead,
   type WritePartner,
 } from './resolve'
 
@@ -76,7 +81,9 @@ export type {
   PriceDifference,
   ProductForCreation,
   ProductState,
+  ProductWithoutSat,
 } from '@/lib/odoo/quotation-plan'
+export type { SatSuggestion } from '@/lib/odoo/sat-keys'
 
 /** Desired lines per quotation; MAX_EDIT_LINES + this must fit MAX_LINE_COMMANDS (tested). */
 export const MAX_QUOTATION_LINES = 80
@@ -89,7 +96,8 @@ export const quotationLine = z.strictObject({
   etm: z.string().max(60).optional().describe('ETM (default_code)'),
   marca: z.string().max(40).optional(),
   descripcion: z.string().max(200).optional().describe('Solo para dar de alta un producto que falta'),
-  clave_sat: z.string().regex(/^\d{8}$/, 'clave SAT de 8 dígitos').optional().describe('Solo producto nuevo'),
+  clave_sat: z.string().regex(/^\d{8}$/, 'clave SAT de 8 dígitos').optional().describe('Sin clave en Odoo: solo la que dio el usuario'),
+  categoria_sat: z.string().min(3).max(80).optional().describe('Sin clave en Odoo: texto para sugerirla, ej. «pinturas en aerosol»'),
   cantidad: z.number().positive().max(LINE_QTY_MAX).optional(),
   precio: z.number().min(0).max(LINE_PRICE_MAX).optional().describe('Unitario sin IVA; obligatorio'),
   descuento: z.number().min(0).max(100).optional().describe('%'),
@@ -164,8 +172,10 @@ export interface QuotationPreview {
   /** Review only: the current lines with their linea_id, to start an edit from. */
   readonly lineas_como_entrada?: readonly LineRequest[]
   readonly productos_nuevos: readonly NewProductView[]
-  /** Exactly what the view sends to odoo_save_product and the authorization in _meta signs. */
+  /** What the view sends to odoo_save_product (with the key chosen there); the authorization in _meta signs it. */
   readonly productos_para_alta: readonly ProductForCreation[]
+  /** Existing products of the lines without a SAT key: the view's button can give them one (#154). */
+  readonly sin_clave_sat: readonly ProductWithoutSat[]
   readonly subtotal: number
   readonly moneda: string
   readonly impuestos: string
@@ -342,6 +352,7 @@ interface PreviewParts {
   readonly lineasComoEntrada?: readonly LineRequest[]
   readonly nuevos: readonly NewProductView[]
   readonly paraAlta: readonly ProductForCreation[]
+  readonly sinClave: readonly ProductWithoutSat[]
   readonly subtotal: number
   readonly moneda: string
   readonly bloqueos: readonly string[]
@@ -351,6 +362,72 @@ interface PreviewParts {
   readonly saleId: number | null
   readonly writeDate: string | null
 }
+
+interface SatAdvice {
+  readonly nuevos: readonly NewProductView[]
+  readonly sinClave: readonly ProductWithoutSat[]
+  readonly avisos: readonly string[]
+}
+
+const SAT_READ_FAILED = 'No pude leer el catálogo del SAT para sugerir claves: tecléala en la vista o captúrala en Odoo.'
+const SAT_TRUNCATED =
+  'El catálogo del SAT trajo demasiadas coincidencias: puede faltar una clave mejor entre las sugeridas (precisa con categoria_sat).'
+
+type SatTarget = Pick<NewProductView, 'clave_sat' | 'categoria_sat' | 'clave_sat_propuesta' | 'sugerencias_sat'>
+
+/** What a product without its key is searched by; null when the chat already gave the key. */
+const satText = (product: SatTarget, fallback: string) => (product.clave_sat ? null : (product.categoria_sat ?? fallback))
+
+/** What a categoria_sat found, so the chat can ask for the confirmation the view's click gives. */
+function categoryAdvice(name: string, target: SatTarget): string | null {
+  if (!target.categoria_sat) return null
+  const asked = `«${name}»: «${target.categoria_sat}»`
+  const proposed = target.sugerencias_sat.find((s) => s.clave === target.clave_sat_propuesta)
+  if (proposed) return `${asked} → clave SAT ${proposed.clave} (${proposed.nombre}): confírmala en la vista o elige otra.`
+  if (target.sugerencias_sat.length > 0) return `${asked} coincide con varias claves SAT: elige una en la vista.`
+  return `${asked} no coincide con ninguna clave SAT: prueba con otras palabras.`
+}
+
+/**
+ * ONE extra read, only when a product lacks its key (#154): new products by categoria_sat or their
+ * description, existing ones by categoria_sat or their Odoo name. A failed read only costs the suggestions.
+ */
+async function adviseSatKeys(
+  reader: OdooCaller,
+  nuevos: readonly NewProductView[],
+  sinClave: readonly ProductWithoutSat[],
+): Promise<SatAdvice> {
+  // One slot per product, new ones first; null = the chat already gave its key.
+  const texts = [...nuevos.map((p) => satText(p, p.descripcion)), ...sinClave.map((p) => satText(p, p.nombre))]
+  const wanted = texts.flatMap((text, slot) => (text === null ? [] : [{ text, slot }]))
+  if (wanted.length === 0) return { nuevos, sinClave, avisos: [] }
+  let read: SatSuggestionsRead
+  try {
+    read = await readSatSuggestions(reader, wanted.map((w) => w.text))
+  } catch (error) {
+    console.error('[odoo-write] SAT key suggestions failed', { error: errorName(error) })
+    return { nuevos, sinClave, avisos: [SAT_READ_FAILED] }
+  }
+  const bySlot = new Map(wanted.map(({ slot }, j) => [slot, { suggestions: read.suggestions[j], terms: read.terms[j] }]))
+  const advise = <T extends SatTarget>(product: T, slot: number): T => {
+    const hit = bySlot.get(slot)
+    if (!hit) return product
+    const proposed = product.categoria_sat ? proposedSatKey(hit.terms, hit.suggestions) : null
+    return { ...product, sugerencias_sat: hit.suggestions, clave_sat_propuesta: proposed }
+  }
+  const nextNew = nuevos.map((p, i) => advise(p, i))
+  const nextExisting = sinClave.map((p, i) => advise(p, nuevos.length + i))
+  const avisos = [
+    ...nextNew.map((p) => categoryAdvice(p.nombre_en_odoo, p)),
+    ...nextExisting.map((p) => categoryAdvice(p.nombre, p)),
+  ].filter((text): text is string => text !== null)
+  return { nuevos: nextNew, sinClave: nextExisting, avisos: [...avisos, ...(read.truncated ? [SAT_TRUNCATED] : [])] }
+}
+
+const offeredKeys = (target: Pick<ProductWithoutSat, 'clave_sat' | 'sugerencias_sat'>) => [
+  ...(target.clave_sat ? [target.clave_sat] : []),
+  ...target.sugerencias_sat.map((s) => s.clave),
+]
 
 function previewNextStep(modo: QuotationPreview['modo'], canSave: boolean, hasNew: boolean): string {
   if (!canSave) return `${NOTHING_SAVED} Corrige lo que dicen los bloqueos y vuelve a pedir la vista previa.`
@@ -363,8 +440,15 @@ function previewNextStep(modo: QuotationPreview['modo'], canSave: boolean, hasNe
   return `${NOTHING_SAVED} Muestra el resumen, espera el sí y llama odoo_save_quotation con los mismos datos y la clave.`
 }
 
-/** Blocked → no key; otherwise the key, and the products authorization only in _meta (ADR-040). */
-function finishPreview(proof: AdminProof, parts: PreviewParts): QuotationPreview | ResultWithMeta<QuotationPreview> {
+/**
+ * Blocked → no key, no suggestions; otherwise the key, the SAT suggestions and the products
+ * authorization, which signs the keys the view may send and travels only in _meta (ADR-040, #154).
+ */
+async function finishPreview(
+  reader: OdooCaller,
+  proof: AdminProof,
+  parts: PreviewParts,
+): Promise<QuotationPreview | ResultWithMeta<QuotationPreview>> {
   const disabled = writeDisabledReason()
   const bloqueos = [...parts.bloqueos, ...(disabled ? [disabled] : [])]
   const canSave = bloqueos.length === 0
@@ -377,27 +461,36 @@ function finishPreview(proof: AdminProof, parts: PreviewParts): QuotationPreview
         writeDate: parts.writeDate,
       })
     : null
+  // Only a preview the view can act on is worth the read.
+  const sat: SatAdvice = key
+    ? await adviseSatKeys(reader, parts.nuevos, parts.sinClave)
+    : { nuevos: parts.nuevos, sinClave: parts.sinClave, avisos: [] }
   const data: QuotationPreview = {
     modo: parts.modo,
     cliente: parts.cliente,
     cotizacion: parts.cotizacion,
     lineas: parts.lineas,
     ...(parts.lineasComoEntrada ? { lineas_como_entrada: parts.lineasComoEntrada } : {}),
-    productos_nuevos: parts.nuevos,
+    productos_nuevos: sat.nuevos,
     productos_para_alta: parts.paraAlta,
+    sin_clave_sat: sat.sinClave,
     subtotal: parts.subtotal,
     moneda: parts.moneda,
     impuestos: TAX_NOTE,
     bloqueos,
-    avisos: parts.avisos,
+    avisos: [...parts.avisos, ...sat.avisos],
     al_confirmar: parts.alConfirmar,
     puede_guardar: canSave,
     clave: key?.clave ?? null,
     vence: key?.vence ?? null,
     siguiente_paso: previewNextStep(parts.modo, canSave, parts.paraAlta.length > 0),
   }
-  if (!key || parts.paraAlta.length === 0) return data
-  const { autorizacion } = issueProductsAuthorization(proof, parts.paraAlta)
+  if (!key || (parts.paraAlta.length === 0 && sat.sinClave.length === 0)) return data
+  const { autorizacion } = issueProductsAuthorization(proof, {
+    alta: parts.paraAlta,
+    altaKeys: sat.nuevos.map((p) => p.sugerencias_sat.map((s) => s.clave)),
+    asignar: sat.sinClave.map((p) => ({ productId: p.producto_id, keys: offeredKeys(p) })),
+  })
   return withResultMeta(data, { [PRODUCTS_AUTHORIZATION_META]: autorizacion })
 }
 
@@ -411,7 +504,7 @@ async function previewCreate(
   const { matches, products } = await resolveProductsForWrite(reader, lines)
   const plan = planQuotationLines({ mode: 'crear', lines, matches })
   const twin = await recentTwin(reader, partner.id, quotationContentHash(input).slice(0, 10))
-  return finishPreview(proof, {
+  return finishPreview(reader, proof, {
     kind: 'crear',
     modo: 'crear',
     input,
@@ -420,6 +513,7 @@ async function previewCreate(
     lineas: plan.lineas,
     nuevos: plan.nuevos,
     paraAlta: plan.paraAlta,
+    sinClave: productsWithoutSat(plan.lineas, lines),
     subtotal: plan.subtotal,
     // Every partner uses the "Default (MXN)" pricelist (verified 2026-10-16).
     moneda: 'MXN',
@@ -464,14 +558,16 @@ async function previewExisting(
 
   if (modo === 'revisar') {
     const productLines = current.filter((line) => line.kind === 'producto')
-    return finishPreview(proof, {
+    const lineas = currentPreviewLines(current, products)
+    return finishPreview(reader, proof, {
       ...common,
       kind: 'confirmar',
       modo,
-      lineas: currentPreviewLines(current, products),
+      lineas,
       lineasComoEntrada: linesAsInput(current),
       nuevos: [],
       paraAlta: [],
+      sinClave: productsWithoutSat(lineas),
       subtotal: numberOr(sale.raw.amount_untaxed, 0),
       bloqueos: productLines.length === 0 ? [`La ${sale.name} no tiene productos: no se puede confirmar.`] : [],
       avisos: [...avisos, ...unechoableWarnings(current)],
@@ -485,13 +581,14 @@ async function previewExisting(
   const plan = planQuotationLines({ mode: 'editar', lines, matches, current })
   const validityChanges = input.vigencia !== undefined && input.vigencia !== sale.validityDate
   const unchanged = plan.diff !== null && isEmptyDiff(plan.diff) && !validityChanges
-  return finishPreview(proof, {
+  return finishPreview(reader, proof, {
     ...common,
     kind: 'editar',
     modo,
     lineas: plan.lineas,
     nuevos: plan.nuevos,
     paraAlta: plan.paraAlta,
+    sinClave: productsWithoutSat(plan.lineas, lines),
     subtotal: plan.subtotal,
     bloqueos: [...plan.bloqueos, ...(unchanged ? [`No hay cambios: la ${sale.name} ya está así.`] : [])],
     avisos: [

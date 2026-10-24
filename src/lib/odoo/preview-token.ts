@@ -68,13 +68,23 @@ const quotationClaims = z
 /** p/s/w are what the preview resolved: the save compares them against its own reread of Odoo. */
 export type QuotationKeyClaims = z.infer<typeof quotationClaims>
 
+const satKey = z.string().regex(/^\d{8}$/)
+// The chat's key plus three suggestions; 40 products a side, as the alta and the assign take.
+const offeredKeys = z.array(satKey).max(4)
+const MAX_SIGNED_PRODUCTS = 40
+
 const productsClaims = z.strictObject({
-  v: z.literal(1),
+  v: z.literal(2),
   k: z.literal('products'),
   u: userId,
   iat: epochSeconds,
   exp: epochSeconds,
+  /** productos_para_alta without their keys: the admin picks one in the view (#154). */
   h: sha256Hex,
+  /** Keys offered per new product, aligned with h's list. */
+  ks: z.array(offeredKeys).max(MAX_SIGNED_PRODUCTS),
+  /** Existing products the view may give a key to, with the keys offered for each. */
+  a: z.array(z.tuple([z.number().int().positive(), offeredKeys])).max(MAX_SIGNED_PRODUCTS),
 })
 
 export type ProductsKeyClaims = z.infer<typeof productsClaims>
@@ -142,7 +152,13 @@ export function quotationContentHash(input: QuotationKeyInput): string {
   return sha256(canonicalJson(canonicalQuotationInput(input)))
 }
 
-const productsContentHash = (products: readonly unknown[]) => sha256(canonicalJson(products))
+/** The key the admin chooses in the view is not content: choosing another offered one keeps the hash. */
+const CHOICE_FIELDS: ReadonlySet<string> = new Set(['clave_sat', 'clave_sat_tecleada'])
+
+const withoutChoice = (product: unknown) =>
+  isRecord(product) ? Object.fromEntries(Object.entries(product).filter(([key]) => !CHOICE_FIELDS.has(key))) : product
+
+const productsContentHash = (products: readonly unknown[]) => sha256(canonicalJson(products.map(withoutChoice)))
 
 /** Derived from the write key: no key, no tokens; rotating it voids every pending preview. */
 function previewSecret(): Buffer {
@@ -326,30 +342,50 @@ export interface IssuedAuthorization {
   vence: string
 }
 
-/** Signs productos_para_alta exactly as the view will send it to odoo_save_product. */
+/** What the products authorization covers (#154): the alta list and the keys the preview offered. */
+export interface ProductsAuthorizationScope {
+  /** productos_para_alta exactly as the view sends them; each one's own clave_sat is always offered. */
+  readonly alta: readonly unknown[]
+  /** Suggested keys per alta product, aligned. */
+  readonly altaKeys?: readonly (readonly string[])[]
+  /** Existing products without a key, each with the keys offered for it. */
+  readonly asignar?: readonly { readonly productId: number; readonly keys: readonly string[] }[]
+}
+
+const ownKey = (product: unknown): string[] =>
+  isRecord(product) && typeof product.clave_sat === 'string' ? [product.clave_sat] : []
+
+/** Signs productos_para_alta (keys aside) and, per product, the set of keys the view may send. */
 export function issueProductsAuthorization(
   proof: AdminProof,
-  products: readonly unknown[],
+  scope: ProductsAuthorizationScope,
   deps: TokenClock = {},
 ): IssuedAuthorization {
   const now = deps.now ?? Date.now()
   assertAdminProof(proof, now)
   const iat = Math.floor(now / 1000)
-  const claims: ProductsKeyClaims = {
-    v: 1,
+  const parsed = productsClaims.safeParse({
+    v: 2,
     k: 'products',
     u: proof.userId,
     iat,
     exp: iat + PREVIEW_TTL_S,
-    h: productsContentHash(products),
-  }
-  return { autorizacion: sign(claims), vence: expiry(claims.exp) }
+    h: productsContentHash(scope.alta),
+    ks: scope.alta.map((product, i) => [...new Set([...ownKey(product), ...(scope.altaKeys?.[i] ?? [])])]),
+    a: (scope.asignar ?? []).map((p) => [p.productId, [...new Set(p.keys)]]),
+  })
+  if (!parsed.success) throw new OdooError('No pude emitir la autorización de la vista previa: faltan datos de los productos.')
+  return { autorizacion: sign(parsed.data), vence: expiry(parsed.data.exp) }
 }
 
+/**
+ * Signature, admin, expiry and, for an alta, the list itself (keys aside). Which key each product may
+ * take is the caller's check against ks / a: odoo_save_product knows whether the admin typed it.
+ */
 export function verifyProductsAuthorization(
   proof: AdminProof,
   autorizacion: unknown,
-  products: readonly unknown[],
+  products: readonly unknown[] | null,
   deps: TokenClock = {},
 ): ProductsKeyClaims {
   const now = deps.now ?? Date.now()
@@ -359,7 +395,7 @@ export function verifyProductsAuthorization(
   if (!parsed?.success) throw new OdooError(PRODUCTS_UNAUTHORIZED_MESSAGE)
   const claims = parsed.data
   if (claims.u !== proof.userId) throw new OdooError(PRODUCTS_OTHER_ADMIN_MESSAGE)
-  if (claims.h !== productsContentHash(products)) throw new OdooError(PRODUCTS_CHANGED_MESSAGE)
+  if (products !== null && claims.h !== productsContentHash(products)) throw new OdooError(PRODUCTS_CHANGED_MESSAGE)
   if (now >= claims.exp * 1000) throw new OdooError(PRODUCTS_EXPIRED_MESSAGE)
   return claims
 }

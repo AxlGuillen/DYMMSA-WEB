@@ -1,42 +1,65 @@
 /**
- * odoo_save_product (#144, ADR-040): creates the preview's new goods, only from the view's button —
- * its authorization rides in _meta, never in the text the model reads. All or nothing, never twice.
+ * odoo_save_product (#144, #154, ADR-040): creates the preview's new goods, or gives the existing ones
+ * their missing SAT key — only from the view's button, whose authorization rides in _meta. Never twice.
  */
 
 import { z } from 'zod'
 import type { DomainTriple } from '@/lib/odoo/catalog'
 import { OdooError } from '@/lib/odoo/client'
-import { startDeadline } from '@/lib/odoo/deadline'
+import { startDeadline, type Deadline } from '@/lib/odoo/deadline'
 import { escapeLike, orDomain } from '@/lib/odoo/domains'
 import { odooWriteEnv } from '@/lib/odoo/env'
-import { PRODUCTS_UNAUTHORIZED_MESSAGE, verifyProductsAuthorization } from '@/lib/odoo/preview-token'
-import { LINE_PRICE_MAX, MAX_NEW_PRODUCTS, productName, splitEtm, type ProductForCreation } from '@/lib/odoo/quotation-plan'
+import {
+  PRODUCTS_CHANGED_MESSAGE,
+  PRODUCTS_UNAUTHORIZED_MESSAGE,
+  verifyProductsAuthorization,
+  type ProductsKeyClaims,
+} from '@/lib/odoo/preview-token'
+import {
+  LINE_PRICE_MAX,
+  MAX_NEW_PRODUCTS,
+  MAX_SAT_ASSIGN,
+  productName,
+  splitEtm,
+  type ProductForCreation,
+} from '@/lib/odoo/quotation-plan'
+import { SAT_PLACEHOLDER } from '@/lib/odoo/sat-keys'
 import { ETM_CODE_LIST, type ProductCreateVals } from '@/lib/odoo/write-catalog'
+import type { AdminProof } from '@/lib/odoo/write-guard'
 import type { McpContext } from '../../core/context'
 import { fold } from '@/lib/text'
 import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
 import { ToolError } from '@/lib/mcp/core/errors'
 import { parseInput, type OdooQuotationDeps } from './quotations'
-import { isId, rowsOf } from './resolve'
+import { isId, many2oneName, rowsOf } from './resolve'
+
+export { SAT_PLACEHOLDER } from '@/lib/odoo/sat-keys'
 
 type ToolContext = Pick<McpContext, 'db' | 'userId' | 'role'>
 
-/** The SAT's "no existe en el catálogo": stamping needs the real key, so it is never written. */
-export const SAT_PLACEHOLDER = '01010101'
+const satKey = z.string().regex(/^\d{8}$/, 'clave SAT de 8 dígitos')
 
-// Mirrors ProductForCreation (quotation-plan.ts): the view sends productos_para_alta as it came.
+// Mirrors ProductForCreation (quotation-plan.ts) plus the admin's choice of key in the view (#154).
 const productForCreation = z.strictObject({
   codigo: z.string().min(1).max(40),
   descripcion: z.string().min(1).max(200),
   marca: z.string().min(1).max(40).optional(),
   etm: z.string().regex(ETM_CODE_LIST, 'ETM de 9 dígitos (o varios separados por comas)').optional(),
   precio: z.number().min(0).max(LINE_PRICE_MAX),
-  clave_sat: z.string().regex(/^\d{8}$/, 'clave SAT de 8 dígitos').optional(),
+  clave_sat: satKey.optional(),
+  clave_sat_tecleada: z.boolean().optional(),
+})
+
+const satAssignment = z.strictObject({
+  producto_id: z.number().int().positive(),
+  clave_sat: satKey,
+  clave_sat_tecleada: z.boolean().optional(),
 })
 
 export const saveProductShape = {
-  productos: z.array(productForCreation).min(1).max(MAX_NEW_PRODUCTS).describe('productos_para_alta, tal cual'),
-  autorizacion: z.string().min(1).max(4000).describe('La de la vista previa'),
+  productos: z.array(productForCreation).min(1).max(MAX_NEW_PRODUCTS).optional().describe('Alta: productos_para_alta con su clave elegida'),
+  asignar: z.array(satAssignment).min(1).max(MAX_SAT_ASSIGN).optional().describe('Clave SAT de productos que ya existen'),
+  autorizacion: z.string().min(1).max(8000).describe('La de la vista previa'),
 }
 
 const saveProductSchema = z.strictObject(saveProductShape)
@@ -48,12 +71,47 @@ export interface SavedProduct {
   readonly nombre: string
 }
 
-/** odoo_save_product's result; the view reports it in its one updateModelContext. */
+/** odoo_save_product's alta result; the view reports it in its one updateModelContext. */
 export interface ProductsSaveResult {
   readonly creados: readonly SavedProduct[]
   readonly ya_existian: readonly SavedProduct[]
   /** Created without a SAT key: they can't be stamped until it is captured in Odoo. */
   readonly sin_clave_sat: number
+}
+
+export interface KeyedProduct extends SavedProduct {
+  readonly clave_sat: string
+}
+
+/** The assign result (#154): a key someone captured in Odoo since the preview is reported, never replaced. */
+export interface SatAssignResult {
+  readonly asignados: readonly KeyedProduct[]
+  readonly ya_tenian: readonly KeyedProduct[]
+}
+
+/** What a refusal says was left undone: the alta keeps its messages word for word (#154). */
+interface Undone {
+  readonly nothing: string
+  readonly where: string
+}
+
+const ALTA: Undone = { nothing: 'No se creó nada.', where: 'da de alta el producto ahí' }
+const ASSIGN: Undone = { nothing: 'No se asignó ninguna clave.', where: 'asígnala ahí' }
+
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
+
+const ONE_MODE = 'Manda productos (alta) o asignar (clave SAT de productos que ya existen), no los dos. No se escribió nada.'
+
+interface KeyChoice {
+  readonly clave_sat?: string
+  readonly clave_sat_tecleada?: boolean
+}
+
+/** A key the preview did not offer passes only if the admin typed it; either way the catalog is read before writing. */
+function assertOffered(choice: KeyChoice, offered: readonly string[] | undefined): void {
+  if (choice.clave_sat && choice.clave_sat_tecleada !== true && !offered?.includes(choice.clave_sat)) {
+    throw new ToolError(PRODUCTS_CHANGED_MESSAGE)
+  }
 }
 
 interface PlannedProduct {
@@ -131,15 +189,16 @@ async function findExisting(
   return existing
 }
 
-/** Every SAT key to write, in ONE search by code; a missing or placeholder key stops before creating. */
+/** Every SAT key to write, in ONE search by code; a missing or placeholder key stops before writing. */
 async function resolveSatKeys(
   reader: OdooQuotationDeps['reader'],
-  planned: readonly PlannedProduct[],
+  wanted: readonly (string | undefined)[],
+  undone: Undone,
 ): Promise<Map<string, number>> {
-  const codes = [...new Set(planned.flatMap((p) => (p.product.clave_sat ? [p.product.clave_sat] : [])))]
+  const codes = [...new Set(wanted.flatMap((code) => (code ? [code] : [])))]
   if (codes.includes(SAT_PLACEHOLDER)) {
     throw new ToolError(
-      `La clave SAT ${SAT_PLACEHOLDER} significa «no existe en el catálogo»: usa la clave real o quítala (se captura después en Odoo). No se creó nada.`,
+      `La clave SAT ${SAT_PLACEHOLDER} significa «no existe en el catálogo»: usa la clave real o quítala (se captura después en Odoo). ${undone.nothing}`,
     )
   }
   if (codes.length === 0) return new Map()
@@ -155,18 +214,20 @@ async function resolveSatKeys(
     }),
   )
   for (const row of rows) {
-    if (!isId(row.id) || typeof row.code !== 'string') throw new OdooError('Odoo devolvió una clave SAT que no pude leer: no se creó nada.')
+    if (!isId(row.id) || typeof row.code !== 'string') {
+      throw new OdooError(`Odoo devolvió una clave SAT que no pude leer: ${lowerFirst(undone.nothing)}`)
+    }
     found.set(row.code, [...(found.get(row.code) ?? []), row.id])
   }
   const missing = codes.filter((code) => !found.has(code))
   if (missing.length > 0) {
     const one = missing.length === 1
     throw new ToolError(
-      `${one ? 'La clave SAT' : 'Las claves SAT'} ${missing.join(', ')} no ${one ? 'existe' : 'existen'} en el catálogo del SAT de Odoo: corrígela${one ? '' : 's'} o quítala${one ? '' : 's'} y vuelve a pedir la vista previa. No se creó nada.`,
+      `${one ? 'La clave SAT' : 'Las claves SAT'} ${missing.join(', ')} no ${one ? 'existe' : 'existen'} en el catálogo del SAT de Odoo: corrígela${one ? '' : 's'} o quítala${one ? '' : 's'} y vuelve a pedir la vista previa. ${undone.nothing}`,
     )
   }
   const repeated = codes.find((code) => (found.get(code) ?? []).length > 1)
-  if (repeated) throw new ToolError(`La clave SAT ${repeated} aparece más de una vez en Odoo: da de alta el producto ahí. No se creó nada.`)
+  if (repeated) throw new ToolError(`La clave SAT ${repeated} aparece más de una vez en Odoo: ${undone.where}. ${undone.nothing}`)
   return new Map(codes.map((code) => [code, (found.get(code) ?? [])[0]]))
 }
 
@@ -184,31 +245,21 @@ function createVals(p: PlannedProduct, satIds: ReadonlyMap<string, number>): Pro
   }
 }
 
-/**
- * Only the view's button calls this: without the preview's authorization nothing is created.
- * Products already in Odoo (a repeated click) are reported, never duplicated.
- */
-export async function odooSaveProduct(
+async function createProducts(
   deps: OdooQuotationDeps,
-  ctx: ToolContext,
-  raw: SaveProductInput,
+  proof: AdminProof,
+  claims: ProductsKeyClaims,
+  products: readonly (ProductForCreation & KeyChoice)[],
+  dl: Deadline,
 ): Promise<ProductsSaveResult> {
-  // First: the live-admin read counts against the request's budget (#144).
-  const dl = startDeadline()
-  const proof = await requireLiveAdmin(ctx)
-  if (typeof raw?.autorizacion !== 'string' || !raw.autorizacion.trim()) throw new ToolError(PRODUCTS_UNAUTHORIZED_MESSAGE)
-  const input = parseInput(saveProductSchema, raw)
-  // Throws the precise reason (no key, bad URL) before anything is read.
-  odooWriteEnv()
-  verifyProductsAuthorization(proof, input.autorizacion, input.productos)
-
-  const planned = planProducts(input.productos)
+  products.forEach((product, index) => assertOffered(product, claims.ks[index]))
+  const planned = planProducts(products)
   const existing = await findExisting(deps.reader, planned)
   const yaExistian = [...existing.values()]
   const toCreate = planned.filter((_, index) => !existing.has(index))
   if (toCreate.length === 0) return { creados: [], ya_existian: yaExistian, sin_clave_sat: 0 }
 
-  const satIds = await resolveSatKeys(deps.reader, toCreate)
+  const satIds = await resolveSatKeys(deps.reader, toCreate.map((p) => p.product.clave_sat), ALTA)
   const ids = await deps.writer.createProducts(
     proof,
     toCreate.map((p) => createVals(p, satIds)),
@@ -219,4 +270,92 @@ export async function odooSaveProduct(
     ya_existian: yaExistian,
     sin_clave_sat: toCreate.filter((p) => !p.product.clave_sat).length,
   }
+}
+
+type Assignment = z.infer<typeof satAssignment>
+
+/** many2one [id, name]: whatever Odoo has there counts as a key, even an odd one. */
+function currentKey(value: unknown): string | null {
+  if (!Array.isArray(value) || !isId(value[0])) return null
+  return many2oneName(value) ?? `#${value[0]}`
+}
+
+/** Existing products the preview flagged (claims.a), each with an offered or typed key; one write per key. */
+async function assignSatKeys(
+  deps: OdooQuotationDeps,
+  proof: AdminProof,
+  claims: ProductsKeyClaims,
+  entries: readonly Assignment[],
+  dl: Deadline,
+): Promise<SatAssignResult> {
+  const offered = new Map(claims.a)
+  const seen = new Set<number>()
+  for (const entry of entries) {
+    if (seen.has(entry.producto_id)) throw new ToolError(`El producto #${entry.producto_id} viene dos veces. ${ASSIGN.nothing}`)
+    seen.add(entry.producto_id)
+    if (!offered.has(entry.producto_id)) throw new ToolError(PRODUCTS_CHANGED_MESSAGE)
+    assertOffered(entry, offered.get(entry.producto_id))
+  }
+
+  const ids = [...seen].sort((a, b) => a - b)
+  const current = new Map<number, { name: string; key: string | null }>()
+  for (const row of rowsOf(
+    await deps.reader('product.product', 'search_read', {
+      domain: [['id', 'in', ids]],
+      fields: ['name', 'unspsc_code_id'],
+      limit: ids.length,
+      context: { active_test: false },
+    }),
+  )) {
+    if (!isId(row.id) || typeof row.name !== 'string') {
+      throw new OdooError(`Odoo devolvió un producto que no pude leer: ${lowerFirst(ASSIGN.nothing)}`)
+    }
+    current.set(row.id, { name: row.name, key: currentKey(row.unspsc_code_id) })
+  }
+  const gone = ids.find((id) => !current.has(id))
+  if (gone !== undefined) throw new ToolError(`El producto #${gone} ya no está en Odoo: vuelve a pedir la vista previa. ${ASSIGN.nothing}`)
+
+  const yaTenian: KeyedProduct[] = []
+  const pending: KeyedProduct[] = []
+  for (const entry of entries) {
+    const product = current.get(entry.producto_id)
+    if (!product) continue
+    // Captured in Odoo since the preview: whoever did it wins (#154).
+    if (product.key) yaTenian.push({ id: entry.producto_id, nombre: product.name, clave_sat: product.key })
+    else pending.push({ id: entry.producto_id, nombre: product.name, clave_sat: entry.clave_sat })
+  }
+  if (pending.length === 0) return { asignados: [], ya_tenian: yaTenian }
+
+  const satIds = await resolveSatKeys(deps.reader, pending.map((p) => p.clave_sat), ASSIGN)
+  const byKey = new Map<number, number[]>()
+  for (const p of pending) {
+    const satId = satIds.get(p.clave_sat)
+    if (satId === undefined) throw new OdooError(`No pude resolver la clave SAT: ${lowerFirst(ASSIGN.nothing)}`)
+    byKey.set(satId, [...(byKey.get(satId) ?? []), p.id])
+  }
+  // One write per key; a retry after a partial failure finds the done ones in ya_tenian.
+  for (const [satId, productIds] of byKey) await deps.writer.assignSatKey(proof, productIds, satId, dl)
+  return { asignados: pending, ya_tenian: yaTenian }
+}
+
+/**
+ * Only the view's button calls this: without the preview's authorization nothing is written.
+ * Products already in Odoo (a repeated click) are reported, never duplicated; a key already there is never replaced.
+ */
+export async function odooSaveProduct(
+  deps: OdooQuotationDeps,
+  ctx: ToolContext,
+  raw: SaveProductInput,
+): Promise<ProductsSaveResult | SatAssignResult> {
+  // First: the live-admin read counts against the request's budget (#144).
+  const dl = startDeadline()
+  const proof = await requireLiveAdmin(ctx)
+  if (typeof raw?.autorizacion !== 'string' || !raw.autorizacion.trim()) throw new ToolError(PRODUCTS_UNAUTHORIZED_MESSAGE)
+  const input = parseInput(saveProductSchema, raw)
+  if ((input.productos === undefined) === (input.asignar === undefined)) throw new ToolError(ONE_MODE)
+  // Throws the precise reason (no key, bad URL) before anything is read.
+  odooWriteEnv()
+  const claims = verifyProductsAuthorization(proof, input.autorizacion, input.productos ?? null)
+  if (input.asignar) return assignSatKeys(deps, proof, claims, input.asignar, dl)
+  return createProducts(deps, proof, claims, input.productos ?? [], dl)
 }

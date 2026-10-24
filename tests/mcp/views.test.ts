@@ -5,8 +5,22 @@ import { MCP_VIEWS } from '@/lib/mcp/views/generated'
 import { PRODUCTS_AUTHORIZATION_META } from '@/lib/odoo/preview-token'
 import { VIEWS, viewDir, viewSourceHash } from '../../scripts/mcp-views'
 import { readdirSync, readFileSync } from 'node:fs'
-import { applyToolResult, AUTHORIZATION_META, initialState } from '@/mcp-views/odoo-quotation/state'
+import {
+  altaArguments,
+  applyToolResult,
+  assignArguments,
+  assignChoiceKey,
+  AUTHORIZATION_META,
+  defaultSatChoice,
+  initialState,
+  newChoiceKey,
+  OTHER_SAT,
+  SAT_PLACEHOLDER as VIEW_SAT_PLACEHOLDER,
+  satOptions,
+  type ViewState,
+} from '@/mcp-views/odoo-quotation/state'
 import type { QuotationPreview } from '@/lib/mcp/tools/odoo/quotations'
+import { SAT_PLACEHOLDER } from '@/lib/odoo/sat-keys'
 import { join } from 'node:path'
 import { connectMcp } from './harness'
 
@@ -45,6 +59,7 @@ describe('vistas MCP generadas', () => {
 
   test('cotización de Odoo (#144): la vista lee la autorización de la misma llave de _meta y no empaqueta código del servidor', () => {
     expect(AUTHORIZATION_META).toBe(PRODUCTS_AUTHORIZATION_META)
+    expect(VIEW_SAT_PLACEHOLDER).toBe(SAT_PLACEHOLDER)
     for (const file of readdirSync(viewDir('odoo-quotation')).filter((f) => f.endsWith('.ts'))) {
       const source = readFileSync(join(viewDir('odoo-quotation'), file), 'utf8')
       expect(source, file).not.toMatch(/^import (?!type )[^\n]*@\/lib\//m)
@@ -99,6 +114,100 @@ describe('vistas MCP generadas', () => {
       expect(broken.error).toMatch(/incompleta/)
       const again = applyToolResult({ ...broken, saved: { creados: [], ya_existian: [], sin_clave_sat: 0 }, saveError: 'x' }, ok)
       expect(again).toMatchObject({ error: null, saved: null, saveError: null, autorizacion: 'firma' })
+    })
+  })
+
+  describe('cotización de Odoo: la clave SAT que elige el administrador (#154)', () => {
+    const AEROSOL = { clave: '31211507', nombre: 'Pinturas en aerosol' }
+    const PINTURAS = { clave: '31211500', nombre: 'Pinturas' }
+    const sat = { categoria_sat: null, clave_sat_propuesta: null }
+    const preview = {
+      modo: 'crear',
+      puede_guardar: true,
+      productos_para_alta: [
+        { codigo: 'ZZAERO', descripcion: 'Aerosol', precio: 56.03 },
+        { codigo: '7230', descripcion: 'Pinza', precio: 120, clave_sat: '27112100' },
+      ],
+      productos_nuevos: [
+        { ...sat, nombre_en_odoo: 'ZZAERO Aerosol', clave_sat: null, sugerencias_sat: [AEROSOL, PINTURAS] },
+        { ...sat, nombre_en_odoo: '7230 Pinza', clave_sat: '27112100', sugerencias_sat: [] },
+      ],
+      sin_clave_sat: [
+        { ...sat, producto_id: 16980, nombre: 'Aerosol viejo', lineas: [3], clave_sat: null, categoria_sat: 'pinturas en aerosol', clave_sat_propuesta: '31211507', sugerencias_sat: [AEROSOL] },
+        { ...sat, producto_id: 16971, nombre: 'Mango', lineas: [4], clave_sat: null, sugerencias_sat: [] },
+      ],
+    } as unknown as QuotationPreview
+    const loaded = (choices: ViewState['choices'] = {}): ViewState => ({
+      ...applyToolResult(initialState(), { content: [{ type: 'text', text: JSON.stringify(preview) }], _meta: { [PRODUCTS_AUTHORIZATION_META]: 'firma' } }),
+      choices,
+    })
+
+    test('las opciones: sin clave, la de la cotización, las sugeridas y teclear otra', () => {
+      expect(satOptions(preview.productos_nuevos[0]).map((o) => o.value)).toEqual(['', '31211507', '31211500', OTHER_SAT])
+      expect(satOptions(preview.productos_nuevos[1]).map((o) => o.value)).toEqual(['', '27112100', OTHER_SAT])
+      // Preselected: the chat's key or the one categoria_sat found alone; a plain suggestion waits for the admin.
+      expect(defaultSatChoice(preview.productos_nuevos[0]).value).toBe('')
+      expect(defaultSatChoice(preview.productos_nuevos[1]).value).toBe('27112100')
+      expect(defaultSatChoice(preview.sin_clave_sat[0]).value).toBe('31211507')
+    })
+
+    test('el alta manda productos_para_alta tal cual, con la clave elegida, y marca la tecleada', () => {
+      const plain = altaArguments(loaded())
+      expect(plain).toEqual({
+        ready: true,
+        args: {
+          productos: [
+            { codigo: 'ZZAERO', descripcion: 'Aerosol', precio: 56.03 },
+            { codigo: '7230', descripcion: 'Pinza', precio: 120, clave_sat: '27112100' },
+          ],
+          autorizacion: 'firma',
+        },
+      })
+      const picked = altaArguments(
+        loaded({ [newChoiceKey(0)]: { value: '31211500', typed: '' }, [newChoiceKey(1)]: { value: OTHER_SAT, typed: ' 27112101 ' } }),
+      )
+      expect(picked.ready && picked.args.productos).toEqual([
+        { codigo: 'ZZAERO', descripcion: 'Aerosol', precio: 56.03, clave_sat: '31211500' },
+        { codigo: '7230', descripcion: 'Pinza', precio: 120, clave_sat: '27112101', clave_sat_tecleada: true },
+      ])
+      // Choosing "sin clave" drops the chat's one.
+      const dropped = altaArguments(loaded({ [newChoiceKey(1)]: { value: '', typed: '' } }))
+      expect(dropped.ready && dropped.args.productos[1]).toEqual({ codigo: '7230', descripcion: 'Pinza', precio: 120 })
+    })
+
+    test('una clave tecleada incompleta o 01010101 apaga el botón y dice por qué', () => {
+      expect(altaArguments(loaded({ [newChoiceKey(0)]: { value: OTHER_SAT, typed: '3121' } }))).toEqual({
+        ready: false,
+        reason: 'ZZAERO Aerosol: la clave SAT lleva 8 dígitos.',
+      })
+      expect(altaArguments(loaded({ [newChoiceKey(0)]: { value: OTHER_SAT, typed: SAT_PLACEHOLDER } }))).toMatchObject({
+        ready: false,
+        reason: expect.stringMatching(/^ZZAERO Aerosol: 01010101 significa «no existe en el catálogo»/),
+      })
+    })
+
+    test('asignar manda solo los productos con clave; sin ninguna elegida el botón queda apagado sin regañar', () => {
+      expect(assignArguments(loaded())).toEqual({
+        ready: true,
+        args: { asignar: [{ producto_id: 16980, clave_sat: '31211507' }], autorizacion: 'firma' },
+      })
+      const typed = assignArguments(loaded({ [assignChoiceKey(16971)]: { value: OTHER_SAT, typed: '27111700' } }))
+      expect(typed.ready && typed.args.asignar).toEqual([
+        { producto_id: 16980, clave_sat: '31211507' },
+        { producto_id: 16971, clave_sat: '27111700', clave_sat_tecleada: true },
+      ])
+      expect(assignArguments(loaded({ [assignChoiceKey(16980)]: { value: '', typed: '' } }))).toEqual({ ready: false, reason: null })
+      // Without the authorization there is no button at all.
+      expect(assignArguments({ ...loaded(), autorizacion: null })).toEqual({ ready: false, reason: null })
+    })
+
+    test('un resultado nuevo borra las elecciones y lo asignado', () => {
+      const before = { ...loaded({ [newChoiceKey(0)]: { value: '31211507', typed: '' } }), assigned: { asignados: [], ya_tenian: [] }, assignError: 'x' }
+      expect(applyToolResult(before, { content: [{ type: 'text', text: JSON.stringify(preview) }] })).toMatchObject({
+        choices: {},
+        assigned: null,
+        assignError: null,
+      })
     })
   })
 })

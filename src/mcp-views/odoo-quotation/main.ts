@@ -1,14 +1,30 @@
 /**
- * MCP App view for odoo_preview_quotation (#144, ADR-040): the quotation as a table, and the only
- * button that creates the missing products (odoo_save_product). Saving the quotation stays with Claude.
+ * MCP App view for odoo_preview_quotation (#144, #154, ADR-040): the quotation as a table, and the only
+ * buttons that create the missing products or key the existing ones (odoo_save_product). Saving stays with Claude.
  */
 
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps'
 import type { PreviewLine, QuotationPreview } from '@/lib/mcp/tools/odoo/quotations'
-import type { ProductsSaveResult } from '@/lib/mcp/tools/odoo/products-write'
-import { applyToolResult, initialState, textOf } from './state'
+import type { ProductsSaveResult, SatAssignResult } from '@/lib/mcp/tools/odoo/products-write'
+import {
+  altaArguments,
+  applyToolResult,
+  assignArguments,
+  assignChoiceKey,
+  defaultSatChoice,
+  initialState,
+  newChoiceKey,
+  OTHER_SAT,
+  satOptions,
+  textOf,
+  type ButtonArgs,
+  type SatItem,
+} from './state'
 
 let state = initialState()
+
+/** The two buttons and their error lines: typing a key updates them without re-rendering the input. */
+const controls: { alta?: [HTMLButtonElement, HTMLElement]; assign?: [HTMLButtonElement, HTMLElement] } = {}
 
 const root = document.getElementById('app') as HTMLElement
 
@@ -133,32 +149,32 @@ function renderNotes(preview: QuotationPreview): HTMLElement {
   return list
 }
 
+/** The model did not make these calls: it must rebuild the preview before saving or confirming. */
+function tellModel(text: string) {
+  return app
+    .updateModelContext({
+      content: [{ type: 'text', text: `${text} Pide otra vista previa (odoo_preview_quotation con los mismos datos) para verlo y muestra el resumen antes de guardar o confirmar.` }],
+    })
+    .catch(() => undefined)
+}
+
 async function createProducts() {
-  const preview = state.preview
-  if (!preview || !state.autorizacion || state.saving) return
+  const ready = altaArguments(state)
+  if (!ready.ready || state.saving) return
   state.saving = true
   state.saveError = null
   render()
   try {
-    const result = await app.callServerTool({
-      name: 'odoo_save_product',
-      arguments: { productos: preview.productos_para_alta, autorizacion: state.autorizacion },
-    })
+    const result = await app.callServerTool({ name: 'odoo_save_product', arguments: { ...ready.args } })
     if (result.isError) {
       state.saveError = textOf(result) || 'No se pudieron dar de alta'
     } else {
       state.saved = JSON.parse(textOf(result)) as ProductsSaveResult
       const s = state.saved
       const names = [...s.creados, ...s.ya_existian].map((p) => `${p.nombre} (#${p.id})`).join(', ')
-      // The model did not make this call: it must rebuild the preview before saving the quotation.
-      await app
-        .updateModelContext({
-          content: [{
-            type: 'text',
-            text: `El administrador dio de alta en Odoo desde la vista: ${names}. ${s.sin_clave_sat ? `${s.sin_clave_sat} sin clave SAT (capturarla en Odoo antes de timbrar). ` : ''}Pide otra vista previa (odoo_preview_quotation con los mismos datos) para ver los productos recién dados de alta y muestra el resumen antes de guardar.`,
-          }],
-        })
-        .catch(() => undefined)
+      await tellModel(
+        `El administrador dio de alta en Odoo desde la vista: ${names}.${s.sin_clave_sat ? ` ${s.sin_clave_sat} sin clave SAT (capturarla antes de timbrar).` : ''}`,
+      )
     }
   } catch {
     state.saveError = 'No se pudieron dar de alta: vuelve a intentarlo.'
@@ -168,14 +184,95 @@ async function createProducts() {
   }
 }
 
+async function assignKeys() {
+  const ready = assignArguments(state)
+  if (!ready.ready || state.assigning) return
+  state.assigning = true
+  state.assignError = null
+  render()
+  try {
+    const result = await app.callServerTool({ name: 'odoo_save_product', arguments: { ...ready.args } })
+    if (result.isError) {
+      state.assignError = textOf(result) || 'No se pudo asignar la clave SAT'
+    } else {
+      state.assigned = JSON.parse(textOf(result)) as SatAssignResult
+      const s = state.assigned
+      const keyed = (list: SatAssignResult['asignados']) => list.map((p) => `${p.nombre} (#${p.id}) → ${p.clave_sat}`).join(', ')
+      await tellModel(
+        `El administrador asignó la clave SAT en Odoo desde la vista: ${keyed(s.asignados) || 'ninguna'}.${s.ya_tenian.length ? ` Ya tenían clave en Odoo (no se tocó): ${keyed(s.ya_tenian)}.` : ''}`,
+      )
+    }
+  } catch {
+    state.assignError = 'No se pudo asignar la clave SAT: vuelve a intentarlo.'
+  } finally {
+    state.assigning = false
+    render()
+  }
+}
+
+/** Buttons follow the choices: a half-typed key turns its button off and says why. */
+function syncButton(pair: [HTMLButtonElement, HTMLElement] | undefined, ready: ButtonArgs<unknown>, busy: boolean, failure: string | null) {
+  if (!pair) return
+  const [button, error] = pair
+  button.disabled = busy || !ready.ready
+  error.textContent = (!ready.ready && ready.reason) || failure || ''
+}
+
+function syncButtons() {
+  syncButton(controls.alta, altaArguments(state), state.saving, state.saveError)
+  syncButton(controls.assign, assignArguments(state), state.assigning, state.assignError)
+}
+
+const typedInputId = (key: string) => `sat-${key.replace(/[^a-z0-9]/gi, '-')}`
+
+function satPicker(key: string, item: SatItem, disabled: boolean): HTMLElement {
+  const wrap = el('div', 'sat')
+  const choice = state.choices[key] ?? defaultSatChoice(item)
+  const select = document.createElement('select')
+  select.setAttribute('aria-label', 'Clave SAT')
+  for (const option of satOptions(item)) {
+    const node = document.createElement('option')
+    node.value = option.value
+    node.textContent = option.label
+    select.append(node)
+  }
+  select.value = choice.value
+  select.disabled = disabled
+  select.addEventListener('change', () => {
+    const typed = state.choices[key]?.typed ?? ''
+    state.choices = { ...state.choices, [key]: { value: select.value, typed } }
+    render()
+    if (select.value === OTHER_SAT) document.getElementById(typedInputId(key))?.focus()
+  })
+  wrap.append(el('span', 'sat-label', 'Clave SAT'), select)
+  if (choice.value === OTHER_SAT) {
+    const input = document.createElement('input')
+    input.id = typedInputId(key)
+    input.inputMode = 'numeric'
+    input.maxLength = 8
+    input.placeholder = '8 dígitos'
+    input.value = choice.typed
+    input.disabled = disabled
+    input.addEventListener('input', () => {
+      state.choices = { ...state.choices, [key]: { value: OTHER_SAT, typed: input.value } }
+      syncButtons()
+    })
+    wrap.append(input)
+  }
+  return wrap
+}
+
 function renderNewProducts(preview: QuotationPreview): HTMLElement | null {
   if (!preview.productos_nuevos.length) return null
   const box = el('section', 'new-products')
   box.append(el('h2', undefined, `Productos que no existen en Odoo (${preview.productos_nuevos.length})`))
+  const picking = Boolean(state.autorizacion) && !state.saved
   const list = el('ul')
-  for (const p of preview.productos_nuevos) {
+  for (const [i, p] of preview.productos_nuevos.entries()) {
     const item = el('li')
-    item.append(el('span', 'product', p.nombre_en_odoo), el('span', 'sub', `${money(p.precio, preview.moneda)} · ${p.clave_sat ? `clave SAT ${p.clave_sat}` : 'sin clave SAT'}${p.etm ? ` · ETM ${p.etm}` : ''}`))
+    const sat = picking ? '' : ` · ${p.clave_sat ? `clave SAT ${p.clave_sat}` : 'sin clave SAT'}`
+    item.append(el('span', 'product', p.nombre_en_odoo), el('span', 'sub', `${money(p.precio, preview.moneda)}${sat}${p.etm ? ` · ETM ${p.etm}` : ''}`))
+    if (picking) item.append(satPicker(newChoiceKey(i), p, state.saving))
     list.append(item)
   }
   box.append(list)
@@ -186,13 +283,43 @@ function renderNewProducts(preview: QuotationPreview): HTMLElement | null {
     footer.append(el('p', 'saved', `Listo: ${s.creados.length} dados de alta${s.ya_existian.length ? `, ${s.ya_existian.length} ya existían` : ''}. Pídele a Claude que vuelva a armar la vista previa.`))
   } else if (state.autorizacion) {
     const button = el('button', 'primary', state.saving ? 'Dando de alta…' : 'Dar de alta en Odoo') as HTMLButtonElement
-    button.disabled = state.saving
     button.addEventListener('click', createProducts)
-    footer.append(el('p', 'hint', 'Bienes con IVA 16 y factura por entrega; los servicios se dan de alta a mano en Odoo.'), button)
+    const error = el('p', 'error')
+    footer.append(el('p', 'hint', 'Bienes con IVA 16 y factura por entrega; los servicios se dan de alta a mano en Odoo.'), button, error)
+    controls.alta = [button, error]
   } else {
     footer.append(el('p', 'hint', 'Corrige los bloqueos para poder darlos de alta, o dalos de alta en Odoo.'))
   }
-  if (state.saveError) footer.append(el('p', 'error', state.saveError))
+  box.append(footer)
+  return box
+}
+
+function renderWithoutSat(preview: QuotationPreview): HTMLElement | null {
+  const items = preview.sin_clave_sat ?? []
+  if (!items.length || !state.autorizacion) return null
+  const box = el('section', 'new-products')
+  box.append(el('h2', undefined, `Productos de Odoo sin clave SAT (${items.length})`))
+  const list = el('ul')
+  for (const p of items) {
+    const item = el('li')
+    const lines = `${p.lineas.length === 1 ? 'Línea' : 'Líneas'} ${p.lineas.join(', ')}`
+    item.append(el('span', 'product', p.nombre), el('span', 'sub', `${lines} · #${p.producto_id}`))
+    if (!state.assigned) item.append(satPicker(assignChoiceKey(p.producto_id), p, state.assigning))
+    list.append(item)
+  }
+  box.append(list)
+
+  const footer = el('div', 'footer')
+  if (state.assigned) {
+    const s = state.assigned
+    footer.append(el('p', 'saved', `Listo: ${s.asignados.length} con clave SAT${s.ya_tenian.length ? `, ${s.ya_tenian.length} ya la tenían` : ''}. Pídele a Claude que vuelva a armar la vista previa.`))
+  } else {
+    const button = el('button', 'primary', state.assigning ? 'Asignando…' : 'Asignar clave SAT') as HTMLButtonElement
+    button.addEventListener('click', assignKeys)
+    const error = el('p', 'error')
+    footer.append(el('p', 'hint', 'Sin clave no se puede timbrar. Solo se llena la que falta: una que ya esté en Odoo no se toca.'), button, error)
+    controls.assign = [button, error]
+  }
   box.append(footer)
   return box
 }
@@ -218,6 +345,8 @@ function renderFooter(preview: QuotationPreview): HTMLElement {
 
 function render() {
   root.replaceChildren()
+  controls.alta = undefined
+  controls.assign = undefined
   const preview = state.preview
   if (!preview) {
     root.append(el('p', state.error ? 'error' : 'muted', state.error ?? 'Armando la vista previa…'))
@@ -239,7 +368,10 @@ function render() {
   root.append(renderNotes(preview))
   const fresh = renderNewProducts(preview)
   if (fresh) root.append(fresh)
+  const unkeyed = renderWithoutSat(preview)
+  if (unkeyed) root.append(unkeyed)
   root.append(renderFooter(preview))
+  syncButtons()
 }
 
 function applyContext(ctx: McpUiHostContext | undefined) {

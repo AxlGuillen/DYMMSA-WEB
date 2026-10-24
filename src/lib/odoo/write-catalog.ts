@@ -1,5 +1,5 @@
 /**
- * The only writes the assistant may send to Odoo (#144, ADR-040): six model.method rows with
+ * The only writes the assistant may send to Odoo (#144, ADR-040): seven model.method rows with
  * strict payloads. The deny list runs first and wins over any future allowlist row.
  */
 
@@ -117,6 +117,12 @@ const productCreateVals = z.strictObject({
   unspsc_code_id: recordId.optional(),
 })
 
+/** Products one SAT-key write may carry: the view keys at most this many per click (#154). */
+export const MAX_SAT_KEY_PRODUCTS = 40
+
+// The 7th operation (#154, ADR-040 2026-10-24): only the SAT key of an existing product; price, name or taxes stay in Odoo.
+const productSatKeyVals = z.strictObject({ unspsc_code_id: recordId })
+
 // A full regular invoice only: no down payments, amounts nor consolidation.
 const invoiceWizardVals = z.strictObject({
   advance_payment_method: z.literal('delivered'),
@@ -144,6 +150,7 @@ export type WriteOperationName =
   | 'sale.order.write'
   | 'sale.order.action_confirm'
   | 'product.product.create'
+  | 'product.product.write'
   | 'sale.advance.payment.inv.create'
   | 'sale.advance.payment.inv.create_invoices'
 
@@ -203,6 +210,15 @@ export const ODOO_WRITE_OPERATIONS: Readonly<Record<WriteOperationName, WriteOpe
     payload: z.strictObject({ vals_list: z.array(productCreateVals).min(1).max(40) }),
     context: 'none',
     allows: "de 1 a 40 bienes con name, default_code (ETM), list_price, type 'consu', sale_ok true y unspsc_code_id",
+  }),
+  'product.product.write': operation({
+    model: 'product.product',
+    method: 'write',
+    retry: 'sat-keys',
+    keys: ['ids', 'vals'],
+    payload: z.strictObject({ ids: z.array(recordId).min(1).max(MAX_SAT_KEY_PRODUCTS), vals: productSatKeyVals }),
+    context: 'none',
+    allows: 'de 1 a 40 productos por id; vals solo con unspsc_code_id (la clave SAT)',
   }),
   'sale.advance.payment.inv.create': operation({
     model: 'sale.advance.payment.inv',

@@ -16,6 +16,7 @@ import {
   type OdooProduct,
   type ProductMatch,
 } from '@/lib/odoo/quotation-plan'
+import { rankSatSuggestions, satSearchTerms, type SatCode, type SatSuggestion } from '@/lib/odoo/sat-keys'
 import { fold } from '@/lib/text'
 import { requireSingleMatch } from '@/lib/mcp/core/lookup'
 import { ToolError } from '@/lib/mcp/core/errors'
@@ -205,6 +206,44 @@ export async function resolveProductsForWrite(
   return {
     matches: matchProducts(lines, rows, { lineProducts: opts.lineProducts, truncated }),
     products: new Map(rows.map((p) => [p.id, p])),
+  }
+}
+
+/** Rows of the one SAT search; past it the rank may miss a better key, and the preview says so. */
+export const SAT_SEARCH_LIMIT = 400
+/** ilike conditions in that one OR: four words per product, so ~15 products get their own. */
+const MAX_SAT_TERMS = 60
+
+export interface SatSuggestionsRead {
+  /** Aligned with the texts. */
+  readonly suggestions: readonly (readonly SatSuggestion[])[]
+  readonly terms: readonly (readonly string[])[]
+  readonly truncated: boolean
+}
+
+/**
+ * ONE product.unspsc.code search for every text (#154): an OR of ilike over their words, ranked in
+ * memory. Active codes only, as Odoo's own picker; a fixed projection like the rest of the write path.
+ */
+export async function readSatSuggestions(odoo: OdooCaller, texts: readonly string[]): Promise<SatSuggestionsRead> {
+  const terms = texts.map(satSearchTerms)
+  const union = [...new Set(terms.flat())].slice(0, MAX_SAT_TERMS)
+  if (union.length === 0) return { suggestions: texts.map(() => []), terms, truncated: false }
+  const rows = rowsOf(
+    await odoo('product.unspsc.code', 'search_read', {
+      domain: orDomain(union.map((term): DomainTriple => ['name', 'ilike', escapeLike(term)])),
+      fields: ['code', 'name'],
+      limit: SAT_SEARCH_LIMIT,
+      order: 'code asc',
+    }),
+  )
+  const codes = rows.flatMap((row): SatCode[] =>
+    typeof row.code === 'string' && typeof row.name === 'string' ? [{ code: row.code, name: row.name }] : [],
+  )
+  return {
+    suggestions: terms.map((own) => rankSatSuggestions(own, codes)),
+    terms,
+    truncated: rows.length >= SAT_SEARCH_LIMIT,
   }
 }
 
