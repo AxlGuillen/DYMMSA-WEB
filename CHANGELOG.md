@@ -15,11 +15,14 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   veces.** Si la orden ya había cambiado, la app te pide recargar la página y
   no toca el inventario.
 - **Una orden entregada ya no se puede cancelar ni quitarle o agregarle
-  productos**, porque el material ya salió con el cliente. Sí puedes seguir
-  corrigiendo precios y tiempos de entrega. Si hubo una devolución, ajusta el
-  inventario a mano.
+  productos**, porque el material ya salió con el cliente. Tampoco puede
+  regresar a Pedida ni a Recibida (entre Entregada y Completada sí puedes
+  moverla). Sí puedes seguir corrigiendo precios, tiempos de entrega y la
+  recepción. Si hubo una devolución, ajusta el inventario a mano.
 - **La recepción solo toca los productos de esa orden** y ya no acepta
   recibidos en líneas que salieron completas de stock (sin pedido a URREA).
+  Además se guarda completa o nada: si algo falla a la mitad, no queda una
+  parte guardada y el inventario no se descuadra.
 - **Si agregar un producto a una orden falla, el stock apartado regresa** al
   inventario. Y si falla cambiar el precio o el tiempo de entrega de una línea,
   la app ahora te avisa en vez de decir que se guardó.

@@ -975,7 +975,8 @@ export default function DocsPage() {
             <ul className="ml-4 list-disc space-y-1.5 text-muted-foreground">
               <li>
                 <strong className="text-foreground">Cambiar estado</strong> {'\u2014'} dropdown con los 5 estados activos.
-                Disponible en cualquier estado excepto <em>Cancelado</em>.
+                Disponible en cualquier estado excepto <em>Cancelado</em>. Una orden Entregada o Completada solo
+                cambia entre esos dos: ya no regresa a Pedido ni a Recibido.
               </li>
               <li>
                 <strong className="text-foreground">Planificar compra</strong> {'\u2014'} abre el planificador de mayoreo vs menudeo.
@@ -1080,8 +1081,9 @@ export default function DocsPage() {
           <div className="space-y-3 text-sm">
             <p className="font-medium text-base">Acciones sobre productos individuales</p>
             <p className="text-muted-foreground text-xs mb-1">
-              Disponibles solo cuando la orden no esta Completada ni Cancelada. En una orden Entregada solo se edita
-              el precio: agregar o eliminar productos moveria inventario que ya salio con el cliente.
+              Disponibles solo cuando la orden no esta Completada ni Cancelada. En una orden Entregada se siguen
+              editando el precio, el tiempo de entrega y la recepcion; agregar o eliminar productos ya no, porque
+              moveria inventario que salio con el cliente.
             </p>
             <div className="space-y-3">
               <div className="rounded-md border px-4 py-3 space-y-1">
@@ -1144,7 +1146,8 @@ export default function DocsPage() {
               <span className="rounded-full border px-2 py-0.5 bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-medium text-xs">Cancelado</span>{' '}
               usando el boton de cancelar, lo que restaura el inventario apartado.
               Eliminar la orden solo devuelve el stock si sigue en tienda (Pedido o Recibido): una
-              cancelada ya lo devolvio, y una entregada o completada ya salio con el cliente.
+              cancelada ya lo devolvio, y una entregada o completada ya salio con el cliente. Por eso una
+              orden Entregada o Completada ya no regresa a Pedido ni a Recibido.
             </p>
             <Table>
               <TableHeader>
@@ -1187,7 +1190,7 @@ export default function DocsPage() {
                 <TableBody>
                   {[
                     { action: 'Ver detalle de la orden', vals: [true, true, true, true, true] },
-                    { action: 'Cambiar estado', vals: [true, true, true, false, false] },
+                    { action: 'Cambiar estado (desde Entregado/Completado solo entre ellos)', vals: [true, true, true, true, false] },
                     { action: 'Formato de Entrega / Imprimir', vals: [true, true, true, true, true] },
                     { action: 'Planificar compra / corte', vals: [true, true, true, true, true] },
                     { action: 'Cancelar orden', vals: [true, true, false, false, false] },

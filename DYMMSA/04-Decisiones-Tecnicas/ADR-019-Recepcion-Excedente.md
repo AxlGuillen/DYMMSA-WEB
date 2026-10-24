@@ -72,12 +72,11 @@ existentes; el modelo corregido aplica hacia adelante.
   dentro de un request, pero dos requests simultáneos pueden pisarse (igual
   que `restoreOrderInventory`). Un RPC `quantity = quantity + delta` lo
   arreglaría — fuera de alcance con un solo usuario operando.
-  **Resuelto el 2026-10-23 (#157):** el delta lo aplica `adjust_inventory()`
-  en la BD con bloqueo de fila, y crear, cancelar, eliminar y quitar líneas
-  usan `reserve_inventory()`/`release_inventory()` y sus variantes
-  transaccionales (ver [[02-Arquitectura/Base-de-Datos]]). La recepción en
-  lote sigue sin ser una sola transacción, pero ahora valida todo antes de la
-  primera escritura.
+  **Resuelto el 2026-10-23 (#157):** la recepción entera es una transacción
+  (`receive_order_items()`): bloquea la orden, escribe lo recibido y aplica el
+  delta del excedente con bloqueo de fila, o no escribe nada. Crear, cancelar,
+  eliminar y quitar líneas usan `reserve_inventory()`/`release_inventory()` y
+  sus variantes transaccionales (ver [[02-Arquitectura/Base-de-Datos]]).
 - **`not_supplied` con `recibido > 0`**: la facturación lo ignora (regla
   existente) pero el excedente SÍ entra a inventario (el cálculo es
   independiente del status — piezas físicas son piezas físicas). El Excel de
