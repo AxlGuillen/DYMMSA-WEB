@@ -31,7 +31,7 @@ Foto de la nube (consulta de solo lectura, 2026-10-22): 279 filas, 92 con stock,
 - **Auth / rol:** `requireAuth`; RLS abierta.
 - **Entrada:** `id` del path.
 - **Qué hace:** `delete().eq('id', id)` → `{ ok: true }` **aunque la fila no exista** (no revisa filas afectadas).
-- **Reglas y efectos secundarios:** no revisa órdenes abiertas ni stock; se pierde la gaveta. Si luego se cancela o elimina una orden abierta con ese código, `restoreOrderInventory()` (`src/lib/inventory.ts`) vuelve a crear la fila **sin** ubicación. No hay FK (cruce por valor), así que nada lo bloquea.
+- **Reglas y efectos secundarios:** no revisa órdenes abiertas ni stock; se pierde la gaveta. Si luego se cancela o elimina una orden abierta con ese código, `release_inventory` (dentro de `cancel_order_restock`/`delete_order_restock`, #157) vuelve a crear la fila **sin** ubicación; `adjust_inventory` hace lo mismo con el excedente de una recepción. No hay FK (cruce por valor), así que nada lo bloquea.
 - **Dónde vive la lógica:** inline (trivial).
 - **Quién la usa en la UI:** `useDeleteInventoryItem` → `src/components/inventory/InventoryTable.tsx` (diálogo de confirmación).
 
@@ -44,7 +44,7 @@ Foto de la nube (consulta de solo lectura, 2026-10-22): 279 filas, 92 con stock,
 - **Quién la usa en la UI:** `useImportInventory` → `src/components/inventory/InventoryImporter.tsx` (radio "Actualizar" / "Reemplazar todo" con advertencia).
 
 ### Otros escritores de `store_inventory` (fuera de este grupo, pero chocan con un ajuste manual)
-`POST /api/quotations/[id]/create-order` (descuenta al crear), `POST /api/orders/create`, `/api/orders/[id]/items` y `/items/[itemId]` (ítems manuales), `POST /api/orders/[id]/confirm-reception` (solo el excedente, por delta, con clamp en 0 y warning) y `restoreOrderInventory()` (cancelar/eliminar: `computeRestoration()` = `in_stock + min(recibido, pedido)`). Todos cruzan con `.eq('model_code', …)` **exacto**; la vista de marca cruza con `upper(trim())`.
+`POST /api/quotations/[id]/create-order` (descuenta al crear), `POST /api/orders/create`, `/api/orders/[id]/items` y `/items/[itemId]` (ítems manuales), `POST /api/orders/[id]/confirm-reception` (solo el excedente, por delta, con clamp en 0 y warning) y cancelar/eliminar (`cancel_order_restock`/`delete_order_restock`, que suman `in_stock + min(recibido, pedido)` como `computeRestoration()`). Desde #157 todo pasa por las funciones atómicas de `atomic_order_stock`. Todos cruzan con `.eq('model_code', …)` **exacto**; la vista de marca cruza con `upper(trim())`.
 
 ## Cobertura MCP actual
 
