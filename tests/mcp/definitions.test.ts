@@ -23,7 +23,14 @@ describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (nam
     expect(tool.annotations.readOnlyHint === true).toBe(tool.kind === 'read')
     if (tool.kind === 'write') expect(tool.docs.limits?.length).toBeGreaterThan(0)
     expect(tool.docs.example.length).toBeGreaterThan(0)
-    expect(tool.annotations.openWorldHint).toBe(false)
+    // Odoo is a third-party system others edit (ADR-041 §10); DYMMSA-WEB's domain is closed.
+    expect(tool.annotations.openWorldHint).toBe(tool.connector === 'odoo')
+  })
+
+  test('ANOTACIONES (ADR-041 §10): una escritura de Odoo declara destructiveHint e idempotentHint', () => {
+    if (tool.connector !== 'odoo' || tool.kind !== 'write') return
+    expect(typeof tool.annotations.destructiveHint).toBe('boolean')
+    expect(typeof tool.annotations.idempotentHint).toBe('boolean')
   })
 
   test('REGLA (ADR-040): toda escritura de Odoo es de administrador', () => {

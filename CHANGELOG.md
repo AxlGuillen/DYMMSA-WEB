@@ -3,6 +3,18 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-24
+
+### Mejorado
+- [admin] **El asistente de Odoo tiene nombres nuevos y menos herramientas.**
+  Ahora cada herramienta dice lo que hace («Documento por folio», «Cliente y
+  estado de cuenta», «Cartera por cobrar»…). Para saber quién nos debe hay
+  una sola cifra, la misma de la pantalla Clientes. La factura, la venta y el
+  pago se consultan con su folio en la misma herramienta. El directorio de
+  empleados y la flotilla siguen disponibles con la búsqueda general. Si
+  tenías permisos guardados para estas herramientas en Claude, te los volverá
+  a pedir.
+
 ## 2026-10-23
 
 ### Corregido

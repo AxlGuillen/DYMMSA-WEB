@@ -13,6 +13,7 @@ import {
   checkMcpUnauthenticated,
   runHealthChecks,
 } from '@/lib/health'
+import { ODOO_MCP_PATH } from '@/lib/mcp/core/routes'
 
 type Fetcher = typeof fetch
 
@@ -61,8 +62,11 @@ function fetchRouter(routes: Record<string, StubResponse>): Fetcher {
 function healthyFetch(overrides: Record<string, StubResponse> = {}): Fetcher {
   return fetchRouter({
     'oauth-authorization-server': { json: { issuer: ISSUER } },
+    // The Odoo connector's metadata first: the router takes the first key the URL contains (#155 B1).
+    'oauth-protected-resource/api/odoo/mcp': { json: { resource: 'http://localhost:3000/api/odoo/mcp' } },
     'oauth-protected-resource': { json: { resource: 'http://localhost:3000/api/mcp' } },
     '/api/mcp': { status: 401, headers: { 'www-authenticate': 'Bearer resource_metadata="..."' } },
+    '/api/odoo/mcp': { status: 401, headers: { 'www-authenticate': 'Bearer resource_metadata="..."' } },
     'api.github.com': { ok: true, status: 200 },
     ...overrides,
   })
@@ -183,6 +187,15 @@ describe('checks del MCP remoto (OAuth, ADR-023)', () => {
     const mute = healthyFetch({ '/api/mcp': { status: 401, headers: {} } })
     expect((await checkMcpUnauthenticated(mute)).status).toBe('fail')
   })
+
+  test('conector Odoo (#155 B1): su metadata anuncia /api/odoo/mcp y su endpoint responde 401 sin token', async () => {
+    expect((await checkProtectedResource(healthyFetch(), ODOO_MCP_PATH)).status).toBe('ok')
+    const wrongResource = healthyFetch({ 'oauth-protected-resource/api/odoo/mcp': { json: { resource: 'http://localhost:3000/api/mcp' } } })
+    expect((await checkProtectedResource(wrongResource, ODOO_MCP_PATH)).status).toBe('fail')
+    expect((await checkMcpUnauthenticated(healthyFetch(), ODOO_MCP_PATH)).status).toBe('ok')
+    const failOpen = healthyFetch({ '/api/odoo/mcp': { status: 200, json: { jsonrpc: '2.0' } } })
+    expect((await checkMcpUnauthenticated(failOpen, ODOO_MCP_PATH)).status).toBe('fail')
+  })
 })
 
 describe('runHealthChecks (agregación)', () => {
@@ -193,7 +206,7 @@ describe('runHealthChecks (agregación)', () => {
     expect(report.app).toBe('dymmsa-web')
     expect(Object.keys(report.checks)).toEqual([
       'quotations', 'orders', 'inventory', 'storage', 'github', 'odoo',
-      'oauth_server', 'protected_resource', 'mcp_unauthenticated',
+      'oauth_server', 'protected_resource', 'mcp_unauthenticated', 'odoo_protected_resource', 'odoo_mcp_unauthenticated',
     ])
   })
 

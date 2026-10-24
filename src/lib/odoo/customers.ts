@@ -96,6 +96,20 @@ export async function fetchCustomers(odoo: OdooCaller): Promise<OdooRows<OdooCus
   }
 }
 
+/** Name and DSO of the given partners, 100 per call like fetchCustomers (#155: odoo_list_receivables reads only those with a balance). */
+export async function fetchCustomersByIds(odoo: OdooCaller, ids: readonly number[]): Promise<OdooCustomer[]> {
+  const fields = allowedFields('res.partner', ['name', 'days_sales_outstanding'])
+  const unique = [...new Set(ids)].sort((a, b) => a - b)
+  const rows: OdooCustomer[] = []
+  for (let i = 0; i < unique.length; i += PAGE) {
+    const domain: DomainTriple[] = [['id', 'in', unique.slice(i, i + PAGE)]]
+    assertDomainAllowed('res.partner', domain)
+    const page = normalizeRecords(await odoo('res.partner', 'search_read', { domain, fields, limit: PAGE }))
+    for (const r of page) rows.push(toCustomer(r))
+  }
+  return rows
+}
+
 /** One partner by id: the detail must not pay for the whole list on a cold cache (review PR #148). */
 export async function fetchCustomer(odoo: OdooCaller, partnerId: number): Promise<OdooCustomer | null> {
   const domain: DomainTriple[] = [['id', '=', partnerId], ['customer_rank', '>', 0]]

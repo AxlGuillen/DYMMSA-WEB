@@ -1,0 +1,743 @@
+[
+  {
+    "name": "odoo_get_document",
+    "title": "Documento por folio (Odoo)",
+    "description": "Un documento de Odoo completo por folio; el prefijo elige el tipo y `tipo` lo fuerza. S… = venta o cotización: estado, vendedor, facturas ligadas y líneas pedido/entregado/facturado/por facturar (\"¿qué falta por facturar?\"). PAY… = pago: su complemento de pago (REP) ante el SAT y las facturas que paga. El resto = factura o nota de crédito: montos, saldo, término de pago, notas al pie (\"PEDIDO: …\"), vínculo real con la venta, timbrado CFDI y líneas. Acepta un folio parcial si es único; sin coincidencia o con varias, error. La respuesta trae `tipo`.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "folio": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Folio, p. ej. \"F00167\", \"S00247\" o \"PAY00068\""
+        },
+        "tipo": {
+          "description": "Solo si el prefijo no lo dice: factura (también nota de crédito), venta o pago",
+          "type": "string",
+          "enum": [
+            "factura",
+            "venta",
+            "pago"
+          ]
+        }
+      },
+      "required": [
+        "folio"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_get_customer",
+    "title": "Cliente y estado de cuenta (Odoo)",
+    "description": "Expediente de UN cliente de Odoo por nombre, RFC o #id (gana la coincidencia exacta; ninguna o varias = error con las opciones): contacto, ESTADO DE CUENTA bruto por factura según la fecha de VENCIMIENTO (`vence_desde`/`vence_hasta`; sin fechas ni `incluir` = todo lo vencido + lo que vence este mes, como la pantalla Clientes), notas de crédito aparte sin restar, `cartera_contable` (saldo neto de Odoo y días promedio de pago: no se cuadra contra lo bruto), ventas y facturación. Para toda la cartera, odoo_list_receivables.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cliente": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, RFC o #id, p. ej. \"Andritz\" o \"#24\""
+        },
+        "vence_desde": {
+          "description": "YYYY-MM-DD",
+          "type": "string"
+        },
+        "vence_hasta": {
+          "description": "YYYY-MM-DD",
+          "type": "string"
+        },
+        "incluir": {
+          "description": "Default ambas",
+          "type": "string",
+          "enum": [
+            "vencidas",
+            "por_vencer",
+            "ambas"
+          ]
+        }
+      },
+      "required": [
+        "cliente"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_list_receivables",
+    "title": "Cartera por cobrar (Odoo)",
+    "description": "Toda la cartera de Odoo: \"¿quién nos debe y desde cuándo?\", \"¿a quién le cobro primero?\", \"¿quién paga más lento?\". Cifra bruta por factura abierta, como la pantalla Clientes: totales, `por_cliente` (vencido, por vencer, total y días promedio de pago), las facturas más antiguas y las notas de crédito aparte, sin restar. `ordenar`: vencido (default), total o dias_pago. Para el estado de cuenta de uno, odoo_get_customer.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ordenar": {
+          "description": "Default vencido",
+          "type": "string",
+          "enum": [
+            "vencido",
+            "total",
+            "dias_pago"
+          ]
+        },
+        "limite": {
+          "description": "Clientes y facturas por lista (default 10)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_summarize_invoices",
+    "title": "Resumen de facturación (Odoo)",
+    "description": "Resumen de las facturas de cliente contabilizadas en Odoo por periodo: total facturado y pendiente, agrupado por estado_pago (default), cliente o mes. Úsala para \"¿cómo cerró julio?\" o \"facturación por cliente del año\". Las notas de crédito EMITIDAS EN EL PERIODO van aparte en `notas_credito` (total, sin_aplicar; no restan del facturado) — distinto de las abiertas a hoy que da odoo_list_receivables.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "description": "Desde (YYYY-MM-DD, sobre invoice_date)",
+          "type": "string"
+        },
+        "date_to": {
+          "description": "Hasta (YYYY-MM-DD)",
+          "type": "string"
+        },
+        "group_by": {
+          "type": "string",
+          "enum": [
+            "estado_pago",
+            "cliente",
+            "mes"
+          ]
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_summarize_sales",
+    "title": "Resumen de ventas (Odoo)",
+    "description": "Ventas registradas en Odoo por periodo: total y órdenes, agrupado por estado (default), cliente, vendedor o mes. Por default solo ventas CONFIRMADAS (sale/done); incluir=\"todas\" suma las cotizaciones draft/sent de Odoo. No confundir con las cotizaciones de DYMMSA-WEB.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "description": "Desde (YYYY-MM-DD, sobre date_order)",
+          "type": "string"
+        },
+        "date_to": {
+          "description": "Hasta (YYYY-MM-DD)",
+          "type": "string"
+        },
+        "group_by": {
+          "type": "string",
+          "enum": [
+            "estado",
+            "cliente",
+            "vendedor",
+            "mes"
+          ]
+        },
+        "incluir": {
+          "type": "string",
+          "enum": [
+            "confirmadas",
+            "todas"
+          ]
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_audit_invoice_links",
+    "title": "Facturas sin orden de venta (Odoo)",
+    "description": "Revisión de que cada factura de cliente contabilizada en Odoo esté ligada a su orden de venta, en una llamada: lee las facturas del periodo (default últimos 30 días; opcionalmente un cliente) y devuelve las HUÉRFANAS (sin orden ligada ni origen) y las de VÍNCULO ROTO (el origen menciona una orden pero ninguna está ligada), cada una con folio, cliente, fecha, total, origen, notas al pie (\"PEDIDO: …\") y término de pago. Usa el vínculo real (botón \"Órdenes de venta\"), no el texto del origen. Pensada para la revisión periódica.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "description": "Desde (YYYY-MM-DD, sobre invoice_date); default hace 30 días",
+          "type": "string"
+        },
+        "date_to": {
+          "description": "Hasta (YYYY-MM-DD); default hoy",
+          "type": "string"
+        },
+        "cliente": {
+          "description": "Nombre (o parte) del cliente para acotar",
+          "type": "string"
+        },
+        "incluir_ligadas": {
+          "description": "true = también listar las facturas correctamente ligadas",
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_audit_payment_complements",
+    "title": "Auditoría de complementos de pago (Odoo)",
+    "description": "Barrido de pagos de cliente de Odoo en un rango de fechas, clasificados por su complemento de pago (REP): en regla, SIN REP, o con REP fallido/no válido ante el SAT. El cruce pago→REP es por las facturas conciliadas. Default: últimos 30 días. Úsala para el barrido mensual de \"¿qué pagos se quedaron sin timbrar?\"; el detalle de uno, con odoo_get_document.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "description": "Desde (YYYY-MM-DD); default hace 30 días",
+          "type": "string"
+        },
+        "date_to": {
+          "description": "Hasta (YYYY-MM-DD); default hoy",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_search_stock",
+    "title": "Existencias del almacén (Odoo)",
+    "description": "Existencias en el ALMACÉN DE ODOO, buscando por nombre o código de producto y sumando todas las ubicaciones. ⚠️ NO es el inventario de la tienda: ese es search_inventory, del conector DYMMSA-WEB. Son dos inventarios distintos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "producto": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre o código del producto, p. ej. \"punta de cobre\" o \"510023782\""
+        }
+      },
+      "required": [
+        "producto"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_search_records",
+    "title": "Buscar registros (Odoo)",
+    "description": "Primitiva: lee registros normalizados (máx 50) de un modelo del catálogo permitido de Odoo: facturas y sus líneas, pagos, documentos CFDI/REP, contactos, ventas y sus líneas, productos, existencias, el directorio de empleados (hr.employee) y la flotilla (fleet.vehicle y su bitácora fleet.vehicle.log.services). Úsala solo cuando ninguna tool curada responda: no aplica sus reglas (notas de crédito aparte, solo publicadas o confirmadas, día de Morelia). Para totales, odoo_aggregate_records.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Modelo Odoo del catálogo, p. ej. \"account.move\" o \"hr.employee\""
+        },
+        "domain": {
+          "description": "Filtros Odoo como tripletas [campo, operador, valor] con AND implícito, p. ej. [[\"payment_state\",\"=\",\"not_paid\"]]",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {}
+            ]
+          }
+        },
+        "fields": {
+          "description": "Campos a devolver (subset del catálogo; omite para todos los permitidos)",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limit": {
+          "description": "Máx registros (default 20)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "order": {
+          "description": "Orden, p. ej. \"invoice_date desc\"",
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_aggregate_records",
+    "title": "Totales agrupados (Odoo)",
+    "description": "Primitiva: totales y conteos agrupados calculados POR Odoo sobre un modelo del catálogo permitido, sin traer registros: agrupa por un campo y suma/promedia métricas. Ej.: facturas por payment_state con amount_total:sum. No separa notas de crédito ni filtra por estado: la facturación o las ventas de un periodo salen de odoo_summarize_invoices / odoo_summarize_sales.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Modelo Odoo del catálogo"
+        },
+        "domain": {
+          "description": "Filtros Odoo como tripletas [campo, operador, valor] con AND implícito, p. ej. [[\"payment_state\",\"=\",\"not_paid\"]]",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {}
+            ]
+          }
+        },
+        "group_by": {
+          "type": "string",
+          "description": "Campo de agrupación, p. ej. \"payment_state\", \"partner_id\" o \"invoice_date:month\""
+        },
+        "metrics": {
+          "description": "Métricas \"campo:agregador\" (sum|avg|min|max|count), p. ej. [\"amount_total:sum\"]",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "model",
+        "group_by"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_preview_quotation",
+    "title": "Vista previa de cotización (Odoo)",
+    "description": "SOLO LEE: arma la vista previa de una cotización de Odoo y firma la `clave` que exige odoo_save_quotation (vale 30 min). Crear: `cliente` (nombre, RFC o #id; nunca se crean clientes) + `lineas`, la lista COMPLETA: cada producto con codigo, etm o producto_id, cantidad y precio unitario sin IVA; nota/seccion para textos. Editar: `folio` + `lineas` (parte de lineas_como_entrada). Revisar o confirmar: solo `folio`. En Claude se ve como tabla; los productos que falten se dan de alta con su botón. Muestra el resumen (bloqueos, avisos, al_confirmar) y espera el sí antes de guardar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cliente": {
+          "description": "Crear: nombre, RFC o #id del cliente",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "folio": {
+          "description": "Cotización existente: revisar (solo folio) o editar (con lineas)",
+          "type": "string",
+          "pattern": "^S\\d{5,}$"
+        },
+        "lineas": {
+          "description": "La lista COMPLETA deseada",
+          "minItems": 1,
+          "maxItems": 80,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "linea_id": {
+                "description": "Línea existente (editar): de lineas_como_entrada",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "producto_id": {
+                "description": "Id del producto en Odoo (desempata)",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "codigo": {
+                "description": "Código de modelo: el inicio del nombre en Odoo",
+                "type": "string",
+                "maxLength": 40
+              },
+              "etm": {
+                "description": "ETM (default_code)",
+                "type": "string",
+                "maxLength": 60
+              },
+              "marca": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "descripcion": {
+                "description": "Solo para dar de alta un producto que falta",
+                "type": "string",
+                "maxLength": 200
+              },
+              "clave_sat": {
+                "description": "Solo producto nuevo",
+                "type": "string",
+                "pattern": "^\\d{8}$"
+              },
+              "cantidad": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 100000
+              },
+              "precio": {
+                "description": "Unitario sin IVA; obligatorio",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "descuento": {
+                "description": "%",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "nota": {
+                "description": "Línea de nota (nueva: hasta 300)",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "seccion": {
+                "description": "Línea de sección (nueva: hasta 300)",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "vigencia": {
+          "description": "Vence el (YYYY-MM-DD)",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "ui": {
+        "resourceUri": "ui://dymmsa/odoo-quotation.html"
+      },
+      "ui/resourceUri": "ui://dymmsa/odoo-quotation.html"
+    }
+  },
+  {
+    "name": "odoo_save_quotation",
+    "title": "Guardar cotización (Odoo)",
+    "description": "Escribe en Odoo lo que mostró odoo_preview_quotation, con los MISMOS datos y su `clave`: crea la cotización en BORRADOR, la edita (folio + lineas) o la confirma como venta (folio + confirmar: true, tras mostrar al_confirmar y recibir el sí). Nunca la envía al cliente, ni publica ni timbra. Repetir la misma llamada no duplica; si responde que no se sabe si guardó, espera y repite exactamente la misma.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cliente": {
+          "description": "Crear: nombre, RFC o #id del cliente",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "folio": {
+          "description": "Cotización existente: revisar (solo folio) o editar (con lineas)",
+          "type": "string",
+          "pattern": "^S\\d{5,}$"
+        },
+        "lineas": {
+          "description": "La lista COMPLETA deseada",
+          "minItems": 1,
+          "maxItems": 80,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "linea_id": {
+                "description": "Línea existente (editar): de lineas_como_entrada",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "producto_id": {
+                "description": "Id del producto en Odoo (desempata)",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "codigo": {
+                "description": "Código de modelo: el inicio del nombre en Odoo",
+                "type": "string",
+                "maxLength": 40
+              },
+              "etm": {
+                "description": "ETM (default_code)",
+                "type": "string",
+                "maxLength": 60
+              },
+              "marca": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "descripcion": {
+                "description": "Solo para dar de alta un producto que falta",
+                "type": "string",
+                "maxLength": 200
+              },
+              "clave_sat": {
+                "description": "Solo producto nuevo",
+                "type": "string",
+                "pattern": "^\\d{8}$"
+              },
+              "cantidad": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 100000
+              },
+              "precio": {
+                "description": "Unitario sin IVA; obligatorio",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "descuento": {
+                "description": "%",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "nota": {
+                "description": "Línea de nota (nueva: hasta 300)",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "seccion": {
+                "description": "Línea de sección (nueva: hasta 300)",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "vigencia": {
+          "description": "Vence el (YYYY-MM-DD)",
+          "type": "string"
+        },
+        "confirmar": {
+          "description": "Confirmar como venta: solo folio, sin lineas",
+          "type": "boolean",
+          "const": true
+        },
+        "clave": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "La clave de la vista previa"
+        }
+      },
+      "required": [
+        "clave"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "odoo_save_product",
+    "title": "Alta de productos (Odoo)",
+    "description": "Solo la llama el botón de la vista de odoo_preview_quotation: da de alta en Odoo los productos nuevos de esa vista previa (bienes, IVA 16, factura por entrega). Sin la autorización de la vista no crea nada.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "productos": {
+          "minItems": 1,
+          "maxItems": 40,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "descripcion": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "marca": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "etm": {
+                "type": "string",
+                "pattern": "^\\d{9}(, ?\\d{9})*$"
+              },
+              "precio": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "clave_sat": {
+                "type": "string",
+                "pattern": "^\\d{8}$"
+              }
+            },
+            "required": [
+              "codigo",
+              "descripcion",
+              "precio"
+            ],
+            "additionalProperties": false
+          },
+          "description": "productos_para_alta, tal cual"
+        },
+        "autorizacion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "La de la vista previa"
+        }
+      },
+      "required": [
+        "productos",
+        "autorizacion"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "ui": {
+        "visibility": [
+          "app"
+        ]
+      }
+    }
+  },
+  {
+    "name": "odoo_create_draft_invoice",
+    "title": "Factura en borrador (Odoo)",
+    "description": "Crea la factura COMPLETA en BORRADOR de una venta confirmada de Odoo (`folio`), tras decir cuál y recibir el sí. Antes revisa que lo de bienes ya se haya entregado (validado en Odoo) y que no tenga ya una factura en borrador. Sin anticipos ni facturas parciales. Nunca publica, timbra ni envía: eso se hace en Odoo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "folio": {
+          "type": "string",
+          "pattern": "^S\\d{5,}$",
+          "description": "Folio exacto de la venta confirmada"
+        }
+      },
+      "required": [
+        "folio"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  }
+]

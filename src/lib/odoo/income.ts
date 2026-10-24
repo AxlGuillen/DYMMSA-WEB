@@ -98,9 +98,13 @@ export async function fetchMonthCollections(odoo: OdooCaller, month: string): Pr
 /**
  * Every open invoice and credit note in ONE read (the queue makes each call cost 1.1 s);
  * the due/overdue split and the credit-note summary happen in lib/income.ts.
+ * `extra` narrows the read, e.g. to one partner (odoo_get_customer, #155).
  */
-export async function fetchOpenCustomerMoves(odoo: OdooCaller): Promise<OdooRows<OdooOpenInvoice>> {
-  const domain = [...OPEN_CUSTOMER_MOVES_DOMAIN]
+export async function fetchOpenCustomerMoves(
+  odoo: OdooCaller,
+  extra: readonly DomainTriple[] = [],
+): Promise<OdooRows<OdooOpenInvoice>> {
+  const domain = [...OPEN_CUSTOMER_MOVES_DOMAIN, ...extra]
   assertDomainAllowed('account.move', domain)
   const raw = await odoo('account.move', 'search_read', {
     domain,
