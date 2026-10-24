@@ -112,6 +112,28 @@ describe('ApprovalClient — filtros y aprobar visibles (#24)', () => {
     expect(driverMock.mock.calls[0][0].steps).toHaveLength(APPROVAL_TOUR.length)
   })
 
+  test('si DYMMSA cambió la cotización (409 stale_items), muestra el aviso para recargar y no lo da por guardado (#157)', async () => {
+    const message = 'DYMMSA actualizó esta cotización mientras la revisabas. No se guardó nada: recarga la página.'
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message, code: 'stale_items' }), { status: 409 }),
+    )
+    try {
+      const user = userEvent.setup()
+      renderWithProviders(<ApprovalClient quotation={sentQuotation()} token="tok-1" />)
+      await user.click(screen.getByRole('button', { name: /aprobar todos/i }))
+      await user.click(screen.getByRole('button', { name: /guardar avance/i }))
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(message)
+      expect(within(alert).getByRole('button', { name: /recargar página/i })).toBeInTheDocument()
+      expect(fetchMock).toHaveBeenCalledWith('/api/approve/tok-1', expect.objectContaining({ method: 'POST' }))
+      // No "saved progress" banner: nothing was written.
+      expect(screen.queryByText(/tienes avance guardado/i)).not.toBeInTheDocument()
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
   test('colores de sección: rotan por índice y el override guardado gana (issue #73)', () => {
     const quotation = sentQuotation()
     // sep-b carries a manual override; sep-a stays automatic.

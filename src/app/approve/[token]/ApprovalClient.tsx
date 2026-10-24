@@ -3,7 +3,9 @@
 import { useMemo, useState } from 'react'
 import Image from 'next/image'
 import {
+  AlertTriangle,
   CheckCircle,
+  RefreshCw,
   XCircle,
   Package,
   SeparatorHorizontal,
@@ -63,6 +65,14 @@ interface ItemDecision {
   is_approved: boolean
 }
 
+/** The route's error with its machine-readable `code` (e.g. `stale_items`, #157). */
+class ApprovalRequestError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message)
+    this.name = 'ApprovalRequestError'
+  }
+}
+
 interface Props {
   quotation: QuotationWithItems
   token: string
@@ -89,6 +99,7 @@ export function ApprovalClient({ quotation, token }: Props) {
   const [isSaving, setIsSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [staleMessage, setStaleMessage] = useState<string | null>(null)
   const [savedApprovedCount, setSavedApprovedCount] = useState(
     () => productItems.filter((item) => item.is_approved === true).length,
   )
@@ -156,8 +167,17 @@ export function ApprovalClient({ quotation, token }: Props) {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      throw new Error(err.message || 'Error al guardar')
+      throw new ApprovalRequestError(err.message || 'Error al guardar', err.code)
     }
+  }
+
+  /** A stale page (#157) gets a banner that stays, not a toast that fades: nothing was saved. */
+  const reportError = (error: unknown, fallback: string) => {
+    if (error instanceof ApprovalRequestError && error.code === 'stale_items') {
+      setStaleMessage(error.message)
+      return
+    }
+    toast.error(error instanceof Error ? error.message : fallback)
   }
 
   const handleSaveProgress = async () => {
@@ -169,7 +189,7 @@ export function ApprovalClient({ quotation, token }: Props) {
         description: 'Puedes cerrar y continuar más tarde con este mismo enlace.',
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al guardar el avance')
+      reportError(error, 'Error al guardar el avance')
     } finally {
       setIsSaving(false)
     }
@@ -182,7 +202,7 @@ export function ApprovalClient({ quotation, token }: Props) {
       await postDecisions(true)
       setSubmitted(true)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al enviar decisión')
+      reportError(error, 'Error al enviar decisión')
     } finally {
       setIsSubmitting(false)
     }
@@ -252,6 +272,22 @@ export function ApprovalClient({ quotation, token }: Props) {
             }`}
           >
             {approvedBanner ? '✓ Esta cotización ya fue aprobada' : '✗ Esta cotización fue rechazada'}
+          </div>
+        )}
+
+        {staleMessage && (
+          <div
+            role="alert"
+            className="flex flex-col items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-500/10 p-4 text-center text-sm font-medium text-amber-800 backdrop-blur sm:flex-row sm:justify-between sm:text-left dark:text-amber-300"
+          >
+            <span className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              {staleMessage}
+            </span>
+            <Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={() => window.location.reload()}>
+              <RefreshCw className="mr-1.5 size-3.5" />
+              Recargar página
+            </Button>
           </div>
         )}
 
