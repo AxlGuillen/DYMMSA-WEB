@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
-import type { EtmProduct, EtmProductInsert, EtmProductUpdate } from '@/types/database'
+import type { EtmProduct, EtmProductInsert, EtmProductUpdate, ProductImportResult } from '@/types/database'
 
 const PRODUCTS_KEY = ['products']
 
@@ -120,19 +120,8 @@ export function useImportProducts() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (formData: FormData) => {
-      const response = await fetch('/api/products/import', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Import failed')
-      }
-
-      return response.json()
-    },
+    mutationFn: (formData: FormData) =>
+      fetchJson<ProductImportResult>('/api/products/import', { method: 'POST', body: formData }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY })
     },

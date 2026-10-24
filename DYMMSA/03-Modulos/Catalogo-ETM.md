@@ -21,8 +21,12 @@ Ver esquema completo en [[02-Arquitectura/Base-de-Datos#etm_products]].
 ### Importación masiva desde Excel
 - Ruta: `POST /api/products/import`
 - Componente: `ExcelImporter`
-- Formato Excel esperado: columnas `ETM, DESCRIPTION, DESCRIPTION_ES, MODEL_CODE, PRICE, BRAND`
-- Upsert por ETM: si ya existe, actualiza; si no, inserta.
+- Formato Excel esperado: columnas `ETM, DESCRIPTION, DESCRIPTION_ES, MODEL_CODE, PRICE, BRAND` (`ETM` y `MODEL_CODE` obligatorias en el encabezado).
+- Upsert por ETM con las **reglas del auto-learn** (#157, `importProducts()` en `src/lib/products-store.ts`): si ya existe, solo las celdas con valor que cambian (una vacía no borra; `created_by` intacto); si no, inserta, con `URREA` solo si trae `MODEL_CODE`. Nunca escribe `is_sold` ni la Descripción DYMMSA. «Solo agregar nuevos» deja los existentes como están.
+- Un precio negativo o no numérico → 400 que nombra la fila; no se escribe nada.
+
+### Validación en el servidor (#157)
+- `POST`/`PATCH /api/products` validan en `src/lib/products-store.ts`: precio ≥ 0, `is_sold` tri-estado y la guarda ADR-013 (`assertCuratedAllowed()`: no se guarda una Descripción DYMMSA cuando el producto tiene la oficial del catálogo URREA por su `(model_code, brand)`).
 
 ### Auto-learn (automático al guardar cotización)
 - Ruta: parte de `POST /api/quotations/save`

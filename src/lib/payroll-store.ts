@@ -281,7 +281,7 @@ export async function confirmDrafts(db: SupabaseClient, start: ISODate): Promise
   return (data ?? []).length
 }
 
-/** Closing freezes the cut (the trigger enforces it); a draft left behind would be lost hours. */
+/** One DB transaction each (#157): closing refuses drafts (lost hours) and snapshots shift and area, reopening clears it. */
 export async function setPeriodClosed(
   db: SupabaseClient,
   start: ISODate,
@@ -289,33 +289,21 @@ export async function setPeriodClosed(
   actorName: string | null,
 ): Promise<PayrollPeriod> {
   assertPeriodStart(start)
-  const now = new Date().toISOString()
-  if (closed) {
-    const dates = periodDates(start)
-    const { count, error } = await db
-      .from('payroll_days')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'draft')
-      .gte('work_date', dates[0])
-      .lte('work_date', dates[6])
-    if (error) throw new Error(`payroll_days count: ${error.message}`)
-    if ((count ?? 0) > 0) throw new PayrollError(`Hay ${count} días en borrador: confírmalos o bórralos antes de cerrar`)
-  }
-  if (!closed) {
-    // Never closed = nothing to reopen: a "reopened" stamp would record something that did not happen.
-    const current = await loadPeriodRow(db, start)
-    if (current?.status !== 'closed') {
-      return current ?? { start_date: start, status: 'open', closed_at: null, closed_by_name: null, reopened_at: null, reopened_by_name: null }
+  const { data, error } = await db.rpc(closed ? 'close_payroll_period' : 'reopen_payroll_period', {
+    p_start: start,
+    p_actor_name: actorName,
+  })
+  if (error) {
+    if (error.message === 'drafts_pending') {
+      throw new PayrollError(`Hay ${error.details} días en borrador: confírmalos o bórralos antes de cerrar`)
     }
+    if (error.code === '23514') throw new PayrollError(error.message)
+    throw new Error(`payroll_periods ${closed ? 'close' : 'reopen'}: ${error.message}`)
   }
-  const stamp = closed
-    ? { status: 'closed', closed_at: now, closed_by_name: actorName }
-    : { status: 'open', reopened_at: now, reopened_by_name: actorName }
-  const { data, error } = await db
-    .from('payroll_periods')
-    .upsert({ start_date: start, ...stamp }, { onConflict: 'start_date' })
-    .select('*')
-    .single()
-  if (error || !data) throw new Error(`payroll_periods upsert: ${error?.message ?? 'sin datos'}`)
-  return data as PayrollPeriod
+  if (data) return data as PayrollPeriod
+  // Closing always returns the cut: no row is a failure (→ 500), never a fake "open" answered as success.
+  if (closed) throw new Error('payroll_periods close: la función no devolvió el corte')
+  // Never closed = nothing to reopen: a "reopened" stamp would record something that did not happen.
+  const current = await loadPeriodRow(db, start)
+  return current ?? { start_date: start, status: 'open', closed_at: null, closed_by_name: null, reopened_at: null, reopened_by_name: null }
 }

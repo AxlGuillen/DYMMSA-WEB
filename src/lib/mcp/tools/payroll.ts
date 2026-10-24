@@ -56,8 +56,9 @@ export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
     total: totals(view.totals),
     empleados: view.rows.map((row) => ({
       nombre: row.employee.name,
+      // A closed cut answers with the shift and area it froze (#157).
       tipo: row.area === 'office' ? 'oficina' : 'taller',
-      jornada: SHIFT_LABELS[row.employee.shift],
+      jornada: SHIFT_LABELS[row.shift],
       ...totals(row.totals),
       no_trabajadas: formatDuration(row.missedMinutes),
       dias: row.days.flatMap((day, i) =>

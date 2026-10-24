@@ -128,7 +128,8 @@ src/
 │   │   ├── parser.ts             # extractProductRowsFromExcel, extractEtmCodesFromExcel
 │   │   ├── generator.ts          # Generar Excel URREA output
 │   │   ├── statement.ts          # Estado de cuenta del cliente, sin RFC ni contacto (issue #145)
-│   │   └── detect-approved.ts    # Detectar filas verdes (legacy)
+│   │   ├── detect-approved.ts    # Detectar filas verdes (legacy)
+│   │   └── sheet-rows.ts         # Fila de la hoja, encabezados y lista de problemas de los imports (#157)
 │   ├── supabase/
 │   │   ├── client.ts             # createBrowserClient (browser)
 │   │   ├── server.ts             # createClient (server/API routes)
@@ -142,14 +143,21 @@ src/
 │   ├── order-status.ts           # ORDER_STATUSES (el enum del MCP, #155 C1)
 │   ├── stock-filters.ts          # STOCK_FILTERS: una lista para /api/inventory, useInventory y el MCP (#155 C1)
 │   ├── inventory.ts              # computeRestoration y estados en tienda (puras) + envoltorios de las funciones atómicas de stock (#157)
+│   ├── orders-store.ts           # Escrituras de órdenes que mueven stock, compartidas por las rutas; OrderError extiende DomainError (#157)
 │   ├── auto-learn.ts             # mergeEtmFields (pura) + processAutoLearn (orchestración)
+│   ├── domain-error.ts           # DomainError: base de los errores de los stores (kind → 400/404/409/500) (#157)
+│   ├── products-store.ts         # Escrituras de etm_products: validación, guarda ADR-013 en el servidor, import con las reglas del auto-learn (#157)
+│   ├── urrea-catalog-store.ts    # Escrituras del catálogo URREA: validación de código/marca/STD, import validado completo y replace atómico (#157)
 │   ├── github.ts                 # Cliente GitHub Issues (módulo Tareas): fetchGitHub + mapeos puros
 │   ├── month.ts                  # ISODate, ISO_MONTH, monthOf, nextMonth, monthRange — sin imports de la app (#94)
 │   ├── payables.ts               # Matemática de egresos: summarizeMonth, plazos (issue #84); describeAuditEvent (#100); re-exporta month.ts
+│   ├── payables-store.ts         # PATCH/DELETE de facturas: estado de la fila antes del paid_at, 404 sin fila (#157)
 │   ├── income.ts                 # Matemática de ingresos y cierre del mes; reloj inyectado (issue #94)
 │   ├── customers.ts              # Cartera y estado de cuenta: rango por vencimiento, líneas, totales (issue #145, ADR-039)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145); sat-keys.ts ordena las claves SAT sugeridas (#154)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
+│   ├── quotations-store.ts       # Crear y editar cotizaciones (validación server-side + update_quotation), listo para save_quotation del MCP (#157)
+│   ├── approval-store.ts         # La respuesta del cliente en /approve/[token] (submit_quotation_approval); solo la ruta pública, nunca el MCP (#157)
 │   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores (toToolResult), resultado/_meta/structuredContent (toolResultOf), envelope (listResult, recordResult, writeResult, diff y la envoltura de vista previa, #155 C3), schema (primitivas zod y strictInput), input-error (el mensaje en español de una entrada inválida, #155 C1), lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool, ConnectorDefinition), register (registro derivado) y http (connectorRoute: la ruta de cada conector)
 │   ├── mcp/connectors/dymmsa/    # Las 36 tools de DYMMSA-WEB, una definición por archivo por módulo (summary, quotations, orders, inventory, catalogs, suppliers, finance, hours, profiles, payroll, tasks, settings) (#155 A3b)
 │   ├── mcp/connectors/*/connector.ts # Definición de cada conector: ruta, serverInfo, tools, instrucciones y presupuesto (#155 B1; desde B3 cada uno sirve solo las suyas)
