@@ -160,7 +160,7 @@ BEGIN
   END IF;
 
   -- Mirrors payrollArea() in src/lib/payroll.ts: no linked profile means the workshop. INVOKER, so a profile
-  -- hidden by RLS would freeze as workshop too; unreachable today: only an admin passes payroll_days' RLS.
+  -- hidden by RLS would freeze as workshop too; unreachable today: only an admin passes the RLS of payroll_days.
   UPDATE public.payroll_days d
   SET shift_snapshot = e.shift, area_snapshot = coalesce(p.area, 'workshop')
   FROM public.payroll_employees e
