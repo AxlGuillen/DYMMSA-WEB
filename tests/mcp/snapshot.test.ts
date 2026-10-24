@@ -7,7 +7,8 @@
 import { describe, test, expect } from 'vitest'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import type { McpRole } from '@/lib/mcp/manifest'
-import { connectMcp } from './harness'
+import { odooConnector } from '@/lib/mcp/connectors/odoo/connector'
+import { authAs, connectMcp } from './harness'
 
 const ROLES: McpRole[] = ['admin', 'member']
 
@@ -27,6 +28,19 @@ describe('snapshot del MCP', () => {
       await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(`./__snapshots__/tools-list.${role}.json`)
       await expect(`${mcp.instructions ?? ''}\n`).toMatchFileSnapshot(`./__snapshots__/instructions.${role}.md`)
       await expect(sizeReport(role, tools)).toMatchFileSnapshot(`./__snapshots__/tools-size.${role}.txt`)
+    } finally {
+      await mcp.close()
+    }
+  })
+
+  // «Odoo DYMMSA» at /api/odoo/mcp (#155 B1): its own list and instructions, in their own files.
+  test.each(ROLES)('conector Odoo: tools/list, instrucciones y tamaños (%s)', async (role) => {
+    const mcp = await connectMcp(role, authAs(role), odooConnector)
+    try {
+      const tools = await mcp.tools()
+      await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(`./__snapshots__/tools-list.odoo.${role}.json`)
+      await expect(`${mcp.instructions ?? ''}\n`).toMatchFileSnapshot(`./__snapshots__/instructions.odoo.${role}.md`)
+      await expect(sizeReport(role, tools)).toMatchFileSnapshot(`./__snapshots__/tools-size.odoo.${role}.txt`)
     } finally {
       await mcp.close()
     }

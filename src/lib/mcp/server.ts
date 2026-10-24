@@ -5,6 +5,7 @@ import { registerTools } from './core/register'
 import { DYMMSA_TOOLS } from './connectors/dymmsa'
 import { ODOO_TOOLS } from './connectors/odoo'
 import type { McpRole } from './manifest'
+import { ODOO_CREDIT_NOTES_RULE, ODOO_INVOICE_LINK_RULE, odooToolMap } from './connectors/odoo/instructions'
 
 export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el asistente)
 
@@ -23,7 +24,7 @@ export const BUSINESS_RULES_MD = `# Reglas de negocio DYMMSA (referencia para el
 - **Cambiar el estado de una cotización regenera su approval_token** → el link de aprobación compartido antes muere.
 - **Tareas** = GitHub Issues del repo; prioridad por label priority:*, "Descartada" = cerrada como not_planned.
 - **Odoo (tools odoo_*)**: la facturación OFICIAL de la empresa vive en Odoo, un sistema EXTERNO a DYMMSA-WEB. Las cotizaciones/órdenes de aquí y las de Odoo son mundos separados — no asumas cruces entre ambos.
-- **Vínculo factura↔orden de venta (Odoo)**: la verdad es ordenes_ligadas (el botón "Órdenes de venta" de la factura) y el vínculo línea a línea; origen (invoice_origin) es texto libre y NO prueba el vínculo — una factura con origen pero 0 órdenes ligadas tiene el vínculo roto. Las notas al pie (pedido_pie, "PEDIDO: …") vienen de Odoo, no de capturas.
+- ${ODOO_INVOICE_LINK_RULE}
 - Moneda: MXN. Cliente principal: distribuidor URREA en Morelia, México.`
 
 /** Grouping lives here because the MCP tool listing itself is flat (#72); a member gets the map without the admin-only lines (#133). */
@@ -48,16 +49,12 @@ Las tools se dividen en DOS bloques que NO se cruzan:
 ${admin ? '- Nómina (solo administradores): get_payroll_period (el corte sábado→viernes: horas por empleado y día, total equivalente) y las escrituras record_payroll_hours (BORRADOR; confirmar y cerrar es en la app; la guía de la hoja va en la tool) y save_payroll_employee (alta, cambios y baja de empleados). Son HORAS, nunca montos. Rutina de los viernes: preview_time_report → save_time_entries → record_payroll_hours con traer_de_horas → record_payroll_hours con la hoja del taller.\n' : ''}
 ## Bloque B — Odoo (prefijo odoo_*, títulos "(Odoo)")
 La facturación OFICIAL de la empresa, en un sistema EXTERNO. ${admin ? 'Lectura, más las escrituras acotadas de Cotizar y facturar.' : 'SOLO lectura.'}
-- Primitivas: odoo_query, odoo_aggregate (cola larga de preguntas sobre el catálogo permitido).
-- Contabilidad: odoo_overdue_invoices (cartera vencida o estado de cuenta), odoo_invoices_summary, odoo_invoice_detail, odoo_payment_detail, odoo_rep_audit, odoo_invoice_link_check (facturas del periodo sin orden de venta ligada — la revisión periódica en una llamada).
-- Ventas y cobranza: odoo_sales_summary, odoo_customer_profile (incluye la cartera del cliente: deuda total, vencido y días promedio de pago), odoo_sale_detail, odoo_receivables_ranking ("¿a quién le cobro primero?" / "¿quién paga más lento?").
-- Operación: odoo_stock_check (almacén de ODOO — no confundir con search_inventory, que es la tienda), odoo_employee_directory, odoo_fleet_status.
-${admin ? '- Cotizar y facturar (solo administradores): odoo_preview_quotation (solo lee: vista previa y clave) → tras el sí, odoo_save_quotation (BORRADOR, editar o confirmar como venta) → odoo_create_draft_invoice (factura completa en BORRADOR). "Haz esta cotización en Odoo" es este flujo, nunca el navegador. Nunca publica, timbra, envía ni crea clientes; los productos nuevos solo con el botón de la vista (odoo_save_product: no la llames tú).\n' : ''}
+${odooToolMap(admin)}
 Regla de oro: los dos bloques son mundos separados — nunca asumas que una cotización de la app corresponde a una de Odoo. Las únicas escrituras del MCP son las que cada bloque marca como escritura; todo lo demás es lectura.
 
 Antes de cualquier escritura, di exactamente qué vas a hacer (qué factura/tarea/producto y con qué valores) y espera la confirmación del usuario; si la búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
 
-Notas de crédito (Odoo): una nota de crédito sin aplicar es SALDO A FAVOR del cliente, no deuda. Las tools la reportan aparte (campos notas_credito*) y NUNCA la restan del vencido ni del por cobrar — es decisión del negocio (no se sabe si el cliente la usará o si se aplicará a una factura). No hagas ese neteo tú tampoco.
+${ODOO_CREDIT_NOTES_RULE}
 
 ${BUSINESS_RULES_MD}`
 }

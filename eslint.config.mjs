@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "coverage/**",
     // Scripts one-shot históricos (Fase 0) — archivados, no se mantienen.
     "scripts/archive/**",
+    // Worktrees de agentes de Claude Code (.claude está en .gitignore): no son parte del árbol.
+    ".claude/**",
   ]),
   {
     rules: {

@@ -147,8 +147,9 @@ src/
 │   ├── customers.ts              # Cartera y estado de cuenta: rango por vencimiento, líneas, totales (issue #145, ADR-039)
 │   ├── odoo/                     # Cliente JSON-2 + catálogo (ADR-025); domains/income/income-cache los usa la app (#94); customers.ts carga clientes y su actividad (#145)
 │   ├── time-entries-store.ts     # Escrituras de checadas compartidas por rutas y MCP: import, corrección, manual (#132, #134)
-│   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores, resultado/_meta, schema, lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool) y register (registro derivado)
+│   ├── mcp/core/                 # Núcleo del MCP sin tools (#155, ADR-041): run, errores, resultado/_meta, schema, lookup, context, env, routes, auth/ (oauth, supabase, live-admin), define (defineTool, ConnectorDefinition), register (registro derivado) y http (connectorRoute: la ruta de cada conector)
 │   ├── mcp/connectors/dymmsa/    # Las 36 tools de DYMMSA-WEB, una definición por archivo por módulo (summary, quotations, orders, inventory, catalogs, suppliers, finance, hours, profiles, payroll, tasks, settings) (#155 A3b)
+│   ├── mcp/connectors/*/connector.ts # Definición de cada conector: ruta, serverInfo, tools e instrucciones (#155 B1)
 │   ├── mcp/connectors/odoo/      # Las 19 tools del conector Odoo, una definición por archivo por módulo (queries, accounting, sales, operations, quotations) (#155 A3a); el index.ts de cada conector fija el orden de tools/list
 │   ├── mcp/catalog.ts            # Catálogo para docs y consentimiento derivado de las definiciones; solo servidor (#155 A3)
 │   ├── mcp/tools/                # Implementaciones de las tools (lo que corre el handler de cada definición)

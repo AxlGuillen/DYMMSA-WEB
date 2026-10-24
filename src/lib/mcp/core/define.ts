@@ -4,9 +4,9 @@
  */
 
 import type { z } from 'zod'
-import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
+import type { Implementation, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import type { McpContext } from './context'
-import type { ToolKind } from '../manifest'
+import type { McpRole, ToolKind } from '../manifest'
 
 export type ConnectorId = 'dymmsa' | 'odoo'
 
@@ -50,3 +50,15 @@ export interface ToolDefinition<S extends z.ZodRawShape = z.ZodRawShape> {
 export function defineTool<S extends z.ZodRawShape>(definition: ToolDefinition<S>): ToolDefinition<S> {
   return definition
 }
+
+/** One MCP endpoint (#155 B1, ADR-041): what it serves, under which path, with which instructions. */
+export interface ConnectorDefinition {
+  id: ConnectorId
+  /** mcp-handler basePath: the endpoint is `${basePath}/mcp`. */
+  basePath: string
+  serverInfo: Implementation
+  tools: readonly ToolDefinition[]
+  instructions(role: McpRole): string
+}
+
+export const connectorPath = (connector: Pick<ConnectorDefinition, 'basePath'>) => `${connector.basePath}/mcp`
