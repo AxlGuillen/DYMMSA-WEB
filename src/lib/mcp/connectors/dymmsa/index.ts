@@ -29,6 +29,7 @@ import { previewTimeReportTool } from './hours/preview-time-report'
 import { saveTimeEntriesTool } from './hours/save-time-entries'
 import { saveExcusedDayTool } from './hours/save-excused-day'
 import { listProfilesTool } from './profiles/list-profiles'
+import { saveProfileTool } from './profiles/save-profile'
 import { getPayrollPeriodTool } from './payroll/get-payroll-period'
 import { savePayrollHoursTool } from './payroll/save-payroll-hours'
 import { savePayrollEmployeeTool } from './payroll/save-payroll-employee'
@@ -68,6 +69,7 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   saveTimeEntriesTool,
   saveExcusedDayTool,
   listProfilesTool,
+  saveProfileTool,
   getPayrollPeriodTool,
   savePayrollHoursTool,
   savePayrollEmployeeTool,

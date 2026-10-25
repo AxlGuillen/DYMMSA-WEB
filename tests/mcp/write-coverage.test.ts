@@ -134,8 +134,8 @@ const COVERAGE: Record<string, Decision> = {
   'DELETE excused-days/[id]': { tool: DELETE_RECORD },
 
   // Equipo y perfil
-  'PATCH profile': { fuera: `${PHASE_D}save_profile (lo propio)` },
-  'PATCH profiles/[id]': { fuera: `${PHASE_D}save_profile (otra persona; sin rol ni tarifa)` },
+  'PATCH profile': { tool: 'save_profile' },
+  'PATCH profiles/[id]': { tool: 'save_profile' },
   'POST profile/avatar': { fuera: 'la foto es un archivo binario: se sube desde Mi perfil' },
   'DELETE profile/avatar': { fuera: 'la foto es un archivo binario: se quita desde Mi perfil' },
 
