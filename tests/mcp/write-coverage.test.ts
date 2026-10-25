@@ -97,8 +97,8 @@ const COVERAGE: Record<string, Decision> = {
   'DELETE material-presentations/[id]': { tool: DELETE_RECORD },
 
   // Inventario
-  'POST inventory': { fuera: `${PHASE_D}save_inventory_item (alta con cantidad)` },
-  'PATCH inventory/[id]': { fuera: `${PHASE_D}save_inventory_item (cantidades; la gaveta ya la escribe save_inventory_item)` },
+  'POST inventory': { tool: 'save_inventory_item' },
+  'PATCH inventory/[id]': { tool: 'save_inventory_item' },
   'DELETE inventory/[id]': { fuera: 'borrar inventario queda en la app (decisión 4 de ADR-041)' },
   'POST inventory/import': { fuera: 'carga masiva por Excel: se hace en la app' },
 

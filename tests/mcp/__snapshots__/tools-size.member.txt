@@ -1,9 +1,8 @@
-# tools/list (member): 26 tools, 23866 caracteres en el cable · descripciones 7336 · instrucciones 4777
+# tools/list (member): 25 tools, 22765 caracteres en el cable · descripciones 6972 · instrucciones 4711
   1703  save_payable
   1386  save_task
   1299  save_supplier
   1179  list_payables
-  1101  save_inventory_item
   1080  list_quotations
   1079  save_material_presentation
   1050  get_week_hours

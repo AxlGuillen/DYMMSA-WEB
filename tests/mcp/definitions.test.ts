@@ -125,7 +125,7 @@ const WRITE_HINTS: Record<string, string> = {
   save_cut_plan: 'E(1,0)',
   save_material_presentation: 'E(0,1)',
   // Phase D adds quantities (a delta adjustment) and flips this to E(1,0).
-  save_inventory_item: 'E(1,1)',
+  save_inventory_item: 'E(1,0)',
   save_supplier: 'E(1,1)',
   // The merged tools (#155 C6): the weakest hint of what they replaced, as the audit decided (§3).
   save_payable: 'E(1,0)',

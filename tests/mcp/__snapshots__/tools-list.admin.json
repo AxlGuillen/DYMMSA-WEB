@@ -692,7 +692,7 @@
   {
     "name": "save_inventory_item",
     "title": "Guardar inventario",
-    "description": "Asigna o corrige la ubicación física (gaveta) de productos YA inventariados: `productos` = [{ codigo, ubicacion }], hasta 30. Úsala para \"el 6954 quedó en la gaveta B3\". `ubicacion: \"\"` borra la gaveta; un código que no esté en el inventario o que coincida con varios frena toda la llamada. Directo. Solo toca la gaveta: las cantidades NUNCA se modifican por aquí.",
+    "description": "Cambia el inventario de la TIENDA, hasta 30 productos: gaveta (`ubicacion`, \"\" la borra), conteo físico (`cantidad_contada`: se guarda menos lo que las órdenes abiertas tienen apartado) o delta (`ajuste`). Úsala para \"conté el 6954: hay 12, gaveta B3\". Solo la gaveta es directa; toda cantidad pide el sí con la clave y un `motivo` que queda en la bitácora. `crear: true` da de alta códigos nuevos. No borra ni importa.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -705,20 +705,41 @@
             "properties": {
               "codigo": {
                 "type": "string",
-                "minLength": 1,
-                "description": "Código del producto en inventario (sin distinguir mayúsculas)"
+                "minLength": 1
               },
               "ubicacion": {
-                "type": "string",
-                "description": "Gaveta, texto libre; \"\" la borra"
+                "type": "string"
+              },
+              "cantidad_contada": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 999999
+              },
+              "ajuste": {
+                "type": "integer",
+                "minimum": -999999,
+                "maximum": 999999
               }
             },
             "required": [
-              "codigo",
-              "ubicacion"
+              "codigo"
             ],
             "additionalProperties": false
           }
+        },
+        "crear": {
+          "description": "Permite códigos que aún no están",
+          "type": "boolean",
+          "const": true
+        },
+        "motivo": {
+          "description": "Obligatorio con cantidades",
+          "type": "string",
+          "maxLength": 200
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
         }
       },
       "required": [
@@ -730,7 +751,7 @@
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
-      "idempotentHint": true,
+      "idempotentHint": false,
       "openWorldHint": false
     },
     "execution": {

@@ -332,54 +332,6 @@
     }
   },
   {
-    "name": "save_inventory_item",
-    "title": "Guardar inventario",
-    "description": "Asigna o corrige la ubicación física (gaveta) de productos YA inventariados: `productos` = [{ codigo, ubicacion }], hasta 30. Úsala para \"el 6954 quedó en la gaveta B3\". `ubicacion: \"\"` borra la gaveta; un código que no esté en el inventario o que coincida con varios frena toda la llamada. Directo. Solo toca la gaveta: las cantidades NUNCA se modifican por aquí.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "productos": {
-          "minItems": 1,
-          "maxItems": 30,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "codigo": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Código del producto en inventario (sin distinguir mayúsculas)"
-              },
-              "ubicacion": {
-                "type": "string",
-                "description": "Gaveta, texto libre; \"\" la borra"
-              }
-            },
-            "required": [
-              "codigo",
-              "ubicacion"
-            ],
-            "additionalProperties": false
-          }
-        }
-      },
-      "required": [
-        "productos"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
     "name": "search_products",
     "title": "Buscar productos ETM",
     "description": "Busca en el catálogo ETM por ETM, código o descripción. Devuelve precio, marca, `se_vende` (sin_definir, si, no) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.",

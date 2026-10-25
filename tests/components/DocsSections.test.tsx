@@ -25,11 +25,12 @@ describe('AssistantSection', () => {
       expect(screen.getAllByText(tool.title).length, tool.name).toBeGreaterThan(0)
     }
     // Only the module blocks carry the badge; the actions list repeats the limits, not the badge.
-    expect(screen.getAllByText('escribe')).toHaveLength(5)
+    expect(screen.getAllByText('escribe')).toHaveLength(4)
     // Two-phase tools say they ask for the yes (#155 C4): the member's page has save_payable and save_task, not the admin-only ones.
     expect(screen.getAllByText('puede pedir tu si', { selector: 'span' })).toHaveLength(DOCS_MANIFEST.filter((t) => t.confirm === 'two_phase').length)
     expect(DOCS_MANIFEST.filter((t) => t.confirm === 'two_phase').map((t) => t.name)).toEqual(['save_payable', 'save_task'])
-    expect(screen.getByText(/Nunca toca cantidades/)).toBeTruthy()
+    // Quantities are an administrator's tool now (#155 D): the page every member reads says nothing of them.
+    expect(screen.queryByText(/conteo fisico/)).toBeNull()
     // The Odoo writes are admin-only (#144): the page every member reads still lists Odoo as read-only.
     expect(DOCS_MANIFEST.some((t) => t.connector === 'odoo' && t.kind === 'write')).toBe(false)
     expect(screen.getByText(/nunca publica, timbra ni envia/)).toBeTruthy()

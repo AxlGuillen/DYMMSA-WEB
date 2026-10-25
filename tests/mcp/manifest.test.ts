@@ -84,7 +84,7 @@ describe('manifiesto del MCP', () => {
   })
 
   test('las tools de administrador existen pero no salen en la documentacion que lee todo el equipo (#123, #133)', () => {
-    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['delete_record', 'get_payroll_period', 'list_time_imports', 'odoo_confirm_quotation', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'save_app_settings', 'save_cut_plan', 'save_excused_day', 'save_payroll_employee', 'save_payroll_hours', 'save_payroll_period', 'save_product', 'save_profile', 'save_purchase_decisions', 'save_quotation', 'save_time_entries', 'save_urrea_catalog_item'])
+    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['delete_record', 'get_payroll_period', 'list_time_imports', 'odoo_confirm_quotation', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'save_app_settings', 'save_cut_plan', 'save_excused_day', 'save_inventory_item', 'save_payroll_employee', 'save_payroll_hours', 'save_payroll_period', 'save_product', 'save_profile', 'save_purchase_decisions', 'save_quotation', 'save_time_entries', 'save_urrea_catalog_item'])
     expect(DOCS_MANIFEST.some((t) => t.adminOnly || t.module === 'Nomina' || t.name.includes('payroll'))).toBe(false)
     expect(DOCS_MANIFEST).toHaveLength(TOOL_MANIFEST.length - ADMIN_ONLY_TOOLS.size)
   })
