@@ -71,10 +71,10 @@ const COVERAGE: Record<string, Decision> = {
   'PATCH settings': { tool: 'save_app_settings' },
 
   // Cotizaciones
-  'POST quotations/save': { fuera: `${PHASE_D}save_quotation (crear)` },
-  'PATCH quotations/[id]/update': { fuera: `${PHASE_D}save_quotation (editar por línea)` },
-  'PATCH quotations/[id]/status': { fuera: `${PHASE_D}save_quotation (estado; regenera el link de aprobación)` },
-  'POST quotations/[id]/send-for-approval': { fuera: `${PHASE_D}save_quotation (estado en_revision)` },
+  'POST quotations/save': { tool: 'save_quotation' },
+  'PATCH quotations/[id]/update': { tool: 'save_quotation' },
+  'PATCH quotations/[id]/status': { tool: 'save_quotation' },
+  'POST quotations/[id]/send-for-approval': { tool: 'save_quotation' },
   'POST quotations/[id]/create-order': { fuera: `${PHASE_D}save_order (crear desde cotización)` },
   'DELETE quotations/[id]': { fuera: 'borrar cotizaciones queda en la app (decisión 4 de ADR-041)' },
 

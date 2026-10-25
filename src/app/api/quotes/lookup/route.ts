@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api-helpers'
-import { fetchCatalogDescriptionMap } from '@/lib/urrea-catalog'
+import { requireAuth, apiError } from '@/lib/api-helpers'
+import { lookupEtms } from '@/lib/quotations-store'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,42 +20,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data, error } = await supabase
-      .from('etm_products')
-      .select('*')
-      .in('etm', etmCodes)
-
-    if (error) {
-      console.error('Lookup error:', error)
-      return NextResponse.json(
-        { message: 'Error en la consulta' },
-        { status: 500 }
-      )
-    }
-
-    const foundEtms = new Set(data?.map((p) => p.etm) || [])
-    const notFound = etmCodes.filter((etm) => !foundEtms.has(etm))
-
-    // Official descriptions keyed by catalogKey — every brand of those codes (ADR-013).
-    const codesForCatalog = [
-      ...(data?.map((p) => p.model_code) ?? []),
-      ...(Array.isArray(modelCodes) ? modelCodes : []),
-    ]
-    const catalogMap = await fetchCatalogDescriptionMap(supabase, codesForCatalog)
-    const catalogDescriptions = Object.fromEntries(
-      [...catalogMap.entries()].filter(([, desc]) => desc && desc.trim() !== '')
-    )
-
-    return NextResponse.json({
-      found: data || [],
-      notFound,
-      catalogDescriptions,
-    })
+    return NextResponse.json(await lookupEtms(supabase, etmCodes, Array.isArray(modelCodes) ? modelCodes : []))
   } catch (error) {
-    console.error('Lookup error:', error)
-    return NextResponse.json(
-      { message: 'Error al procesar la solicitud' },
-      { status: 500 }
-    )
+    return apiError(error, 'Error al procesar la solicitud', 'Lookup error:')
   }
 }

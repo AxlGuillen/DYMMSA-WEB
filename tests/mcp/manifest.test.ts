@@ -63,7 +63,7 @@ describe('manifiesto del MCP', () => {
 
   test('las escrituras son exactamente las aprobadas y cada una declara sus limites', () => {
     const writes = TOOL_MANIFEST.filter((t) => t.kind === 'write')
-    expect(writes.filter((t) => t.connector === 'dymmsa').map((t) => t.name).sort()).toEqual(['delete_record', 'save_app_settings', 'save_excused_day', 'save_inventory_item', 'save_material_presentation', 'save_payable', 'save_payroll_employee', 'save_payroll_hours', 'save_payroll_period', 'save_product', 'save_profile', 'save_supplier', 'save_task', 'save_time_entries', 'save_urrea_catalog_item'])
+    expect(writes.filter((t) => t.connector === 'dymmsa').map((t) => t.name).sort()).toEqual(['delete_record', 'save_app_settings', 'save_excused_day', 'save_inventory_item', 'save_material_presentation', 'save_payable', 'save_payroll_employee', 'save_payroll_hours', 'save_payroll_period', 'save_product', 'save_profile', 'save_quotation', 'save_supplier', 'save_task', 'save_time_entries', 'save_urrea_catalog_item'])
     for (const w of writes) expect(w.limits, w.name).toBeTruthy()
     expect(manifestFor('odoo').every((t) => t.name.startsWith('odoo_'))).toBe(true)
     expect(manifestFor('dymmsa').every((t) => !t.name.startsWith('odoo_'))).toBe(true)
@@ -84,7 +84,7 @@ describe('manifiesto del MCP', () => {
   })
 
   test('las tools de administrador existen pero no salen en la documentacion que lee todo el equipo (#123, #133)', () => {
-    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['delete_record', 'get_payroll_period', 'list_time_imports', 'odoo_confirm_quotation', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'save_app_settings', 'save_excused_day', 'save_payroll_employee', 'save_payroll_hours', 'save_payroll_period', 'save_product', 'save_profile', 'save_time_entries', 'save_urrea_catalog_item'])
+    expect([...ADMIN_ONLY_TOOLS].sort()).toEqual(['delete_record', 'get_payroll_period', 'list_time_imports', 'odoo_confirm_quotation', 'odoo_create_draft_invoice', 'odoo_preview_quotation', 'odoo_save_product', 'odoo_save_quotation', 'preview_time_report', 'save_app_settings', 'save_excused_day', 'save_payroll_employee', 'save_payroll_hours', 'save_payroll_period', 'save_product', 'save_profile', 'save_quotation', 'save_time_entries', 'save_urrea_catalog_item'])
     expect(DOCS_MANIFEST.some((t) => t.adminOnly || t.module === 'Nomina' || t.name.includes('payroll'))).toBe(false)
     expect(DOCS_MANIFEST).toHaveLength(TOOL_MANIFEST.length - ADMIN_ONLY_TOOLS.size)
   })

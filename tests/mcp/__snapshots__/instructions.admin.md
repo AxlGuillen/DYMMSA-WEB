@@ -1,7 +1,7 @@
 # MCP DYMMSA-WEB (la app de cotizaciones e inventario) — mapa de herramientas
 
 - Panorama: get_business_summary (conteos por estado y salud del inventario).
-- Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió).
+- Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió); escribe save_quotation (crear, editar por línea, estado).
 - Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escritura save_material_presentation para registrar una barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
 - Inventario de la TIENDA: search_inventory; escritura save_inventory_item (solo la gaveta, nunca cantidades).
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA); escriben save_product y save_urrea_catalog_item.

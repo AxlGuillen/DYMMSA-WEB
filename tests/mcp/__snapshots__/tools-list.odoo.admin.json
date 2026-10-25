@@ -924,7 +924,7 @@
           "description": "Folio exacto de la venta confirmada"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },

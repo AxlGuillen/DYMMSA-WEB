@@ -10,6 +10,7 @@ import { approvalToken, soldToken } from '@/lib/tokens'
 import { listResult, recordResult, refOf, versionOf } from '@/lib/mcp/core/envelope'
 import { resolveByName, type NamedLookup } from '@/lib/mcp/core/lookup'
 import { ToolError } from '@/lib/mcp/core/errors'
+import { appUrl } from '@/lib/mcp/core/env'
 import type { Db } from '@/lib/mcp/core/db'
 import { findOrderByQuotation } from './orders'
 import type { Quotation, QuotationStatus, QuotationWithItems } from '@/types/database'
@@ -24,6 +25,9 @@ const QUOTATION_LOOKUP: NamedLookup<QuotationRef> = {
   label: (q) => `${q.name} (${q.customer_name})`,
   nameColumns: ['name', 'customer_name'],
 }
+
+/** The link the customer opens (no session): whoever holds it can approve, so only an administrator reads it. */
+export const approvalLink = (token: string) => `${appUrl()}/approve/${token}`
 
 /** A quotation by UUID, ref or (partial) name/customer (#155 C6). */
 export const resolveQuotation = (db: Db, ref: string): Promise<QuotationRef> => resolveByName(db, QUOTATION_LOOKUP, ref)
@@ -75,7 +79,7 @@ export async function listQuotations(db: Db, input: ListQuotationsInput) {
   return listResult('cotizaciones', quotations, { total: count ?? 0, pagina, por_pagina })
 }
 
-export async function getQuotation(db: Db, reference: string) {
+export async function getQuotation(db: Db, reference: string, opts: { admin?: boolean } = {}) {
   const { id } = await resolveQuotation(db, reference)
   const [{ data, error }, order] = await Promise.all([
     db
@@ -128,6 +132,8 @@ export async function getQuotation(db: Db, reference: string) {
       creada_el: q.created_at,
       actualizada_el: q.updated_at,
       version: versionOf(q.updated_at, q.quotation_items.map((i) => i.id)),
+      // The link is a credential (whoever holds it can approve): only an administrator, and only while it is alive (#155 D).
+      ...(opts.admin && q.status === 'sent_for_approval' ? { link_aprobacion: approvalLink(q.approval_token) } : {}),
       orden: order ? { ref: refOf(order.id), nombre: order.name, estado: ORDER_STATUS_TOKENS.toToken(order.status) } : null,
       total: calculateQuotationTotal(q.quotation_items),
       total_aprobado: calculateQuotationTotal(q.quotation_items, { onlyApproved: true }),

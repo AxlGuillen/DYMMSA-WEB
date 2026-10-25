@@ -70,7 +70,7 @@
   {
     "name": "get_quotation",
     "title": "Detalle de cotización",
-    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref.",
+    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref. Un administrador recibe además `link_aprobacion` mientras está en revisión.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -90,6 +90,199 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_quotation",
+    "title": "Guardar cotización",
+    "description": "Crea, edita o cambia de estado una cotización de la app (la de Odoo es odoo_save_quotation). Una intención por llamada. Crear: nombre, cliente y `lineas` (se prellenan del catálogo ETM). Editar: `cambios` por línea (numeración de get_quotation), `lineas` para agregar y/o nombre y cliente. Estado: borrador, en_revision, aprobada o rechazada; cambiarlo regenera el link de aprobación. Úsala para \"ponle entrega 1 semana a todo\" o \"mándala a aprobación\". Crear, editar y casi todo cambio de estado piden el sí con la clave; borrador → en_revision es directo. No borra ni genera la orden.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cotizacion": {
+          "description": "Nombre, cliente o ref; omitida = crear",
+          "type": "string"
+        },
+        "nombre": {
+          "type": "string"
+        },
+        "cliente": {
+          "type": "string"
+        },
+        "lineas": {
+          "description": "Crear: todas, en orden. Editar: las que se agregan",
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "etm": {
+                "description": "ETM, o \"nuevo\" para un código interno",
+                "type": "string"
+              },
+              "seccion": {
+                "description": "Título de sección, en vez de producto",
+                "type": "string"
+              },
+              "cantidad": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "precio": {
+                "description": "Omitido = el del catálogo",
+                "type": "number",
+                "minimum": 0
+              },
+              "entrega": {
+                "type": "string",
+                "enum": [
+                  "inmediata",
+                  "2_3_dias",
+                  "3_5_dias",
+                  "1_semana",
+                  "2_semanas",
+                  "indefinida"
+                ]
+              },
+              "codigo": {
+                "description": "Solo si el ETM no está en el catálogo",
+                "type": "string"
+              },
+              "marca": {
+                "type": "string"
+              },
+              "descripcion": {
+                "type": "string"
+              },
+              "despues_de": {
+                "description": "Al agregar: tras la línea N (0 = inicio; omitido = final)",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "cambios": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "linea": {
+                "description": "N, [N, M] o \"todas\" (numeración de get_quotation)",
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  {
+                    "type": "string",
+                    "const": "todas"
+                  }
+                ]
+              },
+              "etm": {
+                "description": "Guarda: el ETM que crees que tiene esa línea",
+                "type": "string"
+              },
+              "precio": {
+                "type": "number",
+                "minimum": 0
+              },
+              "cantidad": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "entrega": {
+                "type": "string",
+                "enum": [
+                  "inmediata",
+                  "2_3_dias",
+                  "3_5_dias",
+                  "1_semana",
+                  "2_semanas",
+                  "indefinida"
+                ]
+              },
+              "se_vende": {
+                "type": "string",
+                "enum": [
+                  "sin_definir",
+                  "si",
+                  "no"
+                ]
+              },
+              "aprobacion": {
+                "description": "Lo que dijo el cliente; no en revisión",
+                "type": "string",
+                "enum": [
+                  "pendiente",
+                  "aprobada",
+                  "rechazada"
+                ]
+              },
+              "descripcion_dymmsa": {
+                "type": "string"
+              },
+              "quitar": {
+                "type": "boolean",
+                "const": true
+              },
+              "despues_de": {
+                "description": "Mueve la línea tras la N (0 = inicio)",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "estado": {
+          "type": "string",
+          "enum": [
+            "borrador",
+            "en_revision",
+            "aprobada",
+            "rechazada"
+          ]
+        },
+        "version": {
+          "description": "De get_quotation; si cambió, no escribe",
+          "type": "string"
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
       "openWorldHint": false
     },
     "execution": {
@@ -469,7 +662,7 @@
           ]
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -568,7 +761,7 @@
           "type": "string"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -867,7 +1060,7 @@
           "format": "date"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -1444,7 +1637,7 @@
           ]
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -1584,7 +1777,7 @@
           "additionalProperties": false
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -1674,7 +1867,7 @@
           "format": "date"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -1821,7 +2014,7 @@
           "type": "string"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -1887,7 +2080,7 @@
           "const": true
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -1968,7 +2161,7 @@
           "exclusiveMinimum": 0
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },

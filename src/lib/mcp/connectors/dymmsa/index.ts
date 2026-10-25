@@ -4,6 +4,7 @@ import type { ToolDefinition } from '@/lib/mcp/core/define'
 import { getBusinessSummaryTool } from './summary/get-business-summary'
 import { listQuotationsTool } from './quotations/list-quotations'
 import { getQuotationTool } from './quotations/get-quotation'
+import { saveQuotationTool } from './quotations/save-quotation'
 import { listOrdersTool } from './orders/list-orders'
 import { getOrderTool } from './orders/get-order'
 import { getCutPlanTool } from './orders/get-cut-plan'
@@ -45,6 +46,7 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   getBusinessSummaryTool,
   listQuotationsTool,
   getQuotationTool,
+  saveQuotationTool,
   listOrdersTool,
   getOrderTool,
   getCutPlanTool,

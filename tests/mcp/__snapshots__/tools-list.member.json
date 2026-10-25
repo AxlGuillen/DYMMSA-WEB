@@ -70,7 +70,7 @@
   {
     "name": "get_quotation",
     "title": "Detalle de cotización",
-    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref.",
+    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref. Un administrador recibe además `link_aprobacion` mientras está en revisión.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -738,7 +738,7 @@
           "format": "date"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -994,7 +994,7 @@
           "type": "string"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },

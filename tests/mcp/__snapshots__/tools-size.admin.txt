@@ -1,22 +1,23 @@
-# tools/list (admin): 39 tools, 44588 caracteres en el cable · descripciones 14039 · instrucciones 5788
-  4168  save_payroll_hours
+# tools/list (admin): 40 tools, 47545 caracteres en el cable · descripciones 14701 · instrucciones 5846
+  4122  save_payroll_hours
+  3295  save_quotation
   2956  preview_time_report
-  1788  delete_record
-  1749  save_payable
-  1536  save_product
-  1497  save_urrea_catalog_item
-  1443  save_task
+  1742  delete_record
+  1703  save_payable
+  1490  save_product
+  1451  save_urrea_catalog_item
   1406  save_time_entries
+  1397  save_task
   1311  save_supplier
-  1295  save_profile
+  1249  save_profile
   1234  save_payroll_employee
   1191  list_payables
-  1166  save_app_settings
+  1120  save_app_settings
   1101  save_inventory_item
   1092  list_quotations
-  1085  save_payroll_period
   1079  save_material_presentation
   1050  get_week_hours
+  1039  save_payroll_period
   1018  list_orders
    995  list_suppliers
    988  search_inventory
@@ -29,9 +30,9 @@
    821  get_cut_plan
    813  get_hours_trend
    799  get_purchase_plan
+   786  get_quotation
    745  get_month_closing
    722  get_payables_overview
-   710  get_quotation
    675  get_order
    674  get_payable
    627  list_time_imports

@@ -124,4 +124,4 @@ export function verifyPreviewKeyFor(clave: string, scope: KeyScope & { fingerpri
 }
 
 /** The `clave` every two-phase tool takes and every preview twin returns. */
-export const claveField = z.string().optional().describe('Clave del resumen (fase 1); sin ella solo se muestra el resumen')
+export const claveField = z.string().optional().describe('Clave del resumen')

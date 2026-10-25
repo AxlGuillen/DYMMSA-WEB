@@ -1,6 +1,6 @@
-# tools/list (member): 26 tools, 24080 caracteres en el cable · descripciones 7260 · instrucciones 4807
-  1749  save_payable
-  1443  save_task
+# tools/list (member): 26 tools, 24064 caracteres en el cable · descripciones 7336 · instrucciones 4807
+  1703  save_payable
+  1397  save_task
   1311  save_supplier
   1191  list_payables
   1101  save_inventory_item
@@ -17,9 +17,9 @@
    821  get_cut_plan
    813  get_hours_trend
    799  get_purchase_plan
+   786  get_quotation
    745  get_month_closing
    722  get_payables_overview
-   710  get_quotation
    675  get_order
    674  get_payable
    559  get_app_settings
