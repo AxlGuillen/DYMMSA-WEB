@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
+import { requireAuth, apiError, notFound, serverError } from '@/lib/api-helpers'
+import { updateInventoryItem } from '@/lib/inventory-store'
 import { isUuid } from '@/lib/text'
-import type { StoreInventoryUpdate } from '@/types/database'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -16,42 +16,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if ('error' in auth) return auth.error
 
     const { id } = await params
-    const body = (await request.json()) as StoreInventoryUpdate
-
-    const updates: StoreInventoryUpdate = {}
-    if (typeof body.model_code === 'string') {
-      const modelCode = body.model_code.trim()
-      if (!modelCode) return badRequest('El código modelo no puede estar vacío')
-      updates.model_code = modelCode
-    }
-    if (body.quantity !== undefined) {
-      if (typeof body.quantity !== 'number' || body.quantity < 0) return badRequest('La cantidad debe ser ≥ 0')
-      updates.quantity = Math.trunc(body.quantity)
-    }
-    if (body.location !== undefined) {
-      updates.location = typeof body.location === 'string' ? (body.location.trim() || null) : null
-    }
-
-    if (Object.keys(updates).length === 0) return badRequest('No hay cambios para aplicar')
-
-    const { data, error } = await supabase
-      .from('store_inventory')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === '23505') return badRequest('Ya existe un producto con ese código modelo')
-      if (error.code === 'PGRST116') return notFound('Producto no encontrado')
-      console.error('Error updating store_inventory item:', error)
-      return serverError('Error al actualizar el producto')
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json(await updateInventoryItem(supabase, id, await request.json()))
   } catch (error) {
-    console.error('Inventory update error:', error)
-    return serverError('Error al actualizar el producto')
+    return apiError(error, 'Error al actualizar el producto', 'Inventory update error:')
   }
 }
 

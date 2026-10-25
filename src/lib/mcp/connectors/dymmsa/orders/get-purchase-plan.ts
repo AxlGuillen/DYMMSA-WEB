@@ -10,7 +10,7 @@ export const getPurchasePlanTool = defineTool({
   title: 'Planificador de compra de una orden',
   description:
     'Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). "revisar" = el usuario debe decidir. Acepta nombre, cliente o ref de la orden.',
-  input: { orden: z.string().min(1).describe('Nombre o cliente (parcial), ref o UUID') },
+  input: { orden: z.string().min(1).describe('Nombre, cliente o ref') },
   hints: dymmsaRead,
   docs: {
     module: 'Ordenes',

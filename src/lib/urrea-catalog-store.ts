@@ -3,6 +3,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { catalogKey, normalizeCatalogBrand, normalizeCatalogCode } from '@/lib/business-rules'
+import { exactPattern } from '@/lib/inventory-store'
 import { DomainError, type DomainErrorKind } from '@/lib/domain-error'
 import {
   cellText,
@@ -126,6 +127,65 @@ export async function updateCatalogItem(db: SupabaseClient, id: string, value: U
     throw writeError(error, 'Error al actualizar el producto')
   }
   return data as UrreaCatalogItem
+}
+
+/** Orders whose buying is still being planned: the goods have not left the store (inventory.ts goodsInStore). */
+const PLANNING_STATUSES = ['ordered', 'received'] as const
+
+/** Every row of a code (all brands), by its normalized code. */
+export async function findCatalogRows(db: SupabaseClient, code: string): Promise<UrreaCatalogItem[]> {
+  const { data, error } = await db.from('urrea_catalog').select('*').eq('code', normalizeCatalogCode(code)).order('brand', { ascending: true })
+  if (error) {
+    console.error('Error reading urrea_catalog:', error)
+    throw new CatalogError('Error al consultar el catálogo', 'failed')
+  }
+  return (data ?? []) as UrreaCatalogItem[]
+}
+
+export interface CatalogImpact {
+  /** Saved purchase decisions of this (code, brand) that would no longer match the catalog. */
+  staleDecisions: number
+  /** Orders in planning that carry them. */
+  orders: number
+}
+
+/**
+ * What changing the STD of (code, brand) does to the saved wholesale decisions of orders in planning (ADR-018:
+ * a decision is stale when its std_snapshot differs). `nextStd: null` = the row leaves the catalog under that key.
+ */
+export async function catalogChangeImpact(db: SupabaseClient, key: { code: string; brand: string }, nextStd: number | null): Promise<CatalogImpact> {
+  const { data, error } = await db
+    .from('order_purchase_decisions')
+    .select('order_id, std_snapshot, orders!inner(status)')
+    .eq('model_code', normalizeCatalogCode(key.code))
+    .eq('brand', normalizeCatalogBrand(key.brand))
+    .in('orders.status', [...PLANNING_STATUSES])
+  if (error) {
+    console.error('Error reading purchase decisions:', error)
+    throw new CatalogError('Error al revisar las decisiones de compra', 'failed')
+  }
+  const stale = ((data ?? []) as { order_id: string; std_snapshot: number }[]).filter((d) => nextStd === null || d.std_snapshot !== nextStd)
+  return { staleDecisions: stale.length, orders: new Set(stale.map((d) => d.order_id)).size }
+}
+
+/** Lines of orders in planning with something still to order for this (code, brand): what moves from local buying to URREA when it joins the catalog. */
+export async function countLinesToOrder(db: SupabaseClient, key: { code: string; brand: string }): Promise<{ lines: number; orders: number }> {
+  const code = normalizeCatalogCode(key.code)
+  const { data, error } = await db
+    .from('order_items')
+    .select('order_id, model_code, brand, orders!inner(status)')
+    .ilike('model_code', exactPattern(code))
+    .eq('item_type', 'product')
+    .gt('quantity_to_order', 0)
+    .in('orders.status', [...PLANNING_STATUSES])
+  if (error) {
+    console.error('Error reading order_items:', error)
+    throw new CatalogError('Error al revisar las órdenes abiertas', 'failed')
+  }
+  // ilike's `_` is a wildcard and the brand is stored raw: the cross is decided by catalogKey, as everywhere.
+  const wanted = catalogKey(code, key.brand)
+  const rows = ((data ?? []) as { order_id: string; model_code: string; brand: string | null }[]).filter((r) => catalogKey(r.model_code, r.brand) === wanted)
+  return { lines: rows.length, orders: new Set(rows.map((r) => r.order_id)).size }
 }
 
 export interface CatalogSheet {

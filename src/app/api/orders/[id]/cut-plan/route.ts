@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, notFound, badRequest, serverError } from '@/lib/api-helpers'
+import { requireAuth, apiError, notFound, serverError } from '@/lib/api-helpers'
 import { resolveCutMargin, SETTING_CUT_MARGIN_MM } from '@/lib/cut-plan'
-import { explainPgError } from '@/lib/supabase-errors'
-import type { CutMaterialType, CutPlanPieceInsert } from '@/types/database'
+import { saveCutPlan } from '@/lib/cut-plan-store'
+import type { CutMaterialType } from '@/types/database'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -109,21 +109,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 }
 
-interface PieceInput {
-  material_type: CutMaterialType
-  diameter_mm?: number | null
-  thickness_mm?: number | null
-  width_mm?: number | null
-  length_mm: number
-  quantity: number
-  requested_label?: string | null
-  source_item_id?: string | null
-}
-
-const isPositive = (v: unknown): v is number =>
-  typeof v === 'number' && Number.isFinite(v) && v > 0
-
-/** Replace-all: the body IS the desired state; with no natural key it is delete → insert, restoring if the insert fails. */
+/** Replace-all: the body IS the desired state (rules and restore in cut-plan-store). */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
@@ -131,108 +117,10 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const { data: order } = await supabase
-      .from('orders')
-      .select('id, status')
-      .eq('id', id)
-      .single()
-    if (!order) return notFound('Orden no encontrada')
-    if (['completed', 'cancelled'].includes(order.status)) {
-      return badRequest('No se puede modificar una orden completada o cancelada')
-    }
-
-    const body = (await request.json()) as { pieces?: PieceInput[] }
-    if (!Array.isArray(body.pieces)) {
-      return badRequest('El body debe incluir un array "pieces"')
-    }
-
-    const rows: CutPlanPieceInsert[] = []
-    for (const [index, piece] of body.pieces.entries()) {
-      const label = `Pieza ${index + 1}`
-      if (piece.material_type !== 'tube' && piece.material_type !== 'plate') {
-        return badRequest(`${label}: tipo de material inválido`)
-      }
-      if (!isPositive(piece.length_mm)) {
-        return badRequest(`${label}: la longitud debe ser mayor a 0`)
-      }
-      if (!Number.isInteger(piece.quantity) || piece.quantity < 1) {
-        return badRequest(`${label}: la cantidad debe ser un entero mayor a 0`)
-      }
-      // Mirrors the cut_piece_shape CHECK with a clear message (ADR-009).
-      if (piece.material_type === 'tube') {
-        if (!isPositive(piece.diameter_mm)) {
-          return badRequest(`${label}: un tubo necesita diámetro`)
-        }
-        if (piece.width_mm != null || piece.thickness_mm != null) {
-          return badRequest(`${label}: un tubo no lleva ancho ni espesor`)
-        }
-      } else {
-        if (!isPositive(piece.thickness_mm) || !isPositive(piece.width_mm)) {
-          return badRequest(`${label}: una placa necesita espesor y ancho`)
-        }
-        if (piece.diameter_mm != null) {
-          return badRequest(`${label}: una placa no lleva diámetro`)
-        }
-      }
-
-      rows.push({
-        order_id: id,
-        material_type: piece.material_type,
-        diameter_mm: piece.diameter_mm ?? null,
-        thickness_mm: piece.thickness_mm ?? null,
-        width_mm: piece.width_mm ?? null,
-        length_mm: piece.length_mm,
-        quantity: piece.quantity,
-        requested_label:
-          typeof piece.requested_label === 'string'
-            ? piece.requested_label.trim() || null
-            : null,
-        source_item_id: piece.source_item_id ?? null,
-        sort_order: index,
-      })
-    }
-
-    // Snapshot to restore if the insert fails.
-    const { data: previous } = await supabase
-      .from('cut_plan_pieces')
-      .select('*')
-      .eq('order_id', id)
-
-    const { error: deleteError } = await supabase
-      .from('cut_plan_pieces')
-      .delete()
-      .eq('order_id', id)
-    if (deleteError) {
-      console.error('cut-plan delete error:', deleteError)
-      return serverError('Error al guardar la lista de corte')
-    }
-
-    if (rows.length === 0) return NextResponse.json({ pieces: [] })
-
-    const { data: saved, error: insertError } = await supabase
-      .from('cut_plan_pieces')
-      .insert(rows)
-      .select()
-
-    if (insertError) {
-      console.error('cut-plan insert error:', insertError)
-      // Restore the previous list: losing it to a save error is not acceptable.
-      if (previous && previous.length > 0) {
-        const { error: restoreError } = await supabase.from('cut_plan_pieces').insert(
-          previous.map(({ id: _id, ...row }) => row),
-        )
-        if (restoreError) console.error('cut-plan restore error:', restoreError)
-      }
-      // Rule violation (stale FK, shape CHECK) → descriptive 400, not 500 (ADR-009).
-      const explanation = explainPgError(insertError)
-      return explanation.isConstraintViolation
-        ? badRequest(explanation.userMessage)
-        : serverError('Error al guardar la lista de corte')
-    }
-
-    return NextResponse.json({ pieces: saved ?? [] })
+    const body = (await request.json()) as { pieces?: unknown }
+    return NextResponse.json({ pieces: await saveCutPlan(supabase, id, body.pieces) })
   } catch (error) {
-    console.error('cut-plan PUT error:', error)
-    return serverError()
+    return apiError(error, 'Error interno', 'cut-plan PUT error:')
   }
 }
+

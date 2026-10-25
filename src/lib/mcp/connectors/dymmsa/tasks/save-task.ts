@@ -11,7 +11,7 @@ export const saveTaskTool = defineTool({
   description:
     'Crea una tarea (GitHub Issue) o cambia una existente con `tarea`: comentar, priorizar, cerrar o reabrir. Sin `tarea`, `titulo` es obligatorio. Directo; cambiar el título o la descripción de una tarea existente pide el sí con la clave. La tarea queda reportada por el asistente; un comentario se publica atribuido a él. Cerrar con motivo descartada = no se hará.',
   input: {
-    tarea: z.number().int().min(1).optional().describe('Número (#N) de la existente; omítelo para crear'),
+    tarea: z.number().int().min(1).max(99999).optional().describe('Número (#N) de la existente; omítelo para crear'),
     titulo: z.string().optional().describe('Obligatorio al crear'),
     descripcion: z.string().optional(),
     prioridad: z.enum([...TASK_PRIORITY_TOKENS.tokens, 'ninguna']).optional().describe('"ninguna" la quita'),

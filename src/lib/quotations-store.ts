@@ -11,8 +11,10 @@ import { DELIVERY_TIME_LABELS } from '@/lib/delivery'
 import { getBlockingIssues } from '@/lib/quotation-validation'
 import { explainPgError, type PgErrorInput } from '@/lib/supabase-errors'
 import { isUuid } from '@/lib/text'
-import { fetchCatalogDescriptionMapOrNull } from '@/lib/urrea-catalog'
-import type { DeliveryTime, QuotationItemRow, QuotationStatus } from '@/types/database'
+import { MANUAL_QUOTATION_STATUSES } from '@/lib/quotation-status'
+import { isSeparatorColor } from '@/lib/separator-palette'
+import { fetchCatalogDescriptionMap, fetchCatalogDescriptionMapOrNull } from '@/lib/urrea-catalog'
+import type { DeliveryTime, EtmProduct, Quotation, QuotationItemRow, QuotationStatus } from '@/types/database'
 
 /** A rule the user broke (400/404), a concurrent change (409) or a write that failed (500); base in domain-error.ts. */
 export class QuotationError extends DomainError {
@@ -71,7 +73,9 @@ const tagOf = (item: Record<string, unknown>) => (typeof item.etm === 'string' &
 function lineShapeError(item: Record<string, unknown>): string | null {
   const type = item.item_type ?? 'product'
   if (type !== 'product' && type !== 'separator') return `Tipo de línea inválido: "${String(type)}".`
-  if (type === 'separator') return null
+  if (type === 'separator') {
+    return item.separator_color != null && !isSeparatorColor(item.separator_color) ? `Color de sección inválido: "${String(item.separator_color)}".` : null
+  }
   if (item.delivery_time != null && !DELIVERY_TIMES.has(String(item.delivery_time))) {
     return `ETM "${tagOf(item)}": tiempo de entrega inválido.`
   }
@@ -219,6 +223,7 @@ export interface UpdatedQuotation {
   quotation_id: string
   total_amount: number
   items_count: number
+  auto_learn: QuotationAutoLearnResult
   warning?: 'auto_learn_failed'
 }
 
@@ -313,6 +318,91 @@ export async function updateQuotation(
     quotation_id: quotationId,
     total_amount,
     items_count: items.length,
+    auto_learn: learned.result ?? { added: 0, updated: 0, skipped: 0 },
     ...(learned.failed && { warning: 'auto_learn_failed' as const }),
+  }
+}
+
+// ─── Status ─────────────────────────────────────────────────────────────────
+
+const LINKED_ORDER_MESSAGE = 'Elimina la orden vinculada antes de reabrir esta cotización.'
+
+/** The only status a quotation can be put in by hand; converted_to_order is set by generating the order. */
+export function assertManualStatus(status: unknown): asserts status is QuotationStatus {
+  if (!MANUAL_QUOTATION_STATUSES.includes(status as QuotationStatus)) {
+    throw new QuotationError('El estado "Convertida a orden" solo se asigna al generar la orden')
+  }
+}
+
+/** A converted quotation reopens only once its linked order is gone (that restored the stock); fail closed on a read error. */
+export async function linkedOrderBlocks(db: SupabaseClient, quotationId: string): Promise<boolean> {
+  const { data, error } = await db.from('orders').select('id').eq('quotation_id', quotationId).limit(1)
+  if (error) {
+    console.error('Quotation status: linked order lookup error:', error)
+    throw new QuotationError('Error al actualizar el estado', 'failed')
+  }
+  return (data?.length ?? 0) > 0
+}
+
+/**
+ * PATCH /api/quotations/[id]/status and save_quotation: any manual status to any other. Every change regenerates
+ * approval_token (the old link dies); approved_at is sealed once, when approving and still empty (CLAUDE.md).
+ */
+export async function setQuotationStatus(db: SupabaseClient, quotationId: string, status: unknown): Promise<Quotation> {
+  assertManualStatus(status)
+  const { data: quotation, error: fetchError } = await db.from('quotations').select('id, status, approved_at').eq('id', quotationId).single()
+  if (fetchError || !quotation) throw new QuotationError('Cotización no encontrada', 'not_found')
+
+  if (quotation.status === 'converted_to_order' && (await linkedOrderBlocks(db, quotationId))) {
+    throw new QuotationError(LINKED_ORDER_MESSAGE)
+  }
+
+  const payload: { status: QuotationStatus; approval_token: string; approved_at?: string } = { status, approval_token: crypto.randomUUID() }
+  if (status === 'approved' && !quotation.approved_at) payload.approved_at = new Date().toISOString()
+
+  const { data: updated, error: updateError } = await db.from('quotations').update(payload).eq('id', quotationId).select().single()
+  if (updateError || !updated) {
+    console.error('Update quotation status error:', updateError)
+    throw new QuotationError('Error al actualizar el estado', 'failed')
+  }
+  return updated as Quotation
+}
+
+/** POST /api/quotations/[id]/send-for-approval and save_quotation (borrador → en_revision): keeps the approval_token. */
+export async function sendForApproval(db: SupabaseClient, quotationId: string): Promise<{ approval_token: string }> {
+  const { data: quotation, error: fetchError } = await db.from('quotations').select('id, status, approval_token').eq('id', quotationId).single()
+  if (fetchError || !quotation) throw new QuotationError('Cotización no encontrada', 'not_found')
+  if (quotation.status !== 'draft') {
+    throw new QuotationError(`No se puede enviar a aprobación una cotización en estado "${quotation.status}"`)
+  }
+  const { data: updated, error: updateError } = await db.from('quotations').update({ status: 'sent_for_approval' }).eq('id', quotationId).select('approval_token').single()
+  if (updateError || !updated) throw new QuotationError('Error al actualizar estado', 'failed')
+  return { approval_token: updated.approval_token as string }
+}
+
+// ─── Catalog lookup ─────────────────────────────────────────────────────────
+
+export interface EtmLookup {
+  found: EtmProduct[]
+  notFound: string[]
+  /** Official descriptions by catalogKey, every brand of those codes (ADR-013); blank ones left out. */
+  catalogDescriptions: Record<string, string>
+}
+
+/** POST /api/quotes/lookup and save_quotation's prefill: the ETM catalog rows plus the official descriptions. */
+export async function lookupEtms(db: SupabaseClient, etmCodes: string[], modelCodes: string[] = []): Promise<EtmLookup> {
+  const { data, error } = await db.from('etm_products').select('*').in('etm', etmCodes)
+  if (error) {
+    console.error('Lookup error:', error)
+    throw new QuotationError('Error en la consulta', 'failed')
+  }
+  const found = (data ?? []) as EtmProduct[]
+  const foundEtms = new Set(found.map((p) => p.etm))
+  // Official descriptions keyed by catalogKey — every brand of those codes (ADR-013).
+  const catalogMap = await fetchCatalogDescriptionMap(db, [...found.map((p) => p.model_code), ...modelCodes])
+  return {
+    found,
+    notFound: etmCodes.filter((etm) => !foundEtms.has(etm)),
+    catalogDescriptions: Object.fromEntries([...catalogMap.entries()].filter(([, desc]) => desc && desc.trim() !== '')) as Record<string, string>,
   }
 }

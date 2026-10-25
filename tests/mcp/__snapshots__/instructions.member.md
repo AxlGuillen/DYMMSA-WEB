@@ -2,14 +2,14 @@
 
 - Panorama: get_business_summary (conteos por estado y salud del inventario).
 - Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió).
-- Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escritura save_material_presentation para registrar una barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
-- Inventario de la TIENDA: search_inventory; escritura save_inventory_item (solo la gaveta, nunca cantidades).
+- Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escribe save_material_presentation, la barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo, recomendación y decisiones).
+- Inventario de la TIENDA: search_inventory.
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA).
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte); escritura save_supplier (alta o edición, nunca borra).
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escritura save_payable (registrar, corregir, pagar con fecha real, regresar a pendiente o cancelar).
 - Tareas del equipo: list_tasks, get_task; escritura save_task (crear, comentar, priorizar, cerrar o reabrir).
 - Horas del equipo (checador): get_week_hours, get_hours_trend (solo lectura). Lo que cada quien ve lo decide la BD por persona: un miembro solo sus propias horas, un administrador las de todos. Son horas de ESTA app (checador NGTeco), no de los empleados de Odoo.
-- Perfiles del equipo: list_profiles (nombre, rol, área, jornada, id del checador, NSS y foto). Solo lectura, por persona como en horas. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan y no lo repitas en resúmenes.
+- Perfiles del equipo: list_profiles (nombre, rol, área, jornada, id del checador, NSS y foto); solo lectura, por persona como en horas. El NSS es dato personal: el listado solo trae el de quien pregunta y el de otra persona llega al pedirla por nombre; dalo solo cuando lo pidan y no lo repitas en resúmenes.
 - Configuración: get_app_settings (umbrales del planificador, margen de corte).
 
 ## Dos conectores, sin vínculo

@@ -6,7 +6,7 @@
 import { ToolError } from '@/lib/mcp/core/errors'
 import { listResult, refOf } from '@/lib/mcp/core/envelope'
 import { resolveByName } from '@/lib/mcp/core/lookup'
-import { sanitizeSearch } from '@/lib/text'
+import { fold, sanitizeSearch } from '@/lib/text'
 import type { Db } from '@/lib/mcp/core/db'
 import { avatarPublicUrl } from '@/lib/avatar'
 import { AREA_TOKENS, ROLE_TOKENS } from '@/lib/profile'
@@ -42,7 +42,10 @@ export async function resolvePerson<T extends Pick<Profile, 'id' | 'display_name
           // One past the cap so "more than 5" can be said instead of a wrong count.
           .limit(6)
         if (error) throw new ToolError('No se pudieron leer los perfiles')
-        return (data ?? []) as unknown as T[]
+        const rows = (data ?? []) as unknown as T[]
+        // "Diego" must reach Diego even when "Diego Luis" exists: the exact name wins, as in payroll's resolveEmployee.
+        const exact = rows.filter((row) => fold(row.display_name) === fold(text))
+        return exact.length > 0 ? exact : rows
       },
       notFound: (text) => `Ninguna persona visible para ti coincide con "${text}". Un miembro solo puede consultar lo suyo.`,
     },

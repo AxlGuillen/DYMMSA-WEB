@@ -10,7 +10,7 @@ export const getCutPlanTool = defineTool({
   title: 'Lista de corte de una orden',
   description:
     'Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para "¿cuánto tubo necesito para la orden de X?". Acepta nombre, cliente o ref de la orden.',
-  input: { orden: z.string().min(1).describe('Nombre o cliente (parcial), ref o UUID') },
+  input: { orden: z.string().min(1).describe('Nombre, cliente o ref') },
   hints: dymmsaRead,
   docs: {
     module: 'Ordenes',

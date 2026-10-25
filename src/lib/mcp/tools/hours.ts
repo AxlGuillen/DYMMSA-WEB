@@ -5,7 +5,7 @@
 
 import { z } from 'zod'
 import { ToolError } from '@/lib/mcp/core/errors'
-import { CONFIRM_UNAVAILABLE_MESSAGE, issuePreviewKey, previewSecret, verifyPreviewKeyFor } from '@/lib/mcp/core/confirm/preview-key'
+import { CONFIRM_UNAVAILABLE_MESSAGE, issuePreviewKey, previewSecret, SAVE_UNAVAILABLE_NOTE, verifyPreviewKeyFor } from '@/lib/mcp/core/confirm/preview-key'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
@@ -386,7 +386,7 @@ export async function previewTimeReport(db: Db, callerId: string, input: Pick<Sa
     siguiente_paso: problems.length
       ? 'No cuadra con los totales del reporte: revisa esas filas contra el archivo antes de guardar.'
       : !confirmable
-        ? CONFIRM_UNAVAILABLE_MESSAGE
+        ? SAVE_UNAVAILABLE_NOTE
         : 'Nada se ha guardado. Muestra el resumen y, si el administrador confirma, llama save_time_entries con las mismas filas y la clave.',
   }
 }

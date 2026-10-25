@@ -45,7 +45,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -70,14 +70,14 @@
   {
     "name": "get_quotation",
     "title": "Detalle de cotización",
-    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref.",
+    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref. Un administrador recibe además `link_aprobacion` mientras está en revisión.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "cotizacion": {
           "type": "string",
           "minLength": 1,
-          "description": "Nombre o cliente (parcial), ref o UUID"
+          "description": "Nombre, cliente o ref"
         }
       },
       "required": [
@@ -122,7 +122,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -154,7 +154,7 @@
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "Nombre o cliente (parcial), ref o UUID"
+          "description": "Nombre, cliente o ref"
         }
       },
       "required": [
@@ -183,7 +183,7 @@
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "Nombre o cliente (parcial), ref o UUID"
+          "description": "Nombre, cliente o ref"
         }
       },
       "required": [
@@ -264,7 +264,7 @@
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "Nombre o cliente (parcial), ref o UUID"
+          "description": "Nombre, cliente o ref"
         }
       },
       "required": [
@@ -309,7 +309,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -332,54 +332,6 @@
     }
   },
   {
-    "name": "save_inventory_item",
-    "title": "Guardar inventario",
-    "description": "Asigna o corrige la ubicación física (gaveta) de productos YA inventariados: `productos` = [{ codigo, ubicacion }], hasta 30. Úsala para \"el 6954 quedó en la gaveta B3\". `ubicacion: \"\"` borra la gaveta; un código que no esté en el inventario o que coincida con varios frena toda la llamada. Directo. Solo toca la gaveta: las cantidades NUNCA se modifican por aquí.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "productos": {
-          "minItems": 1,
-          "maxItems": 30,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "codigo": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Código del producto en inventario (sin distinguir mayúsculas)"
-              },
-              "ubicacion": {
-                "type": "string",
-                "description": "Gaveta, texto libre; \"\" la borra"
-              }
-            },
-            "required": [
-              "codigo",
-              "ubicacion"
-            ],
-            "additionalProperties": false
-          }
-        }
-      },
-      "required": [
-        "productos"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
     "name": "search_products",
     "title": "Buscar productos ETM",
     "description": "Busca en el catálogo ETM por ETM, código o descripción. Devuelve precio, marca, `se_vende` (sin_definir, si, no) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.",
@@ -394,7 +346,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -434,7 +386,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -478,7 +430,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -503,12 +455,12 @@
   {
     "name": "save_supplier",
     "title": "Guardar proveedor",
-    "description": "Da de alta un proveedor de menudeo, o edita uno existente si mandas proveedor (su nombre o parte): contacto, días de crédito (null = contado) y marcas que surte con agregar_marcas / quitar_marcas (deben existir en el catálogo de marcas). Un texto vacío borra ese dato. ESCRIBE: confirma los datos antes. No borra proveedores.",
+    "description": "Da de alta un proveedor de menudeo, o edita uno existente si mandas proveedor (su nombre o parte): contacto, días de crédito (null = contado) y marcas con agregar_marcas / quitar_marcas; una marca nueva solo se da de alta con crear_marcas: true. Un texto vacío borra ese dato. No borra proveedores.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "proveedor": {
-          "description": "Proveedor a editar (nombre o parte); omítelo para dar de alta",
+          "description": "A editar (nombre o parte); omitido = alta",
           "type": "string"
         },
         "nombre": {
@@ -536,7 +488,7 @@
             {
               "type": "integer",
               "minimum": 0,
-              "maximum": 9007199254740991
+              "maximum": 9999
             },
             {
               "type": "null"
@@ -555,6 +507,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "crear_marcas": {
+          "description": "Crea las marcas que no existan",
+          "type": "boolean"
         }
       },
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -603,7 +559,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -738,7 +694,7 @@
           "format": "date"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },
@@ -896,7 +852,7 @@
           "description": "Página (1-indexada, default 1; 30 por página)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         }
       },
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -922,7 +878,7 @@
         "tarea": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991,
+          "maximum": 99999,
           "description": "Número de la tarea (#N)"
         }
       },
@@ -953,7 +909,7 @@
           "description": "Número (#N) de la existente; omítelo para crear",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 99999
         },
         "titulo": {
           "description": "Obligatorio al crear",
@@ -994,7 +950,7 @@
           "type": "string"
         },
         "clave": {
-          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "description": "Clave del resumen",
           "type": "string"
         }
       },

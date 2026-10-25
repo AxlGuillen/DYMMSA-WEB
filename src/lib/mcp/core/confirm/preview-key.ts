@@ -20,6 +20,9 @@ const TOOL_PURPOSE = 'tool'
 
 export const CONFIRM_UNAVAILABLE_MESSAGE =
   'La confirmación en dos pasos todavía no está activada en el servidor (falta la variable MCP_PREVIEW_SECRET), así que no puedo mostrarte el resumen ni escribir. No escribí nada; avisa a quien administra la plataforma.'
+/** For a read-only twin that still shows its summary without the secret (preview_time_report): only saving is off. */
+export const SAVE_UNAVAILABLE_NOTE =
+  'El resumen sí se puede revisar, pero guardar queda apagado hasta que se active la confirmación en dos pasos (falta la variable MCP_PREVIEW_SECRET en el servidor). Avisa a quien administra la plataforma.'
 export const KEY_INVALID_MESSAGE = 'La clave no es válida: pide el resumen de nuevo. No escribí nada.'
 export const KEY_OTHER_USER_MESSAGE = 'Esa clave es del resumen de otro usuario: pide el tuyo. No escribí nada.'
 export const KEY_CHANGED_ARGS_MESSAGE = 'Los datos son distintos a los del resumen: pide el resumen de nuevo. No escribí nada.'
@@ -121,4 +124,4 @@ export function verifyPreviewKeyFor(clave: string, scope: KeyScope & { fingerpri
 }
 
 /** The `clave` every two-phase tool takes and every preview twin returns. */
-export const claveField = z.string().optional().describe('Clave del resumen (fase 1); sin ella solo se muestra el resumen')
+export const claveField = z.string().optional().describe('Clave del resumen')

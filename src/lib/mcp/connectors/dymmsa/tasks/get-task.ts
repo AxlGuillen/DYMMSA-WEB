@@ -9,7 +9,7 @@ export const getTaskTool = defineTool({
   kind: 'read',
   title: 'Detalle de tarea',
   description: 'Una tarea con su descripción, quién la reportó, prioridad, estado y sus comentarios (hasta 100).',
-  input: { tarea: z.number().int().min(1).describe('Número de la tarea (#N)') },
+  input: { tarea: z.number().int().min(1).max(99999).describe('Número de la tarea (#N)') },
   hints: dymmsaRead,
   docs: {
     module: 'Tareas',

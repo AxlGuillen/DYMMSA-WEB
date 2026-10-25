@@ -420,6 +420,20 @@ export async function setOrderStatus(db: SupabaseClient, orderId: string, body: 
   throw new OrderError('Error al actualizar el estado', 'failed')
 }
 
+/** PATCH /api/orders/[id] and save_order: the only metadata an order takes is its Odoo id (null / '' clears it); any status allows it. */
+export async function updateOrderOdooId(db: SupabaseClient, orderId: string, body: unknown): Promise<{ odoo_id: string | null }> {
+  await loadOrder(db, orderId)
+  const raw = (body ?? {}) as Record<string, unknown>
+  if (!('odoo_id' in raw)) throw new OrderError('Sin cambios')
+  const value = typeof raw.odoo_id === 'string' ? raw.odoo_id.trim() || null : (raw.odoo_id ?? null)
+  const { data, error } = await db.from('orders').update({ odoo_id: value }).eq('id', orderId).select('odoo_id').single()
+  if (error || !data) {
+    console.error('Update order error:', error)
+    throw new OrderError('Error al actualizar la orden', 'failed')
+  }
+  return data as { odoo_id: string | null }
+}
+
 // ─── Lines ──────────────────────────────────────────────────────────────────
 
 /** Adds a line in ONE transaction (add_order_item): the order stays locked while its stock is reserved,

@@ -65,7 +65,7 @@ describe('getInventoryStats', () => {
   })
 })
 
-describe('save_inventory_item (issue #72, #155 C6): solo la gaveta', () => {
+describe('save_inventory_item (issue #72, #155 C6): la gaveta', () => {
   const row = (model_code: string, quantity: number, location: string | null) => ({ model_code, quantity, location })
   /** select = the plan's read, update = the write; keyed as the mock wants. */
   const client = (stored: ReturnType<typeof row>[], written: (rec: CallRecord) => { data: unknown; error: unknown } = () => ({ data: stored.slice(0, 1), error: null })) =>
@@ -144,7 +144,7 @@ describe('save_inventory_item (issue #72, #155 C6): solo la gaveta', () => {
     })
     const error = await save(c, [{ codigo: 'A1', ubicacion: 'G-1' }, { codigo: 'B2', ubicacion: 'G-2' }]).catch((e) => e)
     expect(error).toBeInstanceOf(ToolError)
-    expect(error.message).toBe('Se guardó la ubicación de A1, pero falló en B2: Error al actualizar la ubicación. Repite solo lo que falta.')
+    expect(error.message).toBe('Ya quedó guardado: A1. Falló en B2: Error al actualizar la ubicación. Repite solo lo que falta.')
   })
 
   test('sin código → error sin tocar la BD', async () => {

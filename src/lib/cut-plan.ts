@@ -1,6 +1,6 @@
 /** Pure mm math (ADR-022). Callers coerce supabase-js numeric strings first. */
 
-import type { MaterialPresentation } from '@/types/database'
+import type { CutPlanPieceInsert, MaterialPresentation } from '@/types/database'
 
 /** Margin consumed by every cut. */
 export const DEFAULT_CUT_MARGIN_MM = 20
@@ -46,6 +46,57 @@ export function parsePresentationInput(body: unknown): { value: PresentationRow 
       length_mm: raw.length_mm,
     },
   }
+}
+
+/** A piece of the cut list as it is stored (the order id is added by whoever saves). */
+export type CutPieceRow = Omit<CutPlanPieceInsert, 'order_id'>
+
+interface PieceInput {
+  material_type?: unknown
+  diameter_mm?: number | null
+  thickness_mm?: number | null
+  width_mm?: number | null
+  length_mm?: unknown
+  quantity?: unknown
+  requested_label?: unknown
+  source_item_id?: string | null
+}
+
+/**
+ * The pieces of a cut list, validated one by one (the route's own rules): a tube needs a diameter and takes no
+ * width or thickness, a plate the opposite (the cut_piece_shape CHECK, with a clear message — ADR-009).
+ * `sort_order` is the position in the list.
+ */
+export function parseCutPieces(pieces: unknown): { value: CutPieceRow[] } | { error: string } {
+  if (!Array.isArray(pieces)) return { error: 'El body debe incluir un array "pieces"' }
+  const rows: CutPieceRow[] = []
+  for (const [index, piece] of (pieces as PieceInput[]).entries()) {
+    const label = `Pieza ${index + 1}`
+    if (piece.material_type !== 'tube' && piece.material_type !== 'plate') return { error: `${label}: tipo de material inválido` }
+    if (!isPositiveMm(piece.length_mm)) return { error: `${label}: la longitud debe ser mayor a 0` }
+    if (typeof piece.quantity !== 'number' || !Number.isInteger(piece.quantity) || piece.quantity < 1) {
+      return { error: `${label}: la cantidad debe ser un entero mayor a 0` }
+    }
+    if (piece.material_type === 'tube') {
+      if (!isPositiveMm(piece.diameter_mm)) return { error: `${label}: un tubo necesita diámetro` }
+      if (piece.width_mm != null || piece.thickness_mm != null) return { error: `${label}: un tubo no lleva ancho ni espesor` }
+    } else {
+      if (!isPositiveMm(piece.thickness_mm) || !isPositiveMm(piece.width_mm)) return { error: `${label}: una placa necesita espesor y ancho` }
+      if (piece.diameter_mm != null) return { error: `${label}: una placa no lleva diámetro` }
+    }
+    rows.push({
+      material_type: piece.material_type,
+      diameter_mm: piece.diameter_mm ?? null,
+      thickness_mm: piece.thickness_mm ?? null,
+      width_mm: piece.width_mm ?? null,
+      length_mm: piece.length_mm,
+      quantity: piece.quantity,
+      requested_label: typeof piece.requested_label === 'string' ? piece.requested_label.trim() || null : null,
+      source_item_id: piece.source_item_id ?? null,
+      sort_order: index,
+    })
+  }
+  return { value: rows }
 }
 
 /** Readable mm²: below 1 m² uses cm². */

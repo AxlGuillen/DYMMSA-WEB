@@ -126,6 +126,53 @@ describe('saveSupplier (#134)', () => {
   })
 })
 
+describe('save_supplier.crear_marcas (ADR-037, #155 D)', () => {
+  const BRANDS = { data: [{ id: 'b-foy', name: 'FOY' }], error: null }
+  const saved = supplier(S1, 'Ferretería López', 30, ['PRETUL'])
+  const suppliersSelect = (rec: CallRecord) =>
+    rec.single ? { data: saved, error: null } : { data: [{ id: S1, name: 'Ferretería López', payment_terms_days: 30 }], error: null }
+
+  test('eval 14: la marca que no existe se da de alta normalizada, se liga al proveedor nuevo y el aviso la nombra', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'brands.select': BRANDS,
+        'brands.insert': { data: { id: 'b-pretul', name: 'PRETUL' }, error: null },
+        'suppliers.insert': { data: { ...saved }, error: null },
+        'suppliers.select': suppliersSelect,
+        'supplier_brands.insert': { data: null, error: null },
+      },
+    })
+    const result = await saveSupplier(asDb(client), { nombre: 'Ferretería López', dias_credito: 30, agregar_marcas: [' pretul '], crear_marcas: true })
+    expect(client.insertPayload('brands')).toEqual({ name: 'PRETUL' })
+    expect(client.insertPayload('supplier_brands')).toEqual([{ supplier_id: S1, brand_id: 'b-pretul' }])
+    expect(result).toMatchObject({ accion: 'creado', escrito: true, avisos: ['Marca nueva dada de alta: PRETUL.'] })
+  })
+
+  test('una marca que ya existe no se vuelve a crear; sin crear_marcas la nueva sigue siendo error; crear_marcas solo se aplica a agregar_marcas', async () => {
+    const client = createMockSupabase({
+      responses: {
+        'brands.select': BRANDS,
+        'suppliers.insert': { data: { ...saved }, error: null },
+        'suppliers.select': suppliersSelect,
+        'supplier_brands.insert': { data: null, error: null },
+      },
+    })
+    const result = await saveSupplier(asDb(client), { nombre: 'Ferretería López', agregar_marcas: ['foy'], crear_marcas: true })
+    expect(client.didCall('brands', 'insert')).toBe(false)
+    expect(result).not.toHaveProperty('avisos')
+    await expect(saveSupplier(asDb(client), { nombre: 'Otro', agregar_marcas: ['PRETUL'] })).rejects.toThrow(/No existe la marca PRETUL.*crear_marcas: true/)
+    await expect(saveSupplier(asDb(client), { proveedor: 'lópez', quitar_marcas: ['PRETUL'], crear_marcas: true, agregar_marcas: ['FOY'] })).rejects.toThrow(/No existe la marca PRETUL/)
+    await expect(saveSupplier(asDb(client), { nombre: 'Otro', crear_marcas: true })).rejects.toThrow(/crear_marcas va con agregar_marcas/)
+    expect(client.didCall('brands', 'insert')).toBe(false)
+  })
+
+  test('un proveedor que no existe no deja una marca huérfana: se busca antes de dar de alta', async () => {
+    const client = createMockSupabase({ responses: { 'brands.select': BRANDS, 'suppliers.select': { data: [], error: null } } })
+    await expect(saveSupplier(asDb(client), { proveedor: 'nadie', telefono: '1', agregar_marcas: ['PRETUL'], crear_marcas: true })).rejects.toThrow()
+    expect(client.didCall('brands', 'insert')).toBe(false)
+  })
+})
+
 describe('createSupplier (store, #134)', () => {
   test('REGLA: el store no inserta un proveedor sin nombre aunque el llamador no lo haya validado (review PR #139)', async () => {
     const client = createMockSupabase()

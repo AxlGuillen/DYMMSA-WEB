@@ -12,7 +12,7 @@ import * as periodRoute from '@/app/api/payroll/periods/[start]/route'
 import * as prefillRoute from '@/app/api/payroll/periods/[start]/prefill/route'
 import * as confirmRoute from '@/app/api/payroll/periods/[start]/confirm/route'
 import * as daysRoute from '@/app/api/payroll/days/route'
-import { getPayrollPeriod, recordPayrollHours } from '@/lib/mcp/tools/payroll'
+import { getPayrollPeriod, savePayrollHours } from '@/lib/mcp/tools/payroll'
 import type { PayrollView } from '@/lib/payroll'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -73,7 +73,7 @@ describe('RLS: solo administradores', () => {
 
     // The MCP runs with the caller's token: same wall, with a message instead of a fake empty cut.
     expect((await getPayrollPeriod(member, { fecha: '2026-09-21' })).nota).toMatch(/solo la ve un administrador/)
-    await expect(recordPayrollHours(member, { dias: [{ empleado: 'Juan', fecha: '2026-09-22', horas: 8 }] })).rejects.toThrow(/solo la ve un administrador/)
+    await expect(savePayrollHours(member, { dias: [{ empleado: 'Juan', fecha: '2026-09-22', horas: 8 }] })).rejects.toThrow(/solo la ve un administrador/)
     expect(await dayRows()).toHaveLength(1)
   })
 
@@ -88,15 +88,15 @@ describe('el corte, de la hoja al cierre', () => {
   test('el asistente carga borradores, el admin confirma, cierra y el corte queda congelado', async () => {
     const id = await seedEmployee('Juan Taller')
 
-    const saved = await recordPayrollHours(admin, {
+    const saved = await savePayrollHours(admin, {
       dias: [
         { empleado: 'juan', fecha: '2026-09-19', horas: 6 },
         { empleado: 'juan', fecha: '2026-09-21', horas: 11.5 },
         { empleado: 'juan', fecha: '2026-09-26', horas: 5 },
       ],
     })
-    expect(saved.guardados).toBe(3)
-    expect(saved.cortes.map((c) => c.inicio)).toEqual(['2026-09-19', '2026-09-26'])
+    expect(saved.horas.guardados).toBe(3)
+    expect(saved.horas.cortes.map((c) => c.inicio)).toEqual(['2026-09-19', '2026-09-26'])
 
     let view = await readJson<PayrollView>(await periodRoute.GET(makeRequest(), start))
     expect(view.drafts).toBe(2)
@@ -119,8 +119,8 @@ describe('el corte, de la hoja al cierre', () => {
     // Frozen for the app, for the assistant and for a raw write with the service role.
     expect((await putDay({ employee_id: id, work_date: '2026-09-21', worked_minutes: 60 })).status).toBe(400)
     expect((await putDay({ employee_id: id, work_date: '2026-09-21', worked_minutes: 0 })).status).toBe(400)
-    const again = await recordPayrollHours(admin, { dias: [{ empleado: 'juan', fecha: '2026-09-22', horas: 8 }] })
-    expect(again).toMatchObject({ guardados: 0, omitidos: [{ fecha: '2026-09-22', motivo: 'el corte está cerrado' }] })
+    const again = await savePayrollHours(admin, { dias: [{ empleado: 'juan', fecha: '2026-09-22', horas: 8 }] })
+    expect(again.horas).toMatchObject({ guardados: 0, omitidos: [{ fecha: '2026-09-22', motivo: 'el corte está cerrado' }] })
     await expect(sql(`UPDATE public.payroll_days SET worked_minutes = 1 WHERE work_date = '2026-09-21'`)).rejects.toThrow(/está cerrado/)
     await expect(sql(`DELETE FROM public.payroll_days WHERE work_date = '2026-09-19'`)).rejects.toThrow(/está cerrado/)
     // The following cut is still open.
@@ -221,7 +221,7 @@ describe('#157: cerrar congela la jornada y el área', () => {
     expect(frozen.rows[0]).toMatchObject({ area: 'office', shift: 'full_time', totals: office })
     // The assistant reads the same frozen rules.
     const mcp = await getPayrollPeriod(admin, { fecha: '2026-09-21' })
-    expect(mcp.empleados[0]).toMatchObject({ tipo: 'oficina', jornada: 'Tiempo completo · 8 h', equivalente: '17:00' })
+    expect(mcp.empleados[0]).toMatchObject({ tipo: 'oficina', jornada: 'completa', equivalente: '17:00' })
     // The open cut follows today's values: workshop Saturday of 5 h, all ordinary.
     const next = await readJson<PayrollView>(await periodRoute.GET(makeRequest(), makeParams({ start: '2026-09-26' })))
     expect(next.rows[0]).toMatchObject({ area: 'workshop', shift: 'part_time' })

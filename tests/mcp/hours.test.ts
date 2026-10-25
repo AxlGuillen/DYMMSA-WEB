@@ -8,6 +8,7 @@ import { ToolError } from '@/lib/mcp/core/errors'
 import type { Db } from '@/lib/mcp/core/db'
 import { getWeekHours, getHoursTrend, listTimeImports, previewTimeReport, saveTimeEntries, saveExcusedDay } from '@/lib/mcp/tools/hours'
 import { NGTECO_PERIOD, NGTECO_WEEK } from '../helpers/fixtures/ngteco'
+import { SAVE_UNAVAILABLE_NOTE } from '@/lib/mcp/core/confirm/preview-key'
 import { withPreviewSecret } from '../helpers/preview-secret'
 
 withPreviewSecret()
@@ -426,7 +427,9 @@ describe('preview_time_report (ADR-036)', () => {
     vi.stubEnv('MCP_PREVIEW_SECRET', '')
     const without = await previewTimeReport(asDb(client()), 'u-axl', { filas: NGTECO_WEEK })
     expect(without).toMatchObject({ cuadra: true, clave: null, vence: null })
-    expect(without.siguiente_paso).toMatch(/todavía no está activada/)
+    expect(without.siguiente_paso).toBe(SAVE_UNAVAILABLE_NOTE)
+    expect(without.siguiente_paso).toMatch(/guardar queda apagado/)
+    expect(without.siguiente_paso).not.toMatch(/no puedo mostrarte/)
   })
 
   test('lo que no cuadra se marca por persona y en problemas, para que la vista no deje guardar', async () => {

@@ -5,8 +5,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DomainError } from '@/lib/domain-error'
+import { normalizeBrandTag } from '@/lib/business-rules'
 import { isUuid } from '@/lib/text'
-import type { Supplier, SupplierInsert, SupplierUpdate } from '@/types/database'
+import type { Brand, Supplier, SupplierInsert, SupplierUpdate } from '@/types/database'
 
 /** A rule the user broke (→ 400 / 404) or a write that failed (→ 500); routes and tools map it. */
 export class SupplierError extends DomainError {
@@ -152,6 +153,19 @@ export async function deleteSupplier(db: SupabaseClient, id: string): Promise<vo
   }
   // Zero rows deleted is a missing id, not a success (#157).
   if (!data || data.length === 0) throw new SupplierError('El proveedor no existe', 'not_found')
+}
+
+/** POST /api/brands and save_supplier.crear_marcas: the name is always trim+upper (ADR-037, #155 D). */
+export async function createBrand(db: SupabaseClient, rawName: unknown): Promise<Brand> {
+  const name = typeof rawName === 'string' ? normalizeBrandTag(rawName) : ''
+  if (!name) throw new SupplierError('El nombre de la marca es obligatorio')
+  const { data, error } = await db.from('brands').insert({ name }).select().single()
+  if (error || !data) {
+    if (error?.code === '23505') throw new SupplierError('La marca ya existe')
+    console.error('Error creating brand:', error)
+    throw new SupplierError('Error al crear la marca', 'failed')
+  }
+  return data as Brand
 }
 
 /** How many suppliers carry the brand. */
