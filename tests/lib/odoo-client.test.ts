@@ -289,7 +289,7 @@ describe('errores JSON-2 (#144)', () => {
 
   test('la factura y el alta de productos no hablan de una clave ni de una vista previa que no tienen', () => {
     const invoice = new OdooUncertainWriteError('sale.advance.payment.inv.create_invoices', 'invoice')
-    expect(invoice.message).toContain('Repite exactamente la misma llamada con el mismo folio')
+    expect(invoice.message).toContain('Pide otra vez el resumen con el mismo folio')
     expect(invoice.message).toContain('no creo otro')
     const products = new OdooUncertainWriteError('product.product.create', 'products')
     expect(products.message).toContain('Repite el mismo clic')

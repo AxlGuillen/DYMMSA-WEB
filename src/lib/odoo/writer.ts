@@ -22,7 +22,7 @@ import {
   type WriteOperationName,
 } from './write-catalog'
 import { assertPreviewGrant, type PreviewGrant } from './preview-token'
-import { assertAdminProof, type AdminProof } from './write-guard'
+import { assertAdminProof, type AdminProof } from '@/lib/auth/admin-proof'
 
 export type TrailAction = 'Creada' | 'Editada' | 'Confirmada' | 'Factura en borrador creada'
 

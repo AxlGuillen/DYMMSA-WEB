@@ -5,14 +5,16 @@
 
 import { z } from 'zod'
 import { ToolError } from '@/lib/mcp/core/errors'
+import { CONFIRM_UNAVAILABLE_MESSAGE, issuePreviewKey, previewSecret, verifyPreviewKeyFor } from '@/lib/mcp/core/confirm/preview-key'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
 import { correctTimeEntry, createManualEntry, importTimeReport, loadClockProfiles } from '@/lib/time-entries-store'
+import { createExcusedDay, findExcusedDay, updateExcusedDay } from '@/lib/excused-days-store'
+import { writeResult } from '@/lib/mcp/core/envelope'
 import {
   buildWeekView,
   buildWeeklyTrend,
-  EXCUSE_LABELS,
   excusesFor,
   isRealDate,
   weekChartData,
@@ -29,18 +31,19 @@ import {
   reportMismatches,
   shiftProgress,
   SHIFT_HOURS,
-  SHIFT_LABELS,
+  SHIFT_TOKENS,
+  EXCUSE_TOKENS,
   weekBounds,
   shiftWeek,
 } from '@/lib/timesheet'
-import type { ExcusedDay, Profile, TimeEntry, TimeEntryUpdate } from '@/types/database'
+import type { ExcuseKind, ExcusedDay, Profile, TimeEntry, TimeEntryUpdate } from '@/types/database'
 
 type Target = Pick<Profile, 'id' | 'display_name' | 'shift'>
 
 const resolveTarget = (db: Db, callerId: string, persona?: string) =>
   resolvePerson<Target>(db, callerId, persona, 'id, display_name, shift')
 
-async function entriesBetween(db: Db, userId: string, from: string, to: string): Promise<TimeEntry[]> {
+export async function entriesBetween(db: Db, userId: string, from: string, to: string): Promise<TimeEntry[]> {
   const { data, error } = await db
     .from('time_entries')
     .select('*')
@@ -77,7 +80,7 @@ const DAY_STATUS_LABELS: Record<DayStatus, string | null> = {
 
 function shiftBlock(target: Target) {
   return {
-    jornada: target.shift ? SHIFT_LABELS[target.shift] : null,
+    jornada: target.shift ? SHIFT_TOKENS.toToken(target.shift) : null,
     objetivo_semanal_h: target.shift ? SHIFT_HOURS[target.shift].weekly : null,
   }
 }
@@ -119,7 +122,7 @@ export async function getWeekHours(db: Db, callerId: string, input: WeekHoursInp
       fecha: d.date,
       horas: formatDuration(d.minutes),
       estado: DAY_STATUS_LABELS[points[i].status],
-      justificado: points[i].excuse ? EXCUSE_LABELS[points[i].excuse] : null,
+      justificado: points[i].excuse ? EXCUSE_TOKENS.toToken(points[i].excuse as ExcuseKind) : null,
       checadas: d.punches.map((p) => ({ entrada: p.entry.clock_in, salida: p.entry.clock_out, nota: p.entry.note })),
       sin_salida: d.open,
     })),
@@ -169,8 +172,8 @@ export async function getHoursTrend(db: Db, callerId: string, input: HoursTrendI
   }
 }
 
-export async function listTimeImports(db: Db, input: { limit?: number } = {}) {
-  const limit = Math.min(50, Math.max(1, Math.floor(input.limit ?? 10)))
+export async function listTimeImports(db: Db, input: { limite?: number } = {}) {
+  const limit = Math.min(50, Math.max(1, Math.floor(input.limite ?? 10)))
   const { data, error } = await db
     .from('time_imports')
     .select('period_start, period_end, file_name, inserted, updated, skipped_edited, created_at')
@@ -207,20 +210,29 @@ export interface SaveTimeEntriesInput {
   /** The clock report's rows, cell by cell, as the sheet prints them. */
   filas?: string[][]
   nombre_archivo?: string
+  /** The key preview_time_report signed for these rows (#155 C4); only `filas` needs it. */
+  clave?: string
   checada?: PunchInput
 }
 
 const ASSISTANT_FILE = 'Asistente (MCP)'
 
+/** What the key signs for the report: the rows and the name, nothing else of the call. */
+const reportArgs = (input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>) => ({ filas: input.filas, nombre_archivo: input.nombre_archivo })
+
+/** Who the import would assign each clock id to: if it moves between the preview and the save, the preview no longer holds. */
+const clockMapping = (profiles: { id: string; clock_employee_id: number | null }[]) =>
+  profiles.map((p) => [p.clock_employee_id, p.id]).sort((a, b) => Number(a[0]) - Number(b[0]))
+
 /** One tool per entity (ADR-034): the weekly report (#132) or a single punch (#134). */
 export async function saveTimeEntries(db: Db, callerId: string, input: SaveTimeEntriesInput) {
   if (input.filas?.length && input.checada) throw new ToolError('Manda `filas` o `checada`, no las dos en la misma llamada')
   if (input.checada) return savePunch(db, callerId, input.checada)
-  return importReport(db, input)
+  return importReport(db, callerId, input)
 }
 
 /** The rows go through the app's own parser, and must add up to the clock's totals (ADR-035). */
-async function importReport(db: Db, input: SaveTimeEntriesInput) {
+async function importReport(db: Db, callerId: string, input: SaveTimeEntriesInput) {
   if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador, o una `checada` para corregir o registrar')
   const report = parseNgtecoReport(input.filas)
   const mismatches = reportMismatches(report)
@@ -229,6 +241,21 @@ async function importReport(db: Db, input: SaveTimeEntriesInput) {
       `No guardé nada: lo que mandaste no cuadra con los totales del propio reporte. Revisa esas filas contra el archivo y vuelve a mandarlo completo. ${mismatches.join(' · ')}`,
     )
   }
+  // Same refusals as the preview and the store, before the key: a malformed report is never a "missing key".
+  if (!report.period) throw new ToolError('Las filas no traen "Período de pago": ¿es el reporte del checador?')
+  if (report.employees.length === 0) throw new ToolError('Las filas no traen bloques de empleado')
+  // The yes is the preview's key (#155 C4): the same rows, the same admin, the same clock-id mapping, within 30 min.
+  if (!previewSecret()) throw new ToolError(CONFIRM_UNAVAILABLE_MESSAGE)
+  if (!input.clave?.trim()) {
+    throw new ToolError('Falta la `clave` del reporte: revísalo primero con preview_time_report y repite con su clave. No guardé nada.')
+  }
+  verifyPreviewKeyFor(input.clave, {
+    userId: callerId,
+    tool: 'save_time_entries',
+    args: reportArgs(input),
+    fingerprint: clockMapping(await loadClockProfiles(db)),
+    subject: 'La asignación de personas del checador',
+  })
   const name = input.nombre_archivo?.trim()
   const { result, absent } = await importTimeReport(db, report, name ? `${ASSISTANT_FILE}: ${name.slice(0, 120)}` : ASSISTANT_FILE)
   return {
@@ -291,13 +318,16 @@ export const previewTimeReportOutput = z.strictObject({
   sin_perfil: textList,
   no_vinieron_en_el_reporte: textList,
   avisos: textList,
+  /** The key save_time_entries demands with `filas` (#155 C4); null when the report does not add up or confirmations are off. */
+  clave: text.nullable(),
+  vence: text.nullable(),
   siguiente_paso: text,
 })
 
 export type TimeReportPreview = z.infer<typeof previewTimeReportOutput>
 
-/** Read-only twin of save_time_entries (ADR-034: never read and write in one tool); the MCP App view renders it (ADR-036). */
-export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>): Promise<TimeReportPreview> {
+/** Read-only twin of save_time_entries (ADR-034: never read and write in one tool); the MCP App view renders it (ADR-036). It signs the key the save asks for. */
+export async function previewTimeReport(db: Db, callerId: string, input: Pick<SaveTimeEntriesInput, 'filas' | 'nombre_archivo'>): Promise<TimeReportPreview> {
   if (!input.filas?.length) throw new ToolError('Manda las filas del reporte del checador')
   const report = parseNgtecoReport(input.filas)
   if (!report.period) throw new ToolError('Las filas no traen "Período de pago": ¿es el reporte del checador?')
@@ -333,6 +363,12 @@ export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput
     }
   })
 
+  const confirmable = previewSecret() !== null
+  const key =
+    problems.length === 0 && confirmable
+      ? issuePreviewKey({ userId: callerId, tool: 'save_time_entries', args: reportArgs(input), fingerprint: clockMapping(profiles) })
+      : null
+
   return {
     periodo: { inicio: report.period.start, fin: report.period.end },
     nombre_archivo: input.nombre_archivo ?? null,
@@ -345,10 +381,54 @@ export async function previewTimeReport(db: Db, input: Pick<SaveTimeEntriesInput
     avisos: truncated
       ? [...report.warnings, `La tabla muestra solo los primeros ${MAX_PREVIEW_DAYS} días del periodo; el total y "cuadra" sí consideran todas las checadas, y guardar las escribe todas.`]
       : report.warnings,
+    clave: key?.clave ?? null,
+    vence: key?.vence ?? null,
     siguiente_paso: problems.length
       ? 'No cuadra con los totales del reporte: revisa esas filas contra el archivo antes de guardar.'
-      : 'Nada se ha guardado. Muestra el resumen y, si el administrador confirma, llama save_time_entries con las mismas filas.',
+      : !confirmable
+        ? CONFIRM_UNAVAILABLE_MESSAGE
+        : 'Nada se ha guardado. Muestra el resumen y, si el administrador confirma, llama save_time_entries con las mismas filas y la clave.',
   }
+}
+
+export interface SaveExcusedDayInput {
+  fecha: string
+  /** feriado | salida_autorizada (EXCUSE_TOKENS); required for a new one, kept when editing. */
+  tipo?: string
+  /** Omitted = the whole team. */
+  persona?: string
+  nota?: string
+}
+
+/** Marks or changes a holiday / authorized early exit (#134); removing one is delete_record (#155 C6). */
+export async function saveExcusedDay(db: Db, callerId: string, input: SaveExcusedDayInput) {
+  if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
+  const kind = input.tipo === undefined ? undefined : EXCUSE_TOKENS.toDb(input.tipo)
+  if (input.tipo !== undefined && !kind) throw new ToolError(`Tipo inválido "${input.tipo}": usa ${EXCUSE_TOKENS.tokens.join(' | ')}`)
+  const person = input.persona?.trim()
+    ? await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.persona, 'id, display_name')
+    : null
+  const who = person?.display_name ?? 'todo el equipo'
+
+  const current = await findExcusedDay(db, input.fecha, person?.id ?? null)
+  const final = kind ?? current?.kind
+  const parsed = parseExcusedDay({ work_date: input.fecha, kind: final, user_id: person?.id ?? null, note: input.nota ?? current?.note ?? '' })
+  if ('error' in parsed) throw new ToolError(parsed.error)
+
+  const saved = current
+    ? await updateExcusedDay(db, current.id, { kind: parsed.value.kind, note: parsed.value.note ?? null })
+    : await createExcusedDay(db, parsed.value)
+  return writeResult(
+    current ? 'actualizado' : 'creado',
+    'dia_justificado',
+    { fecha: saved.work_date, tipo: EXCUSE_TOKENS.toToken(saved.kind), para: who, nota: saved.note },
+    {
+      nota:
+        saved.kind === 'holiday'
+          ? 'Ese día no pide horas: se descuenta del objetivo de la semana.'
+          : 'Ese día cuenta como cumplido con lo que se trabajó.',
+    },
+  )
 }
 
 /** Same rules as the app's dialog: corrections keep the clock's original and survive the re-import. */
@@ -388,60 +468,3 @@ async function savePunch(db: Db, callerId: string, input: PunchInput) {
   }
 }
 
-const KIND_BY_INPUT = { feriado: 'holiday', salida_autorizada: 'early_release' } as const
-
-export interface SaveExcusedDayInput {
-  fecha: string
-  tipo?: keyof typeof KIND_BY_INPUT
-  /** Omitted = the whole team. */
-  persona?: string
-  nota?: string
-  quitar?: boolean
-}
-
-/** Marks, changes or removes a holiday / authorized early exit (#134); same parser as the route. */
-export async function saveExcusedDay(db: Db, callerId: string, input: SaveExcusedDayInput) {
-  const person = input.persona?.trim()
-    ? await resolvePerson<Pick<Profile, 'id' | 'display_name'>>(db, callerId, input.persona, 'id, display_name')
-    : null
-  const who = person?.display_name ?? 'todo el equipo'
-  if (!isRealDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
-
-  let existing = db.from('excused_days').select('id, kind, note').eq('work_date', input.fecha)
-  existing = person ? existing.eq('user_id', person.id) : existing.is('user_id', null)
-  const { data: found, error: findError } = await existing.maybeSingle()
-  if (findError) throw new ToolError('No se pudieron leer los días justificados')
-  const current = found as Pick<ExcusedDay, 'id' | 'kind' | 'note'> | null
-
-  if (input.quitar) {
-    if (!current) throw new ToolError(`El ${input.fecha} no está justificado para ${who}`)
-    // RLS filters a non-admin's delete to 0 rows without an error: report only what really happened (review PR #138).
-    const { data: gone, error } = await db.from('excused_days').delete().eq('id', current.id).select('id')
-    if (error) throw new ToolError('No se pudo quitar el día justificado')
-    if (!gone?.length) throw new ToolError('Solo un administrador puede justificar días')
-    return { accion: 'quitado', fecha: input.fecha, para: who, era: EXCUSE_LABELS[current.kind] }
-  }
-
-  const kind = input.tipo ? KIND_BY_INPUT[input.tipo] : current?.kind
-  const parsed = parseExcusedDay({ work_date: input.fecha, kind, user_id: person?.id ?? null, note: input.nota ?? current?.note ?? '' })
-  if ('error' in parsed) throw new ToolError(parsed.error)
-  const { data: written, error } = current
-    ? await db.from('excused_days').update({ kind: parsed.value.kind, note: parsed.value.note }).eq('id', current.id).select('id')
-    : await db.from('excused_days').insert(parsed.value).select('id')
-  if (error) {
-    if (error.code === '42501') throw new ToolError('Solo un administrador puede justificar días')
-    throw new ToolError('No se pudo guardar el día justificado')
-  }
-  if (!written?.length) throw new ToolError('Solo un administrador puede justificar días')
-  return {
-    accion: current ? 'actualizado' : 'marcado',
-    fecha: input.fecha,
-    tipo: EXCUSE_LABELS[parsed.value.kind],
-    para: who,
-    nota: parsed.value.note,
-    efecto:
-      parsed.value.kind === 'holiday'
-        ? 'Ese día no pide horas: se descuenta del objetivo de la semana.'
-        : 'Ese día cuenta como cumplido con lo que se trabajó.',
-  }
-}

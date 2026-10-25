@@ -11,7 +11,7 @@ export const listTimeImportsTool = defineTool({
   description:
     'Bitácora de los reportes semanales del checador cargados a la app: periodo, archivo, checadas insertadas/actualizadas y las saltadas por edición manual. Solo un administrador ve filas.',
   input: {
-    limit: limit(50, 10, 'cargas'),
+    limite: limit(50, 10, 'cargas'),
   },
   hints: dymmsaRead,
   adminOnly: true,
@@ -19,6 +19,7 @@ export const listTimeImportsTool = defineTool({
     module: 'Horas',
     title: 'Cargas del checador',
     example: '¿Cuando se cargo el ultimo reporte del checador?',
+    evals: ['¿Cuándo se cargó el último reporte del checador?', '¿Cuántas checadas se saltaron por edición manual?'],
   },
   handler: (input, { db }) => listTimeImports(db, input),
 })

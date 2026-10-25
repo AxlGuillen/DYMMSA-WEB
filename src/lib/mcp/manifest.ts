@@ -3,12 +3,12 @@
  * defineTool docs (#155 A3): src/lib/mcp/catalog.ts builds them for the docs page and the consent screen.
  */
 
-export type ToolBlock = 'app' | 'odoo'
+import type { ConnectorId } from './core/define'
 export type ToolKind = 'read' | 'write'
 
 export interface ToolManifestEntry {
   name: string
-  block: ToolBlock
+  connector: ConnectorId
   /** Group shown in the docs (one per screen/module). */
   module: string
   kind: ToolKind
@@ -22,6 +22,10 @@ export interface ToolManifestEntry {
    * reads. The RLS is still the barrier; this only trims the list the model sees.
    */
   adminOnly?: true
+  /** Writes only the user's yes (two phases with a key): the docs say so (#155 C4). */
+  confirm?: 'two_phase'
+  /** With `confirm`: the usual call writes without a key, only the delicate ones ask (the badge says «puede pedir»). */
+  direct?: true
 }
 
 export type McpRole = 'admin' | 'member'
@@ -33,7 +37,7 @@ export type McpRole = 'admin' | 'member'
 export const TOOL_BUDGET = {
   /** Characters of description per tool; the exceptions carry a guide the model needs in full. */
   description: 1000,
-  descriptionExceptions: { record_payroll_hours: 2600 } as Record<string, number>,
+  descriptionExceptions: { save_payroll_hours: 2600 } as Record<string, number>,
 } as const
 
 /**

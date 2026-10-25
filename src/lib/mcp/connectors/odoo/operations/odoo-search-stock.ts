@@ -19,6 +19,7 @@ export const odooSearchStockTool = defineTool({
     module: 'Operacion',
     title: 'Existencias en Odoo',
     example: '¿Cuantas puntas de cobre hay en el almacen de Odoo?',
+    evals: ['¿Cuántas puntas de cobre hay en el almacén de Odoo?', '¿Qué stock tiene Odoo del producto 5467?'],
   },
   handler: (input) => odooSearchStock(callOdoo, input),
 })

@@ -3,20 +3,35 @@
 import { describe, test, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { AssistantSection, CustomersSection, FinanceSection, ProfileSection } from '@/app/dashboard/docs/sections'
-import { DOCS_MANIFEST } from '@/lib/mcp/catalog'
+import { DOCS_MANIFEST, TOOL_MANIFEST } from '@/lib/mcp/catalog'
 
 describe('AssistantSection', () => {
+  test('la página del miembro no nombra capacidades de administrador; con ellas, las que siempre piden el sí llevan su etiqueta', () => {
+    const member = render(<AssistantSection tools={DOCS_MANIFEST} />)
+    expect(screen.queryByText('pide tu si', { selector: 'span' })).toBeNull()
+    expect(member.container.textContent).not.toMatch(/borrar un registro|facturar en Odoo/)
+    member.unmount()
+    render(<AssistantSection tools={TOOL_MANIFEST} />)
+    const always = TOOL_MANIFEST.filter((t) => t.confirm === 'two_phase' && !t.direct).map((t) => t.name)
+    expect(always).toEqual(['delete_record', 'odoo_create_draft_invoice'])
+    expect(screen.getAllByText('pide tu si', { selector: 'span' })).toHaveLength(always.length)
+    expect(screen.getByText(/borrar un registro o facturar en Odoo/)).toBeTruthy()
+  })
+
   test('pinta cada capacidad del manifiesto con su pregunta ejemplo y marca las que escriben', () => {
     render(<AssistantSection tools={DOCS_MANIFEST} />)
-    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.block === 'app').length} de «DYMMSA-WEB» y ${DOCS_MANIFEST.filter((t) => t.block === 'odoo').length} de «Odoo DYMMSA»`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${DOCS_MANIFEST.length} capacidades, ${DOCS_MANIFEST.filter((t) => t.connector === 'dymmsa').length} de «DYMMSA-WEB» y ${DOCS_MANIFEST.filter((t) => t.connector === 'odoo').length} de «Odoo DYMMSA»`))).toBeTruthy()
     for (const tool of DOCS_MANIFEST) {
       expect(screen.getAllByText(tool.title).length, tool.name).toBeGreaterThan(0)
     }
     // Only the module blocks carry the badge; the actions list repeats the limits, not the badge.
-    expect(screen.getAllByText('escribe')).toHaveLength(8)
+    expect(screen.getAllByText('escribe')).toHaveLength(5)
+    // Two-phase tools say they ask for the yes (#155 C4): the member's page has save_payable and save_task, not the admin-only ones.
+    expect(screen.getAllByText('puede pedir tu si', { selector: 'span' })).toHaveLength(DOCS_MANIFEST.filter((t) => t.confirm === 'two_phase').length)
+    expect(DOCS_MANIFEST.filter((t) => t.confirm === 'two_phase').map((t) => t.name)).toEqual(['save_payable', 'save_task'])
     expect(screen.getByText(/Nunca toca cantidades/)).toBeTruthy()
     // The Odoo writes are admin-only (#144): the page every member reads still lists Odoo as read-only.
-    expect(DOCS_MANIFEST.some((t) => t.block === 'odoo' && t.kind === 'write')).toBe(false)
+    expect(DOCS_MANIFEST.some((t) => t.connector === 'odoo' && t.kind === 'write')).toBe(false)
     expect(screen.getByText(/nunca publica, timbra ni envia/)).toBeTruthy()
     // Admins read this page too and they do write in Odoo (#144): no "solo lectura" claim for the block.
     expect(screen.queryByText(/la facturacion oficial \(solo lectura\)/)).toBeNull()

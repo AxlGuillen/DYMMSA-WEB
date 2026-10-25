@@ -22,7 +22,7 @@ import {
 import { isOdooWriteConfigured, odooWriteEnv } from '@/lib/odoo/env'
 import type { ProductCreateVals, SaleLineCommand } from '@/lib/odoo/write-catalog'
 import { createOdooWriter, odooWriter, ownedSaleLines, trailNote, type OdooWriter } from '@/lib/odoo/writer'
-import { ADMIN_ONLY_MESSAGE, ADMIN_PROOF_TTL_MS, issueAdminProof, type AdminProof } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE, ADMIN_PROOF_TTL_MS, issueAdminProof, type AdminProof } from '@/lib/auth/admin-proof'
 import {
   PREVIEW_CHANGED_MESSAGE,
   PREVIEW_EXPIRED_MESSAGE,
@@ -792,7 +792,7 @@ describe('llave de escritura (#144)', () => {
 
     vi.resetModules()
     const writerModule = await import('@/lib/odoo/writer')
-    const guard = await import('@/lib/odoo/write-guard')
+    const guard = await import('@/lib/auth/admin-proof')
     const tokens = await import('@/lib/odoo/preview-token')
     const deadline = await import('@/lib/odoo/deadline')
     const proof = guard.issueAdminProof({ userId: 'admin-1', displayName: 'Ana Admin' })
@@ -822,7 +822,7 @@ describe('llave de escritura (#144)', () => {
     vi.resetModules()
     const client = await import('@/lib/odoo/client')
     const writerModule = await import('@/lib/odoo/writer')
-    const guard = await import('@/lib/odoo/write-guard')
+    const guard = await import('@/lib/auth/admin-proof')
     const tokens = await import('@/lib/odoo/preview-token')
     const deadline = await import('@/lib/odoo/deadline')
 

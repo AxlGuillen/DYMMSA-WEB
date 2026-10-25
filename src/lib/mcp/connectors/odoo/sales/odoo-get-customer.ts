@@ -23,6 +23,7 @@ export const odooGetCustomerTool = defineTool({
     module: 'Ventas y cobranza',
     title: 'Cliente y estado de cuenta',
     example: 'Estado de cuenta de Andritz: lo vencido y lo que vence este mes.',
+    evals: ['Estado de cuenta de Andritz: lo vencido y lo que vence este mes.', 'Dame el expediente de GE Power.'],
   },
   handler: (input) => odooGetCustomer(callOdoo, input),
 })

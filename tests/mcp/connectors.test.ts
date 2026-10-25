@@ -139,12 +139,12 @@ describe('conector Odoo DYMMSA', () => {
       expect(confirm?.annotations).toEqual({ readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true })
       expect(Object.keys(tools.find((t) => t.name === 'odoo_save_quotation')?.inputSchema.properties ?? {})).not.toContain('confirmar')
       const invoice = tools.find((t) => t.name === 'odoo_create_draft_invoice')
-      expect(Object.keys(invoice?.inputSchema.properties ?? {}).sort()).toEqual(['confirmar', 'folio'])
+      expect(Object.keys(invoice?.inputSchema.properties ?? {}).sort()).toEqual(['clave', 'folio'])
       expect(invoice?.inputSchema.required).toEqual(['folio'])
       expect(invoice?.annotations).toEqual({ readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true })
       // The instructions name the three steps in order.
       expect(odooConnector.instructions('admin')).toMatch(
-        /odoo_preview_quotation.*→ sí → odoo_save_quotation.*solo el folio \(muestra al_confirmar\) → sí → odoo_confirm_quotation.*odoo_create_draft_invoice sin confirmar \(resumen\) → sí → con confirmar: true/,
+        /odoo_preview_quotation.*→ sí → odoo_save_quotation.*solo el folio \(muestra al_confirmar\) → sí → odoo_confirm_quotation.*odoo_create_draft_invoice \(resumen y clave\) → sí → con la clave/,
       )
       expect((await member.tools()).map((t) => t.name)).not.toContain('odoo_confirm_quotation')
     } finally {

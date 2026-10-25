@@ -30,7 +30,7 @@ import {
   quotationContentHash,
   verifyProductsAuthorization,
 } from '@/lib/odoo/preview-token'
-import { ADMIN_ONLY_MESSAGE } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE } from '@/lib/auth/admin-proof'
 import type { McpRole } from '@/lib/mcp/manifest'
 import { MAX_LINE_COMMANDS } from '@/lib/odoo/write-catalog'
 import { MAX_EDIT_LINES } from '@/lib/mcp/tools/odoo/resolve'

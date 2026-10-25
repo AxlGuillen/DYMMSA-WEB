@@ -39,28 +39,29 @@ describe('conector DYMMSA-WEB', () => {
   const dymmsa = () => connectMcp('admin')
 
   test('una entrada válida llega a la tool', async () => {
-    const result = await withMcp(dymmsa(), (mcp) => mcp.call('list_quotations', { status: 'approved', search: 'GE' }))
+    const result = await withMcp(dymmsa(), (mcp) => mcp.call('list_quotations', { estado: 'aprobada', buscar: 'GE' }))
     expect(result.isError).toBeFalsy()
-    expect(JSON.parse(textOf(result))).toMatchObject({ quotations: [], count: 0 })
+    expect(JSON.parse(textOf(result))).toMatchObject({ cotizaciones: [], total: 0 })
     expect(state.db.callsTo('quotations')).toHaveLength(1)
   })
 
   test('un campo desconocido es error en español con los campos válidos y un ejemplo, sin leer la BD', async () => {
-    const result = await withMcp(dymmsa(), (mcp) => mcp.call('list_quotations', { estatus: 'draft', search: 'GE' }))
+    const result = await withMcp(dymmsa(), (mcp) => mcp.call('list_quotations', { estdo: 'borrador', buscar: 'GE' }))
     expect(result.isError).toBe(true)
     // The SDK's English prefix never reaches the model: the message is ours alone.
     expect(textOf(result)).toBe(
-      'Entrada inválida en list_quotations: el campo «estatus» no existe (¿quisiste decir «status»?). ' +
-        'Campos válidos: status, search, page, pageSize. Ej.: {"search":"GE","status":"draft"}',
+      'Entrada inválida en list_quotations: el campo «estdo» no existe (¿quisiste decir «estado»?). ' +
+        'Campos válidos: estado, buscar, pagina, por_pagina. Ej.: {"buscar":"GE","estado":"borrador"}',
     )
     expect(state.db.callsTo('quotations')).toEqual([])
   })
 
   test('un estado fuera del enum es error, nunca un filtro ignorado', async () => {
-    const result = await withMcp(dymmsa(), (mcp) => mcp.call('list_quotations', { status: 'aprobada' }))
+    // The DB's own token is not one of the assistant's.
+    const result = await withMcp(dymmsa(), (mcp) => mcp.call('list_quotations', { estado: 'approved' }))
     expect(result.isError).toBe(true)
-    expect(textOf(result)).toMatch(/^Entrada inválida en list_quotations: «status»: Opción inválida: se esperaba una de "draft"\|"sent_for_approval"/)
-    expect(textOf(result)).toMatch(/Corrige ese valor y repite la llamada\. Ej\.: \{"status":"draft"\}$/)
+    expect(textOf(result)).toMatch(/^Entrada inválida en list_quotations: «estado»: Opción inválida: se esperaba una de "borrador"\|"en_revision"/)
+    expect(textOf(result)).toMatch(/Corrige ese valor y repite la llamada\. Ej\.: \{"estado":"borrador"\}$/)
     expect(state.db.callsTo('quotations')).toEqual([])
   })
 
@@ -76,7 +77,7 @@ describe('conector DYMMSA-WEB', () => {
     expect(textOf(month)).toMatch(/^Entrada inválida en get_payables_overview: «mes»: no es un mes \(YYYY-MM\)/)
 
     const nested = await withMcp(dymmsa(), (mcp) =>
-      mcp.call('record_payroll_hours', { dias: [{ empleado: 'Juan', fecha: '2026-10-20', horas: 8, hora_extra: 2 }] }),
+      mcp.call('save_payroll_hours', { dias: [{ empleado: 'Juan', fecha: '2026-10-20', horas: 8, hora_extra: 2 }] }),
     )
     expect(nested.isError).toBe(true)
     expect(textOf(nested)).toMatch(/el campo «hora_extra» no existe en «dias\.0»/)
@@ -89,8 +90,8 @@ describe('conector DYMMSA-WEB', () => {
   })
 
   test('una llamada directa (parseInput) da el mismo mensaje que el SDK', async () => {
-    const viaSdk = await withMcp(dymmsa(), (mcp) => mcp.call('list_quotations', { estatus: 'draft' }))
-    expect(() => parseInput('list_quotations', listQuotationsTool.input, { estatus: 'draft' })).toThrow(textOf(viaSdk))
+    const viaSdk = await withMcp(dymmsa(), (mcp) => mcp.call('list_quotations', { estatus: 'borrador' }))
+    expect(() => parseInput('list_quotations', listQuotationsTool.input, { estatus: 'borrador' })).toThrow(textOf(viaSdk))
   })
 })
 

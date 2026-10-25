@@ -9,13 +9,14 @@ export const getOrderTool = defineTool({
   kind: 'read',
   title: 'Detalle de orden',
   description:
-    'Orden completa con sus ítems: cantidades (aprobada/en stock/por pedir/recibida), urrea_status por ítem, ubicación en tienda y cuántos ítems siguen pendientes con URREA.',
-  input: { id: z.string().describe('UUID de la orden') },
+    'Una orden con todas sus líneas numeradas (`linea`): cantidades (aprobada, en stock, por pedir, recibida), estado con URREA, ubicación en tienda, `version` y cuántas siguen pendientes con URREA. Acepta nombre, cliente o ref.',
+  input: { orden: z.string().min(1).describe('Nombre o cliente (parcial), ref o UUID') },
   hints: dymmsaRead,
   docs: {
     module: 'Ordenes',
     title: 'Detalle de orden',
     example: '¿Que falta por recibir de URREA en la orden 12?',
+    evals: ['¿Qué falta por recibir de URREA en la orden 12?', '¿Qué líneas de la orden de GE salen del stock?'],
   },
-  handler: ({ id }, { db }) => getOrder(db, id),
+  handler: ({ orden }, { db }) => getOrder(db, orden),
 })

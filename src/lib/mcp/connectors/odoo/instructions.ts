@@ -1,5 +1,6 @@
 /** The Odoo DYMMSA connector's instructions (#155 B1, ADR-041); since B3 the map and these rules live only here. */
 
+import { CONFIRMATION_RULE } from '@/lib/mcp/core/confirm/two-phase'
 import type { McpRole } from '@/lib/mcp/manifest'
 
 const ODOO_CREDIT_NOTES_RULE = `Notas de crédito (Odoo): una nota de crédito sin aplicar es SALDO A FAVOR del cliente, no deuda. Las tools la reportan aparte (campos notas_credito*) y NUNCA la restan del vencido ni del por cobrar — es decisión del negocio (no se sabe si el cliente la usará o si se aplicará a una factura). No hagas ese neteo tú tampoco.`
@@ -12,7 +13,7 @@ function odooToolMap(admin: boolean): string {
 - Totales de un periodo: odoo_summarize_invoices, odoo_summarize_sales. Revisiones: odoo_audit_invoice_links (facturas sin orden de venta), odoo_audit_payment_complements (pagos sin REP).
 - Almacén de ODOO: odoo_search_stock (la tienda es search_inventory, del conector DYMMSA-WEB).
 - Primitivas, solo si nada de lo anterior responde: odoo_search_records (también empleados y flotilla: hr.employee, fleet.vehicle, fleet.vehicle.log.services), odoo_aggregate_records.
-${admin ? '- Cotizar y facturar (solo administradores): odoo_preview_quotation (solo lee: vista previa y clave) → sí → odoo_save_quotation (BORRADOR o edición). Confirmar como venta: vista previa con solo el folio (muestra al_confirmar) → sí → odoo_confirm_quotation. Facturar: odoo_create_draft_invoice sin confirmar (resumen) → sí → con confirmar: true (BORRADOR). "Haz esta cotización en Odoo" es este flujo, nunca el navegador. Nunca publica, timbra, envía ni crea clientes; los productos nuevos solo con el botón de la vista (odoo_save_product: no la llames tú).\n' : ''}`
+${admin ? '- Cotizar y facturar (solo administradores): odoo_preview_quotation (solo lee: vista previa y clave) → sí → odoo_save_quotation (BORRADOR o edición). Confirmar como venta: vista previa con solo el folio (muestra al_confirmar) → sí → odoo_confirm_quotation. Facturar: odoo_create_draft_invoice (resumen y clave) → sí → con la clave (BORRADOR). "Haz esta cotización en Odoo" es este flujo, nunca el navegador. Nunca publica, timbra, envía ni crea clientes; los productos nuevos solo con el botón de la vista (odoo_save_product: no la llames tú).\n' : ''}`
 }
 
 export function odooInstructions(role: McpRole): string {
@@ -23,7 +24,7 @@ La facturación OFICIAL de la empresa vive en Odoo Online, un sistema EXTERNO. E
 ${odooToolMap(admin)}
 Regla de oro: Odoo y DYMMSA-WEB son mundos separados — nunca asumas que una cotización u orden de la app corresponde a una de Odoo. ${admin ? 'Las únicas escrituras son las de Cotizar y facturar; todo lo demás es lectura.' : 'Todo aquí es lectura.'}
 
-${admin ? 'Antes de cualquier escritura, di exactamente qué vas a hacer y con qué valores, y espera la confirmación del usuario. ' : ''}Si una búsqueda por nombre devuelve varias coincidencias, pregunta cuál en vez de adivinar.
+${admin ? `${CONFIRMATION_RULE} ` : ''}Si una búsqueda por nombre da varias coincidencias, pregunta cuál.
 
 ${ODOO_CREDIT_NOTES_RULE}
 

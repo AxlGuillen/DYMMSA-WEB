@@ -133,9 +133,9 @@ export default async function ConsentPage({
         </p>
 
         <ConnectorBlock
-          connector={summary.app}
-          reads={`Consulta ${summary.app.reads.join(', ')} — lo mismo que ves tú.`}
-          writesIntro={`Puede hacer ${summary.app.writes.length} acciones en la app, siempre confirmando antes:`}
+          connector={summary.dymmsa}
+          reads={`Consulta ${summary.dymmsa.reads.join(', ')} — lo mismo que ves tú.`}
+          writesIntro={`Puede hacer ${summary.dymmsa.writes.length} acciones en la app, siempre confirmando antes:`}
           never="Nunca modifica cotizaciones, órdenes ni cantidades de inventario de la app."
         />
         {/* Odoo is read with the server's key, not the person's: no "lo mismo que ves tú" here. */}

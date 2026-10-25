@@ -65,13 +65,13 @@ async function timed(name: string, fn: () => Promise<unknown>): Promise<HealthCh
 
 /** Business modules: the app's own query — exercises schema and relations, not a ping. */
 export const checkQuotations = (db: SupabaseClient) =>
-  timed('quotations', () => listQuotations(db, { pageSize: 1 }))
+  timed('quotations', () => listQuotations(db, { por_pagina: 1 }))
 
 export const checkOrders = (db: SupabaseClient) =>
-  timed('orders', () => listOrders(db, { pageSize: 1 }))
+  timed('orders', () => listOrders(db, { por_pagina: 1 }))
 
 export const checkInventory = (db: SupabaseClient) =>
-  timed('inventory', () => searchInventory(db, { pageSize: 1 }))
+  timed('inventory', () => searchInventory(db, { por_pagina: 1 }))
 
 /** Storage is alive: the Tasks image bucket responds. */
 export const checkStorage = (db: SupabaseClient) =>

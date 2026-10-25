@@ -27,7 +27,7 @@ import {
   type QuotationKeyInput,
   type QuotationKeyTarget,
 } from '@/lib/odoo/preview-token'
-import { ADMIN_ONLY_MESSAGE } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE } from '@/lib/auth/admin-proof'
 import { testAdminProof } from '../helpers/fake-odoo'
 
 const WRITE_KEY = 'write-key-0123456789abcdef'
@@ -125,7 +125,7 @@ describe('clave de la vista previa (#144)', () => {
       expect(() => verifyQuotationKey(proofAt(NOW), bad, expected, { now: NOW })).toThrow(PREVIEW_KEY_INVALID_MESSAGE)
     }
     // An expired proof (or none issued by requireLiveAdmin) never verifies anything.
-    expect(() => verifyQuotationKey(proofAt(NOW - 120_000), clave, expected, { now: NOW })).toThrow(OdooError)
+    expect(() => verifyQuotationKey(proofAt(NOW - 120_000), clave, expected, { now: NOW })).toThrow(/La verificación de administrador venció/)
     const handMade = { ...proofAt(NOW) }
     expect(() => verifyQuotationKey(handMade, clave, expected, { now: NOW })).toThrow(ADMIN_ONLY_MESSAGE)
   })

@@ -18,7 +18,7 @@ import {
   PRODUCTS_OTHER_ADMIN_MESSAGE,
   PRODUCTS_UNAUTHORIZED_MESSAGE,
 } from '@/lib/odoo/preview-token'
-import { ADMIN_ONLY_MESSAGE } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE } from '@/lib/auth/admin-proof'
 import type { McpRole } from '@/lib/mcp/manifest'
 
 const NOW = Date.UTC(2026, 9, 17, 23, 0)

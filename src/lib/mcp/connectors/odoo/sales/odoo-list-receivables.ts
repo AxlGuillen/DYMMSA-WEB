@@ -21,6 +21,7 @@ export const odooListReceivablesTool = defineTool({
     module: 'Ventas y cobranza',
     title: 'Cartera por cobrar',
     example: '¿A quien le cobro primero? ¿Quien paga mas lento?',
+    evals: ['¿Quién nos debe más y desde cuándo?', '¿A quién le cobro primero esta semana y quién paga más lento?'],
   },
   handler: (input) => odooListReceivables(callOdoo, input),
 })

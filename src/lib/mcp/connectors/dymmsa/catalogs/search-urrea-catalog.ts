@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { pagination } from '@/lib/mcp/core/schema'
 import { dymmsaRead } from '../shared'
 import { searchUrreaCatalog } from '@/lib/mcp/tools/urrea'
 
@@ -9,13 +10,14 @@ export const searchUrreaCatalogTool = defineTool({
   kind: 'read',
   title: 'Consultar catálogo URREA',
   description:
-    'Consulta el catálogo oficial URREA por código (match exacto, normalizado) o por descripción (parcial, máx 20). Devuelve código, descripción oficial y std (unidades por paquete).',
-  input: { query: z.string().describe('Código URREA o texto de la descripción') },
+    'Consulta el catálogo oficial URREA por código (exacto, todas las marcas) o por descripción (parcial, paginada). Devuelve código, marca, descripción oficial y std (unidades por paquete).',
+  input: { buscar: z.string().describe('Código URREA o texto de la descripción'), ...pagination },
   hints: dymmsaRead,
   docs: {
     module: 'Catalogos',
     title: 'Consultar catalogo URREA',
     example: '¿Cuantas piezas trae el paquete del 6954?',
+    evals: ['¿Cuántas piezas trae el paquete del 6954?', 'Busca en el catálogo URREA algo de tijeras industriales.'],
   },
-  handler: ({ query }, { db }) => searchUrreaCatalog(db, query),
+  handler: (input, { db }) => searchUrreaCatalog(db, input),
 })

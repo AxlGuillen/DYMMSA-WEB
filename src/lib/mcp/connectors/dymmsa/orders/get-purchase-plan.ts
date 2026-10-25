@@ -9,13 +9,14 @@ export const getPurchasePlanTool = defineTool({
   kind: 'read',
   title: 'Planificador de compra de una orden',
   description:
-    'Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). "revisar" = el usuario debe decidir. Acepta id o nombre parcial de la orden/cliente.',
-  input: { orden: z.string().min(1).describe('UUID, nombre de la orden o nombre del cliente (parcial)') },
+    'Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). "revisar" = el usuario debe decidir. Acepta nombre, cliente o ref de la orden.',
+  input: { orden: z.string().min(1).describe('Nombre o cliente (parcial), ref o UUID') },
   hints: dymmsaRead,
   docs: {
     module: 'Ordenes',
     title: 'Planificador de compra',
     example: '¿Que va a mayoreo y que a menudeo en la orden 12?',
+    evals: ['¿Qué va a mayoreo y qué a menudeo en la orden 12?', 'En la orden de GE, ¿qué grupos están por revisar?'],
   },
   handler: (input, { db }) => getPurchasePlan(db, input),
 })

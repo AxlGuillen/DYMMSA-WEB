@@ -6,13 +6,11 @@ import {
   handleGitHubError,
   mapIssueToTask,
   mapComment,
-  buildIssueBody,
-  extractReporter,
-  priorityToLabel,
   isTaskPriority,
   type GitHubIssue,
   type GitHubComment,
 } from '@/lib/github'
+import { patchTask } from '@/lib/tasks-store'
 
 // GET /api/tasks/[number] — task + comments
 export async function GET(
@@ -64,47 +62,19 @@ export async function PATCH(
       stateReason?: string // 'completed' | 'not_planned' (only when closing)
     }
 
-    const patch: Record<string, unknown> = {}
-    if (typeof body.title === 'string') {
-      if (!body.title.trim()) return badRequest('El título no puede estar vacío')
-      patch.title = body.title.trim()
-    }
-    if (body.state === 'open' || body.state === 'closed') {
-      patch.state = body.state
-      // Closing distinguishes "completed" from "discarded"; on reopen GitHub sets
-      // state_reason='reopened' by itself.
-      if (body.state === 'closed') {
-        patch.state_reason = body.stateReason === 'not_planned' ? 'not_planned' : 'completed'
-      }
-    }
-
-    const changesDescription = typeof body.description === 'string'
-    const changesPriority = body.priority !== undefined
-
-    // Description and priority need the current issue: keep the original reporter
-    // and do not clobber labels unrelated to priority.
-    if (changesDescription || changesPriority) {
-      const current = await fetchGitHub<GitHubIssue>(`/issues/${n}`)
-      if (changesDescription) {
-        const { reporter } = extractReporter(current.body)
-        patch.body = buildIssueBody(body.description as string, reporter ?? (auth.user.email ?? 'DYMMSA'))
-      }
-      if (changesPriority) {
-        const others = (current.labels ?? []).map((l) => l.name).filter((name) => !name.startsWith('priority:'))
-        patch.labels =
-          body.priority && isTaskPriority(body.priority)
-            ? [...others, priorityToLabel(body.priority)]
-            : others
-      }
-    }
-
-    if (Object.keys(patch).length === 0) return badRequest('No hay cambios para aplicar')
-
-    const updated = await fetchGitHub<GitHubIssue>(`/issues/${n}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    })
-    return NextResponse.json(mapIssueToTask(updated))
+    const updated = await patchTask(
+      n,
+      {
+        title: typeof body.title === 'string' ? body.title : undefined,
+        description: typeof body.description === 'string' ? body.description : undefined,
+        // An unknown priority clears the label, as it always has (null).
+        priority: body.priority === undefined ? undefined : body.priority && isTaskPriority(body.priority) ? body.priority : null,
+        state: body.state === 'open' || body.state === 'closed' ? body.state : undefined,
+        stateReason: body.stateReason === 'not_planned' || body.stateReason === 'completed' ? body.stateReason : undefined,
+      },
+      auth.user.email ?? 'DYMMSA',
+    )
+    return NextResponse.json(updated)
   } catch (e) {
     return handleGitHubError(e)
   }

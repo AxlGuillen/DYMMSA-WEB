@@ -2,6 +2,7 @@
 
 import type { AuditEvent, Payable, PayableCurrency, PayableStatus, PayableUpdate } from '@/types/database'
 import { isRealDate, monthOf, nextMonth, type ISODate } from './month'
+import { tokenMap } from './tokens'
 
 export { monthOf, nextMonth }
 export type { ISODate }
@@ -76,7 +77,7 @@ export function resolvePaymentUpdate(
 export type PayableUpdateResult = { ok: true; updates: PayableUpdate } | { ok: false; error: string }
 
 /**
- * The PATCH rules, shared with the MCP's update_payable (#134): sparse, dates that exist
+ * The PATCH rules, shared with the MCP's save_payable (#134, #155 C6): sparse, dates that exist
  * (2026-02-30 is a 22008 in Postgres), and status/paid_at through resolvePaymentUpdate with
  * the row's `current` status. Whether supplier_id exists is the caller's check: it needs the database.
  */
@@ -136,6 +137,15 @@ export const PAYABLE_FILTER_LABELS: Record<PayableFilter, string> = {
   paid: 'Pagada',
   cancelled: 'Cancelada',
 }
+
+/** The assistant's tokens (#155 C6): `vencida` is only a filter (pending past its due date), never a stored status. */
+export const PAYABLE_STATUS_TOKENS = tokenMap({ pending: 'pendiente', paid: 'pagada', cancelled: 'cancelada' } as const satisfies Record<PayableStatus, string>)
+export const PAYABLE_FILTER_TOKENS = tokenMap({
+  pending: 'pendiente',
+  overdue: 'vencida',
+  paid: 'pagada',
+  cancelled: 'cancelada',
+} as const satisfies Record<PayableFilter, string>)
 
 export function resolvePayableFilter(filter: string, today: ISODate): { status: PayableStatus; dueBefore?: ISODate } | null {
   if (filter === 'overdue') return { status: 'pending', dueBefore: today }

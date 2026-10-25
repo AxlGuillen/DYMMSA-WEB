@@ -1,5 +1,6 @@
 import type { ConnectorDefinition } from '@/lib/mcp/core/define'
 import { appUrl } from '@/lib/mcp/core/env'
+import { CONNECTOR_NAMES } from '@/lib/mcp/core/routes'
 import type { ConnectorBudget } from '@/lib/mcp/manifest'
 import { odooInstructions } from './instructions'
 import { ODOO_TOOLS } from '.'
@@ -13,7 +14,7 @@ export const odooConnector: ConnectorDefinition = {
   basePath: '/api/odoo',
   serverInfo: {
     name: 'dymmsa-odoo',
-    title: 'Odoo DYMMSA',
+    title: CONNECTOR_NAMES.odoo,
     version: '1.0.0',
     websiteUrl: appUrl(),
     icons: [{ src: `${appUrl()}/dymmsa-logo.webp`, mimeType: 'image/webp' }],

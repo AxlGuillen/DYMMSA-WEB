@@ -1,6 +1,6 @@
-/** Typed proof that the caller was a live admin a moment ago; the Odoo writer refuses anything else (#144, ADR-040). */
+/** Typed proof that the caller was a live admin a moment ago; writers and the confirmation keys refuse anything else (#144, #155 C4). */
 
-import { OdooError } from './client'
+import { DomainError } from '@/lib/domain-error'
 
 declare const adminProofBrand: unique symbol
 
@@ -25,7 +25,7 @@ const issued = new WeakSet<object>()
 export function issueAdminProof(input: { userId: string; displayName: string }, now: number = Date.now()): AdminProof {
   const userId = input.userId.trim()
   const displayName = input.displayName.trim()
-  if (!userId || !displayName) throw new OdooError(ADMIN_ONLY_MESSAGE)
+  if (!userId || !displayName) throw new DomainError(ADMIN_ONLY_MESSAGE, 'forbidden')
   const proof = Object.freeze({ userId, displayName, issuedAt: now }) as AdminProof
   issued.add(proof)
   return proof
@@ -33,10 +33,10 @@ export function issueAdminProof(input: { userId: string; displayName: string }, 
 
 export function assertAdminProof(proof: AdminProof, now: number = Date.now()): void {
   if (typeof proof !== 'object' || proof === null || !issued.has(proof)) {
-    throw new OdooError(ADMIN_ONLY_MESSAGE)
+    throw new DomainError(ADMIN_ONLY_MESSAGE, 'forbidden')
   }
   const age = now - proof.issuedAt
   if (!(age >= 0 && age <= ADMIN_PROOF_TTL_MS)) {
-    throw new OdooError('La verificación de administrador venció: vuelve a intentarlo. No se escribió nada.')
+    throw new DomainError('La verificación de administrador venció: vuelve a intentarlo. No se escribió nada.', 'forbidden')
   }
 }

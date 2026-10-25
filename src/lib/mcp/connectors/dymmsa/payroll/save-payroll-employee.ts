@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '@/lib/mcp/core/define'
+import { SHIFT_TOKENS } from '@/lib/timesheet'
 import { savePayrollEmployee } from '@/lib/mcp/tools/payroll'
 
 export const savePayrollEmployeeTool = defineTool({
@@ -12,7 +13,7 @@ export const savePayrollEmployeeTool = defineTool({
   input: {
     empleado: z.string().optional().describe('Empleado a editar (nombre o parte); omítelo para dar de alta'),
     nombre: z.string().optional().describe('Nombre (obligatorio en un alta)'),
-    jornada: z.enum(['completa', 'media']).optional().describe('completa = 8 h, media = 4 h (default completa)'),
+    jornada: z.enum(SHIFT_TOKENS.tokens).optional().describe('completa = 8 h, media = 4 h (default completa)'),
     perfil: z.string().nullable().optional().describe('Persona de la app a ligar (nombre); null o "" la desliga'),
     activo: z.boolean().optional().describe('false = darlo de baja'),
   },
@@ -24,6 +25,7 @@ export const savePayrollEmployeeTool = defineTool({
     module: 'Nomina',
     title: 'Guardar empleado de nomina',
     example: 'Da de alta a un trabajador nuevo en el taller, medio tiempo.',
+    evals: ['Da de alta a Juan, trabajador nuevo del taller, medio tiempo.', 'Da de baja a Pedro.'],
     limits: 'Alta, cambios y baja (desactivar, nunca borrar). No toca horas ni cortes.',
   },
   handler: (input, { db, userId }) => savePayrollEmployee(db, userId, input),

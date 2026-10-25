@@ -1,5 +1,6 @@
 import type { ConnectorDefinition } from '@/lib/mcp/core/define'
 import { appUrl } from '@/lib/mcp/core/env'
+import { CONNECTOR_NAMES } from '@/lib/mcp/core/routes'
 import type { ConnectorBudget } from '@/lib/mcp/manifest'
 import { serverInstructions } from '@/lib/mcp/server'
 import { DYMMSA_TOOLS } from '.'
@@ -15,9 +16,9 @@ export const dymmsaConnector: ConnectorDefinition = {
   // Claude does not draw a custom connector's icon yet (claude-ai-mcp#152): declared so it shows once it does.
   serverInfo: {
     name: 'dymmsa',
-    title: 'DYMMSA',
-    // Major bump: B3 dropped the odoo_* tools from this endpoint.
-    version: '3.0.0',
+    title: CONNECTOR_NAMES.dymmsa,
+    // Major bumps: B3 dropped the odoo_* tools from this endpoint; C6 renamed and merged tools.
+    version: '4.0.0',
     websiteUrl: appUrl(),
     icons: [{ src: `${appUrl()}/dymmsa-logo.webp`, mimeType: 'image/webp' }],
   },

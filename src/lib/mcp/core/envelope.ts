@@ -3,6 +3,7 @@
 
 import { z } from 'zod'
 import { isUuid } from '@/lib/text'
+import { hashOf } from './confirm/canonical'
 
 // Optional keys travel only when they say something (R11): absence = nothing to say.
 const said = <K extends string, V>(key: K, value: V | null | undefined): Partial<Record<K, V>> =>
@@ -16,6 +17,14 @@ function assertFree(key: string, reserved: readonly string[], helper: string): v
 export function refOf(id: string): string {
   if (!isUuid(id)) throw new Error(`refOf: "${id}" is not a UUID`)
   return id.slice(0, 8).toLowerCase()
+}
+
+/**
+ * version (plan §4.5, #155 C6): a short fingerprint of a document's line ids and its updated_at, so a later
+ * edit can pin what it read. A line moved, added or removed, or the document touched, changes it.
+ */
+export function versionOf(updatedAt: string, lineIds: readonly string[]): string {
+  return hashOf({ ids: lineIds, updated_at: updatedAt }).slice(0, 12)
 }
 
 export const LIST_KEYS = ['total', 'pagina', 'por_pagina', 'hay_mas', 'nota'] as const
@@ -44,6 +53,24 @@ export function listResult<K extends string, T>(key: Exclude<K, ListKey>, items:
   const hay_mas = rest > 0
   const note = nota ?? (hay_mas ? `Hay ${rest} más: pide pagina=${pagina + 1}.` : null)
   return { total, pagina, por_pagina, hay_mas, ...said('nota', note), [key]: [...items] } as ListResult<K, T>
+}
+
+export interface OpenPage {
+  readonly pagina: number
+  readonly por_pagina: number
+  readonly hay_mas: boolean
+}
+
+/** A collection whose source has no total (GitHub's list): the page says whether there is more, never how many. */
+export function pageResult<K extends string, T>(key: Exclude<K, ListKey>, items: readonly T[], page: OpenPage, nota?: string | null) {
+  assertFree(key, LIST_KEYS, 'pageResult')
+  const note = nota ?? (page.hay_mas ? `Hay más: pide pagina=${page.pagina + 1}.` : null)
+  return { pagina: page.pagina, por_pagina: page.por_pagina, hay_mas: page.hay_mas, ...said('nota', note), [key]: [...items] } as {
+    pagina: number
+    por_pagina: number
+    hay_mas: boolean
+    nota?: string
+  } & { [P in K]: T[] }
 }
 
 export const RECORD_KEYS = ['ref', 'avisos', 'nota'] as const
@@ -120,7 +147,7 @@ export function writeResult<K extends string, E>(accion: WriteAction, key: Exclu
 
 const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b)
 
-/** antes/ahora of every field that changed between two presented records (generalizes update_payable). */
+/** antes/ahora of every field that changed between two presented records (generalizes the old update_payable). */
 export function diff(before: object, after: object, ignore: readonly string[] = []): Changes {
   const was = before as Record<string, unknown>
   const now = after as Record<string, unknown>

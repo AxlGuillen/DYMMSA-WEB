@@ -5,39 +5,36 @@
  */
 
 import { isAdminNow } from '@/lib/mcp/core/auth/live-admin'
-import { isUuid, sanitizeSearch } from '@/lib/text'
-import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { sanitizeSearch } from '@/lib/text'
+import { resolveByName } from '@/lib/mcp/core/lookup'
 import { ToolError } from '@/lib/mcp/core/errors'
-import { diff } from '@/lib/mcp/core/envelope'
+import { listResult, refOf } from '@/lib/mcp/core/envelope'
+import { normalizePagination } from '@/lib/mcp/core/schema'
 import type { Db } from '@/lib/mcp/core/db'
 import { resolveSupplier } from './suppliers'
 import { formatMoney, todayInMexico } from '@/lib/format'
-import { ISO_MONTH, isRealDate, monthRange } from '@/lib/month'
+import { ISO_MONTH, monthRange } from '@/lib/month'
 import {
   daysUntilDue,
   describeAuditEvent,
-  dueDateFrom,
-  PAYABLE_STATUS_LABELS,
-  parsePayableUpdate,
-  paymentTermsLabel,
+  PAYABLE_STATUS_TOKENS,
+  PAYABLE_FILTER_TOKENS,
   resolvePayableFilter,
-  resolvePaymentUpdate,
   splitByCurrency,
   summarizeMonth,
   payableTotals,
-  isPayableCurrency,
   DEFAULT_PAYABLE_CURRENCY,
   type PayablesMonthSummary,
 } from '@/lib/payables'
-import type { AuditEvent, PayableCurrency, PayableStatus, PayableWithSupplier } from '@/types/database'
+import type { AuditEvent, PayableStatus, PayableWithSupplier } from '@/types/database'
 
 const SELECT = '*, supplier:suppliers(id, name, payment_terms_days)'
 // Same caps as /api/payables/overview: a silent cut would lie, so the result says when it hit them.
 const OVERVIEW_LIMIT = 1000
 
-function digest(p: PayableWithSupplier, today: string) {
+export function digest(p: PayableWithSupplier, today: string) {
   return {
-    id: p.id,
+    ref: refOf(p.id),
     proveedor: p.supplier?.name ?? null,
     concepto: p.concept,
     monto: p.amount,
@@ -45,14 +42,14 @@ function digest(p: PayableWithSupplier, today: string) {
     fecha_factura: p.invoice_date,
     vencimiento: p.due_date,
     dias_para_vencer: p.status === 'pending' ? daysUntilDue(p.due_date, today) : null,
-    estado: PAYABLE_STATUS_LABELS[p.status],
+    estado: PAYABLE_STATUS_TOKENS.toToken(p.status),
     pagada_el: p.paid_at,
     notas: p.notes,
   }
 }
 
 const label = (p: PayableWithSupplier) =>
-  `${p.supplier?.name ?? '?'} · ${p.concept} · $${p.amount} ${p.currency ?? DEFAULT_PAYABLE_CURRENCY} (${PAYABLE_STATUS_LABELS[p.status]})`
+  `${p.supplier?.name ?? '?'} · ${p.concept} · $${p.amount} ${p.currency ?? DEFAULT_PAYABLE_CURRENCY} (${PAYABLE_STATUS_TOKENS.toToken(p.status)})`
 
 async function findPayables(db: Db, search: string, status?: PayableStatus): Promise<PayableWithSupplier[]> {
   // Two steps instead of an embedded filter: "la de Perfiles" names the supplier, not the concept.
@@ -66,19 +63,23 @@ async function findPayables(db: Db, search: string, status?: PayableStatus): Pro
   return (data ?? []) as PayableWithSupplier[]
 }
 
-/** By UUID, or the one payable whose concept/supplier matches — preferring `preferStatus` when given. */
-export async function resolvePayable(db: Db, ref: string, preferStatus?: PayableStatus): Promise<PayableWithSupplier> {
-  const raw = ref.trim()
-  if (!raw) throw new ToolError('Indica la factura (id, concepto o proveedor)')
-  if (isUuid(raw)) {
-    const { data, error } = await db.from('payables').select(SELECT).eq('id', raw).single()
-    if (error || !data) throw new ToolError('Factura no encontrada')
-    return data as PayableWithSupplier
-  }
-  const search = sanitizeSearch(raw)
-  let rows = await findPayables(db, search, preferStatus)
-  if (rows.length === 0 && preferStatus) rows = await findPayables(db, search)
-  return requireSingleMatch(rows, label, 'factura por pagar', search)
+/** By UUID, ref, or the one payable whose concept/supplier matches — preferring `preferStatus` when given. */
+export async function resolvePayable(db: Db, reference: string, preferStatus?: PayableStatus): Promise<PayableWithSupplier> {
+  return resolveByName<PayableWithSupplier>(
+    db,
+    {
+      table: 'payables',
+      select: SELECT,
+      what: 'factura por pagar',
+      article: 'la',
+      label,
+      search: async (client, query) => {
+        const rows = await findPayables(client, query, preferStatus)
+        return rows.length === 0 && preferStatus ? findPayables(client, query) : rows
+      },
+    },
+    reference,
+  )
 }
 
 export interface ListPayablesInput {
@@ -87,23 +88,25 @@ export interface ListPayablesInput {
   mes?: string
   proveedor?: string
   concepto?: string
-  limit?: number
+  pagina?: number
+  por_pagina?: number
 }
 
 export async function listPayables(db: Db, input: ListPayablesInput = {}) {
-  const limit = Math.min(100, Math.max(1, Math.floor(input.limit ?? 50)))
+  const { pagina, por_pagina, from: rangeFrom, to: rangeTo } = normalizePagination(input, 50)
   const today = todayInMexico()
   let query = db
     .from('payables')
     .select(SELECT, { count: 'exact' })
     .order('due_date', { ascending: true })
     .order('id', { ascending: true })
-    .limit(limit)
+    .range(rangeFrom, rangeTo)
 
   const estado = input.estado?.trim()
   if (estado) {
-    const filter = resolvePayableFilter(estado, today)
-    if (!filter) throw new ToolError('Estado inválido — usa pending | overdue | paid | cancelled')
+    const dbFilter = PAYABLE_FILTER_TOKENS.toDb(estado)
+    const filter = dbFilter ? resolvePayableFilter(dbFilter, today) : null
+    if (!filter) throw new ToolError(`Estado inválido — usa ${PAYABLE_FILTER_TOKENS.tokens.join(' | ')}`)
     query = query.eq('status', filter.status)
     if (filter.dueBefore) query = query.lt('due_date', filter.dueBefore)
   }
@@ -124,11 +127,9 @@ export async function listPayables(db: Db, input: ListPayablesInput = {}) {
   const rows = (data ?? []) as PayableWithSupplier[]
   return {
     hoy: today,
-    total_coincidencias: count ?? rows.length,
-    mostradas: rows.length,
-    // Per currency, never added together (2026-10-20).
-    suma_mostrada: payableTotals(rows).byCurrency,
-    facturas: rows.map((r) => digest(r, today)),
+    // Per currency, never added together (2026-10-20); only this page, which the envelope's total says.
+    suma_de_esta_pagina: payableTotals(rows).byCurrency,
+    ...listResult('facturas', rows.map((r) => digest(r, today)), { total: count ?? rows.length, pagina, por_pagina }),
   }
 }
 
@@ -157,69 +158,6 @@ export async function getPayable(db: Db, callerId: string, ref: string) {
       quien: e.actor_name ?? 'Sistema',
       que: describeAuditEvent(e, (iso) => iso, formatMoney),
     })),
-  }
-}
-
-export interface UpdatePayableInput {
-  /** UUID, or part of the concept / supplier name. */
-  factura: string
-  concepto?: string
-  monto?: number
-  moneda?: PayableCurrency
-  fecha_factura?: string
-  vencimiento?: string
-  /** Reassign to another supplier (name or part of it). */
-  proveedor?: string
-  notas?: string
-  /** true = cancel it; reactivating a cancelled one stays in the app. */
-  cancelar?: boolean
-}
-
-const FIELD_NAMES: Record<string, string> = { invoice_date: 'fecha_factura', due_date: 'vencimiento' }
-
-/** Corrects a payable or cancels it with the PATCH rules (parsePayableUpdate); paying stays in mark_payable_paid (#134). */
-export async function updatePayable(db: Db, input: UpdatePayableInput) {
-  const cancel = input.cancelar === true
-  const target = await resolvePayable(db, input.factura, cancel ? 'pending' : undefined)
-  if (cancel && target.status === 'cancelled') throw new ToolError(`"${target.concept}" ya está cancelada.`)
-  // Cancelling clears paid_at: losing the real payment date takes a deliberate step back to pending first.
-  if (cancel && target.status === 'paid') {
-    throw new ToolError(`"${target.concept}" está pagada (el ${target.paid_at}); para cancelarla primero regrésala a pendiente con mark_payable_paid.`)
-  }
-  const supplier = input.proveedor !== undefined ? await resolveSupplier(db, input.proveedor) : null
-
-  const fields: Record<string, unknown> = {
-    concept: input.concepto,
-    amount: input.monto,
-    currency: input.moneda,
-    invoice_date: input.fecha_factura,
-    due_date: input.vencimiento,
-    supplier_id: supplier?.id,
-    notes: input.notas,
-    status: cancel ? 'cancelled' : undefined,
-  }
-  const today = todayInMexico()
-  const parsed = parsePayableUpdate(Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)), today, target.status)
-  if (!parsed.ok) throw new ToolError(parsed.error.replace(/invoice_date|due_date/, (f) => FIELD_NAMES[f]))
-  if (Object.keys(parsed.updates).length === 0) {
-    throw new ToolError('No hay cambios: indica qué corregir (concepto, monto, moneda, fechas, proveedor o notas) o cancelar=true.')
-  }
-
-  const { data, error } = await db.from('payables').update(parsed.updates).eq('id', target.id).select(SELECT).single()
-  if (error || !data) throw new ToolError(`Error al actualizar la factura: ${error?.message ?? 'sin datos'}`)
-  const after = digest(data as PayableWithSupplier, today)
-  // Same answer as before #155 C3; the writeResult envelope arrives when C6 merges it into save_payable.
-  const cambios = diff(digest(target, today), after, ['id', 'dias_para_vencer'])
-  const dueKept = input.fecha_factura !== undefined && input.vencimiento === undefined
-  return {
-    ...after,
-    cambios,
-    // No mention of the audit trail (ADR-028).
-    nota: cancel
-      ? 'Cancelada: ya no cuenta en pendientes ni en el cierre del mes.'
-      : dueKept
-        ? `Corregida. El vencimiento sigue en ${after.vencimiento}; si también cambia, indícalo en vencimiento.`
-        : 'Corregida.',
   }
 }
 
@@ -284,92 +222,3 @@ export async function getPayablesOverview(db: Db, input: { mes?: string } = {}) 
   }
 }
 
-export interface MarkPayablePaidInput {
-  /** UUID, or part of the concept / supplier name. */
-  factura: string
-  /** false = back to pending. Default true. */
-  pagada?: boolean
-  /** Real payment date, YYYY-MM-DD; default today (Mexico). */
-  fecha_pago?: string
-}
-
-export async function markPayablePaid(db: Db, input: MarkPayablePaidInput) {
-  const pagada = input.pagada ?? true
-  const target = await resolvePayable(db, input.factura, pagada ? 'pending' : 'paid')
-  if (target.status === 'cancelled') {
-    throw new ToolError(`"${target.concept}" está cancelada; reactívala desde la app.`)
-  }
-  if (!pagada && target.status === 'pending') {
-    throw new ToolError(`"${target.concept}" ya está pendiente.`)
-  }
-  // A bare "paid" again would re-stamp today's date over the real one (#100).
-  if (pagada && target.status === 'paid' && !input.fecha_pago) {
-    throw new ToolError(
-      `"${target.concept}" ya estaba pagada el ${target.paid_at}; si quieres corregir la fecha indícala en fecha_pago.`,
-    )
-  }
-  const payment = resolvePaymentUpdate(pagada ? 'paid' : 'pending', input.fecha_pago, todayInMexico(), target.status)
-  if (!payment.ok) throw new ToolError(payment.error)
-
-  const { data, error } = await db.from('payables').update(payment.updates).eq('id', target.id).select(SELECT).single()
-  if (error || !data) throw new ToolError(`Error al actualizar la factura: ${error?.message ?? 'sin datos'}`)
-  const row = data as PayableWithSupplier
-  return {
-    ...digest(row, todayInMexico()),
-    // No mention of the audit trail: a member can run this and must not learn it exists (ADR-028).
-    nota: pagada ? `Marcada como pagada el ${row.paid_at}.` : 'Regresada a pendiente.',
-  }
-}
-
-export interface CreatePayableInput {
-  proveedor: string
-  concepto: string
-  monto: number
-  /** Default MXN. */
-  moneda?: PayableCurrency
-  fecha_factura: string
-  /** Default: invoice date + the supplier's credit days (as the app pre-fills it). */
-  vencimiento?: string
-  notas?: string
-}
-
-export async function createPayable(db: Db, input: CreatePayableInput) {
-  const concept = (input.concepto ?? '').trim()
-  if (!concept) throw new ToolError('El concepto es obligatorio')
-  if (typeof input.monto !== 'number' || !Number.isFinite(input.monto) || input.monto <= 0) {
-    throw new ToolError('El monto debe ser mayor a 0')
-  }
-  const currency = input.moneda ?? DEFAULT_PAYABLE_CURRENCY
-  if (!isPayableCurrency(currency)) throw new ToolError('Moneda inválida: usa MXN o USD')
-  if (!isRealDate(input.fecha_factura)) {
-    throw new ToolError('Fecha de factura inválida — usa YYYY-MM-DD')
-  }
-  if (input.vencimiento !== undefined && !isRealDate(input.vencimiento)) {
-    throw new ToolError('Fecha de vencimiento inválida — usa YYYY-MM-DD')
-  }
-  const supplier = await resolveSupplier(db, input.proveedor)
-  const dueDate = input.vencimiento ?? dueDateFrom(input.fecha_factura, supplier.payment_terms_days)
-
-  const { data, error } = await db
-    .from('payables')
-    .insert({
-      supplier_id: supplier.id,
-      concept,
-      amount: input.monto,
-      currency,
-      invoice_date: input.fecha_factura,
-      due_date: dueDate,
-      status: 'pending',
-      paid_at: null,
-      notes: input.notas?.trim() || null,
-    })
-    .select(SELECT)
-    .single()
-  if (error || !data) throw new ToolError(`Error al registrar la factura: ${error?.message ?? 'sin datos'}`)
-  return {
-    ...digest(data as PayableWithSupplier, todayInMexico()),
-    nota: input.vencimiento
-      ? 'Registrada como pendiente.'
-      : `Registrada como pendiente; vencimiento calculado con el plazo del proveedor (${paymentTermsLabel(supplier.payment_terms_days)}).`,
-  }
-}

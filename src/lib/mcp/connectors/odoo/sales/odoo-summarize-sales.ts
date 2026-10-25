@@ -23,6 +23,7 @@ export const odooSummarizeSalesTool = defineTool({
     module: 'Ventas y cobranza',
     title: 'Resumen de ventas',
     example: 'Ventas confirmadas por vendedor este mes.',
+    evals: ['¿Cuánto vendimos por mes este año?', '¿Qué vendedor cerró más ventas en septiembre?'],
   },
   handler: (input) => odooSummarizeSales(callOdoo, input),
 })

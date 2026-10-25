@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DomainError } from '@/lib/domain-error'
+import { isUuid } from '@/lib/text'
 import type { Supplier, SupplierInsert, SupplierUpdate } from '@/types/database'
 
 /** A rule the user broke (→ 400 / 404) or a write that failed (→ 500); routes and tools map it. */
@@ -125,4 +126,60 @@ export async function updateSupplier(db: SupabaseClient, id: string, value: Supp
       throw new SupplierError('Error al quitar marcas', 'failed')
     }
   }
+}
+
+/** How many payables still point at the supplier: the FK has no cascade (#84), so any makes the delete fail. */
+export async function countSupplierPayables(db: SupabaseClient, id: string): Promise<number> {
+  const { count, error } = await db.from('payables').select('*', { count: 'exact', head: true }).eq('supplier_id', id)
+  if (error) {
+    console.error('Error counting supplier payables:', error)
+    throw new SupplierError('Error al verificar las facturas del proveedor', 'failed')
+  }
+  return count ?? 0
+}
+
+export const SUPPLIER_HAS_PAYABLES = 'El proveedor tiene facturas por pagar registradas — elimínalas o reasígnalas primero'
+
+/** DELETE /api/suppliers/[id] and delete_record (#155 C6): brand links fall by CASCADE. */
+export async function deleteSupplier(db: SupabaseClient, id: string): Promise<void> {
+  if (!isUuid(id)) throw new SupplierError('El proveedor no existe', 'not_found')
+  const { data, error } = await db.from('suppliers').delete().eq('id', id).select('id')
+  if (error) {
+    // payables FK WITHOUT cascade (#84): the supplier still has invoices.
+    if (error.code === '23503') throw new SupplierError(SUPPLIER_HAS_PAYABLES)
+    console.error('Error deleting supplier:', error)
+    throw new SupplierError('Error al eliminar el proveedor', 'failed')
+  }
+  // Zero rows deleted is a missing id, not a success (#157).
+  if (!data || data.length === 0) throw new SupplierError('El proveedor no existe', 'not_found')
+}
+
+/** How many suppliers carry the brand. */
+export async function countBrandSuppliers(db: SupabaseClient, id: string): Promise<number> {
+  const { count, error } = await db.from('supplier_brands').select('*', { count: 'exact', head: true }).eq('brand_id', id)
+  if (error) {
+    console.error('Error checking brand usage:', error)
+    throw new SupplierError('Error al verificar el uso de la marca', 'failed')
+  }
+  return count ?? 0
+}
+
+export const brandInUse = (count: number) =>
+  `La marca está asignada a ${count} proveedor${count !== 1 ? 'es' : ''}. Quítala de sus proveedores antes de eliminarla.`
+
+/** DELETE /api/brands/[id] and delete_record: blocked while a supplier carries the brand. */
+export async function deleteBrand(db: SupabaseClient, id: string): Promise<void> {
+  if (!isUuid(id)) throw new SupplierError('Marca no encontrada', 'not_found')
+  // Pre-check for a friendly message; the FK without CASCADE is the backstop.
+  const used = await countBrandSuppliers(db, id)
+  if (used > 0) throw new SupplierError(brandInUse(used))
+
+  const { data, error } = await db.from('brands').delete().eq('id', id).select('id')
+  if (error) {
+    // 23503: the FK blocked it (race between the pre-check and the delete).
+    if (error.code === '23503') throw new SupplierError('La marca está asignada a proveedores. Quítala antes de eliminarla.')
+    console.error('Error deleting brand:', error)
+    throw new SupplierError('Error al eliminar la marca', 'failed')
+  }
+  if (!data || data.length === 0) throw new SupplierError('Marca no encontrada', 'not_found')
 }

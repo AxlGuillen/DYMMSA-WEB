@@ -5,6 +5,40 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 
 ## 2026-10-24
 
+### Nuevo
+- [admin] **El asistente ahora pide tu sí en dos pasos para lo delicado.** Al
+  borrar un registro, cambiar el monto o las fechas de una factura ya pagada,
+  cambiar el título o la descripción de una tarea, o hacer la factura en
+  borrador de una venta de Odoo, primero te muestra un resumen de lo que
+  cambia (y lo que se perdería) y solo escribe cuando le das tu sí. Lo de bajo
+  riesgo, como registrar una factura o comentar una tarea, se guarda directo.
+- [admin] **El asistente puede borrar registros, siempre con tu sí.** Proveedores,
+  marcas, medidas de material, facturas por pagar (nunca las pagadas),
+  checadas y días justificados. Te avisa qué se pierde (una checada que vino
+  del checador vuelve si cargas otra vez ese reporte) y no deja borrar un
+  proveedor con facturas ni una marca en uso. Cotizaciones, órdenes,
+  productos, inventario y catálogo se siguen borrando solo en la app.
+
+### Mejorado
+- [admin] **Nombres nuevos en las herramientas del asistente.** Reconecta el conector
+  «DYMMSA-WEB» en Claude para verlos: registrar, corregir, pagar o cancelar una
+  factura es ahora una sola herramienta (antes eran tres), igual que crear y
+  actualizar una tarea. Cambian también `registrar horas de nómina`, `perfiles
+  del equipo` y la ubicación en tienda, y todo se escribe en español
+  (`estado: pagada`, `buscar`, `pagina`…). Las rutinas programadas que usen los
+  nombres viejos hay que actualizarlas.
+- [admin] **Cargar el reporte del checador por el asistente ahora pide una clave
+  de la revisión previa.** Primero se revisa el reporte (la tabla con su botón) y
+  solo esa revisión permite guardarlo; si el servidor no tiene activada la
+  confirmación en dos pasos, el botón queda apagado y lo dice.
+- **En la documentación del asistente** aparece la etiqueta «pide tu si» en lo que
+  siempre espera tu confirmación y «puede pedir tu si» en lo que a veces la pide
+  (registrar una factura o comentar una tarea se guarda directo).
+- [admin] **Mientras el servidor no tenga activada la confirmación en dos pasos**,
+  el asistente no puede facturar en Odoo ni revisar el reporte del checador, y lo
+  dice: «La confirmación en dos pasos todavía no está activada en el servidor…
+  avisa a quien administra la plataforma».
+
 ### Corregido
 - **Importar el catálogo URREA ya no lo puede dejar vacío.** Antes, si al
   elegir «Reemplazar» el archivo traía un error (por ejemplo, el mismo código

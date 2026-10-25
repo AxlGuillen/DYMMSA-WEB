@@ -2,7 +2,7 @@
   {
     "name": "get_business_summary",
     "title": "Resumen del negocio",
-    "description": "Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala primero cuando pregunten \"¿cómo vamos?\" o necesites contexto global.",
+    "description": "Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala para \"¿cómo vamos?\".",
     "inputSchema": {
       "type": "object",
       "properties": {},
@@ -22,32 +22,32 @@
   {
     "name": "list_quotations",
     "title": "Listar cotizaciones",
-    "description": "Lista cotizaciones con filtros. Úsala para preguntas como \"¿qué cotizaciones esperan aprobación?\" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; en cotizaciones aprobadas editables puede quedar desfasado de los ítems actuales — usa get_quotation para el total recalculado en vivo.",
+    "description": "Lista cotizaciones con filtros, de la más reciente a la más antigua. Úsala para \"¿qué cotizaciones esperan aprobación?\" o buscar por cliente. `total_sellado` es el monto guardado en la fila: en una aprobada editable puede quedar desfasado; get_quotation trae el total recalculado.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "status": {
+        "estado": {
           "description": "Filtrar por estado exacto",
           "type": "string",
           "enum": [
-            "draft",
-            "sent_for_approval",
-            "approved",
-            "rejected",
-            "converted_to_order"
+            "borrador",
+            "en_revision",
+            "aprobada",
+            "rechazada",
+            "convertida"
           ]
         },
-        "search": {
+        "buscar": {
           "description": "Busca en nombre de cotización y nombre del cliente",
           "type": "string"
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "pageSize": {
+        "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
@@ -70,17 +70,18 @@
   {
     "name": "get_quotation",
     "title": "Detalle de cotización",
-    "description": "Cotización completa con sus ítems (en orden), totales calculados (total y total de aprobados), estado de aprobación por ítem y la orden en que se convirtió (orden: null si no tiene). Obtén el id con list_quotations.",
+    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "id": {
+        "cotizacion": {
           "type": "string",
-          "description": "UUID de la cotización"
+          "minLength": 1,
+          "description": "Nombre o cliente (parcial), ref o UUID"
         }
       },
       "required": [
-        "id"
+        "cotizacion"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -98,32 +99,32 @@
   {
     "name": "list_orders",
     "title": "Listar órdenes",
-    "description": "Lista órdenes de compra con filtros. Úsala para \"¿qué órdenes siguen abiertas?\" o buscar por cliente. Nota: total_amount aquí es el monto SELLADO en la fila; usa get_order para el total recalculado en vivo desde los ítems.",
+    "description": "Lista órdenes de compra con filtros, de la más reciente a la más antigua. Úsala para \"¿qué órdenes siguen abiertas?\" o buscar por cliente. `total_sellado` es el monto guardado en la fila; get_order trae el total recalculado.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "status": {
+        "estado": {
           "description": "Filtrar por estado exacto",
           "type": "string",
           "enum": [
-            "ordered",
-            "received",
-            "delivered",
-            "completed",
-            "cancelled"
+            "pedida",
+            "recibida",
+            "entregada",
+            "completada",
+            "cancelada"
           ]
         },
-        "search": {
+        "buscar": {
           "description": "Busca en nombre de orden y nombre del cliente",
           "type": "string"
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "pageSize": {
+        "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
@@ -146,17 +147,18 @@
   {
     "name": "get_order",
     "title": "Detalle de orden",
-    "description": "Orden completa con sus ítems: cantidades (aprobada/en stock/por pedir/recibida), urrea_status por ítem, ubicación en tienda y cuántos ítems siguen pendientes con URREA.",
+    "description": "Una orden con todas sus líneas numeradas (`linea`): cantidades (aprobada, en stock, por pedir, recibida), estado con URREA, ubicación en tienda, `version` y cuántas siguen pendientes con URREA. Acepta nombre, cliente o ref.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "id": {
+        "orden": {
           "type": "string",
-          "description": "UUID de la orden"
+          "minLength": 1,
+          "description": "Nombre o cliente (parcial), ref o UUID"
         }
       },
       "required": [
-        "id"
+        "orden"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -174,14 +176,14 @@
   {
     "name": "get_cut_plan",
     "title": "Lista de corte de una orden",
-    "description": "Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para \"¿cuánto tubo necesito para la orden de X?\". Acepta id o nombre parcial de la orden/cliente.",
+    "description": "Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para \"¿cuánto tubo necesito para la orden de X?\". Acepta nombre, cliente o ref de la orden.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "UUID, nombre de la orden o nombre del cliente (parcial)"
+          "description": "Nombre o cliente (parcial), ref o UUID"
         }
       },
       "required": [
@@ -255,14 +257,14 @@
   {
     "name": "get_purchase_plan",
     "title": "Planificador de compra de una orden",
-    "description": "Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). \"revisar\" = el usuario debe decidir. Acepta id o nombre parcial de la orden/cliente.",
+    "description": "Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). \"revisar\" = el usuario debe decidir. Acepta nombre, cliente o ref de la orden.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "UUID, nombre de la orden o nombre del cliente (parcial)"
+          "description": "Nombre o cliente (parcial), ref o UUID"
         }
       },
       "required": [
@@ -284,32 +286,32 @@
   {
     "name": "search_inventory",
     "title": "Buscar en inventario",
-    "description": "Stock de tienda por model_code, con ubicación física (gaveta) cuando hay existencias. stockFilter: with_stock (>0), in_stock (>5), low_stock (1-5), sin_stock (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
+    "description": "Stock de tienda por código, con su ubicación física (gaveta) cuando hay existencias. `existencias`: con_existencia (>0), suficiente (>5), poca (1-5), sin_existencia (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "search": {
-          "description": "Busca por model_code (parcial)",
+        "buscar": {
+          "description": "Código (parcial)",
           "type": "string"
         },
-        "stockFilter": {
-          "description": "Default all",
+        "existencias": {
+          "description": "Default todas",
           "type": "string",
           "enum": [
-            "all",
-            "with_stock",
-            "in_stock",
-            "low_stock",
-            "sin_stock"
+            "todas",
+            "con_existencia",
+            "suficiente",
+            "poca",
+            "sin_existencia"
           ]
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "pageSize": {
+        "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
@@ -330,24 +332,39 @@
     }
   },
   {
-    "name": "set_inventory_location",
-    "title": "Asignar ubicación en tienda",
-    "description": "Asigna o corrige la ubicación física (gaveta) de un producto YA inventariado. ESCRIBE: usa solo cuando el usuario pida registrar dónde quedó algo (p. ej. \"el 6954 quedó en la gaveta B3\"). Solo toca el metadato de ubicación — las cantidades de inventario NUNCA se modifican por aquí. location vacío o ausente = borrar la ubicación.",
+    "name": "save_inventory_item",
+    "title": "Guardar inventario",
+    "description": "Asigna o corrige la ubicación física (gaveta) de productos YA inventariados: `productos` = [{ codigo, ubicacion }], hasta 30. Úsala para \"el 6954 quedó en la gaveta B3\". `ubicacion: \"\"` borra la gaveta; un código que no esté en el inventario o que coincida con varios frena toda la llamada. Directo. Solo toca la gaveta: las cantidades NUNCA se modifican por aquí.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "model_code": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Código del producto en inventario (match exacto, sin distinguir mayúsculas/minúsculas)"
-        },
-        "location": {
-          "description": "Ubicación física/gaveta, texto libre; omite o vacío para borrarla",
-          "type": "string"
+        "productos": {
+          "minItems": 1,
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Código del producto en inventario (sin distinguir mayúsculas)"
+              },
+              "ubicacion": {
+                "type": "string",
+                "description": "Gaveta, texto libre; \"\" la borra"
+              }
+            },
+            "required": [
+              "codigo",
+              "ubicacion"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
-        "model_code"
+        "productos"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -365,21 +382,21 @@
   {
     "name": "search_products",
     "title": "Buscar productos ETM",
-    "description": "Busca en el catálogo ETM por código ETM, model_code o descripción. Devuelve precio, marca, is_sold (null=sin definir, false=no lo vendemos) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.",
+    "description": "Busca en el catálogo ETM por ETM, código o descripción. Devuelve precio, marca, `se_vende` (sin_definir, si, no) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "query": {
+        "buscar": {
           "type": "string",
-          "description": "Texto a buscar (ETM, model_code o descripción)"
+          "description": "Texto a buscar (ETM, código o descripción)"
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "pageSize": {
+        "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
@@ -387,7 +404,7 @@
         }
       },
       "required": [
-        "query"
+        "buscar"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -405,17 +422,29 @@
   {
     "name": "search_urrea_catalog",
     "title": "Consultar catálogo URREA",
-    "description": "Consulta el catálogo oficial URREA por código (match exacto, normalizado) o por descripción (parcial, máx 20). Devuelve código, descripción oficial y std (unidades por paquete).",
+    "description": "Consulta el catálogo oficial URREA por código (exacto, todas las marcas) o por descripción (parcial, paginada). Devuelve código, marca, descripción oficial y std (unidades por paquete).",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "query": {
+        "buscar": {
           "type": "string",
           "description": "Código URREA o texto de la descripción"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
         }
       },
       "required": [
-        "query"
+        "buscar"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -445,8 +474,14 @@
           "description": "Marca que debe surtir, p. ej. \"SURTEK\"",
           "type": "string"
         },
-        "limit": {
-          "description": "Máx 100 proveedores (default 50)",
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -538,17 +573,17 @@
   {
     "name": "list_payables",
     "title": "Facturas por pagar",
-    "description": "Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (overdue = pendientes ya vencidas), mes de VENCIMIENTO, proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.",
+    "description": "Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (vencida = pendientes ya vencidas), mes de VENCIMIENTO, proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "estado": {
           "type": "string",
           "enum": [
-            "pending",
-            "overdue",
-            "paid",
-            "cancelled"
+            "pendiente",
+            "vencida",
+            "pagada",
+            "cancelada"
           ]
         },
         "mes": {
@@ -564,8 +599,14 @@
           "description": "Texto del concepto (parcial)",
           "type": "string"
         },
-        "limit": {
-          "description": "Máx 100 facturas (default 50)",
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -587,14 +628,14 @@
   {
     "name": "get_payable",
     "title": "Detalle de factura por pagar",
-    "description": "Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta id, o parte del concepto o del nombre del proveedor; con varias coincidencias devuelve la lista.",
+    "description": "Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta ref, o parte del concepto o del nombre del proveedor; con varias coincidencias pide precisar.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "factura": {
           "type": "string",
           "minLength": 1,
-          "description": "UUID, o parte del concepto / nombre del proveedor"
+          "description": "Ref, o parte del concepto / nombre del proveedor"
         }
       },
       "required": [
@@ -640,64 +681,27 @@
     }
   },
   {
-    "name": "mark_payable_paid",
-    "title": "Marcar factura pagada",
-    "description": "Marca una factura de gasto como PAGADA con su fecha real de pago (default hoy), o la regresa a pendiente (pagada=false). ESCRIBE: usa solo cuando el usuario lo pida (\"ya pagué la de Perfiles\"); confirma antes cuál factura y con qué fecha. Identifica la factura por id, concepto o proveedor (prefiere las pendientes al marcar pagada); con varias coincidencias devuelve la lista para precisar. Si ya estaba pagada, solo cambia la fecha cuando se indica fecha_pago.",
+    "name": "save_payable",
+    "title": "Guardar factura por pagar",
+    "description": "Alta o cambio de una factura de GASTO de la app (no de Odoo). Sin `factura` la registra (nace pendiente; vence en fecha + plazo del proveedor). Con `factura` (ref, concepto o proveedor) la corrige, la paga con su fecha real (`estado: pagada`, `fecha_pago` default hoy), la regresa a pendiente o la cancela. Úsala para \"ya pagué la de Perfiles\" o \"la de Tornillos era por 3,200\". Directo; solo cambiar cifras o fechas de una PAGADA pide el sí con la clave. Nunca convierte moneda; no borra (delete_record) ni reactiva una cancelada.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "factura": {
-          "type": "string",
-          "minLength": 1,
-          "description": "UUID, o parte del concepto / nombre del proveedor"
+          "description": "La existente: ref, concepto o proveedor; omítela para dar de alta",
+          "type": "string"
         },
-        "pagada": {
-          "description": "true = marcar pagada (default); false = regresar a pendiente",
-          "type": "boolean"
-        },
-        "fecha_pago": {
-          "description": "Fecha REAL de pago (default hoy)",
-          "type": "string",
-          "format": "date"
-        }
-      },
-      "required": [
-        "factura"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "create_payable",
-    "title": "Registrar factura por pagar",
-    "description": "Registra una factura de GASTO como pendiente: proveedor (nombre parcial; si no existe, dalo de alta con save_supplier), concepto, monto, fecha de factura y vencimiento opcional — sin él se calcula con los días de crédito del proveedor, como en la app. ESCRIBE: usa solo cuando el usuario pida registrar una factura; confirma los datos antes. Con varios proveedores coincidentes devuelve la lista para precisar.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
         "proveedor": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Nombre (o parte) del proveedor"
+          "description": "Nombre (o parte); en una existente, el nuevo",
+          "type": "string"
         },
         "concepto": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Concepto de la factura"
+          "type": "string"
         },
         "monto": {
+          "description": "Mayor a 0",
           "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Mayor a 0"
+          "exclusiveMinimum": 0
         },
         "moneda": {
           "description": "Default MXN",
@@ -709,8 +713,7 @@
         },
         "fecha_factura": {
           "type": "string",
-          "format": "date",
-          "description": "Fecha de la factura"
+          "format": "date"
         },
         "vencimiento": {
           "description": "Default: fecha + plazo del proveedor",
@@ -718,87 +721,34 @@
           "format": "date"
         },
         "notas": {
-          "description": "Notas",
-          "type": "string"
-        }
-      },
-      "required": [
-        "proveedor",
-        "concepto",
-        "monto",
-        "fecha_factura"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "idempotentHint": false,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "update_payable",
-    "title": "Corregir o cancelar factura por pagar",
-    "description": "Corrige una factura de gasto (concepto, monto, fechas, proveedor o notas) o la cancela con cancelar=true. Identifícala por id, concepto o proveedor; con varias coincidencias devuelve la lista. Pagarla o regresarla a pendiente es mark_payable_paid; borrarla o reactivar una cancelada, en la app. ESCRIBE: confirma antes qué factura y qué cambia.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "factura": {
-          "type": "string",
-          "minLength": 1,
-          "description": "UUID, o parte del concepto / nombre del proveedor"
-        },
-        "concepto": {
-          "type": "string"
-        },
-        "monto": {
-          "description": "Mayor a 0",
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "moneda": {
-          "type": "string",
-          "enum": [
-            "MXN",
-            "USD"
-          ]
-        },
-        "fecha_factura": {
-          "type": "string",
-          "format": "date"
-        },
-        "vencimiento": {
-          "type": "string",
-          "format": "date"
-        },
-        "proveedor": {
-          "description": "Otro proveedor (nombre o parte)",
-          "type": "string"
-        },
-        "notas": {
           "description": "Texto vacío las borra",
           "type": "string"
         },
-        "cancelar": {
-          "description": "true = cancelarla",
-          "type": "boolean"
+        "estado": {
+          "type": "string",
+          "enum": [
+            "pendiente",
+            "pagada",
+            "cancelada"
+          ]
+        },
+        "fecha_pago": {
+          "description": "Fecha REAL de pago (default hoy)",
+          "type": "string",
+          "format": "date"
+        },
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
         }
       },
-      "required": [
-        "factura"
-      ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
-      "idempotentHint": true,
+      "idempotentHint": false,
       "openWorldHint": false
     },
     "execution": {
@@ -893,14 +843,14 @@
     }
   },
   {
-    "name": "get_profiles",
+    "name": "list_profiles",
     "title": "Perfiles del equipo",
-    "description": "Perfil de las personas con cuenta en la app: nombre, rol, jornada, id del checador, NSS (Número de Seguridad Social) y foto. Sin `persona` devuelve todos los perfiles que quien pregunta puede ver (un miembro solo el suyo, un administrador a todo el equipo) con el NSS solo de quien pregunta; con `persona` busca a una por nombre parcial e incluye su NSS. Úsala para \"¿cuál es mi NSS?\" o \"¿cuál es el NSS de Tania?\".",
+    "description": "Perfil de las personas con cuenta en la app: nombre, rol, área, jornada, id del checador, NSS (Número de Seguridad Social) y foto. Sin `persona` devuelve todos los que quien pregunta puede ver (un miembro solo el suyo, un administrador a todo el equipo) con el NSS solo de quien pregunta; con `persona` (nombre parcial o ref) trae a una e incluye su NSS. Úsala para \"¿cuál es mi NSS?\" o \"¿cuál es el NSS de Tania?\".",
     "inputSchema": {
       "type": "object",
       "properties": {
         "persona": {
-          "description": "Nombre (o parte) de la persona; solo un administrador ve a otros",
+          "description": "Nombre (o parte) o ref; solo un administrador ve a otros",
           "type": "string"
         }
       },
@@ -920,29 +870,29 @@
   {
     "name": "list_tasks",
     "title": "Listar tareas",
-    "description": "Tareas del equipo (GitHub Issues del repo), abiertas por default. Las cerradas incluyen si se completaron o se descartaron.",
+    "description": "Tareas del equipo (GitHub Issues del repo), abiertas por default, de la más reciente a la más antigua, con un extracto de la descripción (get_task trae el texto completo). Las cerradas dicen si se completaron o se descartaron.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "state": {
-          "description": "Default open",
+        "estado": {
+          "description": "Default abierta",
           "type": "string",
           "enum": [
-            "open",
-            "closed",
-            "all"
+            "abierta",
+            "cerrada",
+            "todas"
           ]
         },
-        "priority": {
+        "prioridad": {
           "type": "string",
           "enum": [
-            "low",
-            "medium",
-            "high",
-            "highest"
+            "baja",
+            "media",
+            "alta",
+            "urgente"
           ]
         },
-        "page": {
+        "pagina": {
           "description": "Página (1-indexada, default 1; 30 por página)",
           "type": "integer",
           "minimum": 1,
@@ -965,11 +915,11 @@
   {
     "name": "get_task",
     "title": "Detalle de tarea",
-    "description": "Una tarea con su descripción, quién la reportó, prioridad, estado y todos sus comentarios.",
+    "description": "Una tarea con su descripción, quién la reportó, prioridad, estado y sus comentarios (hasta 100).",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "number": {
+        "tarea": {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
@@ -977,7 +927,7 @@
         }
       },
       "required": [
-        "number"
+        "tarea"
       ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
@@ -993,95 +943,61 @@
     }
   },
   {
-    "name": "create_task",
-    "title": "Crear tarea",
-    "description": "Crea una tarea nueva (GitHub Issue del repo). ESCRIBE: usa solo cuando el usuario pida registrar una tarea/pendiente. title es obligatorio; description y priority opcionales. La tarea queda como reportada por \"Asistente (MCP)\". Devuelve la tarea creada con su número (#N) y URL.",
+    "name": "save_task",
+    "title": "Guardar tarea",
+    "description": "Crea una tarea (GitHub Issue) o cambia una existente con `tarea`: comentar, priorizar, cerrar o reabrir. Sin `tarea`, `titulo` es obligatorio. Directo; cambiar el título o la descripción de una tarea existente pide el sí con la clave. La tarea queda reportada por el asistente; un comentario se publica atribuido a él. Cerrar con motivo descartada = no se hará.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "title": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Título de la tarea (obligatorio)"
-        },
-        "description": {
-          "description": "Descripción/detalle de la tarea",
-          "type": "string"
-        },
-        "priority": {
-          "type": "string",
-          "enum": [
-            "low",
-            "medium",
-            "high",
-            "highest"
-          ]
-        }
-      },
-      "required": [
-        "title"
-      ],
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "idempotentHint": false,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "update_task",
-    "title": "Actualizar tarea",
-    "description": "Actualiza una tarea existente (GitHub Issue). ESCRIBE: usa solo cuando el usuario pida comentar, cambiar la prioridad o cerrar/reabrir una tarea. Acepta cualquier combinación de: comment (se publica atribuido a \"Asistente (MCP)\"), priority (\"none\" la quita) y state (al cerrar, state_reason not_planned = descartada). NO edita título ni descripción — eso se hace en la app.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "task_number": {
+        "tarea": {
+          "description": "Número (#N) de la existente; omítelo para crear",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991,
-          "description": "Número de la tarea (#N)"
+          "maximum": 9007199254740991
         },
-        "comment": {
+        "titulo": {
+          "description": "Obligatorio al crear",
+          "type": "string"
+        },
+        "descripcion": {
+          "type": "string"
+        },
+        "prioridad": {
+          "description": "\"ninguna\" la quita",
+          "type": "string",
+          "enum": [
+            "baja",
+            "media",
+            "alta",
+            "urgente",
+            "ninguna"
+          ]
+        },
+        "estado": {
+          "description": "abierta reabre, cerrada cierra",
+          "type": "string",
+          "enum": [
+            "abierta",
+            "cerrada"
+          ]
+        },
+        "motivo": {
+          "description": "Solo al cerrar (default completada)",
+          "type": "string",
+          "enum": [
+            "completada",
+            "descartada"
+          ]
+        },
+        "comentario": {
           "description": "Comentario a publicar en la tarea",
           "type": "string"
         },
-        "priority": {
-          "description": "\"none\" la quita",
-          "type": "string",
-          "enum": [
-            "low",
-            "medium",
-            "high",
-            "highest",
-            "none"
-          ]
-        },
-        "state": {
-          "description": "open reabre, closed cierra",
-          "type": "string",
-          "enum": [
-            "open",
-            "closed"
-          ]
-        },
-        "state_reason": {
-          "description": "Solo al cerrar (default completed); not_planned = descartada",
-          "type": "string",
-          "enum": [
-            "completed",
-            "not_planned"
-          ]
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
         }
       },
-      "required": [
-        "task_number"
-      ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
     },

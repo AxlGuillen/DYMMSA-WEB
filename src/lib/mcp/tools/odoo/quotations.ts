@@ -54,7 +54,7 @@ import {
 import { proposedSatKey } from '@/lib/odoo/sat-keys'
 import { ORIGIN_PREFIX, originMarker } from '@/lib/odoo/write-catalog'
 import { noteHasKeyMarker, ownedSaleLines, type OdooNote, type OdooWriter } from '@/lib/odoo/writer'
-import type { AdminProof } from '@/lib/odoo/write-guard'
+import type { AdminProof } from '@/lib/auth/admin-proof'
 import type { McpContext } from '../../core/context'
 import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
 import { ToolError } from '@/lib/mcp/core/errors'

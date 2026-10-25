@@ -10,9 +10,9 @@ export const searchProductsTool = defineTool({
   kind: 'read',
   title: 'Buscar productos ETM',
   description:
-    'Busca en el catálogo ETM por código ETM, model_code o descripción. Devuelve precio, marca, is_sold (null=sin definir, false=no lo vendemos) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.',
+    'Busca en el catálogo ETM por ETM, código o descripción. Devuelve precio, marca, `se_vende` (sin_definir, si, no) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.',
   input: {
-    query: z.string().describe('Texto a buscar (ETM, model_code o descripción)'),
+    buscar: z.string().describe('Texto a buscar (ETM, código o descripción)'),
     ...pagination,
   },
   hints: dymmsaRead,
@@ -20,6 +20,7 @@ export const searchProductsTool = defineTool({
     module: 'Catalogos',
     title: 'Buscar productos ETM',
     example: 'Busca el ETM del rodillo de 9 pulgadas.',
+    evals: ['Busca el ETM del rodillo de 9 pulgadas.', '¿Cuánto cuesta el ETM 1180234 y si lo vendemos?'],
   },
   handler: (input, { db }) => searchProducts(db, input),
 })

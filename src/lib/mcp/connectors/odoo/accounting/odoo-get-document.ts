@@ -21,6 +21,7 @@ export const odooGetDocumentTool = defineTool({
     module: 'Contabilidad',
     title: 'Documento por folio',
     example: '¿Ya se entrego y facturo todo lo de la S00247? / El detalle de la F00167 con su timbrado.',
+    evals: ['¿Ya se entregó y facturó todo lo de la S00247?', 'Abre el pago PAY0123 y dime si tiene complemento.'],
   },
   handler: (input) => odooGetDocument(callOdoo, input),
 })

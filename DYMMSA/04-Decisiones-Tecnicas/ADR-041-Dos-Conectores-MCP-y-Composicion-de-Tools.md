@@ -1,7 +1,7 @@
 # ADR-041: dos conectores MCP (DYMMSA-WEB y Odoo DYMMSA) y reglas de composición de tools
 
 **Fecha:** 2026-10-22
-**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector». **C1 hecho (2026-10-24):** entrada estricta, errores en español y `DomainError`; ver § «C1: contrato de entrada y errores». **C2 hecho (2026-10-24):** las cuatro anotaciones en cada tool de los dos conectores, derivadas del tipo; ver § «C2: anotaciones». **C3 hecho (2026-10-24):** envolturas estándar, `structuredContent` en cada resultado y `outputSchema` en las dos vistas; ver § «C3: envolturas y `structuredContent`».
+**Estado:** Aceptado. Implementación por fases, ver [[02-Arquitectura/MCP-Escrituras/01-Plan]] §7. **B3 hecho (2026-10-24):** los dos conectores ya están separados; medidas finales en § «Presupuestos por conector». **C1 hecho (2026-10-24):** entrada estricta, errores en español y `DomainError`; ver § «C1: contrato de entrada y errores». **C2 hecho (2026-10-24):** las cuatro anotaciones en cada tool de los dos conectores, derivadas del tipo; ver § «C2: anotaciones». **C3 hecho (2026-10-24):** envolturas estándar, `structuredContent` en cada resultado y `outputSchema` en las dos vistas; ver § «C3: envolturas y `structuredContent`». **C4–C6 hechos (2026-10-24, un solo PR):** confirmación en dos fases con clave firmada, red de cobertura de escritura y convenciones con renombres y `delete_record`; ver § «C4», «C5» y «C6».
 **Relacionado:** [[ADR-015-MCP-Interno]] · [[ADR-023-MCP-OAuth]] · [[ADR-025-Bloque-Odoo-MCP]] · [[ADR-033-Nomina-Horas-por-Corte]] · [[ADR-034-MCP-Reglas-de-Crecimiento]] · [[ADR-037-MCP-Escrituras-Proveedores-Facturas-Nomina-Materiales]] · [[ADR-040-Escrituras-Acotadas-en-Odoo]] · issue #155
 
 ## Contexto
@@ -300,6 +300,106 @@ Cómo se decidió cada diferencia:
   - **`hay_mas` necesita un `total` exacto.** `listResult()` lo calcula contra `total`; con `total: items.length` en una página llena respondería `hay_mas: false` en silencio. Quien lo adopte debe pasar el conteo real (el `count` de PostgREST) o extender el helper para aceptar `total: null`.
 
 **Pendiente (plan §9):** medir en claude.ai si el modelo recibe el texto, el `structuredContent` o los dos. Si son los dos, emitirlo solo donde hay `output`.
+
+## C4: confirmación en dos fases (2026-10-24)
+
+Cumple la decisión 5. El mecanismo vive en `src/lib/mcp/core/confirm/`, fuera de `src/lib/odoo/`.
+
+**La clave** (`preview-key.ts`, `token.ts`):
+- Es un token HMAC `base64url(claims).mac` con la llave derivada del **propósito**: una clave de una familia nunca abre otra, diga lo que diga su contenido. Los propósitos son `tool` (las claves de esta sección), `odoo-quotation` y `odoo-products`.
+- Una clave de herramienta lleva **usuario, herramienta, hash de los argumentos canónicos** (sin `clave`, sin `undefined`, llaves ordenadas), **huella de lo que la escritura toca** y **caducidad de 30 minutos**. El orden de las comprobaciones es firma → usuario → herramienta → argumentos → caducidad, y cada fallo tiene su mensaje (la de otra herramienta la nombra).
+- El secreto es `MCP_PREVIEW_SECRET`, leído en cada llamada y de **al menos 32 caracteres**; uno más corto cuenta como ausente. Sin él, la confirmación falla cerrada.
+
+**El núcleo decide la fase** (`defineTool` con `confirm: 'two_phase'`, `core/confirm/two-phase.ts`):
+- La tool aporta `plan()`, que lee, valida y devuelve el resumen (`entity`, `cambios`, `avisos`, `bloqueos`), la **huella** y un `subject`; **nunca escribe**. Aporta también `commit()`. No tiene `handler`: el núcleo lo arma. El `clave` se agrega solo al esquema de entrada.
+- **Sin `clave`:** fase 1 → `writeResult('simulado', …)` con `escrito: false`, el resumen, `clave` y `vence`. Con `bloqueos` no se emite clave y la nota dice que se corrijan. `sinCambios` responde `sin_cambios`, también sin clave.
+- **Con `clave`:** verifica la firma **antes** de leer nada, vuelve a correr `plan()` y compara huellas; si algo cambió responde «<subject> cambió desde el resumen: vuelve a pedirlo. No escribí nada.». Después, si el plan trae `bloqueos`, no escribe. `plan.carry` pasa lo ya leído a `commit()`: una petición no lee dos veces (el plan de Odoo cuesta ~7 s de cola).
+- **Fail closed:** sin secreto, una tool de dos fases responde «La confirmación en dos pasos todavía no está activada en el servidor (falta la variable MCP_PREVIEW_SECRET), así que no puedo mostrarte el resumen ni escribir. No escribí nada; avisa a quien administra la plataforma.» antes de leer (`CONFIRM_UNAVAILABLE_MESSAGE`, `two-phase.test.ts`). Las escrituras directas siguen funcionando.
+- **Nota de despliegue:** sin `MCP_PREVIEW_SECRET`, `odoo_create_draft_invoice` no puede ni siquiera dar su resumen de solo lectura (falla antes de leer), y `preview_time_report` / `save_time_entries` con `filas` tampoco. Poner la variable en **la misma ventana** que el redeploy de este PR (se agrega en Vercel y se redespliega; ≥ 32 caracteres); en el hueco, el admin ve el mensaje de arriba. Las escrituras directas (`save_payable` y `save_task` en lo sencillo) y las de Odoo que no usan el núcleo siguen igual.
+- **Invariante de la huella:** una clave no es de un solo uso (vale 30 min y sirve mientras la huella coincida), así que la huella debe **cambiar con la propia escritura**: después de escribir, un reintento con la misma clave tiene que ver otra huella (o `sinCambios`) y no escribir dos veces. Una tool nueva cuya huella no se mueva al escribir (p. ej. solo el estado de una fila que el commit no toca) permitiría repetir el commit.
+
+**Decisión nueva: `direct`.** `save_payable` y `save_task` son directas casi siempre y piden el sí solo para lo sensible (cifras de una pagada; título o descripción de una tarea). El plan decía «directo» y «dos fases solo si…» sin un mecanismo para eso. Una tool que declara `direct: true` deja que su `plan()` marque la llamada `directo: true`: la fase 1 escribe de inmediato, sin clave **y sin secreto**. Lo demás exige el secreto como cualquier tool de dos fases. Un `bloqueo` se muestra siempre primero, aun en una llamada directa.
+
+**Odoo se monta sobre el mismo token**, con dos precisiones:
+- **Conserva su secreto** (derivado de `ODOO_WRITE_API_KEY`), no pasa a `MCP_PREVIEW_SECRET`. Así el flujo de cotizar y confirmar sigue igual hasta que el usuario ponga el secreto nuevo en Vercel, y sin la llave de escritura sigue bloqueado como antes. Conserva también sus claims (`ks`, `a`, `write_date`) y sus mensajes; `canonicalJson` se reexporta de `preview-token.ts`. Las claves en vuelo al desplegar (≤ 30 min) dejan de servir.
+- **`odoo_create_draft_invoice` pasa de `confirmar: true` a `clave`** (decisión 5) y usa el núcleo: necesita `MCP_PREVIEW_SECRET`. Su resumen es la fase 1; una venta que ya tiene borrador responde `sin_cambios` (con el aviso de la nota interna si le falta el rastro). El mensaje de resultado incierto dice «pide otra vez el resumen con el mismo folio», porque repetir la clave ya no aplica.
+- **`AdminProof` pasa a `src/lib/auth/admin-proof.ts`** y lanza `DomainError('forbidden')`, no `OdooError`: ya no es solo de Odoo.
+
+**`save_time_entries` con `filas` exige la clave que firma `preview_time_report`** (gemela de lectura): argumentos `{ filas, nombre_archivo }`, huella = a quién corresponde cada id del checador. La vista manda la clave y apaga el botón sin ella. `checada` sigue directa. **Mientras el secreto no exista, la carga semanal queda cerrada a propósito** (la vista lo dice). El resto de las escrituras directas no se afecta.
+
+**Checklist de una tool de dos fases nueva:** `plan()` sin escribir y con todo validado; `commit()` que reusa `plan.carry`; **la huella cambia con la propia escritura** (una clave no es de un solo uso); `subject` que dice qué cambió; `sinCambios` cuando no hay nada que hacer; `direct: true` solo si algunas llamadas son de bajo riesgo (el docs pinta «puede pedir tu si»); sin `output` ni `view` (`definitions.test.ts` lo exige); su prueba de «la huella cambió» y de «sin secreto».
+
+**Instrucciones:** una línea fija en los dos conectores (`CONFIRMATION_RULE`): la primera llamada no escribe y trae el resumen; se muestra, se espera el sí y solo entonces se repite con la misma entrada y la clave; nunca se encadenan las dos fases sin la respuesta del usuario. Las de DYMMSA-WEB se recortaron en otras líneas para caber (5,993 de 6,000 en este commit).
+
+**Tests** (`two-phase.test.ts`, `preview-key.test.ts`, SDK real): firma, caducidad, otro usuario, otra herramienta, otros argumentos y clave alterada o de otro propósito; huella cambiada; sin secreto o con uno corto; bloqueos; `sin_cambios`; `direct` con y sin secreto; un member no ve la tool. Los de Odoo (`odoo-preview-token`, `odoo-invoices-write`) pasan sobre la base nueva.
+
+## C5: red de cobertura de escritura (2026-10-24)
+
+`tests/mcp/write-coverage.test.ts` clasifica **cada handler `POST`/`PATCH`/`PUT`/`DELETE`** de `src/app/api/` (71 hoy) como una tool que lo cubre (existe y escribe), una lectura por POST (`quotes/lookup`, `urrea-catalog/lookup`, con la tool de lectura que responde lo mismo), un refresco de caché (`finance/income/refresh`, `clients/refresh`), la ruta pública (`approve/[token]`) o `fuera: <motivo>`. Falla si un handler no tiene decisión, si una entrada no tiene handler, si la tool citada no existe o no es del tipo que debe, o si un motivo está vacío.
+- **26 handlers quedan como `Fase D: …`**: ajustes, cotizaciones (5), órdenes (8), compra y corte (2), inventario (2), productos (2), catálogo URREA (2), perfiles (2) y nómina (2). El PR de D los pasa a su tool; al terminar no debe quedar ninguno con ese prefijo.
+- **Una duda que ni C ni D resuelven:** `POST brands`. El ADR (§13) aprueba `save_supplier.crear_marcas`, pero ninguno de los dos PRs lo trae. Queda con un motivo que lo dice; hay que decidirlo antes de cerrar D.
+- Fuera a propósito: borrar cotizaciones, órdenes, productos, inventario y catálogo (decisión 4), las cargas por Excel, la foto de perfil, las imágenes de una tarea y el aprendizaje interno de las órdenes.
+
+## C6: convenciones, renombres y borrado (2026-10-24)
+
+**Tokens en español**, iguales en la entrada y la salida, con su mapa a la BD junto a cada constante de dominio (`tokenMap()` en `src/lib/tokens.ts`):
+- cotización `borrador | en_revision | aprobada | rechazada | convertida`; orden `pedida | recibida | entregada | completada | cancelada`; `estado_urrea` `pendiente | surtido | no_surtido`;
+- entrega `inmediata | 2_3_dias | 3_5_dias | 1_semana | 2_semanas | indefinida`; existencias `todas | con_existencia | suficiente | poca | sin_existencia`;
+- factura `pendiente | pagada | cancelada` (y `vencida` solo como filtro); tarea `abierta | cerrada`, prioridad `baja | media | alta | urgente`, motivo `completada | descartada`;
+- rol `administrador | miembro`, área `oficina | taller`, jornada `completa | media`, día justificado `feriado | salida_autorizada`; aprobación `pendiente | aprobada | rechazada` y `se_vende` `sin_definir | si | no`.
+El valor de la BD en inglés **ya no se acepta**. `BUSINESS_RULES_MD` se reescribió con los tokens nuevos (las instrucciones del admin bajaron de 5,978 a 5,497).
+
+**Un solo buscador** (`resolveByName()`, `core/lookup.ts`): acepta UUID, `ref` (los 8 primeros hex) o nombre y termina en `requireSingleMatch` con hasta 5 candidatos y su `ref`. **El `ref` se busca como rango del uuid** (`id >= '<8hex>-0000-…' and id <= '<8hex>-ffff-…'`), no con `id::text like`: PostgREST no castea en un filtro y los uuid ordenan por bytes. Si un nombre parece ref y no pega con ningún id, se busca como nombre. Lo usan cotizaciones, órdenes, facturas, proveedores, personas, marcas y los `get_*`.
+
+**`linea` y `version`:** `get_quotation` y `get_order` numeran **todas** las filas (secciones incluidas, 1-based) y devuelven una `version` (hash de los ids de las líneas en orden y de `updated_at`). La Fase D las usa para editar por línea y como concurrencia.
+
+**Renombres y fusiones** (36 → 33 tools, +1 con `delete_record` = 34):
+
+| Antes | Ahora | Notas |
+|---|---|---|
+| `create_payable`, `update_payable`, `mark_payable_paid` | `save_payable` | E(1,0). Directa; dos fases solo al cambiar monto, moneda, proveedor o fechas de una **pagada** |
+| `create_task`, `update_task` | `save_task` | E(1,0). Directa; título o descripción en dos fases (ADR-015 reabierto) |
+| `set_inventory_location` | `save_inventory_item` | `productos: [{ codigo, ubicacion }]`, hasta 30; solo gaveta. E(1,1) hoy; D la pasa a E(1,0) |
+| `record_payroll_hours` | `save_payroll_hours` | Mismo contrato; responde con la envoltura de escritura |
+| `get_profiles` | `list_profiles` | Más `area`; es una colección |
+
+Parámetros en español en toda DYMMSA-WEB (`buscar`, `estado`, `pagina`, `por_pagina`, `existencias`, `cotizacion`, `orden`, `tarea`, `prioridad`, `limite`, …). Las listas dejan de mostrar UUIDs (`ref`). Las respuestas pasan a `listResult` / `recordResult` / `writeResult`; `get_cut_plan` numera sus piezas (`pieza` es un número, no un UUID). Las tareas no traen total (GitHub no lo da): su colección dice solo `hay_mas`.
+
+**Stores nuevos o ampliados**, compartidos con sus rutas: `tasks-store` (crear, comentar, editar; las tres rutas de tareas), `inventory-store` (la gaveta), `payables-store.createPayable`, `excused-days-store`, `materials-store`, y `deleteSupplier` / `deleteBrand` / `deleteTimeEntry`.
+
+**`delete_record`** (`tipo` = proveedor, marca, medida, factura, checada, dia_justificado): **siempre dos fases**, E(1,1), solo administrador.
+- La fase 1 dice qué se pierde (una checada importada vuelve con el re-import; una corregida a mano pierde su corrección) o qué la **bloquea** con el conteo: un proveedor con facturas, una marca en uso, una factura pagada. Con bloqueos no hay clave.
+- **Es de administrador** aunque la app deja borrar a cualquiera con sesión: el borrado es el movimiento más caro de deshacer y el conector solo lo usa un administrador (decisión 2); la RLS sigue respaldando.
+- `save_excused_day` pierde `quitar`. Los DELETE de la app pasan por los mismos stores, y borrar una medida con un id mal formado es 404, no 500.
+
+**Evaluación (R12):** `docs.evals` (1–3 frases) es obligatorio en las 49 definiciones, y `tests/mcp/evals.test.ts` exige que el guion de la bóveda ([[02-Arquitectura/MCP-Escrituras/Guion-Evaluacion]]) nombre cada tool y no cite nombres que ya no existen. Documentación en la app: la etiqueta «pide tu si» sale del catálogo (`confirm`), y el consentimiento se regenera solo.
+
+**Limpieza de B3:** `ToolBlock` y `ConnectorId` son el mismo tipo (las entradas del manifiesto llevan `connector`; el resumen de consentimiento se indexa por conector), y `serverInfo.title` es `CONNECTOR_NAMES`, amarrado por una prueba. Versión de DYMMSA-WEB: 4.0.0.
+
+### Decisiones que la especificación no cubría
+1. **Odoo conserva su secreto** (derivado de la llave de escritura) para no romper su flujo antes de que exista `MCP_PREVIEW_SECRET`; solo `odoo_create_draft_invoice` y `save_time_entries` con `filas` esperan el secreto nuevo.
+2. **`direct`** (arriba) para las dos fases condicionales de `save_payable` y `save_task`.
+3. **`delete_record` es de administrador.**
+4. **Quedan 34 tools, no 31:** el plan contaba −5 por fusión; las fusiones reales son −3 (payables 3→1, tareas 2→1).
+5. **`save_inventory_item` ya recibe `productos[]`**, la forma que D necesita, para no romper dos veces.
+6. **El reportero de las tareas sigue siendo «Asistente (MCP)»** (la auditoría proponía el correo del usuario): es un cambio visible para el equipo que no se pidió.
+7. **`crear_marcas` queda sin dueño** (ver C5).
+
+### Rutinas a actualizar
+Reconectar «DYMMSA-WEB» en claude.ai (web, escritorio, móvil) y Claude Code, y actualizar lo que cite nombres viejos, sobre todo **la rutina de los viernes**: `record_payroll_hours` → `save_payroll_hours`; `get_profiles` → `list_profiles`; `set_inventory_location` → `save_inventory_item`; `create_payable` / `update_payable` / `mark_payable_paid` → `save_payable` (con `estado: pagada`, `pendiente` o `cancelada`); `create_task` / `update_task` → `save_task`; `save_excused_day(quitar: true)` → `delete_record(tipo: dia_justificado)`. `save_time_entries` con `filas` pide ahora la `clave` de `preview_time_report`. Los parámetros en inglés (`status`, `search`, `page`, `pageSize`, `stockFilter`, `query`, `limit`, `task_number`…) se escriben en español.
+
+### Medidas al cerrar C (en el cable; los topes no cambian)
+
+| Conector | Rol | Tools | `tools/list` | Descripciones | Instrucciones |
+|---|---|---|---|---|---|
+| DYMMSA-WEB | admin | 34 de 45 | 37,318 de 53,000 | 12,086 de 19,000 | 5,652 de 6,000 |
+| DYMMSA-WEB | member | 26 | 24,080 | 7,260 | 4,807 |
+| Odoo DYMMSA | admin | 15 de 16 | 21,371 de 21,500 | 6,332 de 6,500 | 2,974 de 3,000 |
+| Odoo DYMMSA | member | 10 | 11,149 | 4,179 | 2,088 |
+
+- **Por commit del PR (admin, `tools/list`):** 1 (confirmación) 37,599 (+275); 3 (convenciones) 37,999; 4 (fusiones) 35,455 (−2,544); 5 (`delete_record`) 37,318 (+1,863).
+- **A Odoo le quedan 129 caracteres de `tools/list` y 26 de instrucciones.** No se tocó ningún tope.
+- **A DYMMSA-WEB le quedan 348 caracteres de instrucciones**: el mapa por módulo crece con cada tool de D; el riesgo real sigue siendo ese tope.
 
 ## Consecuencias
 

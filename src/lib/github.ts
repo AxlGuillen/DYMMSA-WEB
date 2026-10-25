@@ -2,6 +2,8 @@
  *  `import type` — next/server must never reach the bundle. */
 
 import { NextResponse } from 'next/server'
+import { DomainError } from '@/lib/domain-error'
+import { tokenMap } from '@/lib/tokens'
 
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'highest'] as const
 export type TaskPriority = (typeof TASK_PRIORITIES)[number]
@@ -11,6 +13,11 @@ export type TaskState = (typeof TASK_STATES)[number]
 /** completed = done; not_planned = discarded. */
 export const TASK_CLOSE_REASONS = ['completed', 'not_planned'] as const
 export type TaskCloseReason = (typeof TASK_CLOSE_REASONS)[number]
+
+/** The assistant's tokens (#155 C6): the same in the filters and in the answers. */
+export const TASK_PRIORITY_TOKENS = tokenMap({ low: 'baja', medium: 'media', high: 'alta', highest: 'urgente' } as const satisfies Record<TaskPriority, string>)
+export const TASK_STATE_TOKENS = tokenMap({ open: 'abierta', closed: 'cerrada' } as const satisfies Record<TaskState, string>)
+export const TASK_CLOSE_REASON_TOKENS = tokenMap({ completed: 'completada', not_planned: 'descartada' } as const satisfies Record<TaskCloseReason, string>)
 
 export interface Task {
   number: number
@@ -169,6 +176,8 @@ export function explainGitHubStatus(status: number): string {
 
 /** GitHubError → NextResponse (explainPgError pattern); anything else → 500. */
 export function handleGitHubError(e: unknown): NextResponse {
+  // A rule of tasks-store (#155 C6) answers its own status and message.
+  if (e instanceof DomainError) return NextResponse.json(e.body, { status: e.status })
   if (e instanceof GitHubError) {
     const status = e.status >= 400 && e.status < 600 ? e.status : 502
     return NextResponse.json({ message: e.message }, { status })

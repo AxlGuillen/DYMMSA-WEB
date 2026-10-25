@@ -3,8 +3,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DomainError, type DomainErrorKind } from '@/lib/domain-error'
 import { isUuid } from '@/lib/text'
-import { parsePayableUpdate, type ISODate } from '@/lib/payables'
-import type { PayableStatus, PayableWithSupplier } from '@/types/database'
+import { isRealDate } from '@/lib/month'
+import { DEFAULT_PAYABLE_CURRENCY, isPayableCurrency, parsePayableUpdate, type ISODate } from '@/lib/payables'
+import type { PayableInsert, PayableStatus, PayableWithSupplier } from '@/types/database'
 
 export class PayableError extends DomainError {
   constructor(message: string, kind: DomainErrorKind = 'invalid') {
@@ -15,6 +16,48 @@ export class PayableError extends DomainError {
 
 export const PAYABLE_SELECT = '*, supplier:suppliers(id, name, payment_terms_days)'
 const NOT_FOUND = 'La factura no existe'
+
+/** POST /api/payables and save_payable (#155 C6): the supplier must exist, and it is checked BEFORE the insert (a precise 404, not an FK 23503). */
+export async function createPayable(db: SupabaseClient, body: unknown): Promise<PayableWithSupplier> {
+  const raw = (body ?? {}) as Partial<PayableInsert>
+
+  const supplierId = typeof raw.supplier_id === 'string' ? raw.supplier_id : ''
+  if (!supplierId) throw new PayableError('Elige el proveedor de la factura')
+
+  const concept = typeof raw.concept === 'string' ? raw.concept.trim() : ''
+  if (!concept) throw new PayableError('El concepto es obligatorio')
+
+  const amount = typeof raw.amount === 'number' ? raw.amount : NaN
+  if (!Number.isFinite(amount) || amount <= 0) throw new PayableError('El monto debe ser mayor a 0')
+
+  const currency = raw.currency ?? DEFAULT_PAYABLE_CURRENCY
+  if (!isPayableCurrency(currency)) throw new PayableError('Moneda inválida: usa MXN o USD')
+
+  if (!isRealDate(raw.invoice_date)) throw new PayableError('Fecha de factura inválida')
+  if (!isRealDate(raw.due_date)) throw new PayableError('Fecha de vencimiento inválida')
+
+  const { data: supplier } = await db.from('suppliers').select('id').eq('id', supplierId).single()
+  if (!supplier) throw new PayableError('El proveedor no existe', 'not_found')
+
+  const payload: PayableInsert = {
+    supplier_id: supplierId,
+    concept,
+    amount,
+    currency,
+    invoice_date: raw.invoice_date,
+    due_date: raw.due_date,
+    status: 'pending',
+    paid_at: null,
+    notes: typeof raw.notes === 'string' ? raw.notes.trim() || null : null,
+  }
+
+  const { data, error } = await db.from('payables').insert(payload).select(PAYABLE_SELECT).single()
+  if (error || !data) {
+    console.error('Error creating payable:', error)
+    throw new PayableError('Error al registrar la factura', 'failed')
+  }
+  return data as PayableWithSupplier
+}
 
 /** Sparse update read against the row's status, so a bare `paid_at` only lands on a paid invoice (#157). */
 export async function updatePayable(db: SupabaseClient, id: string, body: unknown, today: ISODate): Promise<PayableWithSupplier> {

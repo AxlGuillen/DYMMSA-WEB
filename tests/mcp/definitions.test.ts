@@ -68,6 +68,13 @@ describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (nam
     expect(Boolean(tool.output), 'una vista lee el structuredContent: declara su output; sin vista, el outputSchema solo gasta presupuesto').toBe(Boolean(tool.view))
   })
 
+  test('REGLA (ADR-041 §5): una tool de dos fases no declara output ni view (la fase 1 y la 2 responden formas distintas)', () => {
+    if (tool.confirm === 'two_phase') {
+      expect(tool.output).toBeUndefined()
+      expect(tool.view).toBeUndefined()
+    }
+  })
+
   test('REGLA (ADR-040): toda escritura de Odoo es de administrador', () => {
     if (tool.connector === 'odoo' && tool.kind === 'write') expect(tool.adminOnly).toBe(true)
   })
@@ -107,18 +114,18 @@ describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (nam
  * d = destructiveHint, i = idempotentHint; changing one is a decision its PR explains.
  */
 const WRITE_HINTS: Record<string, string> = {
+  delete_record: 'E(1,1)',
   save_material_presentation: 'E(0,1)',
-  set_inventory_location: 'E(1,1)',
+  // Phase D adds quantities (a delta adjustment) and flips this to E(1,0).
+  save_inventory_item: 'E(1,1)',
   save_supplier: 'E(1,1)',
-  mark_payable_paid: 'E(1,1)',
-  create_payable: 'E(0,0)',
-  update_payable: 'E(1,1)',
+  // The merged tools (#155 C6): the weakest hint of what they replaced, as the audit decided (§3).
+  save_payable: 'E(1,0)',
   save_time_entries: 'E(1,1)',
   save_excused_day: 'E(1,1)',
-  record_payroll_hours: 'E(1,1)',
+  save_payroll_hours: 'E(1,1)',
   save_payroll_employee: 'E(1,1)',
-  create_task: 'E(0,0)',
-  update_task: 'E(1,0)',
+  save_task: 'E(1,0)',
   odoo_save_quotation: 'E(1,1)',
   odoo_confirm_quotation: 'E(1,1)',
   odoo_save_product: 'E(0,1)',
@@ -158,6 +165,8 @@ const OUTPUT_SAMPLES: Record<string, Record<string, unknown>> = {
     sin_perfil: [],
     no_vinieron_en_el_reporte: [],
     avisos: [],
+    clave: null,
+    vence: null,
     siguiente_paso: 'Nada se ha guardado.',
   },
   odoo_preview_quotation: {
