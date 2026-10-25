@@ -91,8 +91,8 @@ const COVERAGE: Record<string, Decision> = {
   'POST orders/auto-learn': { fuera: 'aprendizaje interno que la app dispara al guardar; no es una acción del usuario' },
 
   // Compra y corte
-  'PUT orders/[id]/purchase-decisions': { fuera: `${PHASE_D}save_purchase_decisions` },
-  'PUT orders/[id]/cut-plan': { fuera: `${PHASE_D}save_cut_plan` },
+  'PUT orders/[id]/purchase-decisions': { tool: 'save_purchase_decisions' },
+  'PUT orders/[id]/cut-plan': { tool: 'save_cut_plan' },
   'POST material-presentations': { tool: 'save_material_presentation' },
   'DELETE material-presentations/[id]': { tool: DELETE_RECORD },
 

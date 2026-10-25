@@ -14,7 +14,7 @@ export const saveUrreaCatalogItemTool = defineTool({
     marca: z.string().optional().describe('Default URREA; obligatoria si el código está en varias marcas'),
     crear: z.literal(true).optional().describe('Alta; sin él un código desconocido es error'),
     descripcion: z.string().optional().describe('Oficial; texto vacío la borra'),
-    std: z.number().int().min(1).optional().describe('Piezas por paquete'),
+    std: z.number().int().min(1).max(99999).optional().describe('Piezas por paquete'),
     nuevo_codigo: z.string().optional().describe('Cambia el código'),
     nueva_marca: z.string().optional().describe('Cambia la marca'),
   },

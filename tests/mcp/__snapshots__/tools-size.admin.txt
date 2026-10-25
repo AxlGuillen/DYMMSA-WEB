@@ -1,41 +1,43 @@
-# tools/list (admin): 40 tools, 47545 caracteres en el cable · descripciones 14701 · instrucciones 5846
-  4122  save_payroll_hours
-  3295  save_quotation
+# tools/list (admin): 42 tools, 49629 caracteres en el cable · descripciones 15304 · instrucciones 5865
+  3972  save_payroll_hours
+  3062  save_quotation
   2956  preview_time_report
-  1742  delete_record
   1703  save_payable
+  1567  save_cut_plan
   1490  save_product
-  1451  save_urrea_catalog_item
+  1483  delete_record
+  1440  save_urrea_catalog_item
   1406  save_time_entries
-  1397  save_task
-  1311  save_supplier
-  1249  save_profile
+  1386  save_task
+  1379  save_purchase_decisions
+  1299  save_supplier
+  1238  save_profile
   1234  save_payroll_employee
-  1191  list_payables
+  1179  list_payables
   1120  save_app_settings
   1101  save_inventory_item
-  1092  list_quotations
+  1080  list_quotations
   1079  save_material_presentation
   1050  get_week_hours
   1039  save_payroll_period
-  1018  list_orders
-   995  list_suppliers
-   988  search_inventory
+  1006  list_orders
+   983  list_suppliers
+   976  search_inventory
    922  save_excused_day
-   876  search_urrea_catalog
-   864  search_products
+   864  search_urrea_catalog
    863  list_profiles
-   856  list_tasks
+   852  search_products
+   844  list_tasks
    828  get_payroll_period
-   821  get_cut_plan
    813  get_hours_trend
-   799  get_purchase_plan
-   786  get_quotation
+   804  get_cut_plan
+   782  get_purchase_plan
+   769  get_quotation
    745  get_month_closing
    722  get_payables_overview
-   675  get_order
    674  get_payable
+   658  get_order
    627  list_time_imports
    559  get_app_settings
-   558  get_task
+   547  get_task
    528  get_business_summary

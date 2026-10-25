@@ -5,29 +5,32 @@ import { MANUAL_QUOTATION_STATUSES, QUOTATION_STATUS_TOKENS } from '@/lib/quotat
 import { APPROVAL_TOKENS, SOLD_TOKENS } from '@/lib/tokens'
 import { commitSaveQuotation, planSaveQuotation } from '@/lib/mcp/tools/quotations-write'
 
+// `.max()` on every integer keeps the JSON Schema from spelling out Number.MAX_SAFE_INTEGER (budget, #155 D).
+const lineNo = z.number().int().min(1).max(9999)
+
 const line = z.strictObject({
   etm: z.string().optional().describe('ETM, o "nuevo" para un código interno'),
-  seccion: z.string().optional().describe('Título de sección, en vez de producto'),
-  cantidad: z.number().int().min(1).optional(),
+  seccion: z.string().optional(),
+  cantidad: z.number().int().min(1).max(99999).optional(),
   precio: z.number().min(0).optional().describe('Omitido = el del catálogo'),
   entrega: z.enum(DELIVERY_TIME_TOKENS.tokens).optional(),
   codigo: z.string().optional().describe('Solo si el ETM no está en el catálogo'),
   marca: z.string().optional(),
   descripcion: z.string().optional(),
-  despues_de: z.number().int().min(0).optional().describe('Al agregar: tras la línea N (0 = inicio; omitido = final)'),
+  despues_de: z.number().int().min(0).max(9999).optional().describe('Al agregar: tras la línea N (0 = inicio)'),
 })
 
 const change = z.strictObject({
-  linea: z.union([z.number().int().min(1), z.array(z.number().int().min(1)).min(1), z.literal('todas')]).optional().describe('N, [N, M] o "todas" (numeración de get_quotation)'),
-  etm: z.string().optional().describe('Guarda: el ETM que crees que tiene esa línea'),
+  linea: z.union([lineNo, z.array(lineNo).min(1), z.literal('todas')]).optional().describe('N, [N, M] o "todas"'),
+  etm: z.string().optional().describe('Guarda: el ETM que esperas en esa línea'),
   precio: z.number().min(0).optional(),
-  cantidad: z.number().int().min(1).optional(),
+  cantidad: z.number().int().min(1).max(99999).optional(),
   entrega: z.enum(DELIVERY_TIME_TOKENS.tokens).optional(),
   se_vende: z.enum(SOLD_TOKENS).optional(),
-  aprobacion: z.enum(APPROVAL_TOKENS).optional().describe('Lo que dijo el cliente; no en revisión'),
+  aprobacion: z.enum(APPROVAL_TOKENS).optional().describe('Lo dicho por el cliente; no en revisión'),
   descripcion_dymmsa: z.string().optional(),
   quitar: z.literal(true).optional(),
-  despues_de: z.number().int().min(0).optional().describe('Mueve la línea tras la N (0 = inicio)'),
+  despues_de: z.number().int().min(0).max(9999).optional().describe('Mueve la línea tras la N (0 = inicio)'),
 })
 
 const STATES = MANUAL_QUOTATION_STATUSES.map((status) => QUOTATION_STATUS_TOKENS.toToken(status)) as [string, ...string[]]
@@ -38,7 +41,7 @@ export const saveQuotationTool = defineTool({
   kind: 'write',
   title: 'Guardar cotización',
   description:
-    'Crea, edita o cambia de estado una cotización de la app (la de Odoo es odoo_save_quotation). Una intención por llamada. Crear: nombre, cliente y `lineas` (se prellenan del catálogo ETM). Editar: `cambios` por línea (numeración de get_quotation), `lineas` para agregar y/o nombre y cliente. Estado: borrador, en_revision, aprobada o rechazada; cambiarlo regenera el link de aprobación. Úsala para "ponle entrega 1 semana a todo" o "mándala a aprobación". Crear, editar y casi todo cambio de estado piden el sí con la clave; borrador → en_revision es directo. No borra ni genera la orden.',
+    'Crea, edita o cambia el estado de una cotización de la app (la de Odoo es odoo_save_quotation). Una intención por llamada. Crear: nombre, cliente y `lineas` (se prellenan del catálogo ETM). Editar: `cambios` por línea (numeración de get_quotation), `lineas` para agregar y/o nombre y cliente. Estado: borrador, en_revision, aprobada o rechazada; cambiarlo regenera el link de aprobación. Casi todo pide el sí con la clave; borrador → en_revision es directo. No borra ni genera la orden. Úsala para "ponle entrega 1 semana a todo".',
   input: {
     cotizacion: z.string().optional().describe('Nombre, cliente o ref; omitida = crear'),
     nombre: z.string().optional(),

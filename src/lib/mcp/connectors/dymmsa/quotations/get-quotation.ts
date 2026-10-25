@@ -10,7 +10,7 @@ export const getQuotationTool = defineTool({
   title: 'Detalle de cotización',
   description:
     'Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref. Un administrador recibe además `link_aprobacion` mientras está en revisión.',
-  input: { cotizacion: z.string().min(1).describe('Nombre o cliente (parcial), ref o UUID') },
+  input: { cotizacion: z.string().min(1).describe('Nombre, cliente o ref') },
   hints: dymmsaRead,
   docs: {
     module: 'Cotizaciones',

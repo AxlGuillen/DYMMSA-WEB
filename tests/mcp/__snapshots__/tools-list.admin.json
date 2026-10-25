@@ -45,7 +45,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -77,7 +77,7 @@
         "cotizacion": {
           "type": "string",
           "minLength": 1,
-          "description": "Nombre o cliente (parcial), ref o UUID"
+          "description": "Nombre, cliente o ref"
         }
       },
       "required": [
@@ -99,7 +99,7 @@
   {
     "name": "save_quotation",
     "title": "Guardar cotización",
-    "description": "Crea, edita o cambia de estado una cotización de la app (la de Odoo es odoo_save_quotation). Una intención por llamada. Crear: nombre, cliente y `lineas` (se prellenan del catálogo ETM). Editar: `cambios` por línea (numeración de get_quotation), `lineas` para agregar y/o nombre y cliente. Estado: borrador, en_revision, aprobada o rechazada; cambiarlo regenera el link de aprobación. Úsala para \"ponle entrega 1 semana a todo\" o \"mándala a aprobación\". Crear, editar y casi todo cambio de estado piden el sí con la clave; borrador → en_revision es directo. No borra ni genera la orden.",
+    "description": "Crea, edita o cambia el estado de una cotización de la app (la de Odoo es odoo_save_quotation). Una intención por llamada. Crear: nombre, cliente y `lineas` (se prellenan del catálogo ETM). Editar: `cambios` por línea (numeración de get_quotation), `lineas` para agregar y/o nombre y cliente. Estado: borrador, en_revision, aprobada o rechazada; cambiarlo regenera el link de aprobación. Casi todo pide el sí con la clave; borrador → en_revision es directo. No borra ni genera la orden. Úsala para \"ponle entrega 1 semana a todo\".",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -126,13 +126,12 @@
                 "type": "string"
               },
               "seccion": {
-                "description": "Título de sección, en vez de producto",
                 "type": "string"
               },
               "cantidad": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 9007199254740991
+                "maximum": 99999
               },
               "precio": {
                 "description": "Omitido = el del catálogo",
@@ -161,10 +160,10 @@
                 "type": "string"
               },
               "despues_de": {
-                "description": "Al agregar: tras la línea N (0 = inicio; omitido = final)",
+                "description": "Al agregar: tras la línea N (0 = inicio)",
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 9007199254740991
+                "maximum": 9999
               }
             },
             "additionalProperties": false
@@ -178,12 +177,12 @@
             "type": "object",
             "properties": {
               "linea": {
-                "description": "N, [N, M] o \"todas\" (numeración de get_quotation)",
+                "description": "N, [N, M] o \"todas\"",
                 "anyOf": [
                   {
                     "type": "integer",
                     "minimum": 1,
-                    "maximum": 9007199254740991
+                    "maximum": 9999
                   },
                   {
                     "minItems": 1,
@@ -191,7 +190,7 @@
                     "items": {
                       "type": "integer",
                       "minimum": 1,
-                      "maximum": 9007199254740991
+                      "maximum": 9999
                     }
                   },
                   {
@@ -201,7 +200,7 @@
                 ]
               },
               "etm": {
-                "description": "Guarda: el ETM que crees que tiene esa línea",
+                "description": "Guarda: el ETM que esperas en esa línea",
                 "type": "string"
               },
               "precio": {
@@ -211,7 +210,7 @@
               "cantidad": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 9007199254740991
+                "maximum": 99999
               },
               "entrega": {
                 "type": "string",
@@ -233,7 +232,7 @@
                 ]
               },
               "aprobacion": {
-                "description": "Lo que dijo el cliente; no en revisión",
+                "description": "Lo dicho por el cliente; no en revisión",
                 "type": "string",
                 "enum": [
                   "pendiente",
@@ -252,7 +251,7 @@
                 "description": "Mueve la línea tras la N (0 = inicio)",
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 9007199254740991
+                "maximum": 9999
               }
             },
             "additionalProperties": false
@@ -315,7 +314,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -347,7 +346,7 @@
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "Nombre o cliente (parcial), ref o UUID"
+          "description": "Nombre, cliente o ref"
         }
       },
       "required": [
@@ -376,7 +375,7 @@
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "Nombre o cliente (parcial), ref o UUID"
+          "description": "Nombre, cliente o ref"
         }
       },
       "required": [
@@ -389,6 +388,104 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_cut_plan",
+    "title": "Guardar lista de corte",
+    "description": "Agrega, quita o reemplaza piezas de la lista de corte de una orden, en mm (pulgadas ×25.4; confirma la conversión). Tubo: diametro_mm; placa: espesor_mm y ancho_mm. Agregar es directo; quitar (por número de get_cut_plan) y reemplazar piden el sí con la clave y dicen cómo cambia la necesidad neta. Úsala para \"agrega cuatro tubos de 1 pulgada de 300 mm a la orden 12\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        },
+        "accion": {
+          "type": "string",
+          "enum": [
+            "agregar",
+            "quitar",
+            "reemplazar"
+          ]
+        },
+        "piezas": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tipo": {
+                "type": "string",
+                "enum": [
+                  "tubo",
+                  "placa"
+                ]
+              },
+              "diametro_mm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "espesor_mm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "ancho_mm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "largo_mm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "cantidad": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99999
+              },
+              "pedido_como": {
+                "type": "string",
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "tipo",
+              "largo_mm",
+              "cantidad"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "quitar_piezas": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9999
+          }
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "orden",
+        "accion"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
       "openWorldHint": false
     },
     "execution": {
@@ -457,7 +554,7 @@
         "orden": {
           "type": "string",
           "minLength": 1,
-          "description": "Nombre o cliente (parcial), ref o UUID"
+          "description": "Nombre, cliente o ref"
         }
       },
       "required": [
@@ -469,6 +566,74 @@
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_purchase_decisions",
+    "title": "Guardar decisiones de compra",
+    "description": "Decide mayoreo (URREA, por paquetes), mixto o menudeo por grupo código+marca de una orden. Nunca recibe cantidades: el servidor calcula STD y necesidad. `aceptar_recomendaciones` llena con lo sugerido los grupos sin decisión; los «revisar» los decide el usuario con `decisiones`. Guarda siempre el conjunto completo y, si algún grupo queda sin decidir, no guarda. Úsala para \"en la orden de GE acepta las recomendaciones\". Dos fases siempre.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        },
+        "decisiones": {
+          "minItems": 1,
+          "maxItems": 300,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string",
+                "minLength": 1
+              },
+              "marca": {
+                "type": "string"
+              },
+              "eleccion": {
+                "type": "string",
+                "enum": [
+                  "mayoreo",
+                  "mixto",
+                  "menudeo"
+                ]
+              }
+            },
+            "required": [
+              "codigo",
+              "eleccion"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "aceptar_recomendaciones": {
+          "description": "Los grupos sin decisión toman la recomendación",
+          "type": "boolean",
+          "const": true
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "orden"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": false
     },
@@ -502,7 +667,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -587,7 +752,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -697,7 +862,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -750,7 +915,7 @@
           "description": "Piezas por paquete",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 99999
         },
         "nuevo_codigo": {
           "description": "Cambia el código",
@@ -800,7 +965,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -858,7 +1023,7 @@
             {
               "type": "integer",
               "minimum": 0,
-              "maximum": 9007199254740991
+              "maximum": 9999
             },
             {
               "type": "null"
@@ -925,7 +1090,7 @@
           "description": "Página (1-indexada, default 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         },
         "por_pagina": {
           "description": "Resultados por página (default 20, máx 100)",
@@ -1614,7 +1779,7 @@
             {
               "type": "integer",
               "minimum": 1,
-              "maximum": 9007199254740991
+              "maximum": 99999
             },
             {
               "type": "null"
@@ -1683,7 +1848,7 @@
   {
     "name": "save_payroll_hours",
     "title": "Cargar o corregir horas de nómina",
-    "description": "Guarda horas por empleado y día —típicamente la hoja semanal del taller— como BORRADOR, directo. `horas` es el total del día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado (lo que pasa de 5 h) y el triple de domingo los calcula la app. Nunca pisa un día confirmado, capturado a mano o traído del checador, ni un corte cerrado: vuelven en `omitidos` con el motivo. Con `traer_de_horas: true` (sin `dias`) copia al corte de `fecha` (default el actual) las horas checadas de la oficina y su sábado pagado, como el botón \"Traer de Horas\". Con `corregir` (solo) cambia UN día ya capturado, también uno confirmado, y lo deja confirmado y manual; `horas: 0` sin nota lo borra; pide el sí con la clave. Confirmar y cerrar el corte es save_payroll_period; no crea empleados. CÓMO LEER LA HOJA (interprétala antes de guardar nada): 1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que el encabezado \"Semana del … – …\" se lea bien, y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; pasa cada día con su fecha real (una misma hoja cae en dos cortes: lunes a viernes en uno, sábado y domingo en el siguiente — la tool los reparte sola por fecha). 2. Una fila por trabajador. Lunes a viernes: la marca \"°\" con guion = asistió su jornada normal (8 h); una hora de la tarde (19:00, 21:00) = salió tarde, y las extras de ese día son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra; una hora de la mañana (8:05) con HRS EXT vacío = llegó tarde: el día va normal (8 h) con nota \"Entrada 8:05\". Día tachado o vacío = no trabajó: no lo mandes. Sábado: la marca \"°\" = 5 h; si trabajó más, manda el total. Domingo: manda las horas que trabajó. 3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras de junto al nombre; si no cuadra, o si aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar — no lo adivines ni lo guardes. 4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta). 5. Antes de llamar la tool, muestra una tabla con lo que leíste (empleado × día, horas) y marca lo dudoso; guarda solo tras la confirmación. Un número mal leído es dinero. Los nombres deben coincidir con los empleados dados de alta en Nómina; si uno no existe, la tool lo dice.",
+    "description": "Guarda horas por empleado y día —típicamente la hoja semanal del taller— como BORRADOR, directo. `horas` es el total del día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado (lo que pasa de 5 h) y el triple de domingo los calcula la app. Nunca pisa un día confirmado, capturado a mano o traído del checador, ni un corte cerrado: vuelven en `omitidos` con el motivo. Con `traer_de_horas: true` (sin `dias`) copia al corte de `fecha` (default el actual) las horas checadas de la oficina y su sábado pagado, como el botón \"Traer de Horas\". Con `corregir` (solo) cambia UN día ya capturado, también uno confirmado, y lo deja confirmado y manual; `horas: 0` sin nota lo borra; pide el sí con la clave. Confirmar y cerrar el corte es save_payroll_period; no crea empleados. CÓMO LEER LA HOJA (interprétala antes de guardar nada): 1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que \"Semana del … – …\" se lea bien y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; manda cada día con su fecha real (una hoja cae en dos cortes: la tool los reparte sola por fecha). 2. Una fila por trabajador. Lunes a viernes: \"°\" con guion = asistió su jornada normal (8 h); una hora de la tarde (19:00, 21:00) = salió tarde, y las extras son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra; una hora de la mañana (8:05) con HRS EXT vacío = llegó tarde: el día va normal (8 h) con nota \"Entrada 8:05\". Día tachado o vacío = no trabajó: no lo mandes. Sábado: \"°\" = 5 h; si trabajó más, manda el total. Domingo: las horas que trabajó. 3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras junto al nombre; si no cuadra, o aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar, no lo adivines. 4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta). 5. Antes de llamar la tool muestra una tabla con lo que leíste (empleado × día, horas), marca lo dudoso y guarda solo tras la confirmación. Un número mal leído es dinero. Los nombres deben coincidir con los empleados de Nómina; si uno no existe, la tool lo dice.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1916,7 +2081,7 @@
           "description": "Página (1-indexada, default 1; 30 por página)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 9999
         }
       },
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1942,7 +2107,7 @@
         "tarea": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991,
+          "maximum": 99999,
           "description": "Número de la tarea (#N)"
         }
       },
@@ -1973,7 +2138,7 @@
           "description": "Número (#N) de la existente; omítelo para crear",
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991
+          "maximum": 99999
         },
         "titulo": {
           "description": "Obligatorio al crear",
@@ -2116,24 +2281,22 @@
           ]
         },
         "referencia": {
-          "description": "Proveedor, marca o factura: nombre o ref",
+          "description": "Nombre o ref",
           "type": "string"
         },
         "persona": {
-          "description": "Checada: la persona (default tú). Día justificado: omitida = todo el equipo",
+          "description": "Default tú; en día justificado, omitida = todo el equipo",
           "type": "string"
         },
         "fecha": {
-          "description": "Checada o día justificado",
           "type": "string",
           "format": "date"
         },
         "entrada": {
-          "description": "Checada: su entrada actual, HH:MM",
+          "description": "Entrada actual, HH:MM",
           "type": "string"
         },
         "material": {
-          "description": "Medida",
           "type": "string",
           "enum": [
             "tubo",
@@ -2141,22 +2304,18 @@
           ]
         },
         "diametro_mm": {
-          "description": "Medida de tubo",
           "type": "number",
           "exclusiveMinimum": 0
         },
         "espesor_mm": {
-          "description": "Medida de placa",
           "type": "number",
           "exclusiveMinimum": 0
         },
         "ancho_mm": {
-          "description": "Medida de placa",
           "type": "number",
           "exclusiveMinimum": 0
         },
         "largo_mm": {
-          "description": "Medida: largo comercial",
           "type": "number",
           "exclusiveMinimum": 0
         },

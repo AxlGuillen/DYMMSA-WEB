@@ -17,7 +17,7 @@ export const saveSupplierTool = defineTool({
     email: z.string().optional(),
     direccion: z.string().optional(),
     notas: z.string().optional(),
-    dias_credito: z.number().int().min(0).nullable().optional().describe('Días de crédito; null = contado'),
+    dias_credito: z.number().int().min(0).max(9999).nullable().optional().describe('Días de crédito; null = contado'),
     agregar_marcas: z.array(z.string()).optional().describe('Marcas que surte, p. ej. ["SURTEK"]'),
     quitar_marcas: z.array(z.string()).optional(),
   },

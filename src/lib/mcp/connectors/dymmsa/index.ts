@@ -9,6 +9,8 @@ import { listOrdersTool } from './orders/list-orders'
 import { getOrderTool } from './orders/get-order'
 import { getCutPlanTool } from './orders/get-cut-plan'
 import { saveMaterialPresentationTool } from './orders/save-material-presentation'
+import { saveCutPlanTool } from './orders/save-cut-plan'
+import { savePurchaseDecisionsTool } from './orders/save-purchase-decisions'
 import { getPurchasePlanTool } from './orders/get-purchase-plan'
 import { searchInventoryTool } from './inventory/search-inventory'
 import { saveInventoryItemTool } from './inventory/save-inventory-item'
@@ -50,8 +52,10 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   listOrdersTool,
   getOrderTool,
   getCutPlanTool,
+  saveCutPlanTool,
   saveMaterialPresentationTool,
   getPurchasePlanTool,
+  savePurchaseDecisionsTool,
   searchInventoryTool,
   saveInventoryItemTool,
   searchProductsTool,

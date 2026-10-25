@@ -121,6 +121,8 @@ const WRITE_HINTS: Record<string, string> = {
   save_profile: 'E(1,1)',
   save_payroll_period: 'E(1,1)',
   save_quotation: 'E(1,0)',
+  save_purchase_decisions: 'E(1,1)',
+  save_cut_plan: 'E(1,0)',
   save_material_presentation: 'E(0,1)',
   // Phase D adds quantities (a delta adjustment) and flips this to E(1,0).
   save_inventory_item: 'E(1,1)',

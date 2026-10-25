@@ -1,27 +1,27 @@
-# tools/list (member): 26 tools, 24064 caracteres en el cable · descripciones 7336 · instrucciones 4807
+# tools/list (member): 26 tools, 23866 caracteres en el cable · descripciones 7336 · instrucciones 4777
   1703  save_payable
-  1397  save_task
-  1311  save_supplier
-  1191  list_payables
+  1386  save_task
+  1299  save_supplier
+  1179  list_payables
   1101  save_inventory_item
-  1092  list_quotations
+  1080  list_quotations
   1079  save_material_presentation
   1050  get_week_hours
-  1018  list_orders
-   995  list_suppliers
-   988  search_inventory
-   876  search_urrea_catalog
-   864  search_products
+  1006  list_orders
+   983  list_suppliers
+   976  search_inventory
+   864  search_urrea_catalog
    863  list_profiles
-   856  list_tasks
-   821  get_cut_plan
+   852  search_products
+   844  list_tasks
    813  get_hours_trend
-   799  get_purchase_plan
-   786  get_quotation
+   804  get_cut_plan
+   782  get_purchase_plan
+   769  get_quotation
    745  get_month_closing
    722  get_payables_overview
-   675  get_order
    674  get_payable
+   658  get_order
    559  get_app_settings
-   558  get_task
+   547  get_task
    528  get_business_summary

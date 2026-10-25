@@ -10,7 +10,7 @@ export const getOrderTool = defineTool({
   title: 'Detalle de orden',
   description:
     'Una orden con todas sus líneas numeradas (`linea`): cantidades (aprobada, en stock, por pedir, recibida), estado con URREA, ubicación en tienda, `version` y cuántas siguen pendientes con URREA. Acepta nombre, cliente o ref.',
-  input: { orden: z.string().min(1).describe('Nombre o cliente (parcial), ref o UUID') },
+  input: { orden: z.string().min(1).describe('Nombre, cliente o ref') },
   hints: dymmsaRead,
   docs: {
     module: 'Ordenes',

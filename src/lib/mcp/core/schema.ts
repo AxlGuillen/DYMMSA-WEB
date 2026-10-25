@@ -23,7 +23,7 @@ export const limit = (max: number, fallback: number, what?: string) =>
 
 /** 1-indexed page; `note` adds to the text instead of replacing it (e.g. the page size). */
 export const page = (note?: string) =>
-  z.number().int().min(1).optional().describe(`Página (1-indexada, default 1${note ? `; ${note}` : ''})`)
+  z.number().int().min(1).max(9999).optional().describe(`Página (1-indexada, default 1${note ? `; ${note}` : ''})`)
 
 /** The standard collection input (plan §4.4, #155 C6): `pagina` from 1, `por_pagina` default 20, at most 100. */
 export const pagination = {

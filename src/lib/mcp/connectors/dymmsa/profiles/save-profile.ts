@@ -15,7 +15,7 @@ export const saveProfileTool = defineTool({
     persona: z.string().optional().describe('Nombre (o parte) o ref; omitida = tú'),
     nombre: z.string().optional(),
     nss: z.string().optional().describe('11 dígitos; texto vacío lo borra'),
-    id_checador: z.number().int().min(1).nullable().optional().describe('Id del checador; null = no checa'),
+    id_checador: z.number().int().min(1).max(99999).nullable().optional().describe('Id del checador; null = no checa'),
     jornada: z.enum([...SHIFT_TOKENS.tokens, 'ninguna']).optional(),
     area: z.enum(AREA_TOKENS.tokens).optional(),
   },

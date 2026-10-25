@@ -48,6 +48,7 @@ import { usePurchasePlan, useSavePurchaseDecisions, type PurchasePlanResponse } 
 import { useUpdateSettings } from '@/hooks/useSettings'
 import {
   applyChoice,
+  choiceOf,
   summarizePlanDecisions,
   SETTING_THRESHOLD_MONEY,
   SETTING_THRESHOLD_PCT,
@@ -63,13 +64,7 @@ interface PurchasePlannerProps {
 }
 
 /** Rebuilds the choice behind a saved decision, to pre-select it. */
-function savedChoice(group: PurchaseGroupPlan): PurchaseChoice | null {
-  const d = group.decision
-  if (!d) return null
-  if (d.qty_retail === 0) return 'wholesale'
-  if (d.packages_wholesale === 0) return 'retail'
-  return 'mixed'
-}
+const savedChoice = (group: PurchaseGroupPlan): PurchaseChoice | null => (group.decision ? choiceOf(group.decision) : null)
 
 const RECOMMENDATION_BADGE: Record<
   string,
