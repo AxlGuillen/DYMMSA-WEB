@@ -1,52 +1,60 @@
 /** Order tools (read). The list query lives here: there is no GET /api/orders yet. */
 
 import { calculateOrderTotal, isProductItem } from '@/lib/business-rules'
-import { isUuid, normalizePagination, requireSingleMatch, sanitizeSearch, ToolError, type Db } from '../shared'
-import type { Order, OrderStatus, OrderWithItems } from '@/types/database'
-
-const STATUSES: OrderStatus[] = ['ordered', 'received', 'delivered', 'completed', 'cancelled']
+import { DELIVERY_TIME_TOKENS } from '@/lib/delivery'
+import { ORDER_STATUS_TOKENS, URREA_STATUS_TOKENS } from '@/lib/order-status'
+import { sanitizeSearch } from '@/lib/text'
+import { normalizePagination } from '@/lib/mcp/core/schema'
+import { listResult, recordResult, refOf, versionOf } from '@/lib/mcp/core/envelope'
+import { resolveByName, type NamedLookup } from '@/lib/mcp/core/lookup'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
+import type { Order, OrderWithItems } from '@/types/database'
 
 export type OrderRef = Pick<Order, 'id' | 'name' | 'customer_name' | 'status'>
 
-/** An order by UUID or by (partial) name/customer — the lookup the cut and purchase tools share (#109). */
-export async function resolveOrder(db: Db, ref: string): Promise<OrderRef> {
-  const raw = ref.trim()
-  if (!raw) throw new ToolError('Indica la orden (id o nombre)')
-  const select = 'id, name, customer_name, status'
-  if (isUuid(raw)) {
-    const { data, error } = await db.from('orders').select(select).eq('id', raw).single()
-    if (error || !data) throw new ToolError('Orden no encontrada')
-    return data as OrderRef
-  }
-  const query = sanitizeSearch(raw)
-  const { data, error } = await db
-    .from('orders')
-    .select(select)
-    .or(`name.ilike.%${query}%,customer_name.ilike.%${query}%`)
-    .limit(6)
-  if (error) throw new ToolError(`Error al buscar la orden: ${error.message}`)
-  return requireSingleMatch((data ?? []) as OrderRef[], (o) => `${o.name} (${o.customer_name})`, 'orden', query)
+const ORDER_LOOKUP: NamedLookup<OrderRef> = {
+  table: 'orders',
+  select: 'id, name, customer_name, status',
+  what: 'orden',
+  article: 'la',
+  label: (o) => `${o.name} (${o.customer_name})`,
+  nameColumns: ['name', 'customer_name'],
 }
 
+/** The order as the cut and purchase answers name it: ref and tokens, never the UUID (#155 C6). */
+export const orderBrief = (order: OrderRef) => ({
+  ref: refOf(order.id),
+  nombre: order.name,
+  cliente: order.customer_name,
+  estado: ORDER_STATUS_TOKENS.toToken(order.status),
+})
+
+/** An order by UUID, ref or (partial) name/customer — the lookup the cut and purchase tools share (#109, #155 C6). */
+export const resolveOrder = (db: Db, ref: string): Promise<OrderRef> => resolveByName(db, ORDER_LOOKUP, ref)
+
 export interface ListOrdersInput {
-  status?: string
-  search?: string
-  page?: number
-  pageSize?: number
+  estado?: string
+  buscar?: string
+  pagina?: number
+  por_pagina?: number
 }
 
 export async function listOrders(db: Db, input: ListOrdersInput) {
-  const { page, pageSize, from, to } = normalizePagination(input)
+  // An unknown status is an error, never a filter dropped in silence (#155 C1).
+  const status = input.estado === undefined ? undefined : ORDER_STATUS_TOKENS.toDb(input.estado)
+  if (input.estado !== undefined && !status) {
+    throw new ToolError(`Estado inválido "${input.estado}": usa ${ORDER_STATUS_TOKENS.tokens.join(' | ')}`)
+  }
+  const { pagina, por_pagina, from, to } = normalizePagination(input)
 
   let query = db.from('orders').select('*, order_items(count)', { count: 'exact' })
 
-  const search = sanitizeSearch(input.search ?? '')
+  const search = sanitizeSearch(input.buscar ?? '')
   if (search) {
     query = query.or(`customer_name.ilike.%${search}%,name.ilike.%${search}%`)
   }
-  if (input.status && STATUSES.includes(input.status as OrderStatus)) {
-    query = query.eq('status', input.status)
-  }
+  if (status) query = query.eq('status', status)
 
   const { data, error, count } = await query
     .order('created_at', { ascending: false })
@@ -57,21 +65,23 @@ export async function listOrders(db: Db, input: ListOrdersInput) {
   const orders = (data ?? []).map((o) => {
     const raw = o as Order & { order_items: [{ count: number }] | null }
     return {
-      id: raw.id,
-      name: raw.name,
-      customer_name: raw.customer_name,
-      status: raw.status,
-      total_amount: raw.total_amount,
-      quotation_id: raw.quotation_id,
-      items_count: raw.order_items?.[0]?.count ?? 0,
-      created_at: raw.created_at,
+      ref: refOf(raw.id),
+      nombre: raw.name,
+      cliente: raw.customer_name,
+      estado: ORDER_STATUS_TOKENS.toToken(raw.status),
+      // Sealed when the order was made or last edited; get_order recomputes it from the lines.
+      total_sellado: raw.total_amount,
+      cotizacion: raw.quotation_id ? { ref: refOf(raw.quotation_id) } : null,
+      lineas: raw.order_items?.[0]?.count ?? 0,
+      creada_el: raw.created_at,
     }
   })
 
-  return { orders, count: count ?? 0, page, pageSize, totalPages: Math.ceil((count ?? 0) / pageSize) }
+  return listResult('ordenes', orders, { total: count ?? 0, pagina, por_pagina })
 }
 
-export async function getOrder(db: Db, id: string) {
+export async function getOrder(db: Db, reference: string) {
+  const { id } = await resolveOrder(db, reference)
   const { data, error } = await db
     .from('orders')
     .select('*, order_items(*)')
@@ -87,40 +97,46 @@ export async function getOrder(db: Db, id: string) {
 
   const o = data as OrderWithItems
   const products = o.order_items.filter(isProductItem)
-  const items = o.order_items.map((i) => {
+  // linea = position over ALL rows, sections included (plan §4.5): what a later edit names.
+  const lineas = o.order_items.map((i, index) => {
     if (!isProductItem(i)) {
-      return { item_type: 'separator' as const, section_label: i.section_label }
+      return { linea: index + 1, tipo: 'seccion' as const, titulo: i.section_label }
     }
     return {
+      linea: index + 1,
+      tipo: 'producto' as const,
       etm: i.etm,
-      model_code: i.model_code,
-      brand: i.brand,
-      description: i.description,
-      quantity_approved: i.quantity_approved,
-      quantity_in_stock: i.quantity_in_stock,
-      quantity_to_order: i.quantity_to_order,
-      quantity_received: i.quantity_received,
-      urrea_status: i.urrea_status,
-      delivery_time: i.delivery_time,
-      unit_price: i.unit_price,
-      location: i.location,
+      codigo: i.model_code,
+      marca: i.brand,
+      descripcion: i.description,
+      cantidad_aprobada: i.quantity_approved,
+      en_stock: i.quantity_in_stock,
+      por_pedir: i.quantity_to_order,
+      recibida: i.quantity_received,
+      estado_urrea: URREA_STATUS_TOKENS.toToken(i.urrea_status),
+      entrega: i.delivery_time ? DELIVERY_TIME_TOKENS.toToken(i.delivery_time) : null,
+      precio: i.unit_price,
+      ubicacion: i.location,
     }
   })
 
-  return {
-    id: o.id,
-    name: o.name,
-    customer_name: o.customer_name,
-    status: o.status,
-    quotation_id: o.quotation_id,
-    notes: o.notes,
-    created_at: o.created_at,
-    updated_at: o.updated_at,
-    total: calculateOrderTotal(products),
-    items_count: products.length,
-    pending_urrea_items: products.filter((i) => i.urrea_status === 'pending' && i.quantity_to_order > 0).length,
-    items,
-  }
+  return recordResult(
+    {
+      nombre: o.name,
+      cliente: o.customer_name,
+      estado: ORDER_STATUS_TOKENS.toToken(o.status),
+      cotizacion: o.quotation_id ? { ref: refOf(o.quotation_id) } : null,
+      notas: o.notes,
+      creada_el: o.created_at,
+      actualizada_el: o.updated_at,
+      version: versionOf(o.updated_at, o.order_items.map((i) => i.id)),
+      total: calculateOrderTotal(products),
+      productos: products.length,
+      pendientes_con_urrea: products.filter((i) => i.urrea_status === 'pending' && i.quantity_to_order > 0).length,
+      lineas,
+    },
+    { ref: refOf(o.id) },
+  )
 }
 
 /** The order a quotation was converted into, or null; get_quotation carries it since #134 (ADR-034, second stage). */

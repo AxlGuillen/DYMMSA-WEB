@@ -56,6 +56,7 @@ const VALID: Record<WriteOperationName, Record<string, unknown>> = {
   'sale.order.write': lineCommands([1, 4711, { product_uom_qty: 2, price_unit: 1, discount: 0 }], [2, 4712, 0]),
   'sale.order.action_confirm': { ids: [SALE] },
   'product.product.create': productsPayload({ default_code: '510033153, 510022171', unspsc_code_id: 5432 }),
+  'product.product.write': { ids: [16971, 32300], vals: { unspsc_code_id: 5432 } },
   'sale.advance.payment.inv.create': wizardPayload(),
   'sale.advance.payment.inv.create_invoices': { ids: [77], context: saleContext() },
 }
@@ -73,12 +74,14 @@ function rejection(model: string, method: string, payload: unknown): OdooError {
 }
 
 describe('allowlist de escrituras (#144)', () => {
-  test('las operaciones permitidas son exactamente las seis aprobadas', () => {
+  test('las operaciones permitidas son exactamente las siete aprobadas', () => {
     expect(Object.keys(ODOO_WRITE_OPERATIONS)).toEqual([
       'sale.order.create',
       'sale.order.write',
       'sale.order.action_confirm',
       'product.product.create',
+      // The 7th (#154, ADR-040 2026-10-24): only the SAT key of an existing product.
+      'product.product.write',
       'sale.advance.payment.inv.create',
       'sale.advance.payment.inv.create_invoices',
     ])
@@ -97,6 +100,7 @@ describe('allowlist de escrituras (#144)', () => {
       'sale.order.write': 'quotation',
       'sale.order.action_confirm': 'quotation',
       'product.product.create': 'products',
+      'product.product.write': 'sat-keys',
       'sale.advance.payment.inv.create': 'invoice',
       'sale.advance.payment.inv.create_invoices': 'invoice',
     })
@@ -230,7 +234,7 @@ describe('contexto (#144)', () => {
     }
 
     // Rows without context refuse even an empty one.
-    for (const name of ['sale.order.create', 'sale.order.write', 'sale.order.action_confirm', 'product.product.create'] as const) {
+    for (const name of ['sale.order.create', 'sale.order.write', 'sale.order.action_confirm', 'product.product.create', 'product.product.write'] as const) {
       const row = ODOO_WRITE_OPERATIONS[name]
       expect(rejection(row.model, row.method, { ...VALID[name], context: {} }).message).toContain('no lleva contexto')
     }
@@ -437,6 +441,61 @@ describe('payloads (#144)', () => {
     for (const etm of ['5467', '51003315', '510033153;510022171', '510033153, ', 'ETM 510033153']) {
       expect(ETM_CODE_LIST.test(etm), etm).toBe(false)
     }
+  })
+
+  test('la séptima operación solo escribe unspsc_code_id: precio, nombre, impuestos o archivar se rechazan (#154)', () => {
+    const satWrite = (vals: Record<string, unknown>, ids: unknown = [16971]) => ({ ids, vals })
+    expect(allows('product.product', 'write', satWrite({ unspsc_code_id: 5432 }))).not.toThrow()
+    for (const extra of [
+      { list_price: 10 },
+      { name: 'Otro nombre' },
+      { default_code: '510033153' },
+      { taxes_id: [[6, 0, [16]]] },
+      { type: 'service' },
+      { sale_ok: false },
+      { invoice_policy: 'order' },
+      { uom_id: 1 },
+      { categ_id: 1 },
+      { active: false },
+    ]) {
+      const error = rejection('product.product', 'write', satWrite({ unspsc_code_id: 5432, ...extra }))
+      expect(error.message, JSON.stringify(extra)).toContain(`campo no permitido en vals: "${Object.keys(extra)[0]}"`)
+      expect(error.message).toContain('vals solo con unspsc_code_id')
+    }
+    for (const vals of [{}, { unspsc_code_id: 0 }, { unspsc_code_id: '5432' }, { unspsc_code_id: false }, { unspsc_code_id: [5432] }]) {
+      expect(() => assertWriteAllowed('product.product', 'write', satWrite(vals)), JSON.stringify(vals)).toThrow(OdooError)
+    }
+    // 1 to 40 products, by id, never a domain nor the template.
+    for (const ids of [[], [0], ['16971'], Array.from({ length: 41 }, (_, i) => i + 1)]) {
+      expect(() => assertWriteAllowed('product.product', 'write', satWrite({ unspsc_code_id: 5432 }, ids)), JSON.stringify(ids)).toThrow(
+        OdooError,
+      )
+    }
+    expect(rejection('product.template', 'write', satWrite({ unspsc_code_id: 5432 })).message).toContain(
+      'no está entre las escrituras permitidas',
+    )
+    expect(rejection('product.product', 'write', { ...satWrite({ unspsc_code_id: 5432 }), context: {} }).message).toContain(
+      'no lleva contexto',
+    )
+  })
+
+  test('la lista negra gana también sobre la séptima operación', () => {
+    const studio = rejection('product.product', 'write', { ids: [16971], vals: { unspsc_code_id: 5432, x_studio_marca: 'URREA' } })
+    expect(studio.message).toContain('"x_studio_marca"')
+    expect(studio.message).toContain('timbrado')
+    const stamping = rejection('product.product', 'write', { ids: [16971], vals: { l10n_mx_edi_code_sat: '01010101' } })
+    expect(stamping.message).toContain('"l10n_mx_edi_code_sat"')
+    for (const method of ['unlink', 'copy', 'toggle_active', 'action_archive', 'write_sat']) {
+      expect(() => assertWriteAllowed('product.product', method, { ids: [16971], vals: { unspsc_code_id: 5432 } }), method).toThrow(
+        OdooError,
+      )
+    }
+    const forbiddenContext = rejection('product.product', 'write', {
+      ids: [16971],
+      vals: { unspsc_code_id: 5432 },
+      context: { active_test: false },
+    })
+    expect(forbiddenContext.message).toContain('"active_test"')
   })
 
   test('el asistente de factura solo acepta delivered y una sola venta', () => {

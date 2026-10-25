@@ -87,8 +87,59 @@ describe('trigger payables_audit', () => {
     activeClient = admin
     expect((await payableById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))).status).toBe(200)
     const rows = await events(id)
-    expect(rows.at(-1)).toMatchObject({ action: 'deleted', data: { concept: 'Factura auditada' } })
+    expect(rows.at(-1)).toMatchObject({ action: 'deleted', data: { concept: 'Factura auditada', currency: 'MXN' } })
     expect(rows.at(-1)!.actor_name).toBeTruthy()
+
+    // #157: deleting it again is a 404, not an ok, and leaves no second event.
+    expect((await payableById.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id }))).status).toBe(404)
+    expect((await events(id)).filter((e) => e.action === 'deleted')).toHaveLength(1)
+  })
+
+  test('#157: el alta guarda la moneda en su snapshot', async () => {
+    const id = await seedPayable()
+    expect((await events(id))[0]).toMatchObject({ action: 'created', data: { concept: 'Factura auditada', amount: 1500, currency: 'MXN' } })
+  })
+
+  test('#157: corregir monto o moneda deja amount_changed con antes/después, con el actor de la sesión', async () => {
+    const id = await seedPayable()
+    activeClient = member
+    const res = await payableById.PATCH(makeRequest({ amount: 1800 }, { method: 'PATCH' }), makeParams({ id }))
+    expect(res.status).toBe(200)
+    await payableById.PATCH(makeRequest({ currency: 'USD', amount: 90 }, { method: 'PATCH' }), makeParams({ id }))
+
+    const rows = (await events(id)).filter((e) => e.action === 'amount_changed')
+    expect(rows.map((e) => e.data)).toEqual([
+      { from: { amount: 1500, currency: 'MXN' }, to: { amount: 1800, currency: 'MXN' } },
+      { from: { amount: 1800, currency: 'MXN' }, to: { amount: 90, currency: 'USD' } },
+    ])
+    const [{ display_name }] = await sql<{ display_name: string }>(`SELECT display_name FROM public.profiles WHERE role = 'member'`)
+    expect(rows.every((e) => e.actor_name === display_name)).toBe(true)
+  })
+
+  test('#157: un solo UPDATE de estado y monto deja dos eventos; el concepto sigue sin auditarse', async () => {
+    const id = await seedPayable()
+    await sql(`UPDATE public.payables SET status = 'paid', paid_at = '2026-09-10', amount = 1600 WHERE id = $1`, [id])
+    await sql(`UPDATE public.payables SET concept = 'Otro', notes = 'nota', due_date = '2026-11-01' WHERE id = $1`, [id])
+    expect((await events(id)).map((e) => e.action).sort()).toEqual(['amount_changed', 'created', 'status_changed'])
+  })
+
+  test('#157: la ruta rechaza paid_at sin status en una pendiente o cancelada, y no escribe nada', async () => {
+    const id = await seedPayable()
+    activeClient = admin
+    const pending = await payableById.PATCH(makeRequest({ paid_at: '2026-09-10' }, { method: 'PATCH' }), makeParams({ id }))
+    expect(pending.status).toBe(400)
+
+    await sql(`UPDATE public.payables SET status = 'cancelled' WHERE id = $1`, [id])
+    const cancelled = await payableById.PATCH(makeRequest({ paid_at: '2026-09-10' }, { method: 'PATCH' }), makeParams({ id }))
+    expect(cancelled.status).toBe(400)
+    const [row] = await sql<{ status: string; paid_at: string | null }>(`SELECT status, paid_at::text FROM public.payables WHERE id = $1`, [id])
+    expect(row).toEqual({ status: 'cancelled', paid_at: null })
+
+    // A paid one still takes a date fix.
+    await sql(`UPDATE public.payables SET status = 'paid', paid_at = '2026-09-10' WHERE id = $1`, [id])
+    const fixed = await payableById.PATCH(makeRequest({ paid_at: '2026-09-12' }, { method: 'PATCH' }), makeParams({ id }))
+    expect(fixed.status).toBe(200)
+    expect((await events(id)).at(-1)).toMatchObject({ action: 'paid_at_changed', data: { to: { paid_at: '2026-09-12' } } })
   })
 })
 

@@ -4,7 +4,8 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { createMockSupabase } from '../helpers/supabase-mock'
 import { NGTECO_WEEK } from '../helpers/fixtures/ngteco'
 import { previewTimeReport } from '@/lib/mcp/tools/hours'
-import type { Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
+import { withPreviewSecret } from '../helpers/preview-secret'
 
 type Handler = (params: unknown) => void
 const host = vi.hoisted(() => ({
@@ -36,18 +37,23 @@ vi.mock('@modelcontextprotocol/ext-apps', () => ({
 
 const asText = (data: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(data) }] })
 
+const keyOf = { current: null as string | null }
+
 async function mount(filas = NGTECO_WEEK) {
   document.body.innerHTML = '<main id="app"></main>'
   vi.resetModules()
   await import('@/mcp-views/time-report/main')
   const db = createMockSupabase({ responses: { 'profiles.select': { data: [{ id: 'u-tania', display_name: 'Tania', clock_employee_id: 5 }, { id: 'u-diego', display_name: 'Diego', clock_employee_id: 1 }], error: null } } })
-  const preview = await previewTimeReport(db as unknown as Db, { filas })
+  const preview = await previewTimeReport(db as unknown as Db, 'u-axl', { filas, nombre_archivo: 'semana.xls' })
+  keyOf.current = preview.clave
   host.app!.ontoolinput({ arguments: { filas, nombre_archivo: 'semana.xls' } })
   host.app!.ontoolresult(asText(preview))
   return document.getElementById('app') as HTMLElement
 }
 
 const saveButton = (root: HTMLElement) => [...root.querySelectorAll('button')].find((b) => b.textContent === 'Guardar en Horas') as HTMLButtonElement
+
+withPreviewSecret()
 
 describe('vista del reporte del checador', () => {
   beforeEach(() => {
@@ -72,9 +78,17 @@ describe('vista del reporte del checador', () => {
     saveButton(root).click()
     await vi.waitFor(() => expect(root.querySelector('.saved')?.textContent).toMatch(/6 nuevas, 0 actualizadas/))
 
-    expect(host.app!.callServerTool).toHaveBeenCalledWith({ name: 'save_time_entries', arguments: { filas: NGTECO_WEEK, nombre_archivo: 'semana.xls' } })
+    expect(host.app!.callServerTool).toHaveBeenCalledWith({ name: 'save_time_entries', arguments: { filas: NGTECO_WEEK, nombre_archivo: 'semana.xls', clave: keyOf.current } })
     expect(host.app!.updateModelContext.mock.calls[0][0].content[0].text).toMatch(/guardó el reporte del checador desde la vista/)
     expect(saveButton(root)).toBeUndefined()
+  })
+
+  test('sin la confirmación del servidor (sin clave) el botón queda apagado y dice por qué (#155 C4)', async () => {
+    vi.stubEnv('MCP_PREVIEW_SECRET', '')
+    const root = await mount()
+    expect(keyOf.current).toBeNull()
+    expect(saveButton(root).disabled).toBe(true)
+    expect(root.querySelector('.hint')?.textContent).toMatch(/no está disponible/)
   })
 
   test('si no cuadra, el botón queda apagado y se listan los problemas', async () => {

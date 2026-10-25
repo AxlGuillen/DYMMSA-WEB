@@ -4,10 +4,12 @@ import { describe, test, expect, vi, afterEach } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { createMockSupabase, filterValue, type MockSupabaseClient } from '../helpers/supabase-mock'
-import { isAdminNow, LIVE_ADMIN_READ_TIMEOUT_MS, requireLiveAdmin, ToolError, type Db } from '@/lib/mcp/shared'
+import { isAdminNow, LIVE_ADMIN_READ_TIMEOUT_MS, requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
+import { ToolError } from '@/lib/mcp/core/errors'
+import type { Db } from '@/lib/mcp/core/db'
 import { PRE_TOOL_HEADROOM_MS } from '@/lib/odoo/deadline'
 import { grantPreviewWrite, issueQuotationKey, PREVIEW_EXPIRED_MESSAGE, verifyQuotationKey } from '@/lib/odoo/preview-token'
-import { ADMIN_ONLY_MESSAGE, assertAdminProof } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE, assertAdminProof } from '@/lib/auth/admin-proof'
 import type { McpRole } from '@/lib/mcp/manifest'
 
 const asDb = (c: MockSupabaseClient) => c as unknown as Db
@@ -105,7 +107,7 @@ describe('requireLiveAdmin en las tools (#144)', () => {
       '{ ...ctx, userId }',
       'other',
     ])
-    for (const file of sources().filter((f) => f.path !== 'src/lib/mcp/shared.ts')) {
+    for (const file of sources().filter((f) => f.path !== 'src/lib/mcp/core/auth/live-admin.ts')) {
       for (const arg of argsOf(file.text)) expect(arg, file.path).toBe('ctx')
     }
   })

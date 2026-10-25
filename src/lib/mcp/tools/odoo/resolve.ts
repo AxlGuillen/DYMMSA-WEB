@@ -16,7 +16,10 @@ import {
   type OdooProduct,
   type ProductMatch,
 } from '@/lib/odoo/quotation-plan'
-import { fold, requireSingleMatch, ToolError } from '../../shared'
+import { rankSatSuggestions, satSearchTerms, type SatCode, type SatSuggestion } from '@/lib/odoo/sat-keys'
+import { fold } from '@/lib/text'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import { ToolError } from '@/lib/mcp/core/errors'
 
 type Row = Record<string, unknown>
 
@@ -58,46 +61,82 @@ function partnerDomain(query: string): DomainItem[] {
   return [['name', 'ilike', escapeLike(query)]]
 }
 
+/** A partner found by the shared lookup, with its raw row for the extra fields a read asked for. */
+export interface FoundPartner {
+  readonly partner: WritePartner
+  readonly row: Row
+}
+
 /** Nameless rows are addresses (invoice, delivery), never the customer to quote. */
-function parsePartners(value: unknown): WritePartner[] {
+function parsePartners(value: unknown): FoundPartner[] {
   return rowsOf(value).flatMap((row) => {
     if (!isId(row.id)) throw new OdooError('Odoo devolvió un cliente que no pude leer.')
     const name = text(row.name)
-    return name ? [{ id: row.id, name, vat: text(row.vat), isCompany: row.id === COMPANY_PARTNER_ID }] : []
+    return name ? [{ partner: { id: row.id, name, vat: text(row.vat), isCompany: row.id === COMPANY_PARTNER_ID }, row }] : []
   })
 }
 
 const partnerLabel = (p: WritePartner) => `${p.name} (#${p.id})`
 
-/** Name, RFC or '#id'; no customer_rank filter: quote-only customers and the company itself have 0. */
-export async function resolvePartnerForWrite(odoo: OdooCaller, query: string): Promise<WritePartner> {
+async function searchPartners(odoo: OdooCaller, domain: DomainItem[], fields: readonly string[], archived: boolean) {
+  return parsePartners(
+    await odoo('res.partner', 'search_read', {
+      domain,
+      fields: [...fields],
+      limit: PARTNER_LIMIT,
+      order: 'name asc',
+      ...(archived ? { context: { active_test: false } } : {}),
+    }),
+  )
+}
+
+function pickPartner(found: FoundPartner[], q: string): FoundPartner {
+  const exact = found.filter((p) => fold(p.partner.name) === fold(q))
+  return requireSingleMatch(exact.length > 0 ? exact : found, (p) => partnerLabel(p.partner), 'cliente en Odoo', q)
+}
+
+export interface PartnerLookupOptions {
+  /** Read on top of name/vat/active (odoo_get_customer, #155). */
+  fields?: readonly string[]
+  /** 'read': an archived customer still has a statement to show; a write refuses it (#144). */
+  archived?: 'refuse' | 'read'
+}
+
+/**
+ * Name, RFC or '#id', exact first, never a guess: one lookup for the writes (#144) and odoo_get_customer (#155).
+ * No customer_rank filter: quote-only customers and the company itself have 0.
+ */
+export async function resolvePartner(
+  odoo: OdooCaller,
+  query: string,
+  opts: PartnerLookupOptions = {},
+): Promise<FoundPartner & { archived: boolean }> {
   const q = query.trim()
   if (!q) throw new ToolError('Indica el cliente: nombre, RFC o #id.')
   const domain = partnerDomain(q)
-  const found = parsePartners(
-    await odoo('res.partner', 'search_read', { domain, fields: PARTNER_FIELDS, limit: PARTNER_LIMIT, order: 'name asc' }),
-  )
-  if (found.length === 0) {
-    const archived = parsePartners(
-      await odoo('res.partner', 'search_read', {
-        domain,
-        fields: PARTNER_FIELDS,
-        limit: PARTNER_LIMIT,
-        order: 'name asc',
-        context: { active_test: false },
-      }),
-    )
-    if (archived.length > 0) {
-      throw new ToolError(
-        `El cliente ${archived.slice(0, 3).map(partnerLabel).join(', ')} está archivado en Odoo: reactívalo ahí y vuelve a pedirlo. El asistente no da de alta ni reactiva clientes.`,
-      )
-    }
+  const fields = [...new Set([...PARTNER_FIELDS, ...(opts.fields ?? [])])]
+  const found = await searchPartners(odoo, domain, fields, false)
+  if (found.length > 0) return { ...pickPartner(found, q), archived: false }
+
+  const archived = await searchPartners(odoo, domain, fields, true)
+  if (opts.archived === 'read') {
+    if (archived.length > 0) return { ...pickPartner(archived, q), archived: true }
     throw new ToolError(
-      `No hay ningún cliente en Odoo que coincida con "${q}": créalo en Odoo (el asistente no da de alta clientes) y vuelve a pedirlo.`,
+      `No hay ningún cliente en Odoo que coincida con "${q}". Prueba con otra parte del nombre, el RFC o el #id (p. ej. "Andritz", "AHY9601017X4" o "#24").`,
     )
   }
-  const exact = found.filter((p) => fold(p.name) === fold(q))
-  return requireSingleMatch(exact.length > 0 ? exact : found, partnerLabel, 'cliente en Odoo', q)
+  if (archived.length > 0) {
+    throw new ToolError(
+      `El cliente ${archived.slice(0, 3).map((p) => partnerLabel(p.partner)).join(', ')} está archivado en Odoo: reactívalo ahí y vuelve a pedirlo. El asistente no da de alta ni reactiva clientes.`,
+    )
+  }
+  throw new ToolError(
+    `No hay ningún cliente en Odoo que coincida con "${q}": créalo en Odoo (el asistente no da de alta clientes) y vuelve a pedirlo.`,
+  )
+}
+
+export async function resolvePartnerForWrite(odoo: OdooCaller, query: string): Promise<WritePartner> {
+  return (await resolvePartner(odoo, query)).partner
 }
 
 const PRODUCT_FIELDS = [
@@ -167,6 +206,49 @@ export async function resolveProductsForWrite(
   return {
     matches: matchProducts(lines, rows, { lineProducts: opts.lineProducts, truncated }),
     products: new Map(rows.map((p) => [p.id, p])),
+  }
+}
+
+/** Rows of the one SAT search; past it the rank may miss a better key, and the preview says so. */
+export const SAT_SEARCH_LIMIT = 400
+/** ilike conditions in that one OR: four words per product, so ~15 products get their own. */
+const MAX_SAT_TERMS = 60
+
+export interface SatSuggestionsRead {
+  /** Aligned with the texts. */
+  readonly suggestions: readonly (readonly SatSuggestion[])[]
+  readonly terms: readonly (readonly string[])[]
+  readonly truncated: boolean
+  /** Texts with a word left out of the search by MAX_SAT_TERMS: their suggestions may be missing (review PR #167). */
+  readonly cut: readonly number[]
+}
+
+/**
+ * ONE product.unspsc.code search for every text (#154): an OR of ilike over their words, ranked in
+ * memory. Active codes only, as Odoo's own picker; a fixed projection like the rest of the write path.
+ */
+export async function readSatSuggestions(odoo: OdooCaller, texts: readonly string[]): Promise<SatSuggestionsRead> {
+  const terms = texts.map(satSearchTerms)
+  const union = [...new Set(terms.flat())].slice(0, MAX_SAT_TERMS)
+  const searched = new Set(union)
+  const cut = terms.flatMap((own, i) => (own.some((term) => !searched.has(term)) ? [i] : []))
+  if (union.length === 0) return { suggestions: texts.map(() => []), terms, truncated: false, cut }
+  const rows = rowsOf(
+    await odoo('product.unspsc.code', 'search_read', {
+      domain: orDomain(union.map((term): DomainTriple => ['name', 'ilike', escapeLike(term)])),
+      fields: ['code', 'name'],
+      limit: SAT_SEARCH_LIMIT,
+      order: 'code asc',
+    }),
+  )
+  const codes = rows.flatMap((row): SatCode[] =>
+    typeof row.code === 'string' && typeof row.name === 'string' ? [{ code: row.code, name: row.name }] : [],
+  )
+  return {
+    suggestions: terms.map((own) => rankSatSuggestions(own, codes)),
+    terms,
+    truncated: rows.length >= SAT_SEARCH_LIMIT,
+    cut,
   }
 }
 

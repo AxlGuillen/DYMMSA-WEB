@@ -1,0 +1,990 @@
+[
+  {
+    "name": "get_business_summary",
+    "title": "Resumen del negocio",
+    "description": "Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala para \"¿cómo vamos?\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_quotations",
+    "title": "Listar cotizaciones",
+    "description": "Lista cotizaciones con filtros, de la más reciente a la más antigua. Úsala para \"¿qué cotizaciones esperan aprobación?\" o buscar por cliente. `total_sellado` es el monto guardado en la fila: en una aprobada editable puede quedar desfasado; get_quotation trae el total recalculado.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "description": "Filtrar por estado exacto",
+          "type": "string",
+          "enum": [
+            "borrador",
+            "en_revision",
+            "aprobada",
+            "rechazada",
+            "convertida"
+          ]
+        },
+        "buscar": {
+          "description": "Busca en nombre de cotización y nombre del cliente",
+          "type": "string"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_quotation",
+    "title": "Detalle de cotización",
+    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref. Un administrador recibe además `link_aprobacion` mientras está en revisión.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cotizacion": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        }
+      },
+      "required": [
+        "cotizacion"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_orders",
+    "title": "Listar órdenes",
+    "description": "Lista órdenes de compra con filtros, de la más reciente a la más antigua. Úsala para \"¿qué órdenes siguen abiertas?\" o buscar por cliente. `total_sellado` es el monto guardado en la fila; get_order trae el total recalculado.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "description": "Filtrar por estado exacto",
+          "type": "string",
+          "enum": [
+            "pedida",
+            "recibida",
+            "entregada",
+            "completada",
+            "cancelada"
+          ]
+        },
+        "buscar": {
+          "description": "Busca en nombre de orden y nombre del cliente",
+          "type": "string"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_order",
+    "title": "Detalle de orden",
+    "description": "Una orden con todas sus líneas numeradas (`linea`): cantidades (aprobada, en stock, por pedir, recibida), estado con URREA, ubicación en tienda, `version` y cuántas siguen pendientes con URREA. Acepta nombre, cliente o ref.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        }
+      },
+      "required": [
+        "orden"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_cut_plan",
+    "title": "Lista de corte de una orden",
+    "description": "Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para \"¿cuánto tubo necesito para la orden de X?\". Acepta nombre, cliente o ref de la orden.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        }
+      },
+      "required": [
+        "orden"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_material_presentation",
+    "title": "Registrar medida de material",
+    "description": "Registra una presentación del proveedor para el corte: barra de tubo (diámetro y largo) u hoja de placa (espesor, ancho y largo), SIEMPRE en mm — convierte pulgadas (×25.4) y metros y confirma la conversión con el usuario antes de guardar. Si ya existía, la marca como la más reciente. ESCRIBE. No borra medidas.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tipo": {
+          "type": "string",
+          "enum": [
+            "tubo",
+            "placa"
+          ]
+        },
+        "diametro_mm": {
+          "description": "Tubo",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "espesor_mm": {
+          "description": "Placa",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ancho_mm": {
+          "description": "Placa",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "largo_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Largo comercial de la barra u hoja"
+        }
+      },
+      "required": [
+        "tipo",
+        "largo_mm"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_purchase_plan",
+    "title": "Planificador de compra de una orden",
+    "description": "Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). \"revisar\" = el usuario debe decidir. Acepta nombre, cliente o ref de la orden.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        }
+      },
+      "required": [
+        "orden"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "search_inventory",
+    "title": "Buscar en inventario",
+    "description": "Stock de tienda por código, con su ubicación física (gaveta) cuando hay existencias. `existencias`: con_existencia (>0), suficiente (>5), poca (1-5), sin_existencia (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buscar": {
+          "description": "Código (parcial)",
+          "type": "string"
+        },
+        "existencias": {
+          "description": "Default todas",
+          "type": "string",
+          "enum": [
+            "todas",
+            "con_existencia",
+            "suficiente",
+            "poca",
+            "sin_existencia"
+          ]
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "search_products",
+    "title": "Buscar productos ETM",
+    "description": "Busca en el catálogo ETM por ETM, código o descripción. Devuelve precio, marca, `se_vende` (sin_definir, si, no) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buscar": {
+          "type": "string",
+          "description": "Texto a buscar (ETM, código o descripción)"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "buscar"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "search_urrea_catalog",
+    "title": "Consultar catálogo URREA",
+    "description": "Consulta el catálogo oficial URREA por código (exacto, todas las marcas) o por descripción (parcial, paginada). Devuelve código, marca, descripción oficial y std (unidades por paquete).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buscar": {
+          "type": "string",
+          "description": "Código URREA o texto de la descripción"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "buscar"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_suppliers",
+    "title": "Proveedores de menudeo",
+    "description": "Proveedores locales con contacto, plazo de pago (días de crédito; \"Contado\" si no hay) y las marcas que surten. Filtra por texto (nombre/teléfono/email) o por marca. Úsala para \"¿quién me surte SURTEK?\" o \"¿qué plazo da Perfiles?\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buscar": {
+          "description": "Texto a buscar en nombre, teléfono, whatsapp o email",
+          "type": "string"
+        },
+        "marca": {
+          "description": "Marca que debe surtir, p. ej. \"SURTEK\"",
+          "type": "string"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_supplier",
+    "title": "Guardar proveedor",
+    "description": "Da de alta un proveedor de menudeo, o edita uno existente si mandas proveedor (su nombre o parte): contacto, días de crédito (null = contado) y marcas con agregar_marcas / quitar_marcas; una marca nueva solo se da de alta con crear_marcas: true. Un texto vacío borra ese dato. No borra proveedores.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "proveedor": {
+          "description": "A editar (nombre o parte); omitido = alta",
+          "type": "string"
+        },
+        "nombre": {
+          "description": "Nombre (obligatorio en un alta)",
+          "type": "string"
+        },
+        "telefono": {
+          "type": "string"
+        },
+        "whatsapp": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "direccion": {
+          "type": "string"
+        },
+        "notas": {
+          "type": "string"
+        },
+        "dias_credito": {
+          "description": "Días de crédito; null = contado",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9999
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agregar_marcas": {
+          "description": "Marcas que surte, p. ej. [\"SURTEK\"]",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quitar_marcas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "crear_marcas": {
+          "description": "Crea las marcas que no existan",
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_payables",
+    "title": "Facturas por pagar",
+    "description": "Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (vencida = pendientes ya vencidas), mes de VENCIMIENTO, proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "type": "string",
+          "enum": [
+            "pendiente",
+            "vencida",
+            "pagada",
+            "cancelada"
+          ]
+        },
+        "mes": {
+          "description": "Mes de vencimiento",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+        },
+        "proveedor": {
+          "description": "Nombre (o parte) del proveedor",
+          "type": "string"
+        },
+        "concepto": {
+          "description": "Texto del concepto (parcial)",
+          "type": "string"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_payable",
+    "title": "Detalle de factura por pagar",
+    "description": "Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta ref, o parte del concepto o del nombre del proveedor; con varias coincidencias pide precisar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "factura": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Ref, o parte del concepto / nombre del proveedor"
+        }
+      },
+      "required": [
+        "factura"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_payables_overview",
+    "title": "Resumen de facturas por pagar del mes",
+    "description": "Responde \"¿qué debo esta semana / este mes?\": pendiente del mes por semana de vencimiento, vencido (incluye el arrastre de meses anteriores), por vencer en 7 días, pagado en el mes, y las próximas 15 facturas pendientes. mes = YYYY-MM (default: el actual).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mes": {
+          "description": "Default el actual",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_payable",
+    "title": "Guardar factura por pagar",
+    "description": "Alta o cambio de una factura de GASTO de la app (no de Odoo). Sin `factura` la registra (nace pendiente; vence en fecha + plazo del proveedor). Con `factura` (ref, concepto o proveedor) la corrige, la paga con su fecha real (`estado: pagada`, `fecha_pago` default hoy), la regresa a pendiente o la cancela. Úsala para \"ya pagué la de Perfiles\" o \"la de Tornillos era por 3,200\". Directo; solo cambiar cifras o fechas de una PAGADA pide el sí con la clave. Nunca convierte moneda; no borra (delete_record) ni reactiva una cancelada.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "factura": {
+          "description": "La existente: ref, concepto o proveedor; omítela para dar de alta",
+          "type": "string"
+        },
+        "proveedor": {
+          "description": "Nombre (o parte); en una existente, el nuevo",
+          "type": "string"
+        },
+        "concepto": {
+          "type": "string"
+        },
+        "monto": {
+          "description": "Mayor a 0",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "moneda": {
+          "description": "Default MXN",
+          "type": "string",
+          "enum": [
+            "MXN",
+            "USD"
+          ]
+        },
+        "fecha_factura": {
+          "type": "string",
+          "format": "date"
+        },
+        "vencimiento": {
+          "description": "Default: fecha + plazo del proveedor",
+          "type": "string",
+          "format": "date"
+        },
+        "notas": {
+          "description": "Texto vacío las borra",
+          "type": "string"
+        },
+        "estado": {
+          "type": "string",
+          "enum": [
+            "pendiente",
+            "pagada",
+            "cancelada"
+          ]
+        },
+        "fecha_pago": {
+          "description": "Fecha REAL de pago (default hoy)",
+          "type": "string",
+          "format": "date"
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_month_closing",
+    "title": "Cierre del mes",
+    "description": "Cómo cierra un mes: egresos de la app (pagado, pendiente del mes, vencido arrastrado) + ingresos leídos de Odoo (cobrado, por cobrar, vencido por cobrar, notas de crédito aparte) y el cierre real/proyectado. Si Odoo no está disponible lo dice y el cierre refleja solo egresos. mes = YYYY-MM (default actual).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mes": {
+          "description": "Default el actual",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_week_hours",
+    "title": "Horas de la semana",
+    "description": "Horas trabajadas de una semana según el checador, día por día (cada uno con su estado: cumplió, no cumplió, justificado), con el total y el cumplimiento de la jornada (tiempo completo 40 h / medio tiempo 20 h, descontando días feriados y salidas autorizadas por el administrador). Sin `persona` son las horas de quien pregunta; un administrador puede indicar a alguien por nombre parcial. `fecha` = cualquier día de la semana deseada (default: esta semana). Una \"checada sin salida\" no suma horas.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "persona": {
+          "description": "Nombre (o parte) de la persona; solo un administrador ve a otros",
+          "type": "string"
+        },
+        "fecha": {
+          "description": "Cualquier día de la semana (default hoy)",
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_hours_trend",
+    "title": "Tendencia de horas",
+    "description": "Total de horas por semana de las últimas N semanas (default 8, máx 26) hasta la actual, con el promedio semanal y el cumplimiento de la jornada. Úsala para \"¿cómo viene Fulano este mes?\" o \"¿quién no está completando su jornada?\" (una llamada por persona).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "persona": {
+          "description": "Nombre (o parte) de la persona; solo un administrador ve a otros",
+          "type": "string"
+        },
+        "semanas": {
+          "description": "Semanas a incluir (default 8)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 26
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_profiles",
+    "title": "Perfiles del equipo",
+    "description": "Perfil de las personas con cuenta en la app: nombre, rol, área, jornada, id del checador, NSS (Número de Seguridad Social) y foto. Sin `persona` devuelve todos los que quien pregunta puede ver (un miembro solo el suyo, un administrador a todo el equipo) con el NSS solo de quien pregunta; con `persona` (nombre parcial o ref) trae a una e incluye su NSS. Úsala para \"¿cuál es mi NSS?\" o \"¿cuál es el NSS de Tania?\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "persona": {
+          "description": "Nombre (o parte) o ref; solo un administrador ve a otros",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_tasks",
+    "title": "Listar tareas",
+    "description": "Tareas del equipo (GitHub Issues del repo), abiertas por default, de la más reciente a la más antigua, con un extracto de la descripción (get_task trae el texto completo). Las cerradas dicen si se completaron o se descartaron.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "description": "Default abierta",
+          "type": "string",
+          "enum": [
+            "abierta",
+            "cerrada",
+            "todas"
+          ]
+        },
+        "prioridad": {
+          "type": "string",
+          "enum": [
+            "baja",
+            "media",
+            "alta",
+            "urgente"
+          ]
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1; 30 por página)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_task",
+    "title": "Detalle de tarea",
+    "description": "Una tarea con su descripción, quién la reportó, prioridad, estado y sus comentarios (hasta 100).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tarea": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99999,
+          "description": "Número de la tarea (#N)"
+        }
+      },
+      "required": [
+        "tarea"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_task",
+    "title": "Guardar tarea",
+    "description": "Crea una tarea (GitHub Issue) o cambia una existente con `tarea`: comentar, priorizar, cerrar o reabrir. Sin `tarea`, `titulo` es obligatorio. Directo; cambiar el título o la descripción de una tarea existente pide el sí con la clave. La tarea queda reportada por el asistente; un comentario se publica atribuido a él. Cerrar con motivo descartada = no se hará.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tarea": {
+          "description": "Número (#N) de la existente; omítelo para crear",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99999
+        },
+        "titulo": {
+          "description": "Obligatorio al crear",
+          "type": "string"
+        },
+        "descripcion": {
+          "type": "string"
+        },
+        "prioridad": {
+          "description": "\"ninguna\" la quita",
+          "type": "string",
+          "enum": [
+            "baja",
+            "media",
+            "alta",
+            "urgente",
+            "ninguna"
+          ]
+        },
+        "estado": {
+          "description": "abierta reabre, cerrada cierra",
+          "type": "string",
+          "enum": [
+            "abierta",
+            "cerrada"
+          ]
+        },
+        "motivo": {
+          "description": "Solo al cerrar (default completada)",
+          "type": "string",
+          "enum": [
+            "completada",
+            "descartada"
+          ]
+        },
+        "comentario": {
+          "description": "Comentario a publicar en la tarea",
+          "type": "string"
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_app_settings",
+    "title": "Configuración de la app",
+    "description": "Parámetros que usan los planificadores: umbrales del planificador de compra (dinero parado en MXN y % parado) y margen por corte en mm. Indica cuáles están guardados y cuáles corren con el default del código.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  }
+]

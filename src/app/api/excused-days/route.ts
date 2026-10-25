@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, requireAdmin, badRequest, serverError, isUuid } from '@/lib/api-helpers'
-import { isRealDate, parseExcusedDay } from '@/lib/timesheet'
-
-const COLUMNS = 'id, work_date, user_id, kind, note, created_by, created_at'
+import { requireAuth, requireAdmin, apiError, badRequest, serverError } from '@/lib/api-helpers'
+import { createExcusedDay, EXCUSED_COLUMNS as COLUMNS } from '@/lib/excused-days-store'
+import { isRealDate } from '@/lib/timesheet'
 
 // GET /api/excused-days?from=&to= — RLS decides: a member sees team-wide days and their own
 export async function GET(request: NextRequest) {
@@ -39,22 +38,8 @@ export async function POST(request: NextRequest) {
     const auth = await requireAdmin(supabase)
     if ('error' in auth) return auth.error
 
-    const parsed = parseExcusedDay(await request.json())
-    if ('error' in parsed) return badRequest(parsed.error)
-    if (parsed.value.user_id && !isUuid(parsed.value.user_id)) return badRequest('Persona inválida')
-
-    const { data, error } = await supabase.from('excused_days').insert(parsed.value).select(COLUMNS).single()
-    if (error || !data) {
-      if (error?.code === '23505') {
-        return badRequest(parsed.value.user_id ? 'Ese día ya está justificado para esa persona' : 'Ese día ya está justificado para todo el equipo')
-      }
-      if (error?.code === '23503') return badRequest('La persona no existe')
-      console.error('Error creating excused day:', error)
-      return serverError('Error al guardar el día justificado')
-    }
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json(await createExcusedDay(supabase, await request.json()), { status: 201 })
   } catch (error) {
-    console.error('Excused days POST error:', error)
-    return serverError('Error al guardar el día justificado')
+    return apiError(error, 'Error al guardar el día justificado', 'Excused days POST error:')
   }
 }

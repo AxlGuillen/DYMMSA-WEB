@@ -4,13 +4,17 @@
  * `is_admin()` — a member reads nothing and writes nothing.
  */
 
-import { ToolError, fold, requireSingleMatch, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import { writeResult } from '@/lib/mcp/core/envelope'
+import { fold } from '@/lib/text'
+import { requireSingleMatch } from '@/lib/mcp/core/lookup'
+import type { Db } from '@/lib/mcp/core/db'
 import { resolvePerson } from './profiles'
 import { todayInMexico } from '@/lib/format'
-import { formatDuration, SHIFT_LABELS } from '@/lib/timesheet'
+import { formatDuration, SHIFT_TOKENS } from '@/lib/timesheet'
+import { AREA_TOKENS } from '@/lib/profile'
 import { PERIOD_DAY_LABELS, isIsoDate, parseEmployeeInput, payrollPeriod, type HoursBreakdown } from '@/lib/payroll'
 import {
-  PayrollError,
   createEmployee,
   loadEmployees,
   loadPayrollView,
@@ -19,21 +23,11 @@ import {
   updateEmployee,
   type DayInput,
 } from '@/lib/payroll-store'
-import type { PayrollEmployee, Profile, ProfileShift } from '@/types/database'
+import type { PayrollEmployee, Profile } from '@/types/database'
 
 const NO_ACCESS = 'Sin empleados visibles: Nómina solo la ve un administrador, y los empleados se dan de alta con save_payroll_employee (o en la app, Nómina → Empleados).'
 
-const SOURCE_LABELS = { sheet: 'hoja', hours: 'checador', manual: 'manual' } as const
-
-/** PayrollError is a broken rule the user can fix: it must reach the model verbatim. */
-async function asTool<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn()
-  } catch (error) {
-    if (error instanceof PayrollError) throw new ToolError(error.message)
-    throw error
-  }
-}
+export const SOURCE_LABELS = { sheet: 'hoja', hours: 'checador', manual: 'manual' } as const
 
 function totals(t: HoursBreakdown) {
   return {
@@ -48,7 +42,7 @@ function totals(t: HoursBreakdown) {
 export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
   if (input.fecha !== undefined && !isIsoDate(input.fecha)) throw new ToolError('Fecha inválida — usa YYYY-MM-DD')
   const { start } = payrollPeriod(input.fecha ?? todayInMexico())
-  const view = await asTool(() => loadPayrollView(db, start))
+  const view = await loadPayrollView(db, start)
 
   return {
     corte: {
@@ -63,8 +57,9 @@ export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
     total: totals(view.totals),
     empleados: view.rows.map((row) => ({
       nombre: row.employee.name,
-      tipo: row.area === 'office' ? 'oficina' : 'taller',
-      jornada: SHIFT_LABELS[row.employee.shift],
+      // A closed cut answers with the shift and area it froze (#157).
+      tipo: AREA_TOKENS.toToken(row.area),
+      jornada: SHIFT_TOKENS.toToken(row.shift),
       ...totals(row.totals),
       no_trabajadas: formatDuration(row.missedMinutes),
       dias: row.days.flatMap((day, i) =>
@@ -84,7 +79,7 @@ export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
   }
 }
 
-function resolveEmployee(employees: readonly PayrollEmployee[], name: string): PayrollEmployee {
+export function resolveEmployee(employees: readonly PayrollEmployee[], name: string): PayrollEmployee {
   const query = fold(name)
   if (!query) throw new ToolError('Indica el nombre del empleado')
   // An exact name wins: "Juan" must not be ambiguous because "Juan Carlos" exists.
@@ -93,7 +88,7 @@ function resolveEmployee(employees: readonly PayrollEmployee[], name: string): P
   return requireSingleMatch(matches, (e) => e.name, 'empleado de nómina', name.trim())
 }
 
-export interface RecordPayrollHoursInput {
+export interface SavePayrollHoursInput {
   dias?: {
     empleado: string
     fecha: string
@@ -111,7 +106,7 @@ export interface RecordPayrollHoursInput {
 const toMinutes = (hours: number) => Math.round(hours * 60)
 
 /** Saves the sheet as DRAFTS. Confirming and closing stay in the app, with the admin. */
-export async function recordPayrollHours(db: Db, input: RecordPayrollHoursInput) {
+export async function savePayrollHours(db: Db, input: SavePayrollHoursInput) {
   if (input.traer_de_horas) {
     if (input.dias?.length) throw new ToolError('Usa `dias` o `traer_de_horas`, no los dos en la misma llamada')
     return prefillCut(db, input.fecha)
@@ -143,18 +138,22 @@ export async function recordPayrollHours(db: Db, input: RecordPayrollHoursInput)
     }
   })
 
-  const result = await asTool(() => saveDays(db, days, { source: 'sheet', status: 'draft', overwrite: false }))
+  const result = await saveDays(db, days, { source: 'sheet', status: 'draft', overwrite: false })
   const cortes = [...new Set(days.map((d) => payrollPeriod(d.work_date).start))].sort()
-  return {
-    guardados: result.saved,
-    omitidos: result.skipped.map((s) => ({
-      empleado: byId.get(s.employee_id)?.name ?? s.employee_id,
-      fecha: s.work_date,
-      motivo: s.reason,
-    })),
-    cortes: cortes.map((start) => ({ inicio: start, fin: payrollPeriod(start).end })),
-    nota: 'Quedaron como BORRADOR y todavía no suman: un administrador los revisa y confirma en la app (Nómina → Confirmar borradores).',
-  }
+  return writeResult(
+    result.saved > 0 ? 'actualizado' : 'sin_cambios',
+    'horas',
+    {
+      guardados: result.saved,
+      omitidos: result.skipped.map((s) => ({
+        empleado: byId.get(s.employee_id)?.name ?? s.employee_id,
+        fecha: s.work_date,
+        motivo: s.reason,
+      })),
+      cortes: cortes.map((start) => ({ inicio: start, fin: payrollPeriod(start).end })),
+    },
+    { nota: 'Quedaron como BORRADOR y todavía no suman: un administrador los revisa y confirma en la app (Nómina → Confirmar borradores).' },
+  )
 }
 
 /** Same rules as the app's button: drafts only, never over a confirmed day, another source or a closed cut. */
@@ -164,20 +163,26 @@ async function prefillCut(db: Db, fecha?: string) {
   const employees = await loadEmployees(db)
   // A member reads zero employees by RLS: say so instead of sending them to a screen they cannot open (review PR #138).
   if (employees.length === 0) throw new ToolError(NO_ACCESS)
-  const result = await asTool(() => prefillFromHours(db, start))
+  const result = await prefillFromHours(db, start)
   const byId = new Map(employees.map((e) => [e.id, e.name]))
-  return {
-    corte: { inicio: start, fin: end },
-    empleados_ligados: result.linked,
-    guardados: result.saved,
-    omitidos: result.skipped.map((s) => ({ empleado: byId.get(s.employee_id) ?? s.employee_id, fecha: s.work_date, motivo: s.reason })),
-    checadas_sin_salida: result.open,
-    sabados_oficina: result.officeSaturdays,
-    nota:
-      result.linked === 0
-        ? 'Ningún empleado de nómina está ligado a un perfil de la app: se liga en Nómina → Empleados.'
-        : 'Quedaron como BORRADOR y todavía no suman: un administrador los revisa y confirma en la app. Una checada sin salida no suma: corrígela en Horas y vuelve a traer.',
-  }
+  return writeResult(
+    result.saved > 0 ? 'actualizado' : 'sin_cambios',
+    'horas',
+    {
+      corte: { inicio: start, fin: end },
+      empleados_ligados: result.linked,
+      guardados: result.saved,
+      omitidos: result.skipped.map((s) => ({ empleado: byId.get(s.employee_id) ?? s.employee_id, fecha: s.work_date, motivo: s.reason })),
+      checadas_sin_salida: result.open,
+      sabados_oficina: result.officeSaturdays,
+    },
+    {
+      nota:
+        result.linked === 0
+          ? 'Ningún empleado de nómina está ligado a un perfil de la app: se liga en Nómina → Empleados.'
+          : 'Quedaron como BORRADOR y todavía no suman: un administrador los revisa y confirma en la app. Una checada sin salida no suma: corrígela en Horas y vuelve a traer.',
+    },
+  )
 }
 
 export interface SavePayrollEmployeeInput {
@@ -191,7 +196,6 @@ export interface SavePayrollEmployeeInput {
   activo?: boolean
 }
 
-const SHIFTS: Record<NonNullable<SavePayrollEmployeeInput['jornada']>, ProfileShift> = { completa: 'full_time', media: 'part_time' }
 
 /** Creates or edits a payroll employee with the routes' rules (#134); confirming and closing stay in the app (ADR-033). */
 export async function savePayrollEmployee(db: Db, callerId: string, input: SavePayrollEmployeeInput) {
@@ -206,7 +210,7 @@ export async function savePayrollEmployee(db: Db, callerId: string, input: SaveP
 
   const fields: Record<string, unknown> = {
     name: input.nombre,
-    shift: input.jornada ? SHIFTS[input.jornada] : undefined,
+    shift: input.jornada ? SHIFT_TOKENS.toDb(input.jornada) : undefined,
     profile_id: unlink ? null : person?.id,
     active: input.activo,
   }
@@ -214,9 +218,7 @@ export async function savePayrollEmployee(db: Db, callerId: string, input: SaveP
   if ('error' in parsed) throw new ToolError(parsed.error)
   if (editing && Object.keys(parsed.value).length === 0) throw new ToolError('No hay cambios: indica nombre, jornada, perfil o activo.')
 
-  const saved = target
-    ? await asTool(() => updateEmployee(db, target.id, parsed.value))
-    : await asTool(() => createEmployee(db, parsed.value))
+  const saved = target ? await updateEmployee(db, target.id, parsed.value) : await createEmployee(db, parsed.value)
   // It was just read from a visible list, so 0 rows means it went away in between (review PR #139).
   if (!saved) throw new ToolError('El empleado ya no existe: vuelve a consultar la lista de Nómina.')
 
@@ -225,13 +227,13 @@ export async function savePayrollEmployee(db: Db, callerId: string, input: SaveP
     const { data } = await db.from('profiles').select('display_name').eq('id', saved.profile_id).maybeSingle()
     linked = (data as { display_name: string } | null)?.display_name ?? null
   }
-  return {
-    accion: target ? 'actualizado' : 'creado',
-    empleado: { nombre: saved.name, jornada: SHIFT_LABELS[saved.shift], perfil_ligado: linked, activo: saved.active },
+  // Already the write envelope (#155 C3): it only gains escrito.
+  const empleado = { nombre: saved.name, jornada: SHIFT_TOKENS.toToken(saved.shift), perfil_ligado: linked, activo: saved.active }
+  return writeResult(target ? 'actualizado' : 'creado', 'empleado', empleado, {
     nota: !saved.active
       ? 'Dado de baja: sus horas guardadas se conservan y ya no recibe horas nuevas de la hoja.'
       : target
         ? 'Guardado.'
-        : 'Dado de alta: ya puede recibir horas con record_payroll_hours.',
-  }
+        : 'Dado de alta: ya puede recibir horas con save_payroll_hours.',
+  })
 }

@@ -1,9 +1,14 @@
 /** Suppliers module (#21): the list, the name lookup the payables tools reuse (#109) and save_supplier (#134). */
 
-import { ToolError, requireSingleMatch, sanitizeSearch, type Db } from '../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
+import { listResult, refOf, writeResult } from '@/lib/mcp/core/envelope'
+import { resolveByName } from '@/lib/mcp/core/lookup'
+import { normalizePagination } from '@/lib/mcp/core/schema'
+import { sanitizeSearch } from '@/lib/text'
+import type { Db } from '@/lib/mcp/core/db'
 import { normalizeBrandTag } from '@/lib/business-rules'
 import { paymentTermsLabel } from '@/lib/payables'
-import { createSupplier, parseSupplierInput, SupplierError, updateSupplier } from '@/lib/suppliers-store'
+import { createBrand, createSupplier, parseSupplierInput, updateSupplier } from '@/lib/suppliers-store'
 import type { Supplier } from '@/types/database'
 
 type SupplierRow = Supplier & { supplier_brands: { brands: { name: string } | null }[] | null }
@@ -12,7 +17,7 @@ const SELECT = '*, supplier_brands(brands(name))'
 
 function digest(row: SupplierRow) {
   return {
-    id: row.id,
+    ref: refOf(row.id),
     nombre: row.name,
     telefono: row.phone,
     whatsapp: row.whatsapp,
@@ -31,53 +36,52 @@ function digest(row: SupplierRow) {
 export interface ListSuppliersInput {
   buscar?: string
   marca?: string
-  limit?: number
+  pagina?: number
+  por_pagina?: number
 }
 
 // With a brand filter the cut happens AFTER filtering in JS, so the read is wide on purpose.
 const BRAND_SCAN_LIMIT = 1000
 
 export async function listSuppliers(db: Db, input: ListSuppliersInput = {}) {
-  const limit = Math.min(100, Math.max(1, Math.floor(input.limit ?? 50)))
+  const { pagina, por_pagina, from, to } = normalizePagination(input, 50)
   const search = sanitizeSearch(input.buscar ?? '')
   const brand = (input.marca ?? '').trim().toUpperCase()
-  let query = db
-    .from('suppliers')
-    .select(SELECT)
-    .order('name', { ascending: true })
-    .limit(brand ? BRAND_SCAN_LIMIT : limit)
+  let query = db.from('suppliers').select(SELECT, { count: 'exact' }).order('name', { ascending: true })
+  query = brand ? query.limit(BRAND_SCAN_LIMIT) : query.range(from, to)
   if (search) {
     query = query.or(
       `name.ilike.%${search}%,phone.ilike.%${search}%,whatsapp.ilike.%${search}%,email.ilike.%${search}%`,
     )
   }
-  const { data, error } = await query
+  const { data, error, count } = await query
   if (error) throw new ToolError(`Error al leer proveedores: ${error.message}`)
 
   const rows = (data ?? []) as SupplierRow[]
-  const matching = rows.map(digest).filter((s) => !brand || s.marcas.some((m) => m.includes(brand)))
-  const scanCut = Boolean(brand) && rows.length >= BRAND_SCAN_LIMIT
-  return {
-    total: matching.length,
-    mostrados: Math.min(matching.length, limit),
-    nota: scanCut ? `Se revisaron solo los primeros ${BRAND_SCAN_LIMIT} proveedores: puede haber más con esa marca.` : null,
-    proveedores: matching.slice(0, limit),
-  }
+  if (!brand) return listResult('proveedores', rows.map(digest), { total: count ?? rows.length, pagina, por_pagina })
+
+  const matching = rows.map(digest).filter((s) => s.marcas.some((m) => m.includes(brand)))
+  const scanCut = rows.length >= BRAND_SCAN_LIMIT
+  return listResult(
+    'proveedores',
+    matching.slice(from, to + 1),
+    { total: matching.length, pagina, por_pagina },
+    scanCut ? `Se revisaron solo los primeros ${BRAND_SCAN_LIMIT} proveedores: puede haber más con esa marca.` : undefined,
+  )
 }
 
 export type SupplierRef = Pick<Supplier, 'id' | 'name' | 'payment_terms_days'>
 
-/** The one supplier whose name contains `name`; with several matches the error lists them. */
-export async function resolveSupplier(db: Db, name: string): Promise<SupplierRef> {
-  const query = sanitizeSearch(name)
-  if (!query) throw new ToolError('Indica el nombre del proveedor')
-  const { data, error } = await db
-    .from('suppliers')
-    .select('id, name, payment_terms_days')
-    .ilike('name', `%${query}%`)
-    .limit(6)
-  if (error) throw new ToolError(`Error al buscar el proveedor: ${error.message}`)
-  return requireSingleMatch((data ?? []) as SupplierRef[], (s) => s.name, 'proveedor', query)
+/** The one supplier whose ref or name matches; with several matches the error lists them. */
+export function resolveSupplier(db: Db, reference: string): Promise<SupplierRef> {
+  return resolveByName<SupplierRef>(db, {
+    table: 'suppliers',
+    select: 'id, name, payment_terms_days',
+    what: 'proveedor',
+    article: 'el',
+    label: (s) => s.name,
+    nameColumns: ['name'],
+  }, reference)
 }
 
 export interface SaveSupplierInput {
@@ -93,21 +97,34 @@ export interface SaveSupplierInput {
   dias_credito?: number | null
   agregar_marcas?: string[]
   quitar_marcas?: string[]
+  /** Mint the unknown brands of agregar_marcas (ADR-037). */
+  crear_marcas?: boolean
 }
 
-/** Brand names → ids. An unknown one is an error that lists the catalog: a typo must not mint a brand (#134). */
-async function brandIdsFor(db: Db, ...lists: (readonly string[] | undefined)[]): Promise<string[][]> {
-  if (lists.every((l) => !l?.length)) return lists.map(() => [])
+/**
+ * Brand names → ids. An unknown one is an error that lists the catalog: a typo must not mint a brand (#134);
+ * only `create` (crear_marcas, ADR-037) mints the unknown ones of the first list, the ones to add.
+ */
+async function brandIdsFor(db: Db, create: boolean, ...lists: (readonly string[] | undefined)[]): Promise<{ ids: string[][]; created: string[] }> {
+  if (lists.every((l) => !l?.length)) return { ids: lists.map(() => []), created: [] }
   const { data, error } = await db.from('brands').select('id, name').order('name', { ascending: true })
   if (error) throw new ToolError(`Error al leer las marcas: ${error.message}`)
   const byName = new Map(((data ?? []) as { id: string; name: string }[]).map((b) => [b.name, b.id]))
   const wanted = lists.map((l) => [...new Set((l ?? []).map(normalizeBrandTag).filter(Boolean))])
-  const missing = [...new Set(wanted.flat().filter((name) => !byName.has(name)))]
+  const mintable = create ? new Set(wanted[0] ?? []) : new Set<string>()
+  const missing = [...new Set(wanted.flat().filter((name) => !byName.has(name) && !mintable.has(name)))]
   if (missing.length > 0) {
     const known = [...byName.keys()].join(', ') || 'ninguna'
-    throw new ToolError(`No existe la marca ${missing.join(', ')}. Marcas registradas: ${known}. Una marca nueva se da de alta en la app (Proveedores → Marcas).`)
+    throw new ToolError(`No existe la marca ${missing.join(', ')}. Marcas registradas: ${known}. Para darla de alta manda crear_marcas: true junto con agregar_marcas.`)
   }
-  return wanted.map((names) => names.map((name) => byName.get(name) as string))
+  const created: string[] = []
+  for (const name of mintable) {
+    if (byName.has(name)) continue
+    const brand = await createBrand(db, name)
+    byName.set(brand.name, brand.id)
+    created.push(brand.name)
+  }
+  return { ids: wanted.map((names) => names.map((name) => byName.get(name) as string)), created }
 }
 
 async function readSupplier(db: Db, id: string) {
@@ -134,27 +151,26 @@ export async function saveSupplier(db: Db, input: SaveSupplierInput) {
   if (!editing && input.quitar_marcas?.length) {
     throw new ToolError('Un proveedor nuevo no tiene marcas que quitar: en el alta manda solo agregar_marcas.')
   }
-  const [add, remove] = await brandIdsFor(db, input.agregar_marcas, input.quitar_marcas)
+  if (input.crear_marcas && !input.agregar_marcas?.length) throw new ToolError('crear_marcas va con agregar_marcas: indica las marcas que se dan de alta.')
+  // Resolved before minting brands, so a name that matches nobody leaves no orphan brand behind.
+  const target = editing ? await resolveSupplier(db, input.proveedor as string) : null
+  const { ids: [add, remove], created: minted } = await brandIdsFor(db, input.crear_marcas === true, input.agregar_marcas, input.quitar_marcas)
+  const avisos = minted.length > 0 ? [`Marca nueva dada de alta: ${minted.join(', ')}.`] : undefined
 
-  try {
-    if (!editing) {
-      const created = await createSupplier(db, parsed.value, add)
-      return { accion: 'creado', proveedor: await readSupplier(db, created.id) }
-    }
-    const target = await resolveSupplier(db, input.proveedor as string)
-    let brandIds: string[] | undefined
-    if (add.length > 0 || remove.length > 0) {
-      const { data, error } = await db.from('supplier_brands').select('brand_id').eq('supplier_id', target.id)
-      if (error) throw new ToolError(`Error al leer las marcas del proveedor: ${error.message}`)
-      const current = new Set(((data ?? []) as { brand_id: string }[]).map((l) => l.brand_id))
-      add.forEach((id) => current.add(id))
-      remove.forEach((id) => current.delete(id))
-      brandIds = [...current]
-    }
-    await updateSupplier(db, target.id, parsed.value, brandIds)
-    return { accion: 'actualizado', proveedor: await readSupplier(db, target.id) }
-  } catch (error) {
-    if (error instanceof SupplierError) throw new ToolError(error.message)
-    throw error
+  if (!target) {
+    const created = await createSupplier(db, parsed.value, add)
+    return writeResult('creado', 'proveedor', await readSupplier(db, created.id), { avisos })
   }
+  let brandIds: string[] | undefined
+  if (add.length > 0 || remove.length > 0) {
+    const { data, error } = await db.from('supplier_brands').select('brand_id').eq('supplier_id', target.id)
+    if (error) throw new ToolError(`Error al leer las marcas del proveedor: ${error.message}`)
+    const current = new Set(((data ?? []) as { brand_id: string }[]).map((l) => l.brand_id))
+    add.forEach((id) => current.add(id))
+    remove.forEach((id) => current.delete(id))
+    brandIds = [...current]
+  }
+  await updateSupplier(db, target.id, parsed.value, brandIds)
+  // Already the write envelope (#155 C3): it only gains escrito.
+  return writeResult('actualizado', 'proveedor', await readSupplier(db, target.id), { avisos })
 }

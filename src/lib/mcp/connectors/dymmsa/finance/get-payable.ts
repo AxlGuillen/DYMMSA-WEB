@@ -1,0 +1,22 @@
+import { z } from 'zod'
+import { defineTool } from '@/lib/mcp/core/define'
+import { dymmsaRead } from '../shared'
+import { getPayable } from '@/lib/mcp/tools/payables'
+
+export const getPayableTool = defineTool({
+  connector: 'dymmsa',
+  name: 'get_payable',
+  kind: 'read',
+  title: 'Detalle de factura por pagar',
+  description:
+    'Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta ref, o parte del concepto o del nombre del proveedor; con varias coincidencias pide precisar.',
+  input: { factura: z.string().min(1).describe('Ref, o parte del concepto / nombre del proveedor') },
+  hints: dymmsaRead,
+  docs: {
+    module: 'Finanzas',
+    title: 'Detalle de factura por pagar',
+    example: 'Dame el detalle de la factura de Perfiles.',
+    evals: ['Dame el detalle de la factura de Perfiles.', '¿Quién marcó pagada la de Tornillos y cuándo?'],
+  },
+  handler: ({ factura }, { db, userId }) => getPayable(db, userId, factura),
+})

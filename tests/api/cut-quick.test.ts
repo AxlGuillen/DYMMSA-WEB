@@ -43,9 +43,11 @@ describe('GET /material-presentations', () => {
   })
 })
 
+const MATERIAL_ID = '7c6d5e4f-0000-4000-8000-0000000000aa'
+
 describe('DELETE /material-presentations/[id]', () => {
   const del = () =>
-    presentationRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: 'm1' }))
+    presentationRoute.DELETE(makeRequest(undefined, { method: 'DELETE' }), makeParams({ id: MATERIAL_ID }))
 
   test('401 sin auth', async () => {
     activeClient = createMockSupabase({ user: null })
@@ -55,11 +57,11 @@ describe('DELETE /material-presentations/[id]', () => {
   test('elimina y responde el id', async () => {
     activeClient = createMockSupabase({
       user: AUTH,
-      responses: { 'material_presentations.delete': { data: [{ id: 'm1' }], error: null } },
+      responses: { 'material_presentations.delete': { data: [{ id: MATERIAL_ID }], error: null } },
     })
     const res = await del()
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ deleted: 'm1' })
+    expect(await res.json()).toEqual({ deleted: MATERIAL_ID })
   })
 
   test('404 si la medida no existe (delete sin filas)', async () => {

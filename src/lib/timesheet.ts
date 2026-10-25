@@ -5,6 +5,7 @@
 
 import type { ExcusedDay, ExcusedDayInsert, ExcuseKind, ProfileShift } from '@/types/database'
 import { isRealDate } from './month'
+import { tokenMap } from './tokens'
 
 // Finance validates dates too: the helper lives in month.ts, re-exported for the hours callers (review PR #139).
 export { isRealDate }
@@ -302,6 +303,12 @@ export const SHIFT_LABELS: Record<ProfileShift, string> = {
 }
 
 export const SHIFTS: readonly ProfileShift[] = ['full_time', 'part_time']
+
+/** The assistant's tokens (#155 C6): the same in the inputs and in the answers, and as payroll's jornada. */
+export const SHIFT_TOKENS = tokenMap({ full_time: 'completa', part_time: 'media' } as const satisfies Record<ProfileShift, string>)
+
+/** The excused day kinds (excused_days.kind). */
+export const EXCUSE_TOKENS = tokenMap({ holiday: 'feriado', early_release: 'salida_autorizada' } as const satisfies Record<ExcuseKind, string>)
 
 const toHours = (minutes: number) => Math.round((minutes / 60) * 10) / 10
 

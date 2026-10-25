@@ -170,7 +170,7 @@ src/
 ├── lib/
 │   ├── business-rules.ts                # Totals, item filters, allocation logic
 │   ├── api-helpers.ts                   # requireAuth(), standard responses
-│   ├── inventory.ts                     # computeRestoration, restoreOrderInventory
+│   ├── inventory.ts                     # computeRestoration + envoltorios de las funciones de stock
 │   ├── auto-learn.ts                    # mergeEtmFields, processAutoLearn
 │   ├── format.ts                        # Dates, strings, numbers
 │   └── supabase/                        # client.ts, server.ts, admin.ts

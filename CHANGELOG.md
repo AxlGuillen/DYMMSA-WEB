@@ -3,9 +3,220 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-24
+
+### Nuevo
+- [admin] **El asistente ahora también trabaja con cotizaciones, órdenes e
+  inventario.** Puede crear y editar una cotización (línea por línea o de
+  golpe), cambiarle el estado y darte el link de aprobación; generar la orden
+  de una cotización aprobada, cancelarla, cambiar precios y entregas, y
+  registrar lo que llegó de URREA. Siempre te muestra primero qué cambia (cuánto
+  sale de la tienda, qué se pide a URREA, qué vuelve al inventario) y solo
+  escribe cuando le das tu sí.
+- [admin] **También puede contar el inventario.** Si le dices «conté 12 del
+  6954», guarda lo contado menos lo que las órdenes abiertas todavía tienen
+  apartado en tienda, y te muestra la cuenta. Cada cambio de cantidad queda
+  anotado con quién lo hizo y el motivo (por ahora ese registro se consulta en
+  la base de datos; la app todavía no tiene pantalla para verlo).
+- [admin] **Catálogos, compra y ajustes desde el asistente.** Editar un producto
+  del catálogo ETM o una línea del catálogo URREA (te avisa cuántas decisiones
+  de compra quedan desactualizadas), decidir mayoreo o menudeo en una orden,
+  agregar o quitar piezas de la lista de corte, cambiar los umbrales y el
+  margen de corte, dar de alta marcas nuevas con el proveedor y editar tu
+  perfil o el de alguien del equipo (nunca el rol ni la tarifa).
+- [admin] **Nómina: confirmar y cerrar el corte desde el asistente.** Confirma
+  los borradores (te los lista todos antes), cierra o reabre el corte y corrige
+  un día ya capturado; siempre con tu sí.
+- [admin] **El asistente ahora pide tu sí en dos pasos para lo delicado.** Al
+  borrar un registro, cambiar el monto o las fechas de una factura ya pagada,
+  cambiar el título o la descripción de una tarea, o hacer la factura en
+  borrador de una venta de Odoo, primero te muestra un resumen de lo que
+  cambia (y lo que se perdería) y solo escribe cuando le das tu sí. Lo de bajo
+  riesgo, como registrar una factura o comentar una tarea, se guarda directo.
+- [admin] **El asistente puede borrar registros, siempre con tu sí.** Proveedores,
+  marcas, medidas de material, facturas por pagar (nunca las pagadas),
+  checadas y días justificados. Te avisa qué se pierde (una checada que vino
+  del checador vuelve si cargas otra vez ese reporte) y no deja borrar un
+  proveedor con facturas ni una marca en uso. Cotizaciones, órdenes,
+  productos, inventario y catálogo se siguen borrando solo en la app.
+
+### Mejorado
+- **La ubicación (gaveta) de un producto se cambia desde Inventario.** El asistente
+  ya no la cambia para quien no es administrador, porque ahora esa misma
+  herramienta también cuenta y ajusta cantidades.
+- [admin] **Nombres nuevos en las herramientas del asistente.** Reconecta el conector
+  «DYMMSA-WEB» en Claude para verlos: registrar, corregir, pagar o cancelar una
+  factura es ahora una sola herramienta (antes eran tres), igual que crear y
+  actualizar una tarea. Cambian también `registrar horas de nómina`, `perfiles
+  del equipo` y la ubicación en tienda, y todo se escribe en español
+  (`estado: pagada`, `buscar`, `pagina`…). Las rutinas programadas que usen los
+  nombres viejos hay que actualizarlas.
+- [admin] **Cargar el reporte del checador por el asistente ahora pide una clave
+  de la revisión previa.** Primero se revisa el reporte (la tabla con su botón) y
+  solo esa revisión permite guardarlo; si el servidor no tiene activada la
+  confirmación en dos pasos, el botón queda apagado y lo dice.
+- **En la documentación del asistente** aparece la etiqueta «pide tu si» en lo que
+  siempre espera tu confirmación y «puede pedir tu si» en lo que a veces la pide
+  (registrar una factura o comentar una tarea se guarda directo).
+- [admin] **Mientras el servidor no tenga activada la confirmación en dos pasos**,
+  el asistente no puede facturar en Odoo ni revisar el reporte del checador, y lo
+  dice: «La confirmación en dos pasos todavía no está activada en el servidor…
+  avisa a quien administra la plataforma».
+
+### Corregido
+- **Importar el catálogo URREA ya no lo puede dejar vacío.** Antes, si al
+  elegir «Reemplazar» el archivo traía un error (por ejemplo, el mismo código
+  con la misma marca dos veces), el catálogo se quedaba sin productos. Ahora se
+  revisa todo el archivo antes de guardar: si una fila no trae código, trae un
+  STD que no es un número entero mayor que 0 o repite un código con la misma
+  marca, no se importa nada y el aviso dice qué filas corregir. Y si algo falla
+  al reemplazar, el catálogo queda como estaba.
+- **Actualizar el catálogo con un archivo sin columna STD ya no pone todos los
+  STD en 1.** Si el archivo no trae la columna `std` (o `descripcion`), se
+  conserva la que ya estaba guardada; solo los productos nuevos quedan en 1.
+- **Los encabezados del Excel de productos se reconocen aunque traigan
+  espacios o minúsculas** («ETM », «etm»). Antes un espacio de más hacía que
+  se rechazara el archivo por «columnas faltantes».
+- **Si el archivo tiene errores, la lista se queda en la ventana de
+  importación**, una fila por renglón, en vez de desaparecer en un aviso.
+- **Un STD con decimales ya no da un error del sistema.** Al dar de alta o
+  editar un producto del catálogo URREA, un STD como 2.5 o 0 muestra un aviso
+  claro.
+- **Importar productos de la BD ETM ya no borra datos con celdas vacías.** Con
+  «Actualizar y agregar», una celda vacía deja lo que ya estaba guardado (antes
+  lo borraba y el precio quedaba en 0). Un producto nuevo sin código de modelo
+  ya no queda como marca URREA, y el aviso final dice cuántos quedaron sin
+  cambios.
+- **Los productos ya no aceptan un precio negativo**, ni al darlos de alta, ni
+  al editarlos, ni al importarlos (el aviso dice la fila).
+- **La descripción oficial del catálogo URREA ya no se guarda como Descripción
+  DYMMSA**, venga de donde venga: antes solo lo cuidaba la ventana de editar
+  producto.
+
+### Nuevo
+- [admin] **La clave SAT de los productos ya no hay que sabérsela.** En la
+  vista previa de una cotización de Odoo, cada producto que no tiene clave
+  SAT trae hasta tres sugeridas según su descripción. Eliges una de la lista,
+  tecleas otra o la dejas vacía, y se guarda al darlo de alta. También puedes
+  pedirla por nombre («con la categoría de pinturas en aerosol»). A los
+  productos que ya existen en Odoo sin clave se la pones con el botón
+  «Asignar clave SAT»; si alguien ya la capturó en Odoo, no se cambia. El
+  resumen de la factura en borrador ahora también dice qué productos no
+  tienen clave.
+
+### Mejorado
+- **Claude sabe mejor qué hace cada herramienta del asistente antes
+  de usarla.** Cada una le dice ahora si solo consulta, si solo agrega datos
+  (como crear una tarea) o si puede cambiar o quitar algo (como cancelar una
+  factura), y si repetirla duplicaría el registro. Antes, todas las que
+  guardan algo se presentaban como si pudieran borrar. Ninguna cambia lo que
+  hace.
+- **El asistente ahora avisa si le mandas un dato que no existe, en vez de
+  ignorarlo.** Si escribe mal un campo, usa un estado que no existe o una
+  fecha imposible (como el 30 de febrero), no hace nada: te dice qué falló,
+  qué datos acepta y un ejemplo correcto. Antes, en esos casos, podía traer
+  todo sin filtrar o guardar con el valor de siempre.
+- [admin] **En el conector de Odoo los datos de las búsquedas ahora van en
+  español** (`desde`, `hasta`, `agrupar_por`, `limite`…). Si una rutina usa
+  los nombres viejos en inglés, el asistente te dice cuáles son los nuevos.
+- **Odoo ahora vive en su propio conector, «Odoo DYMMSA».** El
+  conector de DYMMSA ya no trae las herramientas de Odoo (facturas, cobranza,
+  ventas, cotizar y facturar en Odoo). Para seguir usándolas, agrega el
+  conector en Claude: Configuración → Conectores → Agregar conector
+  personalizado, con el nombre «Odoo DYMMSA» y la dirección
+  `<app>/api/odoo/mcp` (la misma del conector de DYMMSA, cambiando `/api/mcp`
+  por `/api/odoo/mcp`). Entras con tu misma cuenta. En cada chat puedes
+  prender uno de los dos o los dos; el cierre del mes sigue trayendo lo
+  cobrado en Odoo desde el conector de DYMMSA.
+- [admin] **El asistente de Odoo tiene nombres nuevos y menos herramientas.**
+  Ahora cada herramienta dice lo que hace («Documento por folio», «Cliente y
+  estado de cuenta», «Cartera por cobrar»…). Para saber quién nos debe hay
+  una sola cifra, la misma de la pantalla Clientes. La factura, la venta y el
+  pago se consultan con su folio en la misma herramienta. El directorio de
+  empleados y la flotilla siguen disponibles con la búsqueda general. Si
+  tenías permisos guardados para estas herramientas en Claude, te los volverá
+  a pedir.
+- [admin] **Confirmar y facturar en Odoo desde el asistente piden tu sí con
+  datos.** Confirmar una cotización como venta ahora es un paso aparte: el
+  asistente te muestra qué pasará (la entrega que se crea) y solo confirma
+  con tu sí. Antes de hacer una factura en borrador te enseña un resumen con
+  el cliente, el total, las líneas y si ya se entregó; la crea hasta que le
+  dices que sí.
+
+### Corregido
+- **La fecha de pago solo se guarda en facturas pagadas.** Antes se le podía
+  poner «Pagada el» a una factura pendiente o cancelada sin cambiarle el
+  estado, y quedaba con una fecha que no correspondía. Ahora el sistema lo
+  rechaza con un aviso: primero se marca como pagada.
+- **Borrar algo que ya no existe ahora avisa.** Al eliminar un proveedor, una
+  marca, una factura por pagar o un producto del inventario que alguien más
+  ya había borrado, el sistema decía que todo salió bien; ahora dice que ya
+  no existe.
+- [admin] **El historial de una factura ahora registra cambios de monto y de
+  moneda.** Si alguien corrige el monto o cambia pesos por dólares, el
+  historial dice de cuánto a cuánto y quién lo hizo. Al registrar o borrar una
+  factura, el historial también guarda su moneda.
+- [admin] **Un corte de nómina cerrado ya no cambia solo.** Si después de
+  cerrar un corte se cambiaba la jornada de un empleado en Nómina o el área
+  (oficina o taller) de una persona en Equipo, los totales de ese corte ya
+  pagado se recalculaban. Ahora el corte guarda la jornada y el área que tenía
+  al cerrarse; si lo reabres, vuelve a usar las actuales.
+- [admin] **Siempre queda al menos un administrador**, aunque el cambio no se
+  haga desde la pantalla de Equipo. Y la corona de dueño ya no se puede mover
+  desde la app.
+- **Si editas una cotización mientras el cliente la revisa, su aprobación ya
+  no se pierde.** Antes, guardar renovaba todos los productos: si el cliente
+  enviaba después, la cotización quedaba Aprobada sin ningún producto
+  aprobado, y si guardaba avance se borraba lo que ya había marcado. Ahora los
+  productos se conservan al guardar. Si quitaste uno que el cliente tenía
+  marcado, su página le pide recargar y no guarda nada a medias.
+- **Lo que el cliente ya guardó no lo borra un detalle abierto desde antes.**
+  Mientras la cotización está En aprobación, sus decisiones se respetan
+  aunque guardes cambios de precio, cantidad o entrega.
+- **Guardar una cotización ya no la deja vacía ni a medias si algo falla:**
+  los productos, el nombre y el total se guardan juntos, o no se guarda nada.
+- **La fecha de aprobación es siempre la de la primera aprobación.** Ya no
+  cambia si el cliente vuelve a aprobar, ni se borra si después rechaza todo.
+- **El servidor también revisa los productos al guardar** (cantidad entera
+  mayor a 0, precio no negativo y ETM), igual que la pantalla, y te dice qué
+  ETM corregir.
+
+## 2026-10-23
+
+### Corregido
+- **El stock ya no se aparta dos veces cuando un producto se repite en la
+  orden.** Si la cotización trae el mismo código en dos secciones, ahora las
+  dos líneas comparten el stock que hay. Por ejemplo, con 6 en tienda y dos
+  líneas de 5, la primera toma 5, la segunda 1 y el resto se pide a URREA.
+  Antes las dos tomaban 5.
+- **Cancelar o eliminar una orden dos veces ya no devuelve el stock dos
+  veces.** Si la orden ya había cambiado, la app te pide recargar la página y
+  no toca el inventario.
+- **Una orden entregada ya no se puede cancelar ni quitarle o agregarle
+  productos**, porque el material ya salió con el cliente. Tampoco puede
+  regresar a Pedida ni a Recibida (entre Entregada y Completada sí puedes
+  moverla). Sí puedes seguir corrigiendo precios, tiempos de entrega y la
+  recepción. Si hubo una devolución, ajusta el inventario a mano.
+- **La recepción solo toca los productos de esa orden** y ya no acepta
+  recibidos en líneas que salieron completas de stock (sin pedido a URREA).
+  Además se guarda completa o nada: si algo falla a la mitad, no queda una
+  parte guardada y el inventario no se descuadra.
+- **Si agregar un producto a una orden falla, ya no se aparta nada** del
+  inventario. Y si falla cambiar el precio o el tiempo de entrega de una línea,
+  la app ahora te avisa en vez de decir que se guardó.
+- **Dos órdenes creadas al mismo tiempo ya no se pisan el inventario**: entre
+  las dos nunca apartan más de lo que hay en tienda.
+
 ## 2026-10-20
 
 ### Nuevo
+- **Facturas por pagar en dólares.** Al registrar o editar una factura eliges
+  la moneda: pesos (MXN, la de siempre) o dólares (USD). Los montos nunca se
+  convierten: lo de dólares se muestra aparte en la lista, en el overview de
+  Finanzas y en los vencimientos, y el cierre del mes sigue siendo en pesos.
+- **Total de lo filtrado en Facturas por pagar.** Debajo de la tabla ahora
+  aparece cuántas facturas coinciden con tus filtros y cuánto suman (todas, no
+  solo las de la página), con pesos y dólares por separado.
 - [admin] **El asistente ya puede hacer cotizaciones en Odoo.** Desde Claude le
   pides «haz esta cotización en Odoo para…» y te muestra una vista previa con
   el cliente, los productos y los precios; solo la guarda (en borrador, sin

@@ -108,7 +108,8 @@ import { SeparatorColorPicker } from '@/components/SeparatorColorPicker'
 import { SoldStatusBadge } from '@/components/quotations/SoldStatusBadge'
 import { getBlockingIssues } from '@/lib/quotation-validation'
 import { scrollToRow } from '@/lib/dom-helpers'
-import type { QuotationWithItems, QuotationItem, QuotationItemRow, DeliveryTime, QuotationStatus } from '@/types/database'
+import { toItemRow } from '@/lib/quotation-edit'
+import type { QuotationWithItems, QuotationItemRow, DeliveryTime, QuotationStatus } from '@/types/database'
 
 type ApprovalFilter = 'all' | 'approved' | 'rejected' | 'pending'
 type SortField = 'description' | 'unit_price' | 'quantity' | 'delivery_time'
@@ -427,26 +428,6 @@ function SortableDetailRow({
   )
 }
 
-const toItemRow = (item: QuotationItem): QuotationItemRow => ({
-  _id:            item.id,
-  _dbId:          item.id,
-  item_type:      item.item_type      ?? 'product',
-  section_label:  item.section_label  ?? '',
-  separator_color: item.separator_color ?? null,
-  etm:            item.etm            ?? '',
-  description:    item.description    ?? '',
-  description_es: item.description_es ?? '',
-  dymmsa_description: item.dymmsa_description ?? '',
-  model_code:     item.model_code     ?? '',
-  brand:          item.brand          ?? '',
-  unit_price:     item.unit_price,
-  quantity:       item.quantity,
-  delivery_time:  item.delivery_time ?? 'immediate',
-  _inDb:          !!(item.model_code || item.description),
-  is_approved:    item.is_approved,
-  is_sold:        item.is_sold,
-})
-
 const isMissingData     = (item: QuotationItemRow) => isProductRow(item) && !item.description && !item.model_code
 const isMissingQuantity = (item: QuotationItemRow) => isProductRow(item) && !isMissingData(item) && item.quantity == null
 
@@ -539,9 +520,9 @@ export function QuotationDetail({ quotation }: QuotationDetailProps) {
     }
   }
 
-  // Saving DELETEs+INSERTs items and regenerates their IDs, so this signature is
-  // what tells us the refetched data is new.
-  const itemsSignature = quotation.quotation_items.map((i) => i.id).join('|')
+  // Line ids survive a save since #157; updated_at moves with header writes. The client's progress only
+  // touches the lines, which is harmless: under review the stored decision wins (#157).
+  const itemsSignature = `${quotation.updated_at}|${quotation.quotation_items.map((i) => i.id).join('|')}`
 
   // oxlint-disable-next-line react-doctor/no-cascading-set-state -- intentional pattern; structural refactor tracked separately
   useEffect(() => {

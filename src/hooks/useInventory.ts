@@ -2,11 +2,12 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/lib/fetch-json'
+import type { StockFilter } from '@/lib/stock-filters'
 import type { StoreInventory, StoreInventoryInsert, StoreInventoryUpdate } from '@/types/database'
 
 const INVENTORY_KEY = ['inventory']
 
-export type StockFilter = 'all' | 'with_stock' | 'in_stock' | 'low_stock' | 'sin_stock'
+export type { StockFilter }
 export type QuantitySort = 'asc' | 'desc' | null
 
 /** Filter value for products whose ETM carries no brand (#53). */

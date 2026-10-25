@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
 import { todayInMexico } from '@/lib/format'
-import { summarizeMonth } from '@/lib/payables'
+import { splitByCurrency, summarizeMonth } from '@/lib/payables'
 import { ISO_MONTH, monthRange } from '@/lib/month'
 import type { Payable } from '@/types/database'
 
@@ -50,12 +50,18 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = [...(pendingRes.data ?? []), ...(paidRes.data ?? [])] as Payable[]
-    const summary = summarizeMonth(rows, month, todayInMexico())
+    const today = todayInMexico()
+    // The closing is in pesos; dollars are summarized apart and never converted (2026-10-20).
+    const { mxn, foreign } = splitByCurrency(rows)
+    const summary = summarizeMonth(mxn, month, today)
+    const foreignSummaries = Object.fromEntries(
+      Object.entries(foreign).map(([currency, list]) => [currency, summarizeMonth(list, month, today)]),
+    )
 
     const pendingTruncated = (pendingRes.count ?? 0) > PENDING_LIMIT
     const paidTruncated = (paidRes.count ?? 0) > PAID_LIMIT
 
-    return NextResponse.json({ month, summary, payables: rows, pendingTruncated, paidTruncated })
+    return NextResponse.json({ month, summary, foreign: foreignSummaries, payables: rows, pendingTruncated, paidTruncated })
   } catch (error) {
     console.error('Payables overview error:', error)
     return serverError('Error al obtener el resumen de finanzas')

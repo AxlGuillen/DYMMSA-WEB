@@ -12,7 +12,7 @@ import * as periodRoute from '@/app/api/payroll/periods/[start]/route'
 import * as prefillRoute from '@/app/api/payroll/periods/[start]/prefill/route'
 import * as confirmRoute from '@/app/api/payroll/periods/[start]/confirm/route'
 import * as daysRoute from '@/app/api/payroll/days/route'
-import { getPayrollPeriod, recordPayrollHours } from '@/lib/mcp/tools/payroll'
+import { getPayrollPeriod, savePayrollHours } from '@/lib/mcp/tools/payroll'
 import type { PayrollView } from '@/lib/payroll'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -73,7 +73,7 @@ describe('RLS: solo administradores', () => {
 
     // The MCP runs with the caller's token: same wall, with a message instead of a fake empty cut.
     expect((await getPayrollPeriod(member, { fecha: '2026-09-21' })).nota).toMatch(/solo la ve un administrador/)
-    await expect(recordPayrollHours(member, { dias: [{ empleado: 'Juan', fecha: '2026-09-22', horas: 8 }] })).rejects.toThrow(/solo la ve un administrador/)
+    await expect(savePayrollHours(member, { dias: [{ empleado: 'Juan', fecha: '2026-09-22', horas: 8 }] })).rejects.toThrow(/solo la ve un administrador/)
     expect(await dayRows()).toHaveLength(1)
   })
 
@@ -88,15 +88,15 @@ describe('el corte, de la hoja al cierre', () => {
   test('el asistente carga borradores, el admin confirma, cierra y el corte queda congelado', async () => {
     const id = await seedEmployee('Juan Taller')
 
-    const saved = await recordPayrollHours(admin, {
+    const saved = await savePayrollHours(admin, {
       dias: [
         { empleado: 'juan', fecha: '2026-09-19', horas: 6 },
         { empleado: 'juan', fecha: '2026-09-21', horas: 11.5 },
         { empleado: 'juan', fecha: '2026-09-26', horas: 5 },
       ],
     })
-    expect(saved.guardados).toBe(3)
-    expect(saved.cortes.map((c) => c.inicio)).toEqual(['2026-09-19', '2026-09-26'])
+    expect(saved.horas.guardados).toBe(3)
+    expect(saved.horas.cortes.map((c) => c.inicio)).toEqual(['2026-09-19', '2026-09-26'])
 
     let view = await readJson<PayrollView>(await periodRoute.GET(makeRequest(), start))
     expect(view.drafts).toBe(2)
@@ -119,8 +119,8 @@ describe('el corte, de la hoja al cierre', () => {
     // Frozen for the app, for the assistant and for a raw write with the service role.
     expect((await putDay({ employee_id: id, work_date: '2026-09-21', worked_minutes: 60 })).status).toBe(400)
     expect((await putDay({ employee_id: id, work_date: '2026-09-21', worked_minutes: 0 })).status).toBe(400)
-    const again = await recordPayrollHours(admin, { dias: [{ empleado: 'juan', fecha: '2026-09-22', horas: 8 }] })
-    expect(again).toMatchObject({ guardados: 0, omitidos: [{ fecha: '2026-09-22', motivo: 'el corte está cerrado' }] })
+    const again = await savePayrollHours(admin, { dias: [{ empleado: 'juan', fecha: '2026-09-22', horas: 8 }] })
+    expect(again.horas).toMatchObject({ guardados: 0, omitidos: [{ fecha: '2026-09-22', motivo: 'el corte está cerrado' }] })
     await expect(sql(`UPDATE public.payroll_days SET worked_minutes = 1 WHERE work_date = '2026-09-21'`)).rejects.toThrow(/está cerrado/)
     await expect(sql(`DELETE FROM public.payroll_days WHERE work_date = '2026-09-19'`)).rejects.toThrow(/está cerrado/)
     // The following cut is still open.
@@ -182,5 +182,84 @@ describe('el corte, de la hoja al cierre', () => {
     await expect(sql(`INSERT INTO public.payroll_days (employee_id, work_date, worked_minutes) VALUES ($1, '2026-09-21', 1500)`, [id])).rejects.toThrow(/payroll_days_worked_check/)
     await expect(seedEmployee('Juan Taller')).rejects.toThrow(/payroll_employees_name_key/)
     expect((await periodRoute.GET(makeRequest(), makeParams({ start: '2026-09-20' }))).status).toBe(400)
+  })
+})
+
+describe('#157: cerrar congela la jornada y el área', () => {
+  const snapshots = () =>
+    sql<{ work_date: string; shift_snapshot: string | null; area_snapshot: string | null }>(
+      `SELECT work_date::text, shift_snapshot, area_snapshot FROM public.payroll_days ORDER BY work_date`,
+    )
+  const view = async () => readJson<PayrollView>(await periodRoute.GET(makeRequest(), start))
+
+  test('cambiar la jornada o el área después del cierre no mueve los totales; reabrir vuelve a lo vivo', async () => {
+    const [{ id: memberId }] = await sql<{ id: string }>(`SELECT id FROM public.profiles WHERE role = 'member'`)
+    const id = await seedEmployee('Member Oficina', memberId)
+    // Office (seed) and full time: Saturday of 7 h all ordinary, Monday 10 h = 8 + 2 extra.
+    await sql(
+      `INSERT INTO public.payroll_days (employee_id, work_date, worked_minutes, status) VALUES
+        ($1, '2026-09-19', 420, 'confirmed'), ($1, '2026-09-21', 600, 'confirmed'), ($1, '2026-09-26', 300, 'confirmed')`,
+      [id],
+    )
+    const office = { regular: 420 + 480, extra: 120, saturdayExtra: 0, sunday: 0, equivalent: 420 + 600 }
+    expect((await view()).rows[0].totals).toEqual(office)
+
+    expect((await setClosed(true)).status).toBe(200)
+    // Only the closed cut's days carry the snapshot; the next cut stays live.
+    expect(await snapshots()).toEqual([
+      { work_date: '2026-09-19', shift_snapshot: 'full_time', area_snapshot: 'office' },
+      { work_date: '2026-09-21', shift_snapshot: 'full_time', area_snapshot: 'office' },
+      { work_date: '2026-09-26', shift_snapshot: null, area_snapshot: null },
+    ])
+    const [{ closed_at }] = await sql<{ closed_at: string }>(`SELECT closed_at::text FROM public.payroll_periods`)
+
+    // Equipo moves the person to the workshop and Nómina to part time.
+    await sql(`UPDATE public.profiles SET area = 'workshop' WHERE id = $1`, [memberId])
+    await sql(`UPDATE public.payroll_employees SET shift = 'part_time' WHERE id = $1`, [id])
+
+    const frozen = await view()
+    expect(frozen.rows[0]).toMatchObject({ area: 'office', shift: 'full_time', totals: office })
+    // The assistant reads the same frozen rules.
+    const mcp = await getPayrollPeriod(admin, { fecha: '2026-09-21' })
+    expect(mcp.empleados[0]).toMatchObject({ tipo: 'oficina', jornada: 'completa', equivalente: '17:00' })
+    // The open cut follows today's values: workshop Saturday of 5 h, all ordinary.
+    const next = await readJson<PayrollView>(await periodRoute.GET(makeRequest(), makeParams({ start: '2026-09-26' })))
+    expect(next.rows[0]).toMatchObject({ area: 'workshop', shift: 'part_time' })
+
+    // Closing again keeps the first stamp (it used to re-stamp).
+    expect((await setClosed(true)).status).toBe(200)
+    expect(await sql(`SELECT closed_at::text FROM public.payroll_periods`)).toEqual([{ closed_at }])
+
+    // Reopening clears the snapshot: the cut counts with today's workshop/part-time rules again.
+    expect((await setClosed(false)).status).toBe(200)
+    expect((await snapshots()).every((d) => d.shift_snapshot === null && d.area_snapshot === null)).toBe(true)
+    expect((await view()).rows[0]).toMatchObject({
+      area: 'workshop',
+      shift: 'part_time',
+      totals: { regular: 300 + 240, extra: 360, saturdayExtra: 120, sunday: 0, equivalent: 300 + 240 + 600 },
+    })
+  })
+
+  test('cerrar con borradores no deja snapshot ni sello: todo o nada', async () => {
+    const id = await seedEmployee('Juan Taller')
+    await sql(
+      `INSERT INTO public.payroll_days (employee_id, work_date, worked_minutes, status) VALUES
+        ($1, '2026-09-21', 480, 'confirmed'), ($1, '2026-09-22', 480, 'draft')`,
+      [id],
+    )
+    const blocked = await setClosed(true)
+    expect(blocked.status).toBe(400)
+    expect((await readJson<{ message: string }>(blocked)).message).toMatch(/1 días en borrador/)
+    expect((await snapshots()).every((d) => d.shift_snapshot === null)).toBe(true)
+    expect(await sql(`SELECT 1 FROM public.payroll_periods`)).toHaveLength(0)
+  })
+
+  test('un member no cierra ni reabre por RPC directa', async () => {
+    const id = await seedEmployee('Juan Taller')
+    await sql(`INSERT INTO public.payroll_days (employee_id, work_date, worked_minutes, status) VALUES ($1, '2026-09-21', 480, 'confirmed')`, [id])
+    const close = await member.rpc('close_payroll_period', { p_start: SAT, p_actor_name: 'Intruso' })
+    expect(close.error?.code).toBe('42501')
+    expect(await sql(`SELECT 1 FROM public.payroll_periods`)).toHaveLength(0)
+    expect((await snapshots())[0].shift_snapshot).toBeNull()
   })
 })

@@ -1,5 +1,7 @@
 # ADR-033 — Nómina: horas por día, corte sábado→viernes y la primera escritura del MCP en un módulo sensible
 
+> **Reabierto en parte por [[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] (2026-10-22):** §9 cambia. El MCP **sí** podrá confirmar borradores y cerrar o reabrir cortes con `save_payroll_period`, en dos fases; al confirmar, la clave se ata al conjunto de borradores. Cargar borradores sigue igual.
+
 **Fecha:** 2026-09-30
 **Estado:** Aceptado · issue #123
 **Relacionado:** [[ADR-026-Perfiles-y-Permisos-por-Rol]] · [[ADR-015-MCP-Interno]] · [[ADR-030-MCP-Cobertura-y-Escrituras-Payables]] · [[ADR-029-Horas-por-MCP]] · [[ADR-031-Manifiesto-del-MCP-en-la-Documentacion]] · [[ADR-028-Bitacora-Admin-Only]]
@@ -51,6 +53,18 @@ corte listas, sin duplicar lo que la oficina ya checa.
    service_role y por PostgREST directo. La ruta revisa antes solo para dar un mensaje claro. El
    trigger y `payrollPeriod()` calculan el sábado con la misma expresión (`(dow + 1) % 7`).
    Reabrir es explícito y deja `reopened_at` / `reopened_by_name`; quién cerró se conserva.
+
+   > **Actualización 2026-10-24 (#157, decisión del usuario: congelar al cerrar).** El trigger
+   > congelaba los **minutos**, pero la jornada (`payroll_employees.shift`) y el área del perfil
+   > ligado (`payrollArea()`) se leían en vivo: cambiarlas recalculaba el reparto normal/extra y el
+   > sábado de cortes **cerrados**. Ahora cerrar guarda `shift_snapshot`/`area_snapshot` en cada día
+   > del corte y `buildPayrollView()` → `dayRules()` los usa cuando existen (los vivos si no).
+   > Cerrar y reabrir pasan a dos funciones INVOKER (`close_payroll_period`/`reopen_payroll_period`):
+   > cerrar escribe el snapshot **antes** de pasar el corte a `closed` —si no, este mismo trigger
+   > lo rechazaría— en una transacción con el chequeo de borradores (P0001 `drafts_pending`);
+   > reabrir pasa a `open` primero y luego limpia el snapshot. Cerrar un corte ya cerrado **ya no
+   > re-sella**: devuelve el corte como está (el snapshot no se puede reescribir con el corte
+   > cerrado, y el primer sello es el que importa). Sigue sin guardarse ningún monto ni multiplicador.
 7. **"Prellenar y congelar" con Horas** (decisión del usuario). Nómina no lee `time_entries` en
    vivo: "Traer de Horas" copia los minutos por día como borrador y, una vez confirmados o
    cerrado el corte, corregir una checada el lunes ya no mueve una nómina pagada. Una checada sin
@@ -80,6 +94,14 @@ corte listas, sin duplicar lo que la oficina ya checa.
 - **Leer Horas en vivo desde Nómina.** Una corrección posterior cambiaría un pago ya hecho.
 - **Guardar horas ya multiplicadas.** Cambiar la tarifa de fin de semana exigiría reescribir datos.
 - **Que la tool confirme o cierre.** Un 3.5 mal leído es dinero: el paso humano es obligatorio.
+  **Reabierta el 2026-10-24 (#155 D, [[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] decisión 13):** el paso humano
+  sigue siendo obligatorio, pero ahora vive en la confirmación en dos fases y no en la pantalla. `save_payroll_period`
+  (`confirmar_borradores`, `cerrar`, `reabrir`) siempre devuelve primero el resumen: al confirmar lista **cada día** que
+  pasa a ser horas pagables (empleado, fecha, horas, origen) y el total antes → después, y la `clave` se ata a ese
+  conjunto exacto de borradores (id, horas, nota, `updated_at`): uno nuevo o cambiado anula la clave, y el commit
+  confirma solo los ids que se mostraron. `save_payroll_hours` gana `corregir` (un día, también confirmado, queda
+  manual y confirmado; `horas: 0` sin nota lo borra, como la celda vacía), con el mismo patrón. `dias` y
+  `traer_de_horas` siguen siendo borradores directos. Sin cambio: horas, nunca montos; no crea empleados.
 - **Bloquear el corte cerrado solo en la ruta.** El MCP y PostgREST no pasan por ella.
 
 ## Pendiente

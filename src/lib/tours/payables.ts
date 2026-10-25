@@ -6,7 +6,7 @@ export const PAYABLES_TOUR: OverviewStep[] = [
     selector: '[data-tour="pay-new"]',
     title: 'Registrar una factura',
     description:
-      'Proveedor, concepto, monto y fecha de factura. El <b>vencimiento</b> se pre-llena con los días de crédito del proveedor (los que capturaste en Proveedores) y puedes ajustarlo. Toda factura nace <b>pendiente</b>.',
+      'Proveedor, concepto, monto (en <b>pesos</b> por default, o en <b>dólares</b>) y fecha de factura. El <b>vencimiento</b> se pre-llena con los días de crédito del proveedor (los que capturaste en Proveedores) y puedes ajustarlo. Toda factura nace <b>pendiente</b>.',
     side: 'bottom',
   },
   {
@@ -19,6 +19,6 @@ export const PAYABLES_TOUR: OverviewStep[] = [
     selector: '[data-tour="pay-table"]',
     title: 'Vencimientos y pagos',
     description:
-      'Un vencimiento en <b>rojo</b> ya pasó; en <b>ámbar</b> cae en los próximos 7 días. El ✓ marca pagada con la fecha de <b>hoy</b>; si pagaste otro día, edita con el lápiz y captura la fecha real — es la que alimenta el cierre del mes en Finanzas. Si eres administrador también ves quién la marcó pagada.',
+      'Un vencimiento en <b>rojo</b> ya pasó; en <b>ámbar</b> cae en los próximos 7 días. El ✓ marca pagada con la fecha de <b>hoy</b>; si pagaste otro día, edita con el lápiz y captura la fecha real — es la que alimenta el cierre del mes en Finanzas. Abajo va el <b>total</b> de todo lo filtrado, pesos y dólares por separado. Si eres administrador también ves quién la marcó pagada.',
   },
 ]

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import { parseSupplierInput, SupplierError, updateSupplier } from '@/lib/suppliers-store'
+import { requireAuth, apiError, badRequest } from '@/lib/api-helpers'
+import { deleteSupplier, parseSupplierInput, updateSupplier } from '@/lib/suppliers-store'
 
 // PATCH /api/suppliers/[id] — sparse updates + brandIds (replace by diff)
 export async function PATCH(
@@ -24,12 +24,7 @@ export async function PATCH(
     await updateSupplier(supabase, id, parsed.value, body.brandIds as string[] | undefined)
     return NextResponse.json({ ok: true })
   } catch (error) {
-    if (error instanceof SupplierError) {
-      if (error.kind === 'not_found') return notFound(error.message)
-      return error.kind === 'failed' ? serverError(error.message) : badRequest(error.message)
-    }
-    console.error('Supplier update error:', error)
-    return serverError('Error al actualizar el proveedor')
+    return apiError(error, 'Error al actualizar el proveedor', 'Supplier update error:')
   }
 }
 
@@ -44,20 +39,9 @@ export async function DELETE(
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const { error } = await supabase.from('suppliers').delete().eq('id', id)
-
-    if (error) {
-      // payables FK WITHOUT cascade (#84): the supplier still has invoices.
-      if (error.code === '23503') {
-        return badRequest('El proveedor tiene facturas por pagar registradas — elimínalas o reasígnalas primero')
-      }
-      console.error('Error deleting supplier:', error)
-      return serverError('Error al eliminar el proveedor')
-    }
-
+    await deleteSupplier(supabase, id)
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error('Supplier delete error:', error)
-    return serverError('Error al eliminar el proveedor')
+    return apiError(error, 'Error al eliminar el proveedor', 'Supplier delete error:')
   }
 }

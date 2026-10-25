@@ -1,11 +1,10 @@
 /**
  * Odoo quotations from the assistant (#144, ADR-040): the preview only reads and signs a key; the
- * save writes exactly what was previewed (create, edit or confirm) and never posts nor stamps.
+ * save writes exactly what was previewed (create or edit), the confirm turns a reviewed one into a sale.
  */
 
 import { z } from 'zod'
 import { todayInMexico } from '@/lib/format'
-import { isRealDate } from '@/lib/month'
 import { OdooError, type OdooCaller } from '@/lib/odoo/client'
 import { startDeadline, type Deadline } from '@/lib/odoo/deadline'
 import { escapeLike } from '@/lib/odoo/domains'
@@ -37,6 +36,8 @@ import {
   NOTE_ECHO_MAX,
   planQuotationLines,
   priceDifferences,
+  productsWithoutSat,
+  QUOTATION_MODES,
   quotationMode,
   SALE_STATE_LABEL,
   unechoableWarnings,
@@ -47,22 +48,31 @@ import {
   type PreviewLine,
   type PriceDifference,
   type ProductForCreation,
+  type ProductWithoutSat,
+  type QuotationMode,
 } from '@/lib/odoo/quotation-plan'
+import { proposedSatKey } from '@/lib/odoo/sat-keys'
 import { ORIGIN_PREFIX, originMarker } from '@/lib/odoo/write-catalog'
 import { noteHasKeyMarker, ownedSaleLines, type OdooNote, type OdooWriter } from '@/lib/odoo/writer'
-import type { AdminProof } from '@/lib/odoo/write-guard'
-import type { McpContext } from '../../context'
-import { requireLiveAdmin, ToolError, withResultMeta, type ResultWithMeta } from '../../shared'
+import type { AdminProof } from '@/lib/auth/admin-proof'
+import type { McpContext } from '../../core/context'
+import { requireLiveAdmin } from '@/lib/mcp/core/auth/live-admin'
+import { ToolError } from '@/lib/mcp/core/errors'
+import { isoDate, parseInput, withSample, type InputOf } from '@/lib/mcp/core/schema'
+import { withResultMeta, type ResultWithMeta } from '@/lib/mcp/core/result'
+import { previewEnvelope } from '@/lib/mcp/core/envelope'
 import {
   many2oneName,
   numberOr,
   readSaleLines,
+  readSatSuggestions,
   requireExactSale,
   resolvePartnerForWrite,
   resolveProductsForWrite,
   rowsOf,
   saleFromRow,
   type SaleRecord,
+  type SatSuggestionsRead,
   type WritePartner,
 } from './resolve'
 
@@ -74,7 +84,9 @@ export type {
   PriceDifference,
   ProductForCreation,
   ProductState,
+  ProductWithoutSat,
 } from '@/lib/odoo/quotation-plan'
+export type { SatSuggestion } from '@/lib/odoo/sat-keys'
 
 /** Desired lines per quotation; MAX_EDIT_LINES + this must fit MAX_LINE_COMMANDS (tested). */
 export const MAX_QUOTATION_LINES = 80
@@ -87,7 +99,8 @@ export const quotationLine = z.strictObject({
   etm: z.string().max(60).optional().describe('ETM (default_code)'),
   marca: z.string().max(40).optional(),
   descripcion: z.string().max(200).optional().describe('Solo para dar de alta un producto que falta'),
-  clave_sat: z.string().regex(/^\d{8}$/, 'clave SAT de 8 dígitos').optional().describe('Solo producto nuevo'),
+  clave_sat: z.string().regex(/^\d{8}$/, 'clave SAT de 8 dígitos').optional().describe('Sin clave en Odoo: solo la que dio el usuario'),
+  categoria_sat: z.string().min(3).max(80).optional().describe('Sin clave en Odoo: texto para sugerirla, ej. «pinturas en aerosol»'),
   cantidad: z.number().positive().max(LINE_QTY_MAX).optional(),
   precio: z.number().min(0).max(LINE_PRICE_MAX).optional().describe('Unitario sin IVA; obligatorio'),
   descuento: z.number().min(0).max(100).optional().describe('%'),
@@ -97,27 +110,32 @@ export const quotationLine = z.strictObject({
 
 export type QuotationLineInput = z.infer<typeof quotationLine>
 
-const folio = z.string().regex(/^S\d{5,}$/i, 'folio de venta de Odoo, ej. S00912')
-const isoDate = z.string().refine((value) => isRealDate(value), 'fecha inválida (YYYY-MM-DD)')
+export const saleFolio = withSample(z.string().regex(/^S\d{5,}$/i, 'folio de venta de Odoo, ej. S00912'), 'S00912')
 
 export const previewQuotationShape = {
   cliente: z.string().min(1).max(120).optional().describe('Crear: nombre, RFC o #id del cliente'),
-  folio: folio.optional().describe('Cotización existente: revisar (solo folio) o editar (con lineas)'),
+  folio: saleFolio.optional().describe('Cotización existente: revisar (solo folio) o editar (con lineas)'),
   lineas: z.array(quotationLine).min(1).max(MAX_QUOTATION_LINES).optional().describe('La lista COMPLETA deseada'),
-  vigencia: isoDate.optional().describe('Vence el (YYYY-MM-DD)'),
+  vigencia: isoDate.optional().describe('Vence el'),
 }
+
+// A placeholder, never a real-looking key: the model must copy the preview's own.
+const previewKey = withSample(z.string().min(1).max(4000), '<la clave de la vista previa>')
 
 export const saveQuotationShape = {
   ...previewQuotationShape,
-  confirmar: z.literal(true).optional().describe('Confirmar como venta: solo folio, sin lineas'),
-  clave: z.string().min(1).max(4000).describe('La clave de la vista previa'),
+  clave: previewKey.describe('La clave de la vista previa'),
 }
 
-const previewSchema = z.strictObject(previewQuotationShape)
-const saveSchema = z.strictObject(saveQuotationShape)
+// Minimal on purpose (#155 B2b): confirming never carries lines, so it doesn't load their schema.
+export const confirmQuotationShape = {
+  folio: saleFolio.describe('Folio que revisó la vista previa'),
+  clave: previewKey.describe('La clave de esa revisión'),
+}
 
-export type PreviewQuotationInput = z.infer<typeof previewSchema>
-export type SaveQuotationInput = z.infer<typeof saveSchema>
+export type PreviewQuotationInput = InputOf<typeof previewQuotationShape>
+export type SaveQuotationInput = InputOf<typeof saveQuotationShape>
+export type ConfirmQuotationInput = InputOf<typeof confirmQuotationShape>
 
 /** What the handler injects: the read-only caller and the closed writer facade. */
 export interface OdooQuotationDeps {
@@ -146,15 +164,17 @@ export interface PreviewQuote {
 
 /** odoo_preview_quotation's result; the view (src/mcp-views/odoo-quotation) renders it. */
 export interface QuotationPreview {
-  readonly modo: 'crear' | 'editar' | 'revisar'
+  readonly modo: QuotationMode
   readonly cliente: PreviewClient
   readonly cotizacion: PreviewQuote | null
   readonly lineas: readonly PreviewLine[]
   /** Review only: the current lines with their linea_id, to start an edit from. */
   readonly lineas_como_entrada?: readonly LineRequest[]
   readonly productos_nuevos: readonly NewProductView[]
-  /** Exactly what the view sends to odoo_save_product and the authorization in _meta signs. */
+  /** What the view sends to odoo_save_product (with the key chosen there); the authorization in _meta signs it. */
   readonly productos_para_alta: readonly ProductForCreation[]
+  /** Existing products of the lines without a SAT key: the view's button can give them one (#154). */
+  readonly sin_clave_sat: readonly ProductWithoutSat[]
   readonly subtotal: number
   readonly moneda: string
   readonly impuestos: string
@@ -166,6 +186,19 @@ export interface QuotationPreview {
   readonly vence: string | null
   readonly siguiente_paso: string
 }
+
+const items = z.array(z.unknown())
+
+/** outputSchema (#155 C3): the preview envelope and the lists the view walks. Minimal for ODOO_BUDGET: each
+ *  line stays typed by QuotationPreview, which defineTool makes keep satisfying this. */
+export const previewQuotationOutput = z.looseObject({
+  modo: z.enum(QUOTATION_MODES),
+  ...previewEnvelope,
+  lineas: items,
+  productos_nuevos: items,
+  productos_para_alta: items,
+  sin_clave_sat: items,
+})
 
 export interface SaleView {
   readonly folio: string | null
@@ -192,33 +225,6 @@ export interface QuotationSaveResult {
 
 const TAX_NOTE = 'Montos sin IVA: los impuestos los calcula Odoo al guardar.'
 const NOTHING_SAVED = 'Nada se ha guardado.'
-
-/** 'debe ser al menos 0' / 'lleva hasta 80 líneas'. */
-function boundReason(origin: string, limit: number | bigint, side: 'min' | 'max', inclusive: boolean): string {
-  const count = (one: string, many: string) => `${limit} ${limit === 1 ? one : many}`
-  if (origin === 'string') return `lleva ${side === 'min' ? 'al menos' : 'hasta'} ${count('carácter', 'caracteres')}`
-  if (origin === 'array') return `lleva ${side === 'min' ? 'al menos' : 'hasta'} ${count('línea', 'líneas')}`
-  if (side === 'min') return `debe ser ${inclusive ? 'al menos' : 'mayor que'} ${limit}`
-  return `debe ser ${inclusive ? 'a lo más' : 'menor que'} ${limit}`
-}
-
-/** zod's own messages are English: the reasons the model can act on, in Spanish. */
-function issueReason(issue: z.core.$ZodIssue): string | null {
-  if (issue.code === 'custom' || issue.code === 'invalid_format') return issue.message
-  if (issue.code === 'too_small') return boundReason(issue.origin, issue.minimum, 'min', issue.inclusive !== false)
-  if (issue.code === 'too_big') return boundReason(issue.origin, issue.maximum, 'max', issue.inclusive !== false)
-  return null
-}
-
-/** The SDK already parsed with zod; this keeps direct calls (tests, scripts) to the same contract. */
-export function parseInput<S extends z.ZodType>(schema: S, raw: unknown): z.infer<S> {
-  const parsed = schema.safeParse(raw)
-  if (parsed.success) return parsed.data
-  const issue = parsed.error.issues[0]
-  const at = issue.path.length ? ` en ${issue.path.map(String).join('.')}` : ''
-  const reason = issueReason(issue)
-  throw new ToolError(`Entrada inválida${at}${reason ? `: ${reason}` : ''}. Revisa el formato y repite.`)
-}
 
 function writeDisabledReason(): string | null {
   try {
@@ -331,6 +337,7 @@ interface PreviewParts {
   readonly lineasComoEntrada?: readonly LineRequest[]
   readonly nuevos: readonly NewProductView[]
   readonly paraAlta: readonly ProductForCreation[]
+  readonly sinClave: readonly ProductWithoutSat[]
   readonly subtotal: number
   readonly moneda: string
   readonly bloqueos: readonly string[]
@@ -341,10 +348,79 @@ interface PreviewParts {
   readonly writeDate: string | null
 }
 
+interface SatAdvice {
+  readonly nuevos: readonly NewProductView[]
+  readonly sinClave: readonly ProductWithoutSat[]
+  readonly avisos: readonly string[]
+}
+
+const SAT_READ_FAILED = 'No pude leer el catálogo del SAT para sugerir claves: tecléala en la vista o captúrala en Odoo.'
+const SAT_TRUNCATED =
+  'El catálogo del SAT trajo demasiadas coincidencias: puede faltar una clave mejor entre las sugeridas (precisa con categoria_sat).'
+const satCut = (count: number) =>
+  `No alcancé a buscar todas las palabras de ${count === 1 ? '1 producto' : `${count} productos`}: su clave SAT puede no estar entre las sugeridas (precisa con categoria_sat o tecléala).`
+
+type SatTarget = Pick<NewProductView, 'clave_sat' | 'categoria_sat' | 'clave_sat_propuesta' | 'sugerencias_sat'>
+
+/** What a product without its key is searched by; null when the chat already gave the key. */
+const satText = (product: SatTarget, fallback: string) => (product.clave_sat ? null : (product.categoria_sat ?? fallback))
+
+/** What a categoria_sat found, so the chat can ask for the confirmation the view's click gives. */
+function categoryAdvice(name: string, target: SatTarget): string | null {
+  if (!target.categoria_sat) return null
+  const asked = `«${name}»: «${target.categoria_sat}»`
+  const proposed = target.sugerencias_sat.find((s) => s.clave === target.clave_sat_propuesta)
+  if (proposed) return `${asked} → clave SAT ${proposed.clave} (${proposed.nombre}): confírmala en la vista o elige otra.`
+  if (target.sugerencias_sat.length > 0) return `${asked} coincide con varias claves SAT: elige una en la vista.`
+  return `${asked} no coincide con ninguna clave SAT: prueba con otras palabras.`
+}
+
+/**
+ * ONE extra read, only when a product lacks its key (#154): new products by categoria_sat or their
+ * description, existing ones by categoria_sat or their Odoo name. A failed read only costs the suggestions.
+ */
+async function adviseSatKeys(
+  reader: OdooCaller,
+  nuevos: readonly NewProductView[],
+  sinClave: readonly ProductWithoutSat[],
+): Promise<SatAdvice> {
+  // One slot per product, new ones first; null = the chat already gave its key.
+  const texts = [...nuevos.map((p) => satText(p, p.descripcion)), ...sinClave.map((p) => satText(p, p.nombre))]
+  const wanted = texts.flatMap((text, slot) => (text === null ? [] : [{ text, slot }]))
+  if (wanted.length === 0) return { nuevos, sinClave, avisos: [] }
+  let read: SatSuggestionsRead
+  try {
+    read = await readSatSuggestions(reader, wanted.map((w) => w.text))
+  } catch (error) {
+    console.error('[odoo-write] SAT key suggestions failed', { error: errorName(error) })
+    return { nuevos, sinClave, avisos: [SAT_READ_FAILED] }
+  }
+  const bySlot = new Map(wanted.map(({ slot }, j) => [slot, { suggestions: read.suggestions[j], terms: read.terms[j] }]))
+  const advise = <T extends SatTarget>(product: T, slot: number): T => {
+    const hit = bySlot.get(slot)
+    if (!hit) return product
+    const proposed = product.categoria_sat ? proposedSatKey(hit.terms, hit.suggestions) : null
+    return { ...product, sugerencias_sat: hit.suggestions, clave_sat_propuesta: proposed }
+  }
+  const nextNew = nuevos.map((p, i) => advise(p, i))
+  const nextExisting = sinClave.map((p, i) => advise(p, nuevos.length + i))
+  const avisos = [
+    ...nextNew.map((p) => categoryAdvice(p.nombre_en_odoo, p)),
+    ...nextExisting.map((p) => categoryAdvice(p.nombre, p)),
+  ].filter((text): text is string => text !== null)
+  const limits = [...(read.truncated ? [SAT_TRUNCATED] : []), ...(read.cut.length > 0 ? [satCut(read.cut.length)] : [])]
+  return { nuevos: nextNew, sinClave: nextExisting, avisos: [...avisos, ...limits] }
+}
+
+const offeredKeys = (target: Pick<ProductWithoutSat, 'clave_sat' | 'sugerencias_sat'>) => [
+  ...(target.clave_sat ? [target.clave_sat] : []),
+  ...target.sugerencias_sat.map((s) => s.clave),
+]
+
 function previewNextStep(modo: QuotationPreview['modo'], canSave: boolean, hasNew: boolean): string {
   if (!canSave) return `${NOTHING_SAVED} Corrige lo que dicen los bloqueos y vuelve a pedir la vista previa.`
   if (modo === 'revisar') {
-    return `${NOTHING_SAVED} Para confirmarla como venta: muestra al_confirmar, espera el sí y llama odoo_save_quotation con el folio, confirmar: true y la clave. Para editarla: pide la vista previa con el folio y lineas (parte de lineas_como_entrada).`
+    return `${NOTHING_SAVED} Para confirmarla como venta: muestra al_confirmar, espera el sí y llama odoo_confirm_quotation con el folio y la clave. Para editarla: pide la vista previa con el folio y lineas (parte de lineas_como_entrada).`
   }
   if (hasNew) {
     return `${NOTHING_SAVED} Los productos nuevos solo se dan de alta con el botón de la vista (Claude web, escritorio o móvil). Sin vista, dalos de alta en Odoo o quita esas líneas y vuelve a pedir la vista previa.`
@@ -352,8 +428,15 @@ function previewNextStep(modo: QuotationPreview['modo'], canSave: boolean, hasNe
   return `${NOTHING_SAVED} Muestra el resumen, espera el sí y llama odoo_save_quotation con los mismos datos y la clave.`
 }
 
-/** Blocked → no key; otherwise the key, and the products authorization only in _meta (ADR-040). */
-function finishPreview(proof: AdminProof, parts: PreviewParts): QuotationPreview | ResultWithMeta<QuotationPreview> {
+/**
+ * Blocked → no key, no suggestions; otherwise the key, the SAT suggestions and the products
+ * authorization, which signs the keys the view may send and travels only in _meta (ADR-040, #154).
+ */
+async function finishPreview(
+  reader: OdooCaller,
+  proof: AdminProof,
+  parts: PreviewParts,
+): Promise<QuotationPreview | ResultWithMeta<QuotationPreview>> {
   const disabled = writeDisabledReason()
   const bloqueos = [...parts.bloqueos, ...(disabled ? [disabled] : [])]
   const canSave = bloqueos.length === 0
@@ -366,27 +449,36 @@ function finishPreview(proof: AdminProof, parts: PreviewParts): QuotationPreview
         writeDate: parts.writeDate,
       })
     : null
+  // Only a preview the view can act on is worth the read.
+  const sat: SatAdvice = key
+    ? await adviseSatKeys(reader, parts.nuevos, parts.sinClave)
+    : { nuevos: parts.nuevos, sinClave: parts.sinClave, avisos: [] }
   const data: QuotationPreview = {
     modo: parts.modo,
     cliente: parts.cliente,
     cotizacion: parts.cotizacion,
     lineas: parts.lineas,
     ...(parts.lineasComoEntrada ? { lineas_como_entrada: parts.lineasComoEntrada } : {}),
-    productos_nuevos: parts.nuevos,
+    productos_nuevos: sat.nuevos,
     productos_para_alta: parts.paraAlta,
+    sin_clave_sat: sat.sinClave,
     subtotal: parts.subtotal,
     moneda: parts.moneda,
     impuestos: TAX_NOTE,
     bloqueos,
-    avisos: parts.avisos,
+    avisos: [...parts.avisos, ...sat.avisos],
     al_confirmar: parts.alConfirmar,
     puede_guardar: canSave,
     clave: key?.clave ?? null,
     vence: key?.vence ?? null,
     siguiente_paso: previewNextStep(parts.modo, canSave, parts.paraAlta.length > 0),
   }
-  if (!key || parts.paraAlta.length === 0) return data
-  const { autorizacion } = issueProductsAuthorization(proof, parts.paraAlta)
+  if (!key || (parts.paraAlta.length === 0 && sat.sinClave.length === 0)) return data
+  const { autorizacion } = issueProductsAuthorization(proof, {
+    alta: parts.paraAlta,
+    altaKeys: sat.nuevos.map((p) => p.sugerencias_sat.map((s) => s.clave)),
+    asignar: sat.sinClave.map((p) => ({ productId: p.producto_id, keys: offeredKeys(p) })),
+  })
   return withResultMeta(data, { [PRODUCTS_AUTHORIZATION_META]: autorizacion })
 }
 
@@ -400,7 +492,7 @@ async function previewCreate(
   const { matches, products } = await resolveProductsForWrite(reader, lines)
   const plan = planQuotationLines({ mode: 'crear', lines, matches })
   const twin = await recentTwin(reader, partner.id, quotationContentHash(input).slice(0, 10))
-  return finishPreview(proof, {
+  return finishPreview(reader, proof, {
     kind: 'crear',
     modo: 'crear',
     input,
@@ -409,6 +501,7 @@ async function previewCreate(
     lineas: plan.lineas,
     nuevos: plan.nuevos,
     paraAlta: plan.paraAlta,
+    sinClave: productsWithoutSat(plan.lineas, lines),
     subtotal: plan.subtotal,
     // Every partner uses the "Default (MXN)" pricelist (verified 2026-10-16).
     moneda: 'MXN',
@@ -453,14 +546,16 @@ async function previewExisting(
 
   if (modo === 'revisar') {
     const productLines = current.filter((line) => line.kind === 'producto')
-    return finishPreview(proof, {
+    const lineas = currentPreviewLines(current, products)
+    return finishPreview(reader, proof, {
       ...common,
       kind: 'confirmar',
       modo,
-      lineas: currentPreviewLines(current, products),
+      lineas,
       lineasComoEntrada: linesAsInput(current),
       nuevos: [],
       paraAlta: [],
+      sinClave: productsWithoutSat(lineas),
       subtotal: numberOr(sale.raw.amount_untaxed, 0),
       bloqueos: productLines.length === 0 ? [`La ${sale.name} no tiene productos: no se puede confirmar.`] : [],
       avisos: [...avisos, ...unechoableWarnings(current)],
@@ -474,13 +569,14 @@ async function previewExisting(
   const plan = planQuotationLines({ mode: 'editar', lines, matches, current })
   const validityChanges = input.vigencia !== undefined && input.vigencia !== sale.validityDate
   const unchanged = plan.diff !== null && isEmptyDiff(plan.diff) && !validityChanges
-  return finishPreview(proof, {
+  return finishPreview(reader, proof, {
     ...common,
     kind: 'editar',
     modo,
     lineas: plan.lineas,
     nuevos: plan.nuevos,
     paraAlta: plan.paraAlta,
+    sinClave: productsWithoutSat(plan.lineas, lines),
     subtotal: plan.subtotal,
     bloqueos: [...plan.bloqueos, ...(unchanged ? [`No hay cambios: la ${sale.name} ya está así.`] : [])],
     avisos: [
@@ -508,7 +604,7 @@ export async function odooPreviewQuotation(
 ): Promise<QuotationPreview | ResultWithMeta<QuotationPreview>> {
   // It signs keys: a member or a demoted admin never reaches Odoo.
   const proof = await requireLiveAdmin(ctx)
-  const input = parseInput(previewSchema, raw)
+  const input = parseInput('odoo_preview_quotation', previewQuotationShape, raw)
   const mode = quotationMode(input)
   const lines = input.lineas ?? []
   assertQuotationLines(lines, mode)
@@ -516,18 +612,24 @@ export async function odooPreviewQuotation(
     throw new ToolError(`La vigencia ${input.vigencia} ya pasó: usa hoy o una fecha posterior.`)
   }
   if (mode === 'crear') return previewCreate(deps.reader, proof, input, lines)
-  if (mode === 'editar' || mode === 'revisar') return previewExisting(deps.reader, proof, input, lines, mode)
-  throw new ToolError('La vista previa no confirma: pide la revisión con solo el folio.')
+  return previewExisting(deps.reader, proof, input, lines, mode)
 }
 
-interface SaveRun {
+interface KeyedRun {
   readonly reader: OdooCaller
   readonly writer: OdooWriter
   readonly proof: AdminProof
   readonly verified: VerifiedQuotationKey
+  readonly dl: Deadline
+}
+
+interface SaveRun extends KeyedRun {
   readonly input: SaveQuotationInput
   readonly lines: readonly LineRequest[]
-  readonly dl: Deadline
+}
+
+interface ConfirmRun extends KeyedRun {
+  readonly folio: string
 }
 
 /** A key from a clean preview can't land here with blocks, unless Odoo changed in between. */
@@ -681,7 +783,7 @@ async function saveCreate(run: SaveRun): Promise<QuotationSaveResult> {
   const folioText = saved.cotizacion.folio ?? `id ${saleId}`
   return {
     ...saved,
-    siguiente_paso: `Quedó como cotización en BORRADOR (${folioText}); no se le envió al cliente. Para confirmarla como venta: odoo_preview_quotation con el folio (revisión), muestra al_confirmar y, tras el sí, odoo_save_quotation con el folio, confirmar: true y la clave.`,
+    siguiente_paso: `Quedó como cotización en BORRADOR (${folioText}); no se le envió al cliente. Para confirmarla como venta: odoo_preview_quotation con el folio (revisión), muestra al_confirmar y, tras el sí, odoo_confirm_quotation con el folio y la clave.`,
   }
 }
 
@@ -727,8 +829,8 @@ async function saveEdit(run: SaveRun): Promise<QuotationSaveResult> {
   }
 }
 
-async function saveConfirm(run: SaveRun): Promise<QuotationSaveResult> {
-  const sale = await requireExactSale(run.reader, run.input.folio ?? '', SAVE_SALE_FIELDS)
+async function confirmReviewed(run: ConfirmRun): Promise<QuotationSaveResult> {
+  const sale = await requireExactSale(run.reader, run.folio, SAVE_SALE_FIELDS)
   if (sale.id !== run.verified.claims.s) throw new ToolError(PREVIEW_CHANGED_MESSAGE)
   const marker = { k10: run.verified.markers.k10 }
   // Before the write_date lock: a retry after a confirm that did land answers "ya estaba".
@@ -772,8 +874,14 @@ async function saveConfirm(run: SaveRun): Promise<QuotationSaveResult> {
     ...saved,
     ...(reread?.confirmacion ? { confirmacion: reread.confirmacion } : {}),
     ...(avisoRastro ? { aviso_rastro: avisoRastro } : {}),
-    siguiente_paso: `La ${sale.name} quedó como VENTA confirmada. Para facturar: odoo_create_draft_invoice (la factura queda en borrador; se timbra en Odoo).`,
+    // No push to invoice (#155): the summary phase of odoo_create_draft_invoice runs only when asked.
+    siguiente_paso: `La ${sale.name} quedó como VENTA confirmada. Si piden facturarla: odoo_create_draft_invoice sin confirmar muestra antes el resumen.`,
   }
+}
+
+/** Checked before a single read: a missing key never reaches Odoo. */
+function requireKey(raw: { clave?: unknown } | undefined): void {
+  if (typeof raw?.clave !== 'string' || !raw.clave.trim()) throw new ToolError(PREVIEW_KEY_MISSING_MESSAGE)
 }
 
 /**
@@ -788,19 +896,38 @@ export async function odooSaveQuotation(
   // First: the live-admin read counts against the request's budget (#144).
   const dl = startDeadline()
   const proof = await requireLiveAdmin(ctx)
-  if (typeof raw?.clave !== 'string' || !raw.clave.trim()) throw new ToolError(PREVIEW_KEY_MISSING_MESSAGE)
-  const input = parseInput(saveSchema, raw)
+  requireKey(raw)
+  const input = parseInput('odoo_save_quotation', saveQuotationShape, raw)
   // Throws the precise reason (no key, bad URL) before anything is read.
   odooWriteEnv()
   const mode = quotationMode(input)
   if (mode === 'revisar') {
-    throw new ToolError('Con solo el folio no hay nada que guardar: manda las líneas para editar, o confirmar: true para confirmarla.')
+    throw new ToolError(
+      'Con solo el folio no hay nada que guardar: manda las líneas para editarla; para confirmarla como venta, odoo_confirm_quotation con el folio y la clave de la revisión.',
+    )
   }
   const lines = input.lineas ?? []
   assertQuotationLines(lines, mode)
   const verified = verifyQuotationKey(proof, input.clave, { kind: mode, input })
   const run: SaveRun = { reader: deps.reader, writer: deps.writer, proof, verified, input, lines, dl }
-  if (mode === 'crear') return saveCreate(run)
-  if (mode === 'editar') return saveEdit(run)
-  return saveConfirm(run)
+  return mode === 'crear' ? saveCreate(run) : saveEdit(run)
+}
+
+/**
+ * Confirms as a sale the quotation a review preview (folio only) showed (#155 B2b): the key binds
+ * admin, sale and write_date, so a stale one never confirms; a retry after it landed answers "ya estaba".
+ */
+export async function odooConfirmQuotation(
+  deps: OdooQuotationDeps,
+  ctx: ToolContext,
+  raw: ConfirmQuotationInput,
+): Promise<QuotationSaveResult> {
+  // First: the live-admin read counts against the request's budget (#144).
+  const dl = startDeadline()
+  const proof = await requireLiveAdmin(ctx)
+  requireKey(raw)
+  const input = parseInput('odoo_confirm_quotation', confirmQuotationShape, raw)
+  odooWriteEnv()
+  const verified = verifyQuotationKey(proof, input.clave, { kind: 'confirmar', input })
+  return confirmReviewed({ reader: deps.reader, writer: deps.writer, proof, verified, folio: input.folio, dl })
 }

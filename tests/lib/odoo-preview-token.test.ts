@@ -27,7 +27,7 @@ import {
   type QuotationKeyInput,
   type QuotationKeyTarget,
 } from '@/lib/odoo/preview-token'
-import { ADMIN_ONLY_MESSAGE } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE } from '@/lib/auth/admin-proof'
 import { testAdminProof } from '../helpers/fake-odoo'
 
 const WRITE_KEY = 'write-key-0123456789abcdef'
@@ -125,7 +125,7 @@ describe('clave de la vista previa (#144)', () => {
       expect(() => verifyQuotationKey(proofAt(NOW), bad, expected, { now: NOW })).toThrow(PREVIEW_KEY_INVALID_MESSAGE)
     }
     // An expired proof (or none issued by requireLiveAdmin) never verifies anything.
-    expect(() => verifyQuotationKey(proofAt(NOW - 120_000), clave, expected, { now: NOW })).toThrow(OdooError)
+    expect(() => verifyQuotationKey(proofAt(NOW - 120_000), clave, expected, { now: NOW })).toThrow(/La verificación de administrador venció/)
     const handMade = { ...proofAt(NOW) }
     expect(() => verifyQuotationKey(handMade, clave, expected, { now: NOW })).toThrow(ADMIN_ONLY_MESSAGE)
   })
@@ -141,9 +141,9 @@ describe('clave de la vista previa (#144)', () => {
     expect(verifyQuotationKey(proofAt(NOW), clave, { kind: 'crear', input: reordered }, { now: NOW }).expired).toBe(false)
   })
 
-  test('la clave de revisar sirve para confirmar', () => {
+  test('la clave de revisar sirve para confirmar (odoo_confirm_quotation manda folio y clave, #155 B2b)', () => {
     const { clave, markers } = issueQuotationKey(proofAt(NOW), REVIEW_TARGET, { now: NOW })
-    const confirm = { folio: 'S00912', confirmar: true, clave }
+    const confirm = { folio: 'S00912', clave }
     const verified = verifyQuotationKey(proofAt(NOW), clave, { kind: 'confirmar', input: confirm }, { now: NOW })
     expect(verified.markers).toEqual(markers)
     expect(verified.claims).toMatchObject({ k: 'confirmar', p: 1, s: 912, w: '2026-10-17 22:47:43' })
@@ -167,7 +167,7 @@ describe('clave de la vista previa (#144)', () => {
       ],
       vigencia: '2026-11-30 ',
       cliente: undefined,
-      confirmar: undefined,
+      clave: 'no es contenido',
     }
     expect(canonicalQuotationInput(messy)).toEqual(canonicalQuotationInput(tidy))
     expect(quotationContentHash(messy)).toBe(quotationContentHash(tidy))
@@ -234,7 +234,7 @@ describe('clave de la vista previa (#144)', () => {
   test('sin llave de escritura no hay clave', () => {
     vi.stubEnv('ODOO_WRITE_API_KEY', '')
     expect(() => issueQuotationKey(proofAt(NOW), CREATE_TARGET, { now: NOW })).toThrow(/deshabilitada.*ODOO_WRITE_API_KEY/)
-    expect(() => issueProductsAuthorization(proofAt(NOW), PRODUCTS, { now: NOW })).toThrow(/deshabilitada/)
+    expect(() => issueProductsAuthorization(proofAt(NOW), { alta: PRODUCTS }, { now: NOW })).toThrow(/deshabilitada/)
 
     // Rotating the key voids every pending preview.
     vi.stubEnv('ODOO_WRITE_API_KEY', WRITE_KEY)
@@ -265,7 +265,7 @@ describe('clave de la vista previa (#144)', () => {
 
   test('solo una clave vigente se vuelve permiso de escribir; copias y permisos ajenos no sirven', () => {
     const { clave, markers } = issueQuotationKey(proofAt(NOW), REVIEW_TARGET, { now: NOW })
-    const confirm = { kind: 'confirmar' as const, input: { folio: 'S00912', confirmar: true } }
+    const confirm = { kind: 'confirmar' as const, input: { folio: 'S00912' } }
     const verified = verifyQuotationKey(proofAt(NOW), clave, confirm, { now: NOW })
     const grant = grantPreviewWrite(verified, { now: NOW })
     expect(grant).toEqual({ kind: 'confirmar', userId: ADMIN, partnerId: 1, saleId: 912, markers, expiresAt: NOW + PREVIEW_TTL_MS })
@@ -305,7 +305,7 @@ describe('clave de la vista previa (#144)', () => {
 
 describe('autorización del alta de productos (#144)', () => {
   test('liga la lista exacta, el administrador y la vigencia', () => {
-    const { autorizacion, vence } = issueProductsAuthorization(proofAt(NOW), PRODUCTS, { now: NOW })
+    const { autorizacion, vence } = issueProductsAuthorization(proofAt(NOW), { alta: PRODUCTS }, { now: NOW })
     expect(vence).toBe(new Date(NOW + PREVIEW_TTL_MS).toISOString())
     const reordered = PRODUCTS.map((p) => Object.fromEntries(Object.entries(p).reverse()))
     expect(verifyProductsAuthorization(proofAt(NOW), autorizacion, reordered, { now: NOW })).toMatchObject({ k: 'products', u: ADMIN })
@@ -320,24 +320,66 @@ describe('autorización del alta de productos (#144)', () => {
     expect(() => verifyProductsAuthorization(proofAt(late), autorizacion, PRODUCTS, { now: late })).toThrow(PRODUCTS_EXPIRED_MESSAGE)
   })
 
+  test('firma las claves SAT que ofreció la vista previa; elegir otra de ellas no cambia la lista (#154)', () => {
+    const alta = [{ ...PRODUCTS[0], clave_sat: '27112100' }]
+    const scope = {
+      alta,
+      altaKeys: [['31211507', '27112100']],
+      asignar: [
+        { productId: 16971, keys: ['27111700', '27111700'] },
+        { productId: 32300, keys: [] },
+      ],
+    }
+    const { autorizacion } = issueProductsAuthorization(proofAt(NOW), scope, { now: NOW })
+    // The chat's own key always counts as offered; repeats collapse.
+    expect(verifyProductsAuthorization(proofAt(NOW), autorizacion, alta, { now: NOW })).toMatchObject({
+      v: 2,
+      ks: [['27112100', '31211507']],
+      a: [
+        [16971, ['27111700']],
+        [32300, []],
+      ],
+    })
+    const base = { codigo: 'ZZTEST144', descripcion: 'Producto de prueba del asistente', marca: 'PRUEBA', precio: 1 }
+    for (const choice of [{ clave_sat: '31211507' }, {}, { clave_sat: '99999999', clave_sat_tecleada: true }]) {
+      expect(() => verifyProductsAuthorization(proofAt(NOW), autorizacion, [{ ...base, ...choice }], { now: NOW }), JSON.stringify(choice)).not.toThrow()
+    }
+    // Assigning sends no list: the tool checks claims.a itself.
+    expect(verifyProductsAuthorization(proofAt(NOW), autorizacion, null, { now: NOW }).a).toHaveLength(2)
+    expect(() => verifyProductsAuthorization(proofAt(NOW), autorizacion, [{ ...base, precio: 2 }], { now: NOW })).toThrow(
+      PRODUCTS_CHANGED_MESSAGE,
+    )
+
+    // The keys ride inside the MAC: widening them breaks the signature.
+    const [payload, mac] = autorizacion.split('.')
+    const widened = Buffer.from(JSON.stringify({ ...payloadOf(autorizacion), ks: [['27112100', '01234567']] })).toString('base64url')
+    expect(widened).not.toBe(payload)
+    expect(() => verifyProductsAuthorization(proofAt(NOW), `${widened}.${mac}`, alta, { now: NOW })).toThrow(PRODUCTS_UNAUTHORIZED_MESSAGE)
+
+    // More than the chat's key and three suggestions per product is not a preview's.
+    expect(() =>
+      issueProductsAuthorization(proofAt(NOW), { alta, altaKeys: [['10000001', '10000002', '10000003', '10000004']] }, { now: NOW }),
+    ).toThrow(OdooError)
+  })
+
   test('sin autorización, o con la clave de la cotización en su lugar, no hay alta', () => {
     const { clave } = issueQuotationKey(proofAt(NOW), CREATE_TARGET, { now: NOW })
     for (const bad of [undefined, '', 'cualquier-cosa', clave]) {
       expect(() => verifyProductsAuthorization(proofAt(NOW), bad, PRODUCTS, { now: NOW })).toThrow(PRODUCTS_UNAUTHORIZED_MESSAGE)
     }
     // And the other way around: an authorization is not a quotation key.
-    const { autorizacion } = issueProductsAuthorization(proofAt(NOW), PRODUCTS, { now: NOW })
+    const { autorizacion } = issueProductsAuthorization(proofAt(NOW), { alta: PRODUCTS }, { now: NOW })
     expect(() => verifyQuotationKey(proofAt(NOW), autorizacion, { kind: 'crear', input: CREATE_INPUT }, { now: NOW })).toThrow(
       PREVIEW_KEY_INVALID_MESSAGE,
     )
   })
 
   test('emitir y verificar la autorización exigen una prueba de administrador vigente', () => {
-    const { autorizacion } = issueProductsAuthorization(proofAt(NOW), PRODUCTS, { now: NOW })
+    const { autorizacion } = issueProductsAuthorization(proofAt(NOW), { alta: PRODUCTS }, { now: NOW })
     const stale = proofAt(NOW - 120_000)
     const copied = { ...proofAt(NOW) }
-    expect(() => issueProductsAuthorization(stale, PRODUCTS, { now: NOW })).toThrow(/verificación de administrador venció/)
-    expect(() => issueProductsAuthorization(copied, PRODUCTS, { now: NOW })).toThrow(ADMIN_ONLY_MESSAGE)
+    expect(() => issueProductsAuthorization(stale, { alta: PRODUCTS }, { now: NOW })).toThrow(/verificación de administrador venció/)
+    expect(() => issueProductsAuthorization(copied, { alta: PRODUCTS }, { now: NOW })).toThrow(ADMIN_ONLY_MESSAGE)
     // The only server gate of odoo_save_product besides requireLiveAdmin.
     expect(() => verifyProductsAuthorization(stale, autorizacion, PRODUCTS, { now: NOW })).toThrow(/verificación de administrador venció/)
     expect(() => verifyProductsAuthorization(copied, autorizacion, PRODUCTS, { now: NOW })).toThrow(ADMIN_ONLY_MESSAGE)

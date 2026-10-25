@@ -4,15 +4,29 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { DomainError, type DomainErrorKind } from '@/lib/domain-error'
+import { isUuid } from '@/lib/text'
 import { isRealDate, normalizeEntryTimes, normalizeTime, type ParsedReport } from '@/lib/timesheet'
 import type { Profile, TimeEntry, TimeEntryUpdate, TimeImportResult } from '@/types/database'
 
 /** A rule the user broke (→ 400 / 404 / 403, or a ToolError); anything else is a real failure. */
-export class TimeEntryError extends Error {
-  constructor(message: string, readonly kind: 'invalid' | 'not_found' | 'forbidden' = 'invalid') {
-    super(message)
+export class TimeEntryError extends DomainError {
+  constructor(message: string, kind: DomainErrorKind = 'invalid') {
+    super(message, kind)
     this.name = 'TimeEntryError'
   }
+}
+
+/** DELETE /api/time-entries/[id] and delete_record (#155 C6). A punch the clock reported comes back with the re-import. */
+export async function deleteTimeEntry(db: SupabaseClient, id: string): Promise<void> {
+  // A malformed id would reach Postgres as a 22P02 → 500 (#157).
+  if (!isUuid(id)) throw new TimeEntryError('La checada no existe', 'not_found')
+  const { data, error } = await db.from('time_entries').delete().eq('id', id).select('id')
+  if (error) {
+    console.error('Error deleting time entry:', error)
+    throw new TimeEntryError('Error al eliminar la checada', 'failed')
+  }
+  if (!data || data.length === 0) throw new TimeEntryError('La checada no existe', 'not_found')
 }
 
 export type ClockProfile = Pick<Profile, 'id' | 'display_name' | 'clock_employee_id'>

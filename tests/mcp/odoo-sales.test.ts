@@ -2,24 +2,9 @@
  *  without `mobile` (Odoo 19), date_order as DATETIME, false for empty email/phone. */
 
 import { describe, test, expect } from 'vitest'
-import type { OdooCaller } from '@/lib/odoo/client'
-import { odooSalesSummary, odooCustomerProfile } from '@/lib/mcp/tools/odoo/sales'
-import { odooQuery } from '@/lib/mcp/tools/odoo/accounting'
-
-type Call = { model: string; method: string; payload: Record<string, unknown> }
-
-function fakeOdoo(script: Record<string, unknown[]>) {
-  const calls: Call[] = []
-  const pending = Object.fromEntries(Object.entries(script).map(([k, v]) => [k, [...v]]))
-  const odoo: OdooCaller = async (model, method, payload) => {
-    calls.push({ model, method, payload })
-    const key = `${model}.${method}`
-    const queue = pending[key]
-    if (!queue || queue.length === 0) throw new Error(`sin respuesta programada para ${key}`)
-    return queue.shift()
-  }
-  return { odoo, calls }
-}
+import { odooSummarizeSales } from '@/lib/mcp/tools/odoo/sales'
+import { odooSearchRecords } from '@/lib/mcp/tools/odoo/accounting'
+import { fakeOdoo } from '../helpers/fake-odoo'
 
 const ANDRITZ = {
   id: 24,
@@ -30,26 +15,22 @@ const ANDRITZ = {
   city: 'Morelia',
   country_id: [156, 'Mexico'],
   customer_rank: 116,
-  // #113 (captured 2026-09-24): Odoo's receivable figures, computed per partner.
-  total_due: 376024.81,
-  total_overdue: 1390.26,
-  days_sales_outstanding: 88.23042550254195,
 }
 
 describe('catálogo fase 2', () => {
-  test('res.partner y sale.order ya son consultables vía odoo_query', async () => {
+  test('res.partner y sale.order ya son consultables vía odoo_search_records', async () => {
     const { odoo } = fakeOdoo({ 'res.partner.search_read': [[ANDRITZ]] })
-    const result = await odooQuery(odoo, { model: 'res.partner', limit: 1 })
+    const result = await odooSearchRecords(odoo, { modelo: 'res.partner', limite: 1 })
     expect(result.items[0].country_id).toBe('Mexico')
   })
 
   test('mobile NO está en la whitelist (no existe en Odoo 19)', async () => {
     const { odoo } = fakeOdoo({})
-    await expect(odooQuery(odoo, { model: 'res.partner', fields: ['mobile'] })).rejects.toThrow(/mobile/)
+    await expect(odooSearchRecords(odoo, { modelo: 'res.partner', campos: ['mobile'] })).rejects.toThrow(/mobile/)
   })
 })
 
-describe('odoo_sales_summary', () => {
+describe('odoo_summarize_sales', () => {
   test('default: solo confirmadas, con el rango datetime expandido al día completo', async () => {
     const { odoo, calls } = fakeOdoo({
       'sale.order.read_group': [[
@@ -57,7 +38,7 @@ describe('odoo_sales_summary', () => {
         { state: 'done', state_count: 10, amount_untaxed: 90000, amount_total: 104400, __domain: [] },
       ]],
     })
-    const result = await odooSalesSummary(odoo, { date_from: '2026-07-01', date_to: '2026-07-31' })
+    const result = await odooSummarizeSales(odoo, { desde: '2026-07-01', hasta: '2026-07-31' })
 
     const domain = calls[0].payload.domain as unknown[][]
     expect(domain).toContainEqual(['state', 'in', ['sale', 'done']])
@@ -73,85 +54,8 @@ describe('odoo_sales_summary', () => {
         { user_id: [2, 'Diego Baltazar Esquivel'], user_id_count: 500, amount_total: 17000000, __domain: [] },
       ]],
     })
-    await odooSalesSummary(odoo, { incluir: 'todas', group_by: 'vendedor' })
+    await odooSummarizeSales(odoo, { incluir: 'todas', agrupar_por: 'vendedor' })
     expect(calls[0].payload.domain).toContainEqual(['state', '!=', 'cancel'])
     expect(calls[0].payload.groupby).toEqual(['user_id'])
-  })
-})
-
-describe('odoo_customer_profile', () => {
-  test('varias coincidencias → pide precisar con la lista, sin llamadas extra', async () => {
-    const { odoo, calls } = fakeOdoo({
-      'res.partner.search_read': [[ANDRITZ, { ...ANDRITZ, id: 99, name: 'Andritz Hydro' }]],
-    })
-    const result = await odooCustomerProfile(odoo, { cliente: 'andritz' })
-    expect(result.encontrado).toBe(false)
-    if (!result.encontrado) expect(result.coincidencias).toEqual(['Andritz', 'Andritz Hydro'])
-    expect(calls).toHaveLength(1)
-  })
-
-  test('match único → expediente completo en 4 llamadas (contacto+ventas+facturación+vencidas)', async () => {
-    const { odoo, calls } = fakeOdoo({
-      'res.partner.search_read': [[ANDRITZ]],
-      'sale.order.read_group': [[
-        { state: 'sale', state_count: 80, amount_total: 900000, __domain: [] },
-        { state: 'draft', state_count: 5, amount_total: 50000, __domain: [] },
-      ]],
-      'account.move.read_group': [
-        [
-          { payment_state: 'paid', payment_state_count: 60, amount_total: 700000, amount_residual: 0, __domain: [] },
-          { payment_state: 'not_paid', payment_state_count: 5, amount_total: 20253.47, amount_residual: 20253.47, __domain: [] },
-        ],
-        // 12 open notes: the total comes from here, not from the 10-row list.
-        [{ partner_id: [24, 'Andritz'], partner_id_count: 12, amount_residual: 18000, __domain: [] }],
-      ],
-      'account.move.search_read': [
-        [{ id: 1, name: 'F00078', invoice_date_due: '2026-06-05', amount_residual: 6558.64 }],
-        [{ id: 887, name: 'RINV/2026/00012', invoice_date: '2026-09-01', amount_residual: 1500 }],
-      ],
-    })
-
-    const result = await odooCustomerProfile(odoo, { cliente: 'Andritz' })
-    // #113: the receivable figures ride along the partner read, digested apart from the contact.
-    expect(calls[0].payload.fields).toEqual(expect.arrayContaining(['total_due', 'total_overdue', 'days_sales_outstanding']))
-    if (result.encontrado) {
-      expect(result.cartera).toMatchObject({ deuda_total: 376024.81, vencido: 1390.26, dias_promedio_de_pago: 88 })
-      // Net-of-credit-notes figures travel with their own warning so the model never subtracts twice (#102).
-      expect(result.cartera.nota).toMatch(/neto de notas de crédito/)
-      expect(result.cliente).not.toHaveProperty('total_due')
-    }
-
-    expect(calls).toHaveLength(6)
-    // The 5 detail calls filter by the id of the partner found.
-    for (const call of calls.slice(1)) {
-      expect(call.payload.domain).toContainEqual(['partner_id', '=', 24])
-    }
-    expect(result.encontrado).toBe(true)
-    if (result.encontrado) {
-      expect(result.cliente.vat).toBe('AHY9601017X4')
-      // Only confirmed (sale/done): Odoo drafts are quotes, not sales.
-      expect(result.ventas.total_confirmado).toBe(900000)
-      expect(result.facturacion.total_pendiente).toBeCloseTo(20253.47)
-      expect(result.facturas_vencidas[0]).toMatchObject({ folio: 'F00078', monto_pendiente: 6558.64 })
-      expect(result.facturas_vencidas[0].dias_vencida).toBeGreaterThan(0)
-      // Credit notes apart; total_pendiente stays gross (#102). The total is the aggregate,
-      // never the sum of the limited list (review PR #103).
-      expect(calls[4].method).toBe('read_group')
-      expect(calls[4].payload.domain).toContainEqual(['move_type', '=', 'out_refund'])
-      expect(calls[5].payload.limit).toBe(10)
-      expect(result.notas_credito_sin_aplicar).toEqual({
-        saldo_a_favor: 18000,
-        documentos: 12,
-        ultimas: [{ folio: 'RINV/2026/00012', fecha: '2026-09-01', saldo: 1500 }],
-        lista_completa: false,
-      })
-    }
-  })
-
-  test('sin coincidencias → mensaje claro', async () => {
-    const { odoo } = fakeOdoo({ 'res.partner.search_read': [[]] })
-    const result = await odooCustomerProfile(odoo, { cliente: 'Empresa Fantasma' })
-    expect(result.encontrado).toBe(false)
-    if (!result.encontrado) expect(result.mensaje).toContain('Empresa Fantasma')
   })
 })

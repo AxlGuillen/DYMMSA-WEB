@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { nextMonth, resolvePayableFilter } from '@/lib/payables'
+import { nextMonth, payableTotals, resolvePayableFilter } from '@/lib/payables'
+import { createPayable } from '@/lib/payables-store'
 import { createClient } from '@/lib/supabase/server'
 import { todayInMexico } from '@/lib/format'
-import { isRealDate } from '@/lib/month'
-import { requireAuth, requireRole, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
-import type { PayableInsert, PayableWithSupplier } from '@/types/database'
+import { requireAuth, requireRole, apiError, badRequest, serverError, isUuid } from '@/lib/api-helpers'
+import type { Payable, PayableWithSupplier } from '@/types/database'
 
 const SORT_FIELDS = ['due_date', 'invoice_date', 'amount', 'created_at'] as const
 type SortField = (typeof SORT_FIELDS)[number]
@@ -14,6 +14,11 @@ type SortField = (typeof SORT_FIELDS)[number]
 const sanitizeSearch = (raw: string) => raw.replace(/[,()%]/g, ' ').trim()
 
 const ISO_MONTH = /^\d{4}-\d{2}$/
+
+/** Rows summed for the footer total; `truncated` compares what arrived, since PostgREST max_rows may cut first. */
+const TOTALS_LIMIT = 5000
+const LIST_COLUMNS = '*, supplier:suppliers(id, name, payment_terms_days)'
+const TOTAL_COLUMNS = 'amount, currency'
 
 /** Optional non-negative amount from the query; `undefined` when absent, `null` when invalid. */
 function amountParam(raw: string | null): number | null | undefined {
@@ -76,32 +81,35 @@ export async function GET(request: NextRequest) {
     const ascending = searchParams.get('sortDir') !== 'desc'
 
     const from = (page - 1) * pageSize
-    let query = supabase
-      .from('payables')
-      .select('*, supplier:suppliers(id, name, payment_terms_days)', { count: 'exact' })
-
-    if (search) query = query.ilike('concept', `%${search}%`)
     const filter = resolvePayableFilter(status, todayInMexico())
-    if (filter) query = query.eq('status', filter.status)
-    if (filter?.dueBefore) query = query.lt('due_date', filter.dueBefore)
-    if (isUuid(supplier)) query = query.eq('supplier_id', supplier)
-    if (minAmount !== undefined) query = query.gte('amount', minAmount)
-    if (maxAmount !== undefined) query = query.lte('amount', maxAmount)
-    if (ISO_MONTH.test(month)) {
+    // One builder for the page and for the footer total: they must describe the same set.
+    const filteredQuery = (columns: string, count?: 'exact') => {
+      let q = supabase.from('payables').select(columns, count ? { count } : undefined)
+      if (search) q = q.ilike('concept', `%${search}%`)
+      if (filter) q = q.eq('status', filter.status)
+      if (filter?.dueBefore) q = q.lt('due_date', filter.dueBefore)
+      if (isUuid(supplier)) q = q.eq('supplier_id', supplier)
+      if (minAmount !== undefined) q = q.gte('amount', minAmount)
+      if (maxAmount !== undefined) q = q.lte('amount', maxAmount)
       // Filter by DUE month — the criterion the overview and the planning use.
-      query = query.gte('due_date', `${month}-01`).lt('due_date', nextMonth(month))
+      if (ISO_MONTH.test(month)) q = q.gte('due_date', `${month}-01`).lt('due_date', nextMonth(month))
+      return q
     }
 
-    const { data, error, count } = await query
-      .order(sortField, { ascending, nullsFirst: false })
-      .range(from, from + pageSize - 1)
+    const [pageRes, totalsRes] = await Promise.all([
+      filteredQuery(LIST_COLUMNS, 'exact')
+        .order(sortField, { ascending, nullsFirst: false })
+        .range(from, from + pageSize - 1),
+      filteredQuery(TOTAL_COLUMNS).limit(TOTALS_LIMIT),
+    ])
+    const { data, error, count } = pageRes
 
-    if (error) {
-      console.error('Error fetching payables:', error)
+    if (error || totalsRes.error) {
+      console.error('Error fetching payables:', error ?? totalsRes.error)
       return serverError('Error al obtener las facturas por pagar')
     }
 
-    let rows = (data ?? []) as PayableWithSupplier[]
+    let rows = (data ?? []) as unknown as PayableWithSupplier[]
     if (isAdmin) {
       // Only rows that are paid NOW: a payable sent back to pending keeps its old event.
       const paidIds = rows.filter((r) => r.status === 'paid').map((r) => r.id)
@@ -115,6 +123,11 @@ export async function GET(request: NextRequest) {
       page,
       pageSize,
       totalPages: Math.ceil((count ?? 0) / pageSize),
+      // Every filtered row, not just this page (2026-10-20).
+      totals: {
+        ...payableTotals((totalsRes.data ?? []) as unknown as Pick<Payable, 'amount' | 'currency'>[]),
+        truncated: (totalsRes.data?.length ?? 0) < (count ?? 0),
+      },
     })
   } catch (error) {
     console.error('Payables GET error:', error)
@@ -129,54 +142,8 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as Partial<PayableInsert>
-
-    const supplierId = typeof body.supplier_id === 'string' ? body.supplier_id : ''
-    if (!supplierId) return badRequest('Elige el proveedor de la factura')
-
-    const concept = typeof body.concept === 'string' ? body.concept.trim() : ''
-    if (!concept) return badRequest('El concepto es obligatorio')
-
-    const amount = typeof body.amount === 'number' ? body.amount : NaN
-    if (!Number.isFinite(amount) || amount <= 0) return badRequest('El monto debe ser mayor a 0')
-
-    if (!isRealDate(body.invoice_date)) {
-      return badRequest('Fecha de factura inválida')
-    }
-    if (!isRealDate(body.due_date)) {
-      return badRequest('Fecha de vencimiento inválida')
-    }
-
-    // Check the supplier BEFORE the insert: precise 404 instead of an FK 23503.
-    const { data: supplier } = await supabase
-      .from('suppliers').select('id').eq('id', supplierId).single()
-    if (!supplier) return notFound('El proveedor no existe')
-
-    const payload: PayableInsert = {
-      supplier_id: supplierId,
-      concept,
-      amount,
-      invoice_date: body.invoice_date,
-      due_date: body.due_date,
-      status: 'pending',
-      paid_at: null,
-      notes: typeof body.notes === 'string' ? body.notes.trim() || null : null,
-    }
-
-    const { data, error } = await supabase
-      .from('payables')
-      .insert(payload)
-      .select('*, supplier:suppliers(id, name, payment_terms_days)')
-      .single()
-
-    if (error || !data) {
-      console.error('Error creating payable:', error)
-      return serverError('Error al registrar la factura')
-    }
-
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json(await createPayable(supabase, await request.json()), { status: 201 })
   } catch (error) {
-    console.error('Payables POST error:', error)
-    return serverError('Error al registrar la factura')
+    return apiError(error, 'Error al registrar la factura', 'Payables POST error:')
   }
 }

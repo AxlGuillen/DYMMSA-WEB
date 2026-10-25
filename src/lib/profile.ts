@@ -3,12 +3,20 @@
 import { avatarPublicUrl } from './avatar'
 import { normalizeNss, nssError } from './nss'
 import { parseRate } from './office-pay'
+import { tokenMap } from './tokens'
 import type { Profile, ProfileArea, ProfileRole } from '@/types/database'
 
 export const ROLE_LABELS: Record<ProfileRole, string> = { admin: 'Administrador', member: 'Miembro' }
 
 export const AREA_LABELS: Record<ProfileArea, string> = { office: 'Oficina', workshop: 'Taller' }
+
+/** The assistant's tokens (#155 C6): the same in the inputs and in the answers. */
+export const ROLE_TOKENS = tokenMap({ admin: 'administrador', member: 'miembro' } as const satisfies Record<ProfileRole, string>)
+export const AREA_TOKENS = tokenMap({ office: 'oficina', workshop: 'taller' } as const satisfies Record<ProfileArea, string>)
 export const AREAS: readonly ProfileArea[] = ['office', 'workshop']
+
+/** Same text as the profiles_guard_last_admin trigger (#157): the route says it first, the DB backs it. */
+export const LAST_ADMIN_MESSAGE = 'Debe quedar al menos un administrador'
 
 export const PROFILE_COLUMNS = 'id, display_name, role, clock_employee_id, shift, nss, avatar_path, is_owner, area, created_at, updated_at'
 /** Admin reads: the rate embedded from its admin-only table (review PR #137). */

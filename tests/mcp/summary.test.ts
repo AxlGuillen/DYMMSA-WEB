@@ -3,7 +3,7 @@
 import { describe, test, expect, beforeEach } from 'vitest'
 import { createMockSupabase } from '../helpers/supabase-mock'
 import { getBusinessSummary } from '@/lib/mcp/tools/summary'
-import { type Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
@@ -27,12 +27,12 @@ describe('getBusinessSummary', () => {
 
     const summary = await getBusinessSummary(asDb(client))
 
-    expect(summary.quotations_by_status).toMatchObject({ draft: 1, approved: 1 })
-    expect(summary.orders_by_status).toMatchObject({ ordered: 2, completed: 1 })
-    expect(summary.inventory).toEqual({ total: 2, sin_stock: 1, low_stock: 0, in_stock: 1 })
-    expect(summary.products_count).toBe(564)
-    expect(summary.urrea_catalog_count).toBe(1200)
-    expect(summary.open_tasks).toBeNull() // GitHub not configured
+    expect(summary.cotizaciones_por_estado).toMatchObject({ borrador: 1, aprobada: 1 })
+    expect(summary.ordenes_por_estado).toMatchObject({ pedida: 2, completada: 1 })
+    expect(summary.inventario).toEqual({ total: 2, sin_existencia: 1, poca: 0, suficiente: 1 })
+    expect(summary.productos_etm).toBe(564)
+    expect(summary.catalogo_urrea).toBe(1200)
+    expect(summary.tareas_abiertas).toBeNull() // GitHub not configured
   })
 
   test('un módulo que falla no tumba el resumen (degrada a null)', async () => {
@@ -48,7 +48,7 @@ describe('getBusinessSummary', () => {
 
     const summary = await getBusinessSummary(asDb(client))
 
-    expect(summary.quotations_by_status).toBeNull()
-    expect(summary.orders_by_status).toEqual({ ordered: 0, received: 0, delivered: 0, completed: 0, cancelled: 0 })
+    expect(summary.cotizaciones_por_estado).toBeNull()
+    expect(summary.ordenes_por_estado).toEqual({ pedida: 0, recibida: 0, entregada: 0, completada: 0, cancelada: 0 })
   })
 })

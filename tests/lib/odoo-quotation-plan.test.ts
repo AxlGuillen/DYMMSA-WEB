@@ -18,6 +18,7 @@ import {
   priceDifferences,
   productName,
   productSearchConditions,
+  productsWithoutSat,
   quotationMode,
   unechoableReason,
   unechoableWarnings,
@@ -68,22 +69,19 @@ const note = (id: number, name: string, sequence = id * 10): CurrentLine =>
   line(id, { kind: 'nota', displayType: 'line_note', name, productId: null, qty: 0, price: 0, sequence, subtotal: null })
 
 describe('modo y forma de la entrada', () => {
-  test('el modo sale de la entrada: crear, editar, revisar o confirmar', () => {
+  test('el modo sale de la entrada: crear, editar o revisar (confirmar es odoo_confirm_quotation, #155 B2b)', () => {
     expect(quotationMode({ cliente: '#1', lineas: [{ nota: 'x' }] })).toBe('crear')
     expect(quotationMode({ folio: 'S00912', lineas: [{ nota: 'x' }] })).toBe('editar')
     expect(quotationMode({ folio: 'S00912' })).toBe('revisar')
-    expect(quotationMode({ folio: 'S00912', confirmar: true })).toBe('confirmar')
   })
 
-  test('cliente con folio, crear sin líneas o confirmar con líneas son errores', () => {
+  test('cliente con folio, crear sin líneas o una revisión con vigencia son errores', () => {
     expect(() => quotationMode({ cliente: '#1', folio: 'S00912' })).toThrow(/no los dos/)
     expect(() => quotationMode({ cliente: '#1' })).toThrow(/cliente y sus líneas/)
-    expect(() => quotationMode({ folio: 'S00912', confirmar: true, lineas: [{ nota: 'x' }] })).toThrow(/ninguna línea/)
-    expect(() => quotationMode({ cliente: '#1', confirmar: true })).toThrow(/exige el folio/)
+    expect(() => quotationMode({})).toThrow(/o el folio \(para revisar o editar\)/)
     expect(() => quotationMode({})).toThrow(OdooError)
     // A vigencia without lines would be signed and never written.
     expect(() => quotationMode({ folio: 'S00912', vigencia: '2026-10-30' })).toThrow(/La vigencia se cambia editando/)
-    expect(() => quotationMode({ folio: 'S00912', confirmar: true, vigencia: '2026-10-30' })).toThrow(/La vigencia se cambia editando/)
     expect(quotationMode({ folio: 'S00912', lineas: [{ nota: 'x' }], vigencia: '2026-10-30' })).toBe('editar')
   })
 
@@ -251,12 +249,46 @@ describe('plan de líneas', () => {
         precio: 1,
         clave_sat: null,
         nombre_en_odoo: 'ZZTEST144 Producto de prueba del asistente PRUEBA',
+        // The suggestions come from the one read of the preview (#154), never from the plan.
+        categoria_sat: null,
+        clave_sat_propuesta: null,
+        sugerencias_sat: [],
       },
     ])
     expect(plan.lineas[2]).toMatchObject({ estado: 'nuevo', propuesto: { nombre: 'ZZTEST144 Producto de prueba del asistente PRUEBA' } })
     expect(plan.avisos).toEqual(['Líneas 3 y 4 sin clave SAT: no podrán timbrarse hasta capturarla en Odoo.'])
     expect(plan.subtotal).toBe(4)
     expect(plan.pendingNew).toEqual([3, 4])
+  })
+
+  test('productos existentes sin clave SAT: una vez cada uno, con la clave o la categoría que trajo su línea (#154)', () => {
+    const NO_KEY = product(32300, 'ZZTEST144 Producto de prueba del asistente PRUEBA', { satKey: null })
+    const lines = [
+      { producto_id: 32300, cantidad: 1, precio: 1, categoria_sat: '  pinturas   en aerosol ' },
+      { producto_id: 30888, cantidad: 1, precio: 1 },
+      { producto_id: 32300, cantidad: 2, precio: 1, clave_sat: '31211507' },
+      { codigo: 'ZZNUEVO', descripcion: 'Brocha de 4 pulgadas', cantidad: 1, precio: 1, categoria_sat: 'brochas' },
+    ]
+    const plan = planQuotationLines({ mode: 'crear', lines, matches: matchProducts(lines, [NO_KEY, REPINTADO]) })
+    expect(productsWithoutSat(plan.lineas, lines)).toEqual([
+      {
+        producto_id: 32300,
+        nombre: NO_KEY.name,
+        lineas: [1, 3],
+        clave_sat: '31211507',
+        categoria_sat: 'pinturas en aerosol',
+        clave_sat_propuesta: null,
+        sugerencias_sat: [],
+      },
+    ])
+    // A new product keeps its own categoria_sat; a product with its key never shows up.
+    expect(plan.nuevos[0]).toMatchObject({ nombre_en_odoo: 'ZZNUEVO Brocha de 4 pulgadas', categoria_sat: 'brochas' })
+    // Review: Odoo's lines, no requests.
+    expect(productsWithoutSat(plan.lineas).map((p) => [p.producto_id, p.clave_sat, p.categoria_sat])).toEqual([[32300, null, null]])
+  })
+
+  test('una nota o sección no lleva categoria_sat', () => {
+    expect(() => assertQuotationLines([{ nota: 'x', categoria_sat: 'pinturas' }], 'crear')).toThrow(/no lleva producto/)
   })
 
   test('crear: secuencias de 10 en 10, nota primero, y el catálogo de escritura las acepta', () => {
@@ -529,7 +561,7 @@ describe('preparación de la factura', () => {
 
   test('invoiceReadiness: cada motivo con su mensaje, incluidos total ≤ 0, negativos y sobre-entrega', () => {
     expect(motive(sale({ state: 'draft' }), [saleLine()], products, [])).toBe(
-      'La S00912 sigue como cotización: primero confírmala (con tu sí, odoo_save_quotation con confirmar).',
+      'La S00912 sigue como cotización: primero confírmala (vista previa con el folio y, con tu sí, odoo_confirm_quotation).',
     )
     expect(motive(sale({ state: 'cancel' }), [saleLine()], products, [])).toBe('La S00912 está cancelada.')
     expect(

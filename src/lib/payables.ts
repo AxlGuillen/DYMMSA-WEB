@@ -1,28 +1,73 @@
 /** Payables math (#84). As in format.ts the clock is ALWAYS injected — nothing here reads `new Date()`. */
 
-import type { AuditEvent, Payable, PayableStatus, PayableUpdate } from '@/types/database'
+import type { AuditEvent, Payable, PayableCurrency, PayableStatus, PayableUpdate } from '@/types/database'
 import { isRealDate, monthOf, nextMonth, type ISODate } from './month'
+import { tokenMap } from './tokens'
 
 export { monthOf, nextMonth }
 export type { ISODate }
 
 export const PAYABLE_STATUSES: readonly PayableStatus[] = ['pending', 'paid', 'cancelled']
 
+export const PAYABLE_CURRENCIES: readonly PayableCurrency[] = ['MXN', 'USD']
+export const DEFAULT_PAYABLE_CURRENCY: PayableCurrency = 'MXN'
+
+export function isPayableCurrency(value: unknown): value is PayableCurrency {
+  return PAYABLE_CURRENCIES.includes(value as PayableCurrency)
+}
+
+/** ' USD' after a dollar amount, nothing for pesos: '$1,000.00 USD' never reads as pesos. */
+export const currencySuffix = (currency: PayableCurrency | null | undefined) =>
+  currency && currency !== DEFAULT_PAYABLE_CURRENCY ? ` ${currency}` : ''
+
+/** ' MXN' / ' USD': for totals shown side by side, where pesos need their name too. */
+export const currencyLabel = (currency: PayableCurrency) => ` ${currency}`
+
+export interface PayableTotals {
+  count: number
+  /** Sum per currency, rounded to cents; only currencies present in the rows. Never converted. */
+  byCurrency: Partial<Record<PayableCurrency, number>>
+}
+
+/** Totals of a filtered list (2026-10-20): pesos and dollars stay apart. */
+export function payableTotals(rows: readonly Pick<Payable, 'amount' | 'currency'>[]): PayableTotals {
+  const byCurrency: Partial<Record<PayableCurrency, number>> = {}
+  for (const r of rows) {
+    const currency = r.currency ?? DEFAULT_PAYABLE_CURRENCY
+    byCurrency[currency] = (byCurrency[currency] ?? 0) + r.amount
+  }
+  for (const c of Object.keys(byCurrency) as PayableCurrency[]) byCurrency[c] = Math.round(byCurrency[c]! * 100) / 100
+  return { count: rows.length, byCurrency }
+}
+
 export type PaymentUpdate =
-  | { ok: true; updates: { status: PayableStatus; paid_at: string | null } }
+  | { ok: true; updates: { status?: PayableStatus; paid_at: string | null } }
   | { ok: false; error: string }
 
+export const PAID_AT_NEEDS_PAID = 'Solo una factura pagada lleva fecha de pago: márcala como pagada para registrarla'
+export const PAID_AT_REQUIRED = 'Una factura pagada necesita su fecha de pago: para quitarla, regrésala a pendiente'
+
 /**
- * The payment rule shared by the PATCH route and the MCP write (#109): paid stores the REAL
- * date (today by default), any other status clears it.
+ * The payment rule shared by the PATCH route and the MCP writes (#109): paid stores the REAL date (today
+ * by default), any other status clears it. Without `status` the row's `current` one decides (#157).
  */
 export function resolvePaymentUpdate(
   status: unknown,
   paidAt: unknown,
   today: ISODate,
+  current?: PayableStatus,
 ): PaymentUpdate {
+  if (status === undefined) {
+    if (current !== 'paid') return { ok: false, error: PAID_AT_NEEDS_PAID }
+    if (paidAt === undefined || paidAt === null) return { ok: false, error: PAID_AT_REQUIRED }
+    if (!isRealDate(paidAt)) return { ok: false, error: 'Fecha de pago inválida' }
+    return { ok: true, updates: { paid_at: paidAt } }
+  }
   if (!PAYABLE_STATUSES.includes(status as PayableStatus)) return { ok: false, error: 'Estado inválido' }
-  if (status !== 'paid') return { ok: true, updates: { status: status as PayableStatus, paid_at: null } }
+  if (status !== 'paid') {
+    if (paidAt !== undefined && paidAt !== null) return { ok: false, error: PAID_AT_NEEDS_PAID }
+    return { ok: true, updates: { status: status as PayableStatus, paid_at: null } }
+  }
   if (paidAt !== undefined && paidAt !== null && !isRealDate(paidAt)) {
     return { ok: false, error: 'Fecha de pago inválida' }
   }
@@ -32,11 +77,11 @@ export function resolvePaymentUpdate(
 export type PayableUpdateResult = { ok: true; updates: PayableUpdate } | { ok: false; error: string }
 
 /**
- * The PATCH rules, shared with the MCP's update_payable (#134): sparse, dates that exist
- * (2026-02-30 is a 22008 in Postgres), and status/paid_at through resolvePaymentUpdate.
- * Whether supplier_id exists is the caller's check: it needs the database.
+ * The PATCH rules, shared with the MCP's save_payable (#134, #155 C6): sparse, dates that exist
+ * (2026-02-30 is a 22008 in Postgres), and status/paid_at through resolvePaymentUpdate with
+ * the row's `current` status. Whether supplier_id exists is the caller's check: it needs the database.
  */
-export function parsePayableUpdate(body: unknown, today: ISODate): PayableUpdateResult {
+export function parsePayableUpdate(body: unknown, today: ISODate, current: PayableStatus): PayableUpdateResult {
   const raw = (body ?? {}) as Record<string, unknown>
   const updates: PayableUpdate = {}
   if (raw.concept !== undefined) {
@@ -49,6 +94,10 @@ export function parsePayableUpdate(body: unknown, today: ISODate): PayableUpdate
       return { ok: false, error: 'El monto debe ser mayor a 0' }
     }
     updates.amount = raw.amount
+  }
+  if (raw.currency !== undefined) {
+    if (!isPayableCurrency(raw.currency)) return { ok: false, error: 'Moneda inválida: usa MXN o USD' }
+    updates.currency = raw.currency
   }
   for (const field of ['invoice_date', 'due_date'] as const) {
     if (raw[field] !== undefined) {
@@ -63,14 +112,10 @@ export function parsePayableUpdate(body: unknown, today: ISODate): PayableUpdate
   if (raw.notes !== undefined) {
     updates.notes = typeof raw.notes === 'string' ? raw.notes.trim() || null : null
   }
-  if (raw.status !== undefined) {
-    const payment = resolvePaymentUpdate(raw.status, raw.paid_at, today)
+  if (raw.status !== undefined || raw.paid_at !== undefined) {
+    const payment = resolvePaymentUpdate(raw.status, raw.paid_at, today, current)
     if (!payment.ok) return payment
     Object.assign(updates, payment.updates)
-  } else if (raw.paid_at !== undefined) {
-    // Fix the payment date of an already-paid invoice without touching the status.
-    if (raw.paid_at !== null && !isRealDate(raw.paid_at)) return { ok: false, error: 'Fecha de pago inválida' }
-    updates.paid_at = raw.paid_at as string | null
   }
   return { ok: true, updates }
 }
@@ -84,12 +129,23 @@ export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
 /** List filter: the three statuses plus `overdue` (pending with due date before today, as the overview counts it). */
 export type PayableFilter = PayableStatus | 'overdue'
 
+export const PAYABLE_FILTERS = ['pending', 'overdue', 'paid', 'cancelled'] as const satisfies readonly PayableFilter[]
+
 export const PAYABLE_FILTER_LABELS: Record<PayableFilter, string> = {
   pending: 'Pendiente',
   overdue: 'Vencida',
   paid: 'Pagada',
   cancelled: 'Cancelada',
 }
+
+/** The assistant's tokens (#155 C6): `vencida` is only a filter (pending past its due date), never a stored status. */
+export const PAYABLE_STATUS_TOKENS = tokenMap({ pending: 'pendiente', paid: 'pagada', cancelled: 'cancelada' } as const satisfies Record<PayableStatus, string>)
+export const PAYABLE_FILTER_TOKENS = tokenMap({
+  pending: 'pendiente',
+  overdue: 'vencida',
+  paid: 'pagada',
+  cancelled: 'cancelada',
+} as const satisfies Record<PayableFilter, string>)
 
 export function resolvePayableFilter(filter: string, today: ISODate): { status: PayableStatus; dueBefore?: ISODate } | null {
   if (filter === 'overdue') return { status: 'pending', dueBefore: today }
@@ -135,6 +191,29 @@ export interface PayablesWeekBucket {
   count: number
 }
 
+export const weekLabel = (week: number) => `Semana ${week}`
+
+export interface PayablesWeekRows<T> {
+  week: number
+  label: string
+  rows: T[]
+  totals: PayableTotals
+}
+
+/** Per-week groups of a month's pending rows, every currency included (a dollars-only week still shows). */
+export function weeksByCurrency<T extends Pick<Payable, 'due_date' | 'amount' | 'currency'>>(rows: readonly T[]): PayablesWeekRows<T>[] {
+  const byWeek = new Map<number, T[]>()
+  for (const r of rows) {
+    const week = weekOfMonth(r.due_date)
+    const list = byWeek.get(week)
+    if (list) list.push(r)
+    else byWeek.set(week, [r])
+  }
+  return [...byWeek.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([week, list]) => ({ week, label: weekLabel(week), rows: list, totals: payableTotals(list) }))
+}
+
 export interface PayablesMonthSummary {
   /** Pending, due inside the selected month. */
   pendingTotal: number
@@ -155,7 +234,10 @@ export interface PayablesMonthSummary {
   weeks: PayablesWeekBucket[]
 }
 
-/** Month overview; `month` = 'YYYY-MM'. Cancelled payables count for nothing. */
+/**
+ * Month overview; `month` = 'YYYY-MM'. Cancelled payables count for nothing. Sums one currency:
+ * callers split pesos from dollars first (`splitByCurrency`), since amounts are never converted.
+ */
 export function summarizeMonth(
   payables: readonly Payable[],
   month: string,
@@ -201,7 +283,7 @@ export function summarizeMonth(
       summary.pendingTotal += p.amount
       summary.pendingCount += 1
       const week = weekOfMonth(p.due_date)
-      const bucket = weekMap.get(week) ?? { week, label: `Semana ${week}`, total: 0, count: 0 }
+      const bucket = weekMap.get(week) ?? { week, label: weekLabel(week), total: 0, count: 0 }
       bucket.total += p.amount
       bucket.count += 1
       weekMap.set(week, bucket)
@@ -212,6 +294,18 @@ export function summarizeMonth(
   return summary
 }
 
+/** Pesos for the closing math, every other currency apart (2026-10-20). */
+export function splitByCurrency<T extends Pick<Payable, 'currency'>>(rows: readonly T[]): { mxn: T[]; foreign: Partial<Record<PayableCurrency, T[]>> } {
+  const mxn: T[] = []
+  const foreign: Partial<Record<PayableCurrency, T[]>> = {}
+  for (const r of rows) {
+    const currency = r.currency ?? DEFAULT_PAYABLE_CURRENCY
+    if (currency === DEFAULT_PAYABLE_CURRENCY) mxn.push(r)
+    else (foreign[currency] ??= []).push(r)
+  }
+  return { mxn, foreign }
+}
+
 /** Days from today to the due date (negative = overdue); drives the cell tone. */
 export function daysUntilDue(dueDate: ISODate, today: ISODate): number {
   const due = new Date(`${dueDate}T00:00:00Z`).getTime()
@@ -219,18 +313,28 @@ export function daysUntilDue(dueDate: ISODate, today: ISODate): number {
   return Math.round((due - now) / 86_400_000)
 }
 
-/** Spanish sentence for one audit row of a payable (ADR-028). `fmtDay` formats a bare ISO date. */
+/** Spanish sentence for one audit row of a payable (ADR-028). The caller formats dates and money (discrete mode). */
 export function describeAuditEvent(
   event: Pick<AuditEvent, 'action' | 'data'>,
   fmtDay: (iso: string) => string,
+  fmtMoney: (amount: number) => string,
 ): string {
-  const to = (event.data.to ?? {}) as { status?: PayableStatus; paid_at?: string | null }
-  const from = (event.data.from ?? {}) as { paid_at?: string | null }
+  type Side = { status?: PayableStatus; paid_at?: string | null; amount?: number; currency?: PayableCurrency }
+  const to = (event.data.to ?? {}) as Side
+  const from = (event.data.from ?? {}) as Side
   switch (event.action) {
     case 'created':
       return 'Registrada'
     case 'deleted':
       return 'Eliminada'
+    case 'amount_changed': {
+      // A currency change names both sides: "$1,500.00 → $80.00" alone would hide it (#157).
+      const currencyChanged = from.currency !== to.currency
+      const money = (side: Side) =>
+        side.amount == null ? '—' : `${fmtMoney(side.amount)}${side.currency ? (currencyChanged ? currencyLabel(side.currency) : currencySuffix(side.currency)) : ''}`
+      const what = from.amount === to.amount ? 'Moneda corregida' : currencyChanged ? 'Monto y moneda corregidos' : 'Monto corregido'
+      return `${what}: ${money(from)} → ${money(to)}`
+    }
     case 'paid_at_changed':
       return `Fecha de pago corregida: ${from.paid_at ? fmtDay(from.paid_at) : '—'} → ${to.paid_at ? fmtDay(to.paid_at) : '—'}`
     case 'status_changed':

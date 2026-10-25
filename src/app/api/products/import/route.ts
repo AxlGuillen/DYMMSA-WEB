@@ -1,145 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api-helpers'
+import { requireAuth, apiError } from '@/lib/api-helpers'
+import { importProducts, parseProductSheet } from '@/lib/products-store'
+import type { ProductImportMode, ProductImportResult } from '@/types/database'
 
-interface ExcelRow {
-  ETM?: string
-  DESCRIPTION?: string
-  DESCRIPTION_ES?: string
-  MODEL_CODE?: string
-  PRICE?: number | string
-  BRAND?: string
-}
-
+// POST /api/products/import — multipart `file` + `mode` (upsert | insert = only new ETMs)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
-    const { user } = auth
 
     const formData = await request.formData()
-    const file = formData.get('file') as File
-    const mode = formData.get('mode') as string || 'upsert'
+    const file = formData.get('file')
+    const mode: ProductImportMode = (formData.get('mode') ?? 'upsert') === 'upsert' ? 'upsert' : 'insert'
 
-    if (!file) {
-      return NextResponse.json(
-        { message: 'No se proporciono archivo' },
-        { status: 400 }
-      )
+    if (!(file instanceof Blob)) {
+      return NextResponse.json({ message: 'No se proporciono archivo' }, { status: 400 })
     }
 
-    const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array' })
-    const sheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[sheetName]
-    const rows = XLSX.utils.sheet_to_json<ExcelRow>(worksheet)
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+    const sheet = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[workbook.SheetNames[0]])
 
-    if (rows.length === 0) {
-      return NextResponse.json(
-        { message: 'El archivo no contiene datos' },
-        { status: 400 }
-      )
-    }
+    // The whole file is checked before anything is written (#157).
+    const { rows, withoutEtm } = parseProductSheet(sheet)
+    const written = await importProducts(supabase, auth.user.id, rows, mode)
 
-    const firstRow = rows[0]
-    const requiredColumns = ['ETM', 'MODEL_CODE']
-    const missingColumns = requiredColumns.filter(
-      (col) => !(col in firstRow)
-    )
-
-    if (missingColumns.length > 0) {
-      return NextResponse.json(
-        { message: `Columnas faltantes: ${missingColumns.join(', ')}` },
-        { status: 400 }
-      )
-    }
-
-    let imported = 0
-    let updated = 0
-    let errors = 0
-
-    for (const row of rows) {
-      if (!row.ETM) {
-        errors++
-        continue
-      }
-
-      const product = {
-        etm: String(row.ETM).trim(),
-        description: String(row.DESCRIPTION || '').trim(),
-        description_es: String(row.DESCRIPTION_ES || '').trim(),
-        model_code: String(row.MODEL_CODE || '').trim(),
-        price: typeof row.PRICE === 'number'
-          ? row.PRICE
-          : parseFloat(String(row.PRICE || '0')) || 0,
-        brand: String(row.BRAND || 'URREA').trim(),
-        created_by: user.id,
-      }
-
-      if (mode === 'upsert') {
-        // oxlint-disable-next-line react-doctor/async-await-in-loop -- sequential DB writes (ordering / avoid inventory races)
-        const { data: existing } = await supabase
-          .from('etm_products')
-          .select('id')
-          .eq('etm', product.etm)
-          .single()
-
-        if (existing) {
-          const { error } = await supabase
-            .from('etm_products')
-            .update({
-              ...product,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('etm', product.etm)
-
-          if (error) {
-            errors++
-          } else {
-            updated++
-          }
-        } else {
-          const { error } = await supabase
-            .from('etm_products')
-            .insert(product)
-
-          if (error) {
-            errors++
-          } else {
-            imported++
-          }
-        }
-      } else {
-        const { error } = await supabase
-          .from('etm_products')
-          .insert(product)
-
-        if (error) {
-          if (error.code === '23505') {
-            errors++
-          } else {
-            errors++
-          }
-        } else {
-          imported++
-        }
-      }
-    }
-
-    return NextResponse.json({
-      imported,
-      updated,
-      errors,
-      total: rows.length,
-    })
+    const result: ProductImportResult = { ...written, errors: written.errors + withoutEtm, total: sheet.length }
+    return NextResponse.json(result)
   } catch (error) {
-    console.error('Import error:', error)
-    return NextResponse.json(
-      { message: 'Error al procesar el archivo' },
-      { status: 500 }
-    )
+    return apiError(error, 'Error al procesar el archivo', 'Import error:')
   }
 }

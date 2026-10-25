@@ -11,7 +11,7 @@ const SAT = '2026-09-19'
 const juan: PayrollEmployee = { id: 'e1', name: 'Juan Taller', profile_id: null, shift: 'full_time', active: true, created_at: '', updated_at: '' }
 const day = (date: string, minutes: number, over: Partial<PayrollDay> = {}): PayrollDay => ({
   id: date, employee_id: 'e1', work_date: date, worked_minutes: minutes, missed_minutes: 0, note: null,
-  source: 'sheet', status: 'confirmed', created_at: '', updated_at: '', ...over,
+  source: 'sheet', status: 'confirmed', shift_snapshot: null, area_snapshot: null, created_at: '', updated_at: '', ...over,
 })
 
 const state = vi.hoisted(() => ({

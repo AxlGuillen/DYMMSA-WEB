@@ -75,8 +75,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // /api/mcp, /.well-known/* and health authenticate in their own handler:
-    // a /login redirect would kill the discovery 401 (ADR-023).
-    '/((?!_next/static|_next/image|favicon.ico|\\.well-known|api/mcp|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // The MCP endpoints, /.well-known/* and health authenticate in their own handler:
+    // a /login redirect would kill the discovery 401 (ADR-023, #155 B1).
+    '/((?!_next/static|_next/image|favicon.ico|\\.well-known|api/mcp|api/odoo/mcp|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

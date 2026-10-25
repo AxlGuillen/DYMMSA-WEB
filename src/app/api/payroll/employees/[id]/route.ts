@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAdmin, badRequest, notFound, serverError, isUuid } from '@/lib/api-helpers'
+import { requireAdmin, apiError, badRequest, notFound, isUuid } from '@/lib/api-helpers'
 import { parseEmployeeInput } from '@/lib/payroll'
-import { PayrollError, updateEmployee } from '@/lib/payroll-store'
+import { updateEmployee } from '@/lib/payroll-store'
 
 // PATCH /api/payroll/employees/[id] — name, linked profile, shift, active (admin).
 // No DELETE on purpose: someone with recorded hours is deactivated, never removed.
@@ -25,8 +25,6 @@ export async function PATCH(
     if (!data) return notFound('El empleado no existe')
     return NextResponse.json(data)
   } catch (error) {
-    if (error instanceof PayrollError) return badRequest(error.message)
-    console.error('Payroll employee PATCH error:', error)
-    return serverError('Error al actualizar el empleado')
+    return apiError(error, 'Error al actualizar el empleado', 'Payroll employee PATCH error:')
   }
 }

@@ -5,9 +5,11 @@
 
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { previewTimeReport, saveTimeEntries } from '@/lib/mcp/tools/hours'
+import type { z } from 'zod'
+import type { previewTimeReportOutput, saveTimeEntries } from '@/lib/mcp/tools/hours'
 
-type Preview = Awaited<ReturnType<typeof previewTimeReport>>
+// The output contract the SDK checks on every call (#155 C3), not the handler's return type.
+type Preview = z.infer<typeof previewTimeReportOutput>
 type Saved = Extract<Awaited<ReturnType<typeof saveTimeEntries>>, { insertadas: number }>
 
 const state: {
@@ -32,6 +34,11 @@ function el(tag: string, className?: string, text?: string | null): HTMLElement 
 function textOf(result: CallToolResult): string {
   const block = result.content?.find((c) => c.type === 'text')
   return block && 'text' in block ? block.text : ''
+}
+
+/** structuredContent when the host passes it (#155 C3), else the same JSON from the text; throws if it came cut. */
+function dataOf<T>(result: CallToolResult): T {
+  return (result.structuredContent ?? JSON.parse(textOf(result))) as T
 }
 
 const shortDate = (iso: string) => {
@@ -89,19 +96,21 @@ function renderNotes(preview: Preview): HTMLElement | null {
 }
 
 async function save() {
-  if (!state.filas || state.saving) return
+  const clave = state.preview?.clave
+  if (!state.filas || !clave || state.saving) return
   state.saving = true
   state.error = null
   render()
   try {
+    // The key signs exactly these rows and this name (#155 C4): send them as the preview received them.
     const result = await app.callServerTool({
       name: 'save_time_entries',
-      arguments: { filas: state.filas, ...(state.fileName ? { nombre_archivo: state.fileName } : {}) },
+      arguments: { filas: state.filas, ...(state.fileName ? { nombre_archivo: state.fileName } : {}), clave },
     })
     if (result.isError) {
       state.error = textOf(result) || 'No se pudo guardar'
     } else {
-      state.saved = JSON.parse(textOf(result)) as Saved
+      state.saved = dataOf<Saved>(result)
       const s = state.saved
       // The model did not make this call: tell it, so it does not offer to save again.
       await app
@@ -127,13 +136,15 @@ function renderFooter(preview: Preview): HTMLElement {
   }
   const mapped = preview.personas.some((p) => p.perfil)
   const button = el('button', 'primary', state.saving ? 'Guardando…' : 'Guardar en Horas') as HTMLButtonElement
-  button.disabled = state.saving || !preview.cuadra || !mapped || !state.filas
+  button.disabled = state.saving || !preview.cuadra || !mapped || !state.filas || !preview.clave
   button.addEventListener('click', save)
   const hint = !preview.cuadra
     ? 'No cuadra con los totales del reporte: corrige las filas antes de guardar.'
-    : !state.filas
-      ? 'Pídele a Claude que lo guarde.'
-      : 'Re-subir la misma semana no duplica ni pisa correcciones.'
+    : !preview.clave
+      ? 'La confirmación en dos pasos no está disponible en el servidor: no se puede guardar.'
+      : !state.filas
+        ? 'Pídele a Claude que lo guarde.'
+        : 'Re-subir la misma semana no duplica ni pisa correcciones.'
   footer.append(el('p', 'hint', hint), button)
   if (state.error) footer.append(el('p', 'error', state.error))
   return footer
@@ -180,7 +191,7 @@ app.ontoolresult = (result) => {
   else {
     // A truncated payload must not leave the view stuck on "Leyendo el reporte…" (review PR #138).
     try {
-      state.preview = JSON.parse(text) as Preview
+      state.preview = dataOf<Preview>(result)
     } catch {
       state.error = 'La respuesta del servidor llegó incompleta: vuelve a pedir la vista previa'
     }

@@ -2,8 +2,8 @@
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue, type CallRecord } from '../helpers/supabase-mock'
-import { type Db } from '@/lib/mcp/shared'
-import { getPayrollPeriod, recordPayrollHours, savePayrollEmployee } from '@/lib/mcp/tools/payroll'
+import type { Db } from '@/lib/mcp/core/db'
+import { getPayrollPeriod, savePayrollHours, savePayrollEmployee } from '@/lib/mcp/tools/payroll'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
@@ -46,7 +46,7 @@ describe('get_payroll_period', () => {
     expect(result.nota).toBeNull()
     expect(result.empleados.map((e) => e.nombre)).toEqual(['Juan Pérez', 'Juan Carlos Ruiz', 'José Núñez'])
     // Workshop Saturday of 6 h: 5 normal + 1 at double (#135).
-    expect(result.empleados[0]).toMatchObject({ normal: '13:00', extra: '03:30', sabado_extra: '01:00', equivalente: '18:30', tipo: 'taller', jornada: 'Tiempo completo · 8 h' })
+    expect(result.empleados[0]).toMatchObject({ normal: '13:00', extra: '03:30', sabado_extra: '01:00', equivalente: '18:30', tipo: 'taller', jornada: 'completa' })
     expect(result.empleados[0].dias).toEqual([
       { dia: 'Sáb', fecha: '2026-09-19', horas: '06:00', no_trabajadas: null, estado: 'confirmado', origen: 'hoja', nota: null },
       { dia: 'Lun', fecha: '2026-09-21', horas: '11:30', no_trabajadas: null, estado: 'confirmado', origen: 'hoja', nota: null },
@@ -66,10 +66,10 @@ describe('get_payroll_period', () => {
   })
 })
 
-describe('record_payroll_hours', () => {
+describe('save_payroll_hours', () => {
   test('guarda como borrador de la hoja, en minutos, y reparte la hoja en sus dos cortes', async () => {
     const client = writeClient()
-    const result = await recordPayrollHours(asDb(client), {
+    const result = await savePayrollHours(asDb(client), {
       dias: [
         { empleado: 'juan pérez', fecha: '2026-09-21', horas: 11.5 },
         { empleado: 'jose nunez', fecha: '2026-09-26', horas: 6, horas_no_trabajadas: 2, nota: 'medio turno' },
@@ -79,7 +79,8 @@ describe('record_payroll_hours', () => {
       { employee_id: 'e1', work_date: '2026-09-21', worked_minutes: 690, missed_minutes: 0, note: null, source: 'sheet', status: 'draft' },
       { employee_id: 'e3', work_date: '2026-09-26', worked_minutes: 360, missed_minutes: 120, note: 'medio turno', source: 'sheet', status: 'draft' },
     ])
-    expect(result).toMatchObject({
+    expect(result).toMatchObject({ accion: 'actualizado', escrito: true })
+    expect(result.horas).toMatchObject({
       guardados: 2,
       omitidos: [],
       cortes: [{ inicio: '2026-09-19', fin: '2026-09-25' }, { inicio: '2026-09-26', fin: '2026-10-02' }],
@@ -96,11 +97,11 @@ describe('record_payroll_hours', () => {
       ],
       [{ start_date: '2026-09-26' }],
     )
-    const result = await recordPayrollHours(asDb(client), {
+    const result = await savePayrollHours(asDb(client), {
       dias: ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-26'].map((fecha) => ({ empleado: 'Juan Pérez', fecha, horas: 9 })),
     })
-    expect(result.guardados).toBe(1)
-    expect(result.omitidos).toEqual([
+    expect(result.horas.guardados).toBe(1)
+    expect(result.horas.omitidos).toEqual([
       { empleado: 'Juan Pérez', fecha: '2026-09-21', motivo: 'ya está confirmado' },
       { empleado: 'Juan Pérez', fecha: '2026-09-22', motivo: 'se capturó a mano' },
       { empleado: 'Juan Pérez', fecha: '2026-09-26', motivo: 'el corte está cerrado' },
@@ -113,7 +114,7 @@ describe('record_payroll_hours', () => {
 
   test('el nombre exacto gana; ambiguo, desconocido o inactivo → error que guía, sin escribir nada', async () => {
     const client = writeClient()
-    const one = (empleado: string) => recordPayrollHours(asDb(client), { dias: [{ empleado, fecha: '2026-09-21', horas: 8 }] })
+    const one = (empleado: string) => savePayrollHours(asDb(client), { dias: [{ empleado, fecha: '2026-09-21', horas: 8 }] })
     await expect(one('juan')).rejects.toThrow(/2 coincidencias \(Juan Pérez, Juan Carlos Ruiz\)/)
     await expect(one('Pedro')).rejects.toThrow(/No hay empleado de nómina que coincida con "Pedro"/)
     await expect(one('Baja')).rejects.toThrow(/No hay empleado/)
@@ -125,7 +126,7 @@ describe('record_payroll_hours', () => {
 
   test('valida fechas, horas y duplicados antes de tocar la BD; sin empleados visibles lo explica', async () => {
     const client = writeClient()
-    const call = (dias: { empleado: string; fecha: string; horas: number }[]) => recordPayrollHours(asDb(client), { dias })
+    const call = (dias: { empleado: string; fecha: string; horas: number }[]) => savePayrollHours(asDb(client), { dias })
     await expect(call([])).rejects.toThrow(/al menos un día/)
     await expect(call([{ empleado: 'José', fecha: '21/09/2026', horas: 8 }])).rejects.toThrow(/Fecha inválida/)
     await expect(call([{ empleado: 'José', fecha: '2026-09-21', horas: 30 }])).rejects.toThrow(/Horas inválidas/)
@@ -135,15 +136,15 @@ describe('record_payroll_hours', () => {
     // A 0-hour day never becomes a draft; with missed hours it is a real record (review PR #129).
     await expect(call([{ empleado: 'José', fecha: '2026-09-21', horas: 0 }])).rejects.toThrow(/un día sin horas no se carga/)
     expect(client.callsTo('payroll_days', 'upsert')).toEqual([])
-    await recordPayrollHours(asDb(client), { dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 0, horas_no_trabajadas: 8 }] })
+    await savePayrollHours(asDb(client), { dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 0, horas_no_trabajadas: 8 }] })
     expect(client.upsertPayload('payroll_days')[0]).toMatchObject({ worked_minutes: 0, missed_minutes: 480 })
 
     const member = createMockSupabase({ responses: { 'payroll_employees.select': { data: [], error: null } } })
-    await expect(recordPayrollHours(asDb(member), { dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/solo la ve un administrador/)
+    await expect(savePayrollHours(asDb(member), { dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/solo la ve un administrador/)
   })
 })
 
-describe('record_payroll_hours con traer_de_horas (#132)', () => {
+describe('save_payroll_hours con traer_de_horas (#132)', () => {
   test('copia las checadas de la oficina al corte de la fecha como borrador y paga su sábado, igual que el botón', async () => {
     const office = employee('e9', 'Tania', { profile_id: 'u-tania' })
     const client = createMockSupabase({
@@ -164,9 +165,9 @@ describe('record_payroll_hours con traer_de_horas (#132)', () => {
         'payroll_days.delete': { data: null, error: null },
       },
     })
-    const result = await recordPayrollHours(asDb(client), { traer_de_horas: true, fecha: '2026-09-23' })
+    const result = await savePayrollHours(asDb(client), { traer_de_horas: true, fecha: '2026-09-23' })
 
-    expect(result).toMatchObject({
+    expect(result.horas).toMatchObject({
       corte: { inicio: '2026-09-19', fin: '2026-09-25' },
       empleados_ligados: 1,
       guardados: 2,
@@ -182,17 +183,17 @@ describe('record_payroll_hours con traer_de_horas (#132)', () => {
   })
 
   test('sin nadie ligado lo explica; dias y traer_de_horas juntos, o fecha sin traer, se rechazan', async () => {
-    const result = await recordPayrollHours(asDb(writeClient()), { traer_de_horas: true, fecha: '2026-09-23' })
-    expect(result).toMatchObject({ empleados_ligados: 0, guardados: 0, nota: expect.stringMatching(/ligado a un perfil/) })
+    const result = await savePayrollHours(asDb(writeClient()), { traer_de_horas: true, fecha: '2026-09-23' })
+    expect(result).toMatchObject({ accion: 'sin_cambios', escrito: false, horas: { empleados_ligados: 0, guardados: 0 }, nota: expect.stringMatching(/ligado a un perfil/) })
     // A member reads zero employees: no access, not "nobody linked" (review PR #138).
     const member = createMockSupabase({ responses: { 'payroll_employees.select': { data: [], error: null } } })
-    await expect(recordPayrollHours(asDb(member), { traer_de_horas: true })).rejects.toThrow(/solo la ve un administrador/)
+    await expect(savePayrollHours(asDb(member), { traer_de_horas: true })).rejects.toThrow(/solo la ve un administrador/)
     expect(member.callsTo('time_entries')).toEqual([])
 
     const client = writeClient()
-    await expect(recordPayrollHours(asDb(client), { traer_de_horas: true, dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/no los dos/)
-    await expect(recordPayrollHours(asDb(client), { fecha: '2026-09-21', dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/solo aplica con/)
-    await expect(recordPayrollHours(asDb(client), { traer_de_horas: true, fecha: '2026-02-30' })).rejects.toThrow(/Fecha inválida/)
+    await expect(savePayrollHours(asDb(client), { traer_de_horas: true, dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/no los dos/)
+    await expect(savePayrollHours(asDb(client), { fecha: '2026-09-21', dias: [{ empleado: 'José', fecha: '2026-09-21', horas: 8 }] })).rejects.toThrow(/solo aplica con/)
+    await expect(savePayrollHours(asDb(client), { traer_de_horas: true, fecha: '2026-02-30' })).rejects.toThrow(/Fecha inválida/)
     expect(client.callsTo('payroll_days', 'upsert')).toEqual([])
   })
 })
@@ -207,7 +208,7 @@ describe('save_payroll_employee (#134)', () => {
     const client = createMockSupabase({ responses: { profiles, 'payroll_employees.insert': echo } })
     const result = await savePayrollEmployee(asDb(client), 'u-admin', { nombre: '  Pedro   Gómez ', jornada: 'media', perfil: 'tania' })
     expect(client.insertPayload('payroll_employees')).toEqual({ name: 'Pedro Gómez', shift: 'part_time', profile_id: TANIA.id })
-    expect(result).toMatchObject({ accion: 'creado', empleado: { nombre: 'Pedro Gómez', jornada: 'Medio tiempo · 4 h', perfil_ligado: 'Tania López', activo: true } })
+    expect(result).toMatchObject({ accion: 'creado', escrito: true, empleado: { nombre: 'Pedro Gómez', jornada: 'media', perfil_ligado: 'Tania López', activo: true } })
   })
 
   test('baja = activo false sobre el empleado por nombre exacto; nunca un delete', async () => {

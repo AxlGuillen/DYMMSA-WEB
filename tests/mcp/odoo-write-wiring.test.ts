@@ -3,7 +3,7 @@
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('@/lib/mcp/supabase', () => ({
+vi.mock('@/lib/mcp/core/auth/supabase', () => ({
   clientForToken: vi.fn(() => ({ from: vi.fn() })),
   verifierClient: vi.fn(),
 }))
@@ -12,8 +12,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
-import { run } from '@/lib/mcp/server'
-import { splitResultMeta, withResultMeta } from '@/lib/mcp/shared'
+import { run } from '@/lib/mcp/core/run'
+import { splitResultMeta, withResultMeta } from '@/lib/mcp/core/result'
 import { OdooError, OdooUncertainWriteError } from '@/lib/odoo/client'
 import { issueProductsAuthorization, PRODUCTS_AUTHORIZATION_META } from '@/lib/odoo/preview-token'
 import { testAdminProof } from '../helpers/fake-odoo'
@@ -32,7 +32,7 @@ type CallResult = { content: { type: string; text: string }[]; isError?: boolean
 /** One throwaway tool whose handler is run() itself: what the client gets is what the host gets. */
 async function callThroughSdk(fn: () => Promise<unknown>): Promise<CallResult> {
   const server = new McpServer({ name: 'dymmsa', version: 'test' })
-  server.registerTool('prueba', { description: 'prueba' }, () => run({ authInfo: AUTH }, fn))
+  server.registerTool('prueba', { description: 'prueba' }, () => run('prueba', { authInfo: AUTH }, fn))
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test', version: '1' })
   await Promise.all([server.connect(serverSide), client.connect(clientSide)])
@@ -51,7 +51,7 @@ afterEach(() => {
 
 describe('run() y _meta (#144)', () => {
   test('el token de productos viaja en _meta y nunca en el texto', async () => {
-    const { autorizacion } = issueProductsAuthorization(testAdminProof(), PRODUCTS)
+    const { autorizacion } = issueProductsAuthorization(testAdminProof(), { alta: PRODUCTS })
     const data = { modo: 'crear', productos_para_alta: PRODUCTS, puede_guardar: true }
 
     const result = await callThroughSdk(async () => withResultMeta(data, { [PRODUCTS_AUTHORIZATION_META]: autorizacion }))
@@ -76,7 +76,7 @@ describe('run() y _meta (#144)', () => {
       envuelto: withResultMeta({ ok: true }, { [PRODUCTS_AUTHORIZATION_META]: 'secreto' }),
     }))
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toBe('Error interno al ejecutar la herramienta')
+    expect(result.content[0].text).toBe('Error interno en prueba')
     expect(JSON.stringify(result)).not.toContain('secreto')
     expect(error).toHaveBeenCalled()
   })

@@ -2,6 +2,7 @@
  *  quantities consolidated by catalogKey — the real choice is about the remainder. */
 
 import type { OrderPurchaseDecision } from '@/types/database'
+import { tokenMap } from '@/lib/tokens'
 import {
   catalogKey,
   isProductItem,
@@ -163,6 +164,16 @@ export function computeGroupMath(
 }
 
 export type PurchaseChoice = 'wholesale' | 'mixed' | 'retail'
+
+/** The assistant's tokens (#155 D): the same in the inputs and in the answers. */
+export const PURCHASE_CHOICE_TOKENS = tokenMap({ wholesale: 'mayoreo', mixed: 'mixto', retail: 'menudeo' } as const satisfies Record<PurchaseChoice, string>)
+
+/** The choice behind a saved decision (the screen pre-selects it; the tools show it). */
+export function choiceOf(d: Pick<OrderPurchaseDecision, 'packages_wholesale' | 'qty_retail'>): PurchaseChoice {
+  if (d.qty_retail === 0) return 'wholesale'
+  if (d.packages_wholesale === 0) return 'retail'
+  return 'mixed'
+}
 
 export type RecommendationType =
   | 'wholesale_exact' // exact package fit: nothing to decide

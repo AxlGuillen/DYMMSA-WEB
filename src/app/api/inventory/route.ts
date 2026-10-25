@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
-import type { StoreInventoryInsert } from '@/types/database'
-
-const STOCK_FILTERS = ['all', 'with_stock', 'in_stock', 'low_stock', 'sin_stock'] as const
-type StockFilter = (typeof STOCK_FILTERS)[number]
+import { requireAuth, apiError, serverError } from '@/lib/api-helpers'
+import { createInventoryItem } from '@/lib/inventory-store'
+import { STOCK_FILTERS, type StockFilter } from '@/lib/stock-filters'
 
 /** "No brand" is a filterable category (#53): stocked items whose ETM carries no brand. */
 export const NO_BRAND = '__none__'
@@ -85,28 +83,9 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as Partial<StoreInventoryInsert>
-    const modelCode = typeof body.model_code === 'string' ? body.model_code.trim() : ''
-    if (!modelCode) return badRequest('El código modelo es obligatorio')
-
-    const quantity = typeof body.quantity === 'number' ? Math.max(0, Math.trunc(body.quantity)) : 0
-    const location = typeof body.location === 'string' ? (body.location.trim() || null) : null
-
-    const { data, error } = await supabase
-      .from('store_inventory')
-      .insert({ model_code: modelCode, quantity, location })
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === '23505') return badRequest('Ya existe un producto con ese código modelo')
-      console.error('Error creating store_inventory item:', error)
-      return serverError('Error al crear el producto')
-    }
-
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json(await createInventoryItem(supabase, await request.json()), { status: 201 })
   } catch (error) {
-    console.error('Inventory create error:', error)
-    return serverError('Error al crear el producto')
+    return apiError(error, 'Error al crear el producto', 'Inventory create error:')
   }
 }
+

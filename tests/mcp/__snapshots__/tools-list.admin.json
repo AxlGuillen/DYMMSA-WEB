@@ -1,0 +1,2573 @@
+[
+  {
+    "name": "get_business_summary",
+    "title": "Resumen del negocio",
+    "description": "Panorama general de DYMMSA en una llamada: cotizaciones por estado, órdenes por estado, salud del inventario, tamaño de catálogos y tareas abiertas. Úsala para \"¿cómo vamos?\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_quotations",
+    "title": "Listar cotizaciones",
+    "description": "Lista cotizaciones con filtros, de la más reciente a la más antigua. Úsala para \"¿qué cotizaciones esperan aprobación?\" o buscar por cliente. `total_sellado` es el monto guardado en la fila: en una aprobada editable puede quedar desfasado; get_quotation trae el total recalculado.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "description": "Filtrar por estado exacto",
+          "type": "string",
+          "enum": [
+            "borrador",
+            "en_revision",
+            "aprobada",
+            "rechazada",
+            "convertida"
+          ]
+        },
+        "buscar": {
+          "description": "Busca en nombre de cotización y nombre del cliente",
+          "type": "string"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_quotation",
+    "title": "Detalle de cotización",
+    "description": "Una cotización con todas sus líneas numeradas (`linea`, secciones incluidas), totales en vivo (total y de aprobadas), aprobación por línea, `version` y la orden en que se convirtió (`orden`: null si no tiene). Acepta nombre, cliente o ref. Un administrador recibe además `link_aprobacion` mientras está en revisión.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cotizacion": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        }
+      },
+      "required": [
+        "cotizacion"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_quotation",
+    "title": "Guardar cotización",
+    "description": "Crea, edita o cambia el estado de una cotización de la app (la de Odoo es odoo_save_quotation). Una intención por llamada. Crear: nombre, cliente y `lineas` (se prellenan del catálogo ETM). Editar: `cambios` por línea (numeración de get_quotation), `lineas` para agregar y/o nombre y cliente. Estado: borrador, en_revision, aprobada o rechazada; cambiarlo regenera el link de aprobación. Casi todo pide el sí con la clave; borrador → en_revision es directo. No borra ni genera la orden. Úsala para \"ponle entrega 1 semana a todo\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cotizacion": {
+          "description": "Nombre, cliente o ref; omitida = crear",
+          "type": "string"
+        },
+        "nombre": {
+          "type": "string"
+        },
+        "cliente": {
+          "type": "string"
+        },
+        "lineas": {
+          "description": "Crear: todas, en orden. Editar: las que se agregan",
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "etm": {
+                "description": "ETM, o \"nuevo\" para un código interno",
+                "type": "string"
+              },
+              "seccion": {
+                "type": "string"
+              },
+              "cantidad": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99999
+              },
+              "precio": {
+                "description": "Omitido = el del catálogo",
+                "type": "number",
+                "minimum": 0
+              },
+              "entrega": {
+                "type": "string",
+                "enum": [
+                  "inmediata",
+                  "2_3_dias",
+                  "3_5_dias",
+                  "1_semana",
+                  "2_semanas",
+                  "indefinida"
+                ]
+              },
+              "codigo": {
+                "description": "Solo si el ETM no está en el catálogo",
+                "type": "string"
+              },
+              "marca": {
+                "type": "string"
+              },
+              "descripcion": {
+                "type": "string"
+              },
+              "despues_de": {
+                "description": "Al agregar: tras la línea N (0 = inicio)",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9999
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "cambios": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "linea": {
+                "description": "N, [N, M] o \"todas\"",
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9999
+                    }
+                  },
+                  {
+                    "type": "string",
+                    "const": "todas"
+                  }
+                ]
+              },
+              "etm": {
+                "description": "Guarda: el ETM que esperas en esa línea",
+                "type": "string"
+              },
+              "precio": {
+                "type": "number",
+                "minimum": 0
+              },
+              "cantidad": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99999
+              },
+              "entrega": {
+                "type": "string",
+                "enum": [
+                  "inmediata",
+                  "2_3_dias",
+                  "3_5_dias",
+                  "1_semana",
+                  "2_semanas",
+                  "indefinida"
+                ]
+              },
+              "se_vende": {
+                "type": "string",
+                "enum": [
+                  "sin_definir",
+                  "si",
+                  "no"
+                ]
+              },
+              "aprobacion": {
+                "description": "Lo dicho por el cliente; no en revisión",
+                "type": "string",
+                "enum": [
+                  "pendiente",
+                  "aprobada",
+                  "rechazada"
+                ]
+              },
+              "descripcion_dymmsa": {
+                "type": "string"
+              },
+              "quitar": {
+                "type": "boolean",
+                "const": true
+              },
+              "despues_de": {
+                "description": "Mueve la línea tras la N (0 = inicio)",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9999
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "estado": {
+          "type": "string",
+          "enum": [
+            "borrador",
+            "en_revision",
+            "aprobada",
+            "rechazada"
+          ]
+        },
+        "version": {
+          "description": "De get_quotation; si cambió, no escribe",
+          "type": "string"
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_orders",
+    "title": "Listar órdenes",
+    "description": "Lista órdenes de compra con filtros, de la más reciente a la más antigua. Úsala para \"¿qué órdenes siguen abiertas?\" o buscar por cliente. `total_sellado` es el monto guardado en la fila; get_order trae el total recalculado.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "description": "Filtrar por estado exacto",
+          "type": "string",
+          "enum": [
+            "pedida",
+            "recibida",
+            "entregada",
+            "completada",
+            "cancelada"
+          ]
+        },
+        "buscar": {
+          "description": "Busca en nombre de orden y nombre del cliente",
+          "type": "string"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_order",
+    "title": "Detalle de orden",
+    "description": "Una orden con todas sus líneas numeradas (`linea`): cantidades (aprobada, en stock, por pedir, recibida), estado con URREA, ubicación en tienda, `version` y cuántas siguen pendientes con URREA. Acepta nombre, cliente o ref.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        }
+      },
+      "required": [
+        "orden"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_order",
+    "title": "Guardar orden",
+    "description": "Crea o edita una orden. Crear: `cotizacion` aprobada (descuenta stock) o `cliente` con `productos` (manual). Editar con `orden`, una intención por llamada: `estado` (cancelar devuelve stock, sin deshacer), `odoo_id` (vacío lo quita) o `cambios` (numeración de get_order) y/o `productos` a agregar. Pide el sí con la clave y muestra el stock que mueve; odoo_id y solo entrega son directos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "description": "Nombre, cliente o ref; omitida = crear",
+          "type": "string"
+        },
+        "cotizacion": {
+          "type": "string"
+        },
+        "cliente": {
+          "type": "string"
+        },
+        "productos": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "etm": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cantidad": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99999
+              },
+              "precio": {
+                "type": "number",
+                "minimum": 0
+              },
+              "codigo": {
+                "type": "string"
+              },
+              "marca": {
+                "type": "string"
+              },
+              "descripcion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "etm",
+              "cantidad",
+              "precio"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "estado": {
+          "type": "string",
+          "enum": [
+            "pedida",
+            "recibida",
+            "entregada",
+            "completada",
+            "cancelada"
+          ]
+        },
+        "odoo_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cambios": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "linea": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9999
+              },
+              "etm": {
+                "description": "ETM esperado en esa línea",
+                "type": "string"
+              },
+              "precio": {
+                "type": "number",
+                "minimum": 0
+              },
+              "entrega": {
+                "type": "string",
+                "enum": [
+                  "inmediata",
+                  "2_3_dias",
+                  "3_5_dias",
+                  "1_semana",
+                  "2_semanas",
+                  "indefinida"
+                ]
+              },
+              "quitar": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "linea"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_order_reception",
+    "title": "Registrar recepción",
+    "description": "Registra lo recibido de URREA en una orden: por línea, `codigo` (o `linea` si se repite) y `recibido` total. Recibir lo pedido la marca surtida; el excedente entra al inventario. Pide el sí con la clave y muestra el excedente y el total de entrega.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        },
+        "lineas": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string"
+              },
+              "linea": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9999
+              },
+              "recibido": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999
+              },
+              "estado": {
+                "type": "string",
+                "enum": [
+                  "pendiente",
+                  "surtido",
+                  "no_surtido"
+                ]
+              }
+            },
+            "required": [
+              "recibido"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "orden",
+        "lineas"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_cut_plan",
+    "title": "Lista de corte de una orden",
+    "description": "Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para \"¿cuánto tubo necesito para la orden de X?\". Acepta nombre, cliente o ref de la orden.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        }
+      },
+      "required": [
+        "orden"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_cut_plan",
+    "title": "Guardar lista de corte",
+    "description": "Agrega, quita o reemplaza piezas de la lista de corte de una orden, en mm (pulgadas ×25.4; confirma la conversión). Tubo: diametro_mm; placa: espesor_mm y ancho_mm. Agregar es directo; quitar (por número de get_cut_plan) y reemplazar piden el sí con la clave y dicen cómo cambia la necesidad neta. Úsala para \"agrega cuatro tubos de 1 pulgada de 300 mm a la orden 12\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        },
+        "accion": {
+          "type": "string",
+          "enum": [
+            "agregar",
+            "quitar",
+            "reemplazar"
+          ]
+        },
+        "piezas": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tipo": {
+                "type": "string",
+                "enum": [
+                  "tubo",
+                  "placa"
+                ]
+              },
+              "diametro_mm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "espesor_mm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "ancho_mm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "largo_mm": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "cantidad": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99999
+              },
+              "pedido_como": {
+                "type": "string",
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "tipo",
+              "largo_mm",
+              "cantidad"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "quitar_piezas": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9999
+          }
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "orden",
+        "accion"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_material_presentation",
+    "title": "Registrar medida de material",
+    "description": "Registra una presentación del proveedor para el corte: barra de tubo (diámetro y largo) u hoja de placa (espesor, ancho y largo), SIEMPRE en mm — convierte pulgadas (×25.4) y metros y confirma la conversión con el usuario antes de guardar. Si ya existía, la marca como la más reciente. ESCRIBE. No borra medidas.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tipo": {
+          "type": "string",
+          "enum": [
+            "tubo",
+            "placa"
+          ]
+        },
+        "diametro_mm": {
+          "description": "Tubo",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "espesor_mm": {
+          "description": "Placa",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ancho_mm": {
+          "description": "Placa",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "largo_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Largo comercial de la barra u hoja"
+        }
+      },
+      "required": [
+        "tipo",
+        "largo_mm"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_purchase_plan",
+    "title": "Planificador de compra de una orden",
+    "description": "Qué va a mayoreo (URREA, por paquetes STD) y qué a menudeo en una orden: por grupo código+marca la matemática (paquetes completos, resto, dinero parado), la recomendación al vuelo y la decisión guardada (con aviso si quedó desactualizada). \"revisar\" = el usuario debe decidir. Acepta nombre, cliente o ref de la orden.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        }
+      },
+      "required": [
+        "orden"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_purchase_decisions",
+    "title": "Guardar decisiones de compra",
+    "description": "Decide mayoreo (URREA, por paquetes), mixto o menudeo por grupo código+marca de una orden. Nunca recibe cantidades: el servidor calcula STD y necesidad. `aceptar_recomendaciones` llena con lo sugerido los grupos sin decisión; los «revisar» los decide el usuario con `decisiones`. Guarda siempre el conjunto completo y, si algún grupo queda sin decidir, no guarda. Úsala para \"en la orden de GE acepta las recomendaciones\". Dos fases siempre.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        },
+        "decisiones": {
+          "minItems": 1,
+          "maxItems": 300,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string",
+                "minLength": 1
+              },
+              "marca": {
+                "type": "string"
+              },
+              "eleccion": {
+                "type": "string",
+                "enum": [
+                  "mayoreo",
+                  "mixto",
+                  "menudeo"
+                ]
+              }
+            },
+            "required": [
+              "codigo",
+              "eleccion"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "aceptar_recomendaciones": {
+          "description": "Los grupos sin decisión toman la recomendación",
+          "type": "boolean",
+          "const": true
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "orden"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "search_inventory",
+    "title": "Buscar en inventario",
+    "description": "Stock de tienda por código, con su ubicación física (gaveta) cuando hay existencias. `existencias`: con_existencia (>0), suficiente (>5), poca (1-5), sin_existencia (0). Úsala para \"¿tenemos el 6954? ¿dónde está?\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buscar": {
+          "description": "Código (parcial)",
+          "type": "string"
+        },
+        "existencias": {
+          "description": "Default todas",
+          "type": "string",
+          "enum": [
+            "todas",
+            "con_existencia",
+            "suficiente",
+            "poca",
+            "sin_existencia"
+          ]
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_inventory_item",
+    "title": "Guardar inventario",
+    "description": "Cambia el inventario de la TIENDA, hasta 30 productos: gaveta (`ubicacion`, \"\" la borra), conteo físico (`cantidad_contada`: se guarda menos lo que las órdenes abiertas tienen apartado) o delta (`ajuste`). Úsala para \"conté el 6954: hay 12, gaveta B3\". Solo la gaveta es directa; toda cantidad pide el sí con la clave y un `motivo` que queda en la bitácora. `crear: true` da de alta códigos nuevos. No borra ni importa.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "productos": {
+          "minItems": 1,
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ubicacion": {
+                "type": "string"
+              },
+              "cantidad_contada": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 999999
+              },
+              "ajuste": {
+                "type": "integer",
+                "minimum": -999999,
+                "maximum": 999999
+              }
+            },
+            "required": [
+              "codigo"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "crear": {
+          "description": "Permite códigos que aún no están",
+          "type": "boolean",
+          "const": true
+        },
+        "motivo": {
+          "description": "Obligatorio con cantidades",
+          "type": "string",
+          "maxLength": 200
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "productos"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "search_products",
+    "title": "Buscar productos ETM",
+    "description": "Busca en el catálogo ETM por ETM, código o descripción. Devuelve precio, marca, `se_vende` (sin_definir, si, no) y la Descripción DYMMSA ya resuelta con la jerarquía de catálogo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buscar": {
+          "type": "string",
+          "description": "Texto a buscar (ETM, código o descripción)"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "buscar"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_product",
+    "title": "Guardar producto ETM",
+    "description": "Alta o cambio de un producto del catálogo ETM: precio, se_vende, descripciones, código, marca o ETM. Con `crear: true` lo da de alta (`etm: \"nuevo\"` toma el siguiente DYMMSA-N). Úsala para \"el 1180234 no lo vendemos\" o \"en realidad es SURTEK\". Directo, salvo `nuevo_etm`, `codigo_modelo` o `marca` (mueven el cruce con el catálogo URREA): esos piden el sí con la clave. La descripción oficial del catálogo nunca se copia como curada. No borra ni importa.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "etm": {
+          "type": "string",
+          "description": "ETM exacto o ref; con `crear`, el ETM nuevo o \"nuevo\""
+        },
+        "crear": {
+          "description": "Alta; sin él un ETM desconocido es error",
+          "type": "boolean",
+          "const": true
+        },
+        "nuevo_etm": {
+          "description": "Renombra el ETM",
+          "type": "string"
+        },
+        "descripcion": {
+          "type": "string"
+        },
+        "descripcion_es": {
+          "type": "string"
+        },
+        "descripcion_dymmsa": {
+          "description": "Curada; texto vacío la borra",
+          "type": "string"
+        },
+        "codigo_modelo": {
+          "type": "string"
+        },
+        "marca": {
+          "description": "Se guarda en mayúsculas",
+          "type": "string"
+        },
+        "precio": {
+          "type": "number",
+          "minimum": 0
+        },
+        "se_vende": {
+          "type": "string",
+          "enum": [
+            "sin_definir",
+            "si",
+            "no"
+          ]
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "etm"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "search_urrea_catalog",
+    "title": "Consultar catálogo URREA",
+    "description": "Consulta el catálogo oficial URREA por código (exacto, todas las marcas) o por descripción (parcial, paginada). Devuelve código, marca, descripción oficial y std (unidades por paquete).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buscar": {
+          "type": "string",
+          "description": "Código URREA o texto de la descripción"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "buscar"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_urrea_catalog_item",
+    "title": "Guardar artículo del catálogo URREA",
+    "description": "Alta o cambio de una fila del catálogo URREA (identidad = código + marca): descripción oficial, std (piezas por paquete) o identidad. Con `crear: true` la da de alta. Úsala para \"el 6954 ahora viene en paquete de 12\". Solo cambiar la descripción es directo; alta, std o identidad piden el sí con la clave y dicen cuántas decisiones de compra guardadas quedan desactualizadas. No borra ni importa archivos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "codigo": {
+          "type": "string",
+          "description": "Código URREA (se guarda en mayúsculas)"
+        },
+        "marca": {
+          "description": "Default URREA; obligatoria si el código está en varias marcas",
+          "type": "string"
+        },
+        "crear": {
+          "description": "Alta; sin él un código desconocido es error",
+          "type": "boolean",
+          "const": true
+        },
+        "descripcion": {
+          "description": "Oficial; texto vacío la borra",
+          "type": "string"
+        },
+        "std": {
+          "description": "Piezas por paquete",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99999
+        },
+        "nuevo_codigo": {
+          "description": "Cambia el código",
+          "type": "string"
+        },
+        "nueva_marca": {
+          "description": "Cambia la marca",
+          "type": "string"
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "codigo"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_suppliers",
+    "title": "Proveedores de menudeo",
+    "description": "Proveedores locales con contacto, plazo de pago (días de crédito; \"Contado\" si no hay) y las marcas que surten. Filtra por texto (nombre/teléfono/email) o por marca. Úsala para \"¿quién me surte SURTEK?\" o \"¿qué plazo da Perfiles?\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buscar": {
+          "description": "Texto a buscar en nombre, teléfono, whatsapp o email",
+          "type": "string"
+        },
+        "marca": {
+          "description": "Marca que debe surtir, p. ej. \"SURTEK\"",
+          "type": "string"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_supplier",
+    "title": "Guardar proveedor",
+    "description": "Da de alta un proveedor de menudeo, o edita uno existente si mandas proveedor (su nombre o parte): contacto, días de crédito (null = contado) y marcas con agregar_marcas / quitar_marcas; una marca nueva solo se da de alta con crear_marcas: true. Un texto vacío borra ese dato. No borra proveedores.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "proveedor": {
+          "description": "A editar (nombre o parte); omitido = alta",
+          "type": "string"
+        },
+        "nombre": {
+          "description": "Nombre (obligatorio en un alta)",
+          "type": "string"
+        },
+        "telefono": {
+          "type": "string"
+        },
+        "whatsapp": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "direccion": {
+          "type": "string"
+        },
+        "notas": {
+          "type": "string"
+        },
+        "dias_credito": {
+          "description": "Días de crédito; null = contado",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9999
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agregar_marcas": {
+          "description": "Marcas que surte, p. ej. [\"SURTEK\"]",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quitar_marcas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "crear_marcas": {
+          "description": "Crea las marcas que no existan",
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_payables",
+    "title": "Facturas por pagar",
+    "description": "Facturas de GASTOS de la app (registro propio; Odoo solo factura a clientes) con proveedor, monto, vencimiento y días para vencer (negativo = vencida). Filtra por estado (vencida = pendientes ya vencidas), mes de VENCIMIENTO, proveedor (nombre parcial) o concepto. Ordenadas por vencimiento.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "type": "string",
+          "enum": [
+            "pendiente",
+            "vencida",
+            "pagada",
+            "cancelada"
+          ]
+        },
+        "mes": {
+          "description": "Mes de vencimiento",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+        },
+        "proveedor": {
+          "description": "Nombre (o parte) del proveedor",
+          "type": "string"
+        },
+        "concepto": {
+          "description": "Texto del concepto (parcial)",
+          "type": "string"
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "por_pagina": {
+          "description": "Resultados por página (default 20, máx 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_payable",
+    "title": "Detalle de factura por pagar",
+    "description": "Una factura de gasto completa: proveedor y su plazo, concepto, monto, fechas, estado y notas. Acepta ref, o parte del concepto o del nombre del proveedor; con varias coincidencias pide precisar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "factura": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Ref, o parte del concepto / nombre del proveedor"
+        }
+      },
+      "required": [
+        "factura"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_payables_overview",
+    "title": "Resumen de facturas por pagar del mes",
+    "description": "Responde \"¿qué debo esta semana / este mes?\": pendiente del mes por semana de vencimiento, vencido (incluye el arrastre de meses anteriores), por vencer en 7 días, pagado en el mes, y las próximas 15 facturas pendientes. mes = YYYY-MM (default: el actual).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mes": {
+          "description": "Default el actual",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_payable",
+    "title": "Guardar factura por pagar",
+    "description": "Alta o cambio de una factura de GASTO de la app (no de Odoo). Sin `factura` la registra (nace pendiente; vence en fecha + plazo del proveedor). Con `factura` (ref, concepto o proveedor) la corrige, la paga con su fecha real (`estado: pagada`, `fecha_pago` default hoy), la regresa a pendiente o la cancela. Úsala para \"ya pagué la de Perfiles\" o \"la de Tornillos era por 3,200\". Directo; solo cambiar cifras o fechas de una PAGADA pide el sí con la clave. Nunca convierte moneda; no borra (delete_record) ni reactiva una cancelada.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "factura": {
+          "description": "La existente: ref, concepto o proveedor; omítela para dar de alta",
+          "type": "string"
+        },
+        "proveedor": {
+          "description": "Nombre (o parte); en una existente, el nuevo",
+          "type": "string"
+        },
+        "concepto": {
+          "type": "string"
+        },
+        "monto": {
+          "description": "Mayor a 0",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "moneda": {
+          "description": "Default MXN",
+          "type": "string",
+          "enum": [
+            "MXN",
+            "USD"
+          ]
+        },
+        "fecha_factura": {
+          "type": "string",
+          "format": "date"
+        },
+        "vencimiento": {
+          "description": "Default: fecha + plazo del proveedor",
+          "type": "string",
+          "format": "date"
+        },
+        "notas": {
+          "description": "Texto vacío las borra",
+          "type": "string"
+        },
+        "estado": {
+          "type": "string",
+          "enum": [
+            "pendiente",
+            "pagada",
+            "cancelada"
+          ]
+        },
+        "fecha_pago": {
+          "description": "Fecha REAL de pago (default hoy)",
+          "type": "string",
+          "format": "date"
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_month_closing",
+    "title": "Cierre del mes",
+    "description": "Cómo cierra un mes: egresos de la app (pagado, pendiente del mes, vencido arrastrado) + ingresos leídos de Odoo (cobrado, por cobrar, vencido por cobrar, notas de crédito aparte) y el cierre real/proyectado. Si Odoo no está disponible lo dice y el cierre refleja solo egresos. mes = YYYY-MM (default actual).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mes": {
+          "description": "Default el actual",
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_week_hours",
+    "title": "Horas de la semana",
+    "description": "Horas trabajadas de una semana según el checador, día por día (cada uno con su estado: cumplió, no cumplió, justificado), con el total y el cumplimiento de la jornada (tiempo completo 40 h / medio tiempo 20 h, descontando días feriados y salidas autorizadas por el administrador). Sin `persona` son las horas de quien pregunta; un administrador puede indicar a alguien por nombre parcial. `fecha` = cualquier día de la semana deseada (default: esta semana). Una \"checada sin salida\" no suma horas.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "persona": {
+          "description": "Nombre (o parte) de la persona; solo un administrador ve a otros",
+          "type": "string"
+        },
+        "fecha": {
+          "description": "Cualquier día de la semana (default hoy)",
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_hours_trend",
+    "title": "Tendencia de horas",
+    "description": "Total de horas por semana de las últimas N semanas (default 8, máx 26) hasta la actual, con el promedio semanal y el cumplimiento de la jornada. Úsala para \"¿cómo viene Fulano este mes?\" o \"¿quién no está completando su jornada?\" (una llamada por persona).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "persona": {
+          "description": "Nombre (o parte) de la persona; solo un administrador ve a otros",
+          "type": "string"
+        },
+        "semanas": {
+          "description": "Semanas a incluir (default 8)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 26
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_time_imports",
+    "title": "Cargas del checador",
+    "description": "Bitácora de los reportes semanales del checador cargados a la app: periodo, archivo, checadas insertadas/actualizadas y las saltadas por edición manual. Solo un administrador ve filas.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "limite": {
+          "description": "Máx 50 cargas (default 10)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "preview_time_report",
+    "title": "Revisar reporte del checador",
+    "description": "Revisa SIN guardar el reporte semanal del checador (NGTeco .xls) contra sus propios totales; devuelve la `clave` que save_time_entries exige con `filas` (en Claude se ve como tabla con botón para guardar). `filas`: TODAS las filas tal cual, cada celda en su columna (\"\" si vacía; sin resumir), con \"Período de pago\", \"Empleado\", continuaciones y \"Horas totales\". Ej.: [\"LU\",\"2026-09-28\",\"10:09\",\"19:48\",\"09:38\",\"09:38\"].",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "filas": {
+          "minItems": 1,
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "nombre_archivo": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "filas"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "periodo": {
+          "type": "object",
+          "properties": {
+            "inicio": {
+              "type": "string"
+            },
+            "fin": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "inicio",
+            "fin"
+          ],
+          "additionalProperties": false
+        },
+        "nombre_archivo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cuadra": {
+          "type": "boolean"
+        },
+        "problemas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dias": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "fecha": {
+                "type": "string"
+              },
+              "dia": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fecha",
+              "dia"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "personas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "nombre": {
+                "type": "string"
+              },
+              "id_checador": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "perfil": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "por_dia": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fecha": {
+                      "type": "string"
+                    },
+                    "horas": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "checadas": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sin_salida": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "fecha",
+                    "horas",
+                    "checadas",
+                    "sin_salida"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "total": {
+                "type": "string"
+              },
+              "total_reporte": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cuadra": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "nombre",
+              "id_checador",
+              "perfil",
+              "por_dia",
+              "total",
+              "total_reporte",
+              "cuadra"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "sin_perfil": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "no_vinieron_en_el_reporte": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "avisos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "clave": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "siguiente_paso": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "periodo",
+        "nombre_archivo",
+        "cuadra",
+        "problemas",
+        "dias",
+        "personas",
+        "sin_perfil",
+        "no_vinieron_en_el_reporte",
+        "avisos",
+        "clave",
+        "vence",
+        "siguiente_paso"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "ui": {
+        "resourceUri": "ui://dymmsa/time-report.html"
+      },
+      "ui/resourceUri": "ui://dymmsa/time-report.html"
+    }
+  },
+  {
+    "name": "save_time_entries",
+    "title": "Guardar checadas",
+    "description": "Escribe checadas, solo si un administrador lo pide. A) `filas` + `clave`: el reporte semanal, las mismas filas que en preview_time_report y la clave que esa vista devolvió (revísalo ahí primero). Si no cuadra con los totales del reporte, no guarda nada. B) `checada`: corrige una (`entrada_actual` = su entrada de hoy, ver get_week_hours) o registra una a mano (con `entrada`); `salida: \"\"` la borra. Lo corregido sobrevive al re-import.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "filas": {
+          "minItems": 1,
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "nombre_archivo": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "clave": {
+          "description": "La de preview_time_report; obligatoria con `filas`",
+          "type": "string"
+        },
+        "checada": {
+          "type": "object",
+          "properties": {
+            "persona": {
+              "description": "Default: tú",
+              "type": "string"
+            },
+            "fecha": {
+              "type": "string",
+              "format": "date"
+            },
+            "entrada_actual": {
+              "type": "string"
+            },
+            "entrada": {
+              "description": "HH:MM",
+              "type": "string"
+            },
+            "salida": {
+              "type": "string"
+            },
+            "nota": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "fecha"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_excused_day",
+    "title": "Guardar día justificado",
+    "description": "Marca o cambia un día justificado, solo si un administrador lo pide. `feriado`: no pide horas. `salida_autorizada`: cuenta como cumplido con lo trabajado. Sin `persona`, todo el equipo; con ella, solo esa persona. Si ya existe, lo actualiza. Quitar uno es delete_record.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "fecha": {
+          "type": "string",
+          "format": "date"
+        },
+        "tipo": {
+          "description": "Obligatorio en uno nuevo",
+          "type": "string",
+          "enum": [
+            "feriado",
+            "salida_autorizada"
+          ]
+        },
+        "persona": {
+          "description": "Nombre (o parte) o ref; omitida = todo el equipo",
+          "type": "string"
+        },
+        "nota": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "fecha"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_profiles",
+    "title": "Perfiles del equipo",
+    "description": "Perfil de las personas con cuenta en la app: nombre, rol, área, jornada, id del checador, NSS (Número de Seguridad Social) y foto. Sin `persona` devuelve todos los que quien pregunta puede ver (un miembro solo el suyo, un administrador a todo el equipo) con el NSS solo de quien pregunta; con `persona` (nombre parcial o ref) trae a una e incluye su NSS. Úsala para \"¿cuál es mi NSS?\" o \"¿cuál es el NSS de Tania?\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "persona": {
+          "description": "Nombre (o parte) o ref; solo un administrador ve a otros",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_profile",
+    "title": "Guardar perfil",
+    "description": "Cambia el perfil de una persona del equipo: nombre, NSS, id del checador, jornada o área. Sin `persona` es el tuyo. Úsala para \"Diego pasa a medio tiempo\" o \"mi NSS es …\". Tu nombre y tu NSS se guardan directo; todo lo de otra persona, y el id del checador, la jornada y el área, piden el sí con la clave. Nunca cambia el rol ni la tarifa; el NSS vuelve enmascarado. No da de alta ni borra personas.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "persona": {
+          "description": "Nombre (o parte) o ref; omitida = tú",
+          "type": "string"
+        },
+        "nombre": {
+          "type": "string"
+        },
+        "nss": {
+          "description": "11 dígitos; texto vacío lo borra",
+          "type": "string"
+        },
+        "id_checador": {
+          "description": "Id del checador; null = no checa",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 99999
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "jornada": {
+          "type": "string",
+          "enum": [
+            "completa",
+            "media",
+            "ninguna"
+          ]
+        },
+        "area": {
+          "type": "string",
+          "enum": [
+            "oficina",
+            "taller"
+          ]
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_payroll_period",
+    "title": "Corte de nómina",
+    "description": "Horas de nómina del corte sábado→viernes que contiene `fecha` (default: el corte actual): por empleado, cada día con sus horas, si es borrador o confirmado y de dónde salió (hoja, checador, manual), más los totales normal / extra / sábado extra (×2) / domingo (×3) y el equivalente. Solo los días confirmados suman. SOLO administradores: a un miembro le llega vacío. Son horas, no montos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "fecha": {
+          "description": "Cualquier día del corte (default hoy)",
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_payroll_hours",
+    "title": "Cargar o corregir horas de nómina",
+    "description": "Guarda horas por empleado y día —típicamente la hoja semanal del taller— como BORRADOR, directo. `horas` es el total del día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado (lo que pasa de 5 h) y el triple de domingo los calcula la app. Nunca pisa un día confirmado, capturado a mano o traído del checador, ni un corte cerrado: vuelven en `omitidos` con el motivo. Con `traer_de_horas: true` (sin `dias`) copia al corte de `fecha` (default el actual) las horas checadas de la oficina y su sábado pagado, como el botón \"Traer de Horas\". Con `corregir` (solo) cambia UN día ya capturado, también uno confirmado, y lo deja confirmado y manual; `horas: 0` sin nota lo borra; pide el sí con la clave. Confirmar y cerrar el corte es save_payroll_period; no crea empleados. CÓMO LEER LA HOJA (interprétala antes de guardar nada): 1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que \"Semana del … – …\" se lea bien y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; manda cada día con su fecha real (una hoja cae en dos cortes: la tool los reparte sola por fecha). 2. Una fila por trabajador. Lunes a viernes: \"°\" con guion = asistió su jornada normal (8 h); una hora de la tarde (19:00, 21:00) = salió tarde, y las extras son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra; una hora de la mañana (8:05) con HRS EXT vacío = llegó tarde: el día va normal (8 h) con nota \"Entrada 8:05\". Día tachado o vacío = no trabajó: no lo mandes. Sábado: \"°\" = 5 h; si trabajó más, manda el total. Domingo: las horas que trabajó. 3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras junto al nombre; si no cuadra, o aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar, no lo adivines. 4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta). 5. Antes de llamar la tool muestra una tabla con lo que leíste (empleado × día, horas), marca lo dudoso y guarda solo tras la confirmación. Un número mal leído es dinero. Los nombres deben coincidir con los empleados de Nómina; si uno no existe, la tool lo dice.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dias": {
+          "description": "Un elemento por empleado y día (la hoja del taller)",
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "empleado": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Nombre (o parte) del empleado de nómina"
+              },
+              "fecha": {
+                "type": "string",
+                "format": "date",
+                "description": "Día trabajado"
+              },
+              "horas": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 24,
+                "description": "Horas trabajadas ese día, con decimales (11.5)"
+              },
+              "horas_no_trabajadas": {
+                "description": "HRS NO TRABAJADAS de ese día (solo registro)",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 24
+              },
+              "nota": {
+                "description": "Nota del día",
+                "type": "string",
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "empleado",
+              "fecha",
+              "horas"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "traer_de_horas": {
+          "type": "boolean"
+        },
+        "fecha": {
+          "type": "string",
+          "format": "date"
+        },
+        "corregir": {
+          "description": "Corrige UN día; va solo, sin `dias`",
+          "type": "object",
+          "properties": {
+            "empleado": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Nombre (o parte); también uno dado de baja"
+            },
+            "fecha": {
+              "type": "string",
+              "format": "date"
+            },
+            "horas": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 24,
+              "description": "Total del día; 0 sin nota lo borra"
+            },
+            "horas_no_trabajadas": {
+              "description": "Omitida = las que tenía",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 24
+            },
+            "nota": {
+              "description": "Omitida = la que tenía; texto vacío la borra",
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "empleado",
+            "fecha",
+            "horas"
+          ],
+          "additionalProperties": false
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_payroll_employee",
+    "title": "Guardar empleado de nómina",
+    "description": "Da de alta un empleado de nómina (la lista propia de Nómina: los del taller no tienen cuenta), o edita uno si mandas empleado (su nombre o parte): nombre, jornada, perfil de la app ligado (para traer sus horas del checador) y activo — la baja es activo=false, nunca se borra. ESCRIBE: úsala solo cuando un administrador lo pida y confirma los datos antes. No toca horas ni cortes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "empleado": {
+          "description": "Empleado a editar (nombre o parte); omítelo para dar de alta",
+          "type": "string"
+        },
+        "nombre": {
+          "description": "Nombre (obligatorio en un alta)",
+          "type": "string"
+        },
+        "jornada": {
+          "description": "completa = 8 h, media = 4 h (default completa)",
+          "type": "string",
+          "enum": [
+            "completa",
+            "media"
+          ]
+        },
+        "perfil": {
+          "description": "Persona de la app a ligar (nombre); null o \"\" la desliga",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "activo": {
+          "description": "false = darlo de baja",
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_payroll_period",
+    "title": "Confirmar o cerrar corte de nómina",
+    "description": "Confirma los borradores, cierra o reabre el corte de nómina (sábado→viernes) que contiene `fecha` (default el actual). Úsala para \"confirma los borradores\" o \"cierra el corte\". Siempre pide el sí con la clave: el resumen lista cada día que pasa a ser horas pagables y la clave queda atada a ese conjunto exacto. Cerrar exige cero borradores; reabrir descongela un corte posiblemente pagado. Son horas, nunca montos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "accion": {
+          "type": "string",
+          "enum": [
+            "confirmar_borradores",
+            "cerrar",
+            "reabrir"
+          ]
+        },
+        "fecha": {
+          "description": "Cualquier día del corte (default hoy)",
+          "type": "string",
+          "format": "date"
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accion"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_tasks",
+    "title": "Listar tareas",
+    "description": "Tareas del equipo (GitHub Issues del repo), abiertas por default, de la más reciente a la más antigua, con un extracto de la descripción (get_task trae el texto completo). Las cerradas dicen si se completaron o se descartaron.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "description": "Default abierta",
+          "type": "string",
+          "enum": [
+            "abierta",
+            "cerrada",
+            "todas"
+          ]
+        },
+        "prioridad": {
+          "type": "string",
+          "enum": [
+            "baja",
+            "media",
+            "alta",
+            "urgente"
+          ]
+        },
+        "pagina": {
+          "description": "Página (1-indexada, default 1; 30 por página)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_task",
+    "title": "Detalle de tarea",
+    "description": "Una tarea con su descripción, quién la reportó, prioridad, estado y sus comentarios (hasta 100).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tarea": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99999,
+          "description": "Número de la tarea (#N)"
+        }
+      },
+      "required": [
+        "tarea"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_task",
+    "title": "Guardar tarea",
+    "description": "Crea una tarea (GitHub Issue) o cambia una existente con `tarea`: comentar, priorizar, cerrar o reabrir. Sin `tarea`, `titulo` es obligatorio. Directo; cambiar el título o la descripción de una tarea existente pide el sí con la clave. La tarea queda reportada por el asistente; un comentario se publica atribuido a él. Cerrar con motivo descartada = no se hará.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tarea": {
+          "description": "Número (#N) de la existente; omítelo para crear",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99999
+        },
+        "titulo": {
+          "description": "Obligatorio al crear",
+          "type": "string"
+        },
+        "descripcion": {
+          "type": "string"
+        },
+        "prioridad": {
+          "description": "\"ninguna\" la quita",
+          "type": "string",
+          "enum": [
+            "baja",
+            "media",
+            "alta",
+            "urgente",
+            "ninguna"
+          ]
+        },
+        "estado": {
+          "description": "abierta reabre, cerrada cierra",
+          "type": "string",
+          "enum": [
+            "abierta",
+            "cerrada"
+          ]
+        },
+        "motivo": {
+          "description": "Solo al cerrar (default completada)",
+          "type": "string",
+          "enum": [
+            "completada",
+            "descartada"
+          ]
+        },
+        "comentario": {
+          "description": "Comentario a publicar en la tarea",
+          "type": "string"
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_app_settings",
+    "title": "Configuración de la app",
+    "description": "Parámetros que usan los planificadores: umbrales del planificador de compra (dinero parado en MXN y % parado) y margen por corte en mm. Indica cuáles están guardados y cuáles corren con el default del código.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_app_settings",
+    "title": "Guardar configuración",
+    "description": "Cambia los umbrales del planificador de compra (dinero parado en MXN, % parado) y el margen por corte en mm; `restablecer: true` vuelve a los valores de fábrica. Úsala para \"sube el umbral a $150\" o \"corta sin margen\". Cambia las recomendaciones de TODAS las órdenes. Dos fases siempre. Nunca acepta otras llaves.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "umbral_dinero_parado_mxn": {
+          "description": "MXN, mayor a 0",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "umbral_pct_parado": {
+          "description": "Fracción: 0.8 = 80 %",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "margen_por_corte_mm": {
+          "description": "mm por corte; 0 vale",
+          "type": "number",
+          "minimum": 0
+        },
+        "restablecer": {
+          "description": "Valores de fábrica; no va con valores",
+          "type": "boolean",
+          "const": true
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "delete_record",
+    "title": "Borrar un registro",
+    "description": "El único borrado: `tipo` = proveedor, marca, medida (de material), factura (pendiente o cancelada), checada o dia_justificado. Dos fases siempre: la primera dice qué se pierde (una checada importada vuelve con el re-import) o qué lo bloquea (un proveedor con facturas, una marca en uso, una factura pagada). Úsala para \"borra la factura que registré dos veces\". Nunca borra cotizaciones, órdenes, productos, inventario ni catálogo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tipo": {
+          "type": "string",
+          "enum": [
+            "proveedor",
+            "marca",
+            "medida",
+            "factura",
+            "checada",
+            "dia_justificado"
+          ]
+        },
+        "referencia": {
+          "description": "Nombre o ref",
+          "type": "string"
+        },
+        "persona": {
+          "description": "Default tú; en día justificado, omitida = todo el equipo",
+          "type": "string"
+        },
+        "fecha": {
+          "type": "string",
+          "format": "date"
+        },
+        "entrada": {
+          "description": "Entrada actual, HH:MM",
+          "type": "string"
+        },
+        "material": {
+          "type": "string",
+          "enum": [
+            "tubo",
+            "placa"
+          ]
+        },
+        "diametro_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "espesor_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ancho_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "largo_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tipo"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  }
+]

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { normalizeCatalogCode, normalizeCatalogBrand } from '@/lib/business-rules'
-import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
-import type { UrreaCatalogInsert } from '@/types/database'
+import { normalizeCatalogBrand } from '@/lib/business-rules'
+import { requireAuth, apiError, serverError } from '@/lib/api-helpers'
+import { createCatalogItem, parseCatalogItemInput } from '@/lib/urrea-catalog-store'
 
 const SORT_FIELDS = ['code', 'brand', 'description', 'std'] as const
 type SortField = (typeof SORT_FIELDS)[number]
@@ -72,39 +72,10 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth(supabase)
     if ('error' in auth) return auth.error
 
-    const body = (await request.json()) as Partial<UrreaCatalogInsert>
-    // Normalized: join key against model_code for the DYMMSA description (ADR-013).
-    const code = typeof body.code === 'string' ? normalizeCatalogCode(body.code) : ''
-    if (!code) return badRequest('El código es obligatorio')
-
-    // Type guard mirroring `code`: a non-string brand (e.g. 123) would blow up in .trim() → 500.
-    if (body.brand !== undefined && typeof body.brand !== 'string') {
-      return badRequest('La marca debe ser texto')
-    }
-
-    const std = typeof body.std === 'number' && body.std > 0 ? body.std : 1
-    const payload: UrreaCatalogInsert = {
-      code,
-      brand: normalizeCatalogBrand(body.brand),
-      description: body.description?.trim() || null,
-      std,
-    }
-
-    const { data, error } = await supabase
-      .from('urrea_catalog')
-      .insert(payload)
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === '23505') return badRequest('Ya existe un producto con ese código y marca')
-      console.error('Error creating urrea_catalog item:', error)
-      return serverError('Error al crear el producto')
-    }
-
-    return NextResponse.json(data, { status: 201 })
+    const body = await request.json().catch(() => null)
+    const item = await createCatalogItem(supabase, parseCatalogItemInput(body, { create: true }))
+    return NextResponse.json(item, { status: 201 })
   } catch (error) {
-    console.error('URREA catalog create error:', error)
-    return serverError('Error al crear el producto')
+    return apiError(error, 'Error al crear el producto', 'URREA catalog create error:')
   }
 }

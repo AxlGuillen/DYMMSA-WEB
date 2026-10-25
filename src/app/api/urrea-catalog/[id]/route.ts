@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, notFound, serverError } from '@/lib/api-helpers'
-import { normalizeCatalogCode, normalizeCatalogBrand } from '@/lib/business-rules'
-import type { UrreaCatalogUpdate } from '@/types/database'
+import { requireAuth, apiError, notFound, serverError } from '@/lib/api-helpers'
+import { isUuid } from '@/lib/text'
+import { parseCatalogItemInput, updateCatalogItem } from '@/lib/urrea-catalog-store'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -16,41 +16,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if ('error' in auth) return auth.error
 
     const { id } = await params
-    const body = (await request.json()) as UrreaCatalogUpdate
-
-    const updates: UrreaCatalogUpdate = {}
-    if (typeof body.code === 'string') {
-      const code = normalizeCatalogCode(body.code)
-      if (!code) return badRequest('El código no puede estar vacío')
-      updates.code = code
-    }
-    if (typeof body.brand === 'string') updates.brand = normalizeCatalogBrand(body.brand)
-    if (body.description !== undefined) updates.description = body.description?.trim() || null
-    if (body.std !== undefined) {
-      if (typeof body.std !== 'number' || body.std < 1) return badRequest('STD debe ser un entero ≥ 1')
-      updates.std = body.std
-    }
-
-    if (Object.keys(updates).length === 0) return badRequest('No hay cambios para aplicar')
-
-    const { data, error } = await supabase
-      .from('urrea_catalog')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === '23505') return badRequest('Ya existe un producto con ese código y marca')
-      if (error.code === 'PGRST116') return notFound('Producto no encontrado')
-      console.error('Error updating urrea_catalog item:', error)
-      return serverError('Error al actualizar el producto')
-    }
-
-    return NextResponse.json(data)
+    const body = await request.json().catch(() => null)
+    return NextResponse.json(await updateCatalogItem(supabase, id, parseCatalogItemInput(body, { create: false })))
   } catch (error) {
-    console.error('URREA catalog update error:', error)
-    return serverError('Error al actualizar el producto')
+    return apiError(error, 'Error al actualizar el producto', 'URREA catalog update error:')
   }
 }
 
@@ -62,13 +31,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if ('error' in auth) return auth.error
 
     const { id } = await params
+    if (!isUuid(id)) return notFound('Producto no encontrado')
 
-    const { error } = await supabase.from('urrea_catalog').delete().eq('id', id)
+    const { data, error } = await supabase.from('urrea_catalog').delete().eq('id', id).select('id')
 
     if (error) {
       console.error('Error deleting urrea_catalog item:', error)
       return serverError('Error al eliminar el producto')
     }
+
+    // Zero rows deleted is a missing id, not a success (#157).
+    if (!data || data.length === 0) return notFound('Producto no encontrado')
 
     return NextResponse.json({ ok: true })
   } catch (error) {

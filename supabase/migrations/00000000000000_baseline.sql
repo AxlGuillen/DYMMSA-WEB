@@ -183,6 +183,7 @@ CREATE TABLE public.payables (
   supplier_id uuid NOT NULL,
   concept text NOT NULL,
   amount numeric NOT NULL,
+  currency text DEFAULT 'MXN'::text NOT NULL,
   invoice_date date NOT NULL,
   due_date date NOT NULL,
   status text DEFAULT 'pending' NOT NULL,
@@ -223,6 +224,9 @@ ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_quotation_id_fkey FOR
 ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_price_check CHECK (((unit_price IS NULL) OR (unit_price >= (0)::numeric)));
 ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_quantity_check CHECK (((quantity IS NULL) OR (quantity > 0)));
 ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_separator_color_check CHECK (((separator_color IS NULL) OR (item_type = 'separator'::text)));
+-- NOT VALID (#157, atomic_quotation_writes): checks new and updated rows only, the history stays as it is.
+ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_delivery_time_check CHECK ((delivery_time = ANY (ARRAY['immediate'::text, '2_3_days'::text, '3_5_days'::text, '1_week'::text, '2_weeks'::text, 'indefinite'::text]))) NOT VALID;
+ALTER TABLE quotation_items ADD CONSTRAINT quotation_items_item_type_check CHECK ((item_type = ANY (ARRAY['product'::text, 'separator'::text]))) NOT VALID;
 
 ALTER TABLE orders ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
 ALTER TABLE orders ADD CONSTRAINT orders_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
@@ -273,6 +277,7 @@ ALTER TABLE payables ADD CONSTRAINT payables_pkey PRIMARY KEY (id);
 ALTER TABLE payables ADD CONSTRAINT payables_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
 ALTER TABLE payables ADD CONSTRAINT payables_concept_not_blank CHECK ((btrim(concept) <> ''));
 ALTER TABLE payables ADD CONSTRAINT payables_amount_check CHECK ((amount > 0));
+ALTER TABLE payables ADD CONSTRAINT payables_currency_check CHECK ((currency = ANY (ARRAY['MXN'::text, 'USD'::text])));
 ALTER TABLE payables ADD CONSTRAINT payables_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'cancelled'::text])));
 ALTER TABLE suppliers ADD CONSTRAINT suppliers_payment_terms_days_check CHECK (((payment_terms_days IS NULL) OR (payment_terms_days >= 0)));
 
@@ -398,6 +403,156 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 
+-- ─── Cotizaciones atómicas (#157, migración atomic_quotation_writes) ───────
+-- Edición y aprobación pública bajo el lock de la fila de la cotización. INVOKER, sin anon.
+-- Edit: header + lines in one transaction. Lines keep their id (updated in place by "id"); the ones left
+-- out are deleted; the ones without an id, or with an id of no line here, are inserted with a fresh id.
+-- sort_order = position in p_items. Errors: P0001 quotation_not_found | quotation_not_editable | duplicate_item.
+CREATE OR REPLACE FUNCTION public.update_quotation(p_quotation_id uuid, p_header jsonb, p_items jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_status text;
+  v_items jsonb := coalesce(p_items, '[]'::jsonb);
+  v_deleted integer;
+  v_updated integer;
+  v_inserted integer;
+BEGIN
+  SELECT q.status INTO v_status FROM public.quotations q WHERE q.id = p_quotation_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'quotation_not_found';
+  END IF;
+  IF v_status NOT IN ('draft', 'sent_for_approval', 'approved') THEN
+    RAISE EXCEPTION 'quotation_not_editable';
+  END IF;
+  IF (SELECT count(e->>'id') <> count(DISTINCT e->>'id') FROM jsonb_array_elements(v_items) AS e) THEN
+    RAISE EXCEPTION 'duplicate_item';
+  END IF;
+
+  UPDATE public.quotations
+  SET name = p_header->>'name',
+      customer_name = p_header->>'customer_name',
+      total_amount = (p_header->>'total_amount')::numeric
+  WHERE id = p_quotation_id;
+
+  DELETE FROM public.quotation_items qi
+  WHERE qi.quotation_id = p_quotation_id
+    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_items) AS e WHERE (e->>'id')::uuid = qi.id);
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+
+  UPDATE public.quotation_items qi
+  SET item_type = l.j->>'item_type',
+      section_label = l.j->>'section_label',
+      separator_color = l.j->>'separator_color',
+      etm = l.j->>'etm',
+      description = l.j->>'description',
+      description_es = l.j->>'description_es',
+      dymmsa_description = l.j->>'dymmsa_description',
+      model_code = l.j->>'model_code',
+      brand = l.j->>'brand',
+      unit_price = (l.j->>'unit_price')::numeric,
+      quantity = (l.j->>'quantity')::integer,
+      delivery_time = l.j->>'delivery_time',
+      is_sold = (l.j->>'is_sold')::boolean,
+      -- Under review the decision is the client's: an editor opened before it saved never resets it (#157).
+      is_approved = CASE
+        WHEN l.j->>'item_type' = 'separator' THEN NULL
+        WHEN v_status = 'sent_for_approval' THEN qi.is_approved
+        ELSE (l.j->>'is_approved')::boolean
+      END,
+      sort_order = l.pos
+  FROM (
+    SELECT t.j, (t.ord - 1)::integer AS pos
+    FROM jsonb_array_elements(v_items) WITH ORDINALITY AS t(j, ord)
+  ) AS l
+  WHERE qi.quotation_id = p_quotation_id AND qi.id = (l.j->>'id')::uuid;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+
+  INSERT INTO public.quotation_items (
+    quotation_id, item_type, section_label, separator_color, etm, description, description_es,
+    dymmsa_description, model_code, brand, unit_price, quantity, delivery_time, is_approved, is_sold, sort_order
+  )
+  SELECT
+    p_quotation_id, t.j->>'item_type', t.j->>'section_label', t.j->>'separator_color', t.j->>'etm',
+    t.j->>'description', t.j->>'description_es', t.j->>'dymmsa_description', t.j->>'model_code', t.j->>'brand',
+    (t.j->>'unit_price')::numeric, (t.j->>'quantity')::integer, t.j->>'delivery_time',
+    CASE WHEN t.j->>'item_type' = 'separator' THEN NULL ELSE (t.j->>'is_approved')::boolean END,
+    (t.j->>'is_sold')::boolean, (t.ord - 1)::integer
+  FROM jsonb_array_elements(v_items) WITH ORDINALITY AS t(j, ord)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.quotation_items qi
+    WHERE qi.quotation_id = p_quotation_id AND qi.id = (t.j->>'id')::uuid
+  )
+  ORDER BY t.ord;
+  GET DIAGNOSTICS v_inserted = ROW_COUNT;
+
+  RETURN jsonb_build_object('updated', v_updated, 'inserted', v_inserted, 'deleted', v_deleted);
+END;
+$$;
+
+-- Public approval (/approve/[token]): every id must still be an approvable line of this quotation, or nothing
+-- is written. finalize=false saves progress (rest → NULL); finalize=true sends (rest → false, status moves).
+-- approved_at keeps the FIRST approval: sealed once, never moved or cleared (#157 decision 2026-10-24).
+-- Errors: P0001 quotation_not_found | quotation_processed | stale_items.
+CREATE OR REPLACE FUNCTION public.submit_quotation_approval(p_token uuid, p_approved_ids jsonb, p_finalize boolean)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_id uuid;
+  v_status text;
+  v_ids uuid[];
+  v_approved integer;
+  v_new_status text;
+BEGIN
+  SELECT q.id, q.status INTO v_id, v_status FROM public.quotations q WHERE q.approval_token = p_token FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'quotation_not_found';
+  END IF;
+  IF v_status <> 'sent_for_approval' THEN
+    RAISE EXCEPTION 'quotation_processed';
+  END IF;
+
+  v_ids := ARRAY(SELECT DISTINCT x::uuid FROM jsonb_array_elements_text(coalesce(p_approved_ids, '[]'::jsonb)) AS x);
+
+  SELECT count(*)::integer INTO v_approved
+  FROM public.quotation_items qi
+  WHERE qi.quotation_id = v_id AND qi.id = ANY (v_ids)
+    AND qi.item_type = 'product' AND qi.is_sold IS DISTINCT FROM false;
+  IF v_approved <> cardinality(v_ids) THEN
+    RAISE EXCEPTION 'stale_items';
+  END IF;
+
+  UPDATE public.quotation_items qi
+  SET is_approved = CASE WHEN qi.id = ANY (v_ids) THEN true WHEN p_finalize THEN false ELSE NULL END
+  WHERE qi.quotation_id = v_id AND qi.item_type = 'product' AND qi.is_sold IS DISTINCT FROM false;
+
+  IF NOT coalesce(p_finalize, false) THEN
+    RETURN jsonb_build_object('quotation_id', v_id, 'finalized', false, 'status', v_status, 'approved_count', v_approved);
+  END IF;
+
+  v_new_status := CASE WHEN v_approved > 0 THEN 'approved' ELSE 'rejected' END;
+  UPDATE public.quotations
+  SET status = v_new_status,
+      approved_at = CASE WHEN v_new_status = 'approved' THEN coalesce(approved_at, now()) ELSE approved_at END
+  WHERE id = v_id;
+
+  RETURN jsonb_build_object('quotation_id', v_id, 'finalized', true, 'status', v_new_status, 'approved_count', v_approved);
+END;
+$$;
+
+-- update_quotation: authenticated only. submit_quotation_approval: only the public route's service role,
+-- so a session can never answer as the client.
+REVOKE ALL ON FUNCTION public.update_quotation(uuid, jsonb, jsonb) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.submit_quotation_approval(uuid, jsonb, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.update_quotation(uuid, jsonb, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.submit_quotation_approval(uuid, jsonb, boolean) TO service_role;
+
 -- ─── Storage ────────────────────────────────────────────────────────────────
 -- bucket task-images · public=true · límite 5 MB · PNG/JPEG/GIF/WEBP
 -- (creado por la migración create_task_images_bucket, ADR-014)
@@ -466,6 +621,52 @@ $function$;
 
 GRANT SELECT ON public.store_inventory_with_brand TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.inventory_brand_counts() TO anon, authenticated, service_role;
+
+-- ─── Reemplazo atómico del catálogo URREA (#157, migración replace_urrea_catalog) ───
+-- El import en modo replace borra e inserta en UNA transacción: si falla, el catálogo queda como estaba.
+-- Va después del GRANT ALL ON ALL ROUTINES de arriba, para que su REVOKE a anon no se pierda.
+-- Rows arrive validated and normalized (src/lib/urrea-catalog-store.ts); normalizing again keeps the
+-- invariant for a direct call. Errors: P0001 empty_catalog | empty_code; 23505 a repeated (code, brand).
+CREATE OR REPLACE FUNCTION public.replace_urrea_catalog(p_rows jsonb)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_inserted integer;
+BEGIN
+  -- An empty file must never empty the catalog.
+  IF jsonb_typeof(p_rows) IS DISTINCT FROM 'array' OR p_rows = '[]'::jsonb THEN
+    RAISE EXCEPTION 'empty_catalog';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM jsonb_to_recordset(p_rows) AS r(code text)
+    WHERE btrim(coalesce(r.code, '')) = ''
+  ) THEN
+    RAISE EXCEPTION 'empty_code';
+  END IF;
+
+  -- Serializes concurrent replaces and edits; plain reads keep seeing the old catalog until commit.
+  LOCK TABLE public.urrea_catalog IN EXCLUSIVE MODE;
+
+  -- WHERE true: pg_safeupdate rejects a DELETE without a WHERE clause.
+  DELETE FROM public.urrea_catalog WHERE true;
+
+  INSERT INTO public.urrea_catalog (code, brand, description, std)
+  SELECT upper(btrim(r.code)),
+         coalesce(nullif(upper(btrim(r.brand)), ''), 'URREA'),
+         nullif(btrim(r.description), ''),
+         coalesce(r.std, 1)
+  FROM jsonb_to_recordset(p_rows) AS r(code text, brand text, description text, std integer);
+  GET DIAGNOSTICS v_inserted = ROW_COUNT;
+
+  RETURN v_inserted;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.replace_urrea_catalog(jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.replace_urrea_catalog(jsonb) TO authenticated;
 
 -- ─── Módulo de corte de material (issue #59, Fase 1) ────────────────────────
 -- Tubos y placas de cobre (marca DYMMSA) que se mandan a hacer. Unidades en mm
@@ -563,20 +764,24 @@ CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles
 CREATE UNIQUE INDEX profiles_single_owner ON public.profiles (is_owner) WHERE is_owner;
 
 -- RLS cannot restrict columns (#122): without this a member could promote themself via their own row.
+-- is_owner has no write path (#157): with a session (admin too) it never changes; only SQL / service role.
 CREATE OR REPLACE FUNCTION public.guard_profile_admin_fields()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
 AS $$
 BEGIN
+  IF (SELECT auth.uid()) IS NOT NULL AND NEW.is_owner IS DISTINCT FROM OLD.is_owner THEN
+    RAISE EXCEPTION 'El dueño del negocio solo se cambia por SQL, no desde la app'
+      USING ERRCODE = '42501';
+  END IF;
   IF (SELECT auth.uid()) IS NOT NULL AND NOT public.is_admin() AND (
     NEW.role IS DISTINCT FROM OLD.role
     OR NEW.clock_employee_id IS DISTINCT FROM OLD.clock_employee_id
     OR NEW.shift IS DISTINCT FROM OLD.shift
-    OR NEW.is_owner IS DISTINCT FROM OLD.is_owner
     OR NEW.area IS DISTINCT FROM OLD.area
   ) THEN
-    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada, el área, el id del checador o el dueño'
+    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol, la jornada, el área o el id del checador'
       USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
@@ -584,6 +789,29 @@ END;
 $$;
 CREATE TRIGGER profiles_guard_admin_fields BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.guard_profile_admin_fields();
+
+-- At least one admin, for every caller (#157): the route says it first, the DB backs it. The advisory
+-- lock serializes two demotions (or deletes) that would each see the other admin. Text = LAST_ADMIN_MESSAGE.
+CREATE OR REPLACE FUNCTION public.guard_last_admin()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  -- Deleting the row (also an auth user removed by cascade) counts as a demotion (review PR #171).
+  IF OLD.role = 'admin' AND (CASE WHEN TG_OP = 'DELETE' THEN true ELSE NEW.role IS DISTINCT FROM 'admin' END) THEN
+    PERFORM pg_advisory_xact_lock(hashtext('public.profiles.last_admin'));
+    IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.role = 'admin' AND p.id <> OLD.id) THEN
+      RAISE EXCEPTION 'Debe quedar al menos un administrador'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.guard_last_admin() FROM PUBLIC;
+CREATE TRIGGER profiles_guard_last_admin BEFORE UPDATE OF role OR DELETE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_last_admin();
 
 -- Perfil automático por usuario nuevo. Corre como supabase_auth_admin, que no tiene
 -- permisos en public: SECURITY DEFINER es obligatorio. Si falla, el alta aborta a propósito.
@@ -818,7 +1046,7 @@ CREATE TABLE public.audit_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   entity_type text NOT NULL,                  -- 'payable' hoy; otras entidades después
   entity_id uuid NOT NULL,
-  action text NOT NULL,                       -- created | status_changed | paid_at_changed | deleted
+  action text NOT NULL,                       -- created | status_changed | paid_at_changed | amount_changed | deleted
   actor_id uuid,                              -- sin FK: un INSERT de bitácora jamás tumba la escritura del usuario
   actor_name text,                            -- snapshot del display_name de ese día
   data jsonb NOT NULL DEFAULT '{}'::jsonb,    -- { from, to } o el snapshot de la fila
@@ -833,6 +1061,8 @@ CREATE POLICY "Admins read audit events" ON public.audit_events
 
 -- DEFINER: inserta saltando la RLS de audit_events y lee profiles como owner
 -- para el snapshot del nombre. auth.uid() es NULL con service_role.
+-- One row per kind of change (#157: amount_changed covers amount and currency); concept, dates,
+-- supplier and notes edits are not audited.
 CREATE OR REPLACE FUNCTION public.audit_payable()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -842,38 +1072,47 @@ AS $$
 DECLARE
   v_actor uuid := (SELECT auth.uid());
   v_name text;
-  v_action text;
-  v_data jsonb;
 BEGIN
+  IF TG_OP = 'UPDATE'
+     AND OLD.status IS NOT DISTINCT FROM NEW.status
+     AND OLD.paid_at IS NOT DISTINCT FROM NEW.paid_at
+     AND OLD.amount IS NOT DISTINCT FROM NEW.amount
+     AND OLD.currency IS NOT DISTINCT FROM NEW.currency THEN
+    RETURN NEW;
+  END IF;
+
   SELECT display_name INTO v_name FROM public.profiles WHERE id = v_actor;
 
   IF TG_OP = 'INSERT' THEN
-    v_action := 'created';
-    v_data := jsonb_build_object(
-      'concept', NEW.concept, 'amount', NEW.amount,
+    INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+    VALUES ('payable', NEW.id, 'created', v_actor, v_name, jsonb_build_object(
+      'concept', NEW.concept, 'amount', NEW.amount, 'currency', NEW.currency,
       'supplier_id', NEW.supplier_id, 'status', NEW.status
-    );
+    ));
   ELSIF TG_OP = 'DELETE' THEN
-    v_action := 'deleted';
-    v_data := jsonb_build_object(
-      'concept', OLD.concept, 'amount', OLD.amount,
+    INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+    VALUES ('payable', OLD.id, 'deleted', v_actor, v_name, jsonb_build_object(
+      'concept', OLD.concept, 'amount', OLD.amount, 'currency', OLD.currency,
       'supplier_id', OLD.supplier_id, 'status', OLD.status, 'paid_at', OLD.paid_at
-    );
+    ));
   ELSE
-    IF OLD.status IS NOT DISTINCT FROM NEW.status
-       AND OLD.paid_at IS NOT DISTINCT FROM NEW.paid_at THEN
-      RETURN NEW;  -- concept/amount/notes edits are not audited (yet)
+    IF OLD.status IS DISTINCT FROM NEW.status OR OLD.paid_at IS DISTINCT FROM NEW.paid_at THEN
+      INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+      VALUES ('payable', NEW.id,
+        CASE WHEN OLD.status IS DISTINCT FROM NEW.status THEN 'status_changed' ELSE 'paid_at_changed' END,
+        v_actor, v_name, jsonb_build_object(
+          'from', jsonb_build_object('status', OLD.status, 'paid_at', OLD.paid_at),
+          'to',   jsonb_build_object('status', NEW.status, 'paid_at', NEW.paid_at)
+        ));
     END IF;
-    v_action := CASE WHEN OLD.status IS DISTINCT FROM NEW.status
-                     THEN 'status_changed' ELSE 'paid_at_changed' END;
-    v_data := jsonb_build_object(
-      'from', jsonb_build_object('status', OLD.status, 'paid_at', OLD.paid_at),
-      'to',   jsonb_build_object('status', NEW.status, 'paid_at', NEW.paid_at)
-    );
+    IF OLD.amount IS DISTINCT FROM NEW.amount OR OLD.currency IS DISTINCT FROM NEW.currency THEN
+      INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+      VALUES ('payable', NEW.id, 'amount_changed', v_actor, v_name, jsonb_build_object(
+        'from', jsonb_build_object('amount', OLD.amount, 'currency', OLD.currency),
+        'to',   jsonb_build_object('amount', NEW.amount, 'currency', NEW.currency)
+      ));
+    END IF;
   END IF;
-
-  INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
-  VALUES ('payable', COALESCE(NEW.id, OLD.id), v_action, v_actor, v_name, v_data);
 
   RETURN COALESCE(NEW, OLD);
 END;
@@ -920,11 +1159,16 @@ CREATE TABLE public.payroll_days (
   status text NOT NULL DEFAULT 'draft',       -- draft | confirmed
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  -- The shift and area the closed cut was paid with (#157); NULL = open cut, live values.
+  shift_snapshot text,
+  area_snapshot text,
   CONSTRAINT payroll_days_employee_date_key UNIQUE (employee_id, work_date),
   CONSTRAINT payroll_days_worked_check CHECK (worked_minutes BETWEEN 0 AND 1440),
   CONSTRAINT payroll_days_missed_check CHECK (missed_minutes BETWEEN 0 AND 1440),
   CONSTRAINT payroll_days_source_check CHECK (source IN ('sheet', 'hours', 'manual')),
-  CONSTRAINT payroll_days_status_check CHECK (status IN ('draft', 'confirmed'))
+  CONSTRAINT payroll_days_status_check CHECK (status IN ('draft', 'confirmed')),
+  CONSTRAINT payroll_days_shift_snapshot_check CHECK (shift_snapshot IS NULL OR shift_snapshot IN ('full_time', 'part_time')),
+  CONSTRAINT payroll_days_area_snapshot_check CHECK (area_snapshot IS NULL OR area_snapshot IN ('office', 'workshop'))
 );
 CREATE INDEX idx_payroll_days_date ON public.payroll_days (work_date);
 CREATE TRIGGER payroll_days_set_updated_at BEFORE UPDATE ON public.payroll_days
@@ -970,6 +1214,86 @@ $$;
 CREATE TRIGGER payroll_days_guard_closed BEFORE INSERT OR UPDATE OR DELETE ON public.payroll_days
   FOR EACH ROW EXECUTE FUNCTION public.guard_closed_payroll_period();
 
+-- Close (#157): snapshot first, flip the status last, in one transaction: the guard above refuses any
+-- write to a closed cut. Errors: P0001 not_period_start | drafts_pending (DETAIL = count).
+-- An already closed cut is returned as is: its first stamp and its snapshot stay.
+CREATE OR REPLACE FUNCTION public.close_payroll_period(p_start date, p_actor_name text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_period public.payroll_periods;
+  v_drafts integer;
+BEGIN
+  IF p_start IS NULL OR EXTRACT(ISODOW FROM p_start) <> 6 THEN
+    RAISE EXCEPTION 'not_period_start';
+  END IF;
+  -- The period row is the lock. The no-op DO UPDATE locks and returns it even when a concurrent close
+  -- created it first; DO NOTHING + SELECT could come back empty (review PR #171).
+  INSERT INTO public.payroll_periods AS pp (start_date, status) VALUES (p_start, 'open')
+  ON CONFLICT (start_date) DO UPDATE SET status = pp.status
+  RETURNING * INTO v_period;
+  IF v_period.status = 'closed' THEN
+    RETURN to_jsonb(v_period);
+  END IF;
+
+  SELECT count(*) INTO v_drafts FROM public.payroll_days
+  WHERE status = 'draft' AND work_date BETWEEN p_start AND p_start + 6;
+  IF v_drafts > 0 THEN
+    RAISE EXCEPTION 'drafts_pending' USING DETAIL = v_drafts::text;
+  END IF;
+
+  -- Mirrors payrollArea() in src/lib/payroll.ts: no linked profile means the workshop. INVOKER, so a profile
+  -- hidden by RLS would freeze as workshop too; unreachable today: only an admin passes the RLS of payroll_days.
+  UPDATE public.payroll_days d
+  SET shift_snapshot = e.shift, area_snapshot = coalesce(p.area, 'workshop')
+  FROM public.payroll_employees e
+  LEFT JOIN public.profiles p ON p.id = e.profile_id
+  WHERE e.id = d.employee_id AND d.work_date BETWEEN p_start AND p_start + 6;
+
+  UPDATE public.payroll_periods
+  SET status = 'closed', closed_at = now(), closed_by_name = p_actor_name
+  WHERE start_date = p_start
+  RETURNING * INTO v_period;
+  RETURN to_jsonb(v_period);
+END;
+$$;
+
+-- Reopen: the status flips first so the guard lets the snapshot go. NULL = it was not closed (nothing stamped).
+CREATE OR REPLACE FUNCTION public.reopen_payroll_period(p_start date, p_actor_name text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_period public.payroll_periods;
+BEGIN
+  IF p_start IS NULL OR EXTRACT(ISODOW FROM p_start) <> 6 THEN
+    RAISE EXCEPTION 'not_period_start';
+  END IF;
+  UPDATE public.payroll_periods
+  SET status = 'open', reopened_at = now(), reopened_by_name = p_actor_name
+  WHERE start_date = p_start AND status = 'closed'
+  RETURNING * INTO v_period;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
+  UPDATE public.payroll_days
+  SET shift_snapshot = NULL, area_snapshot = NULL
+  WHERE work_date BETWEEN p_start AND p_start + 6
+    AND (shift_snapshot IS NOT NULL OR area_snapshot IS NOT NULL);
+  RETURN to_jsonb(v_period);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.close_payroll_period(date, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.reopen_payroll_period(date, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.close_payroll_period(date, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.reopen_payroll_period(date, text) TO authenticated, service_role;
+
 ALTER TABLE public.payroll_employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payroll_days ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payroll_periods ENABLE ROW LEVEL SECURITY;
@@ -1004,3 +1328,466 @@ CREATE POLICY "Admins manage profile pay" ON public.profile_pay
 REVOKE ALL ON public.profile_pay FROM anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.profile_pay TO authenticated;
 GRANT ALL ON public.profile_pay TO service_role;
+
+-- ============================================================================
+-- Atomic order stock (#157, migration atomic_order_stock): store_inventory moves by model_code under a
+-- row lock; add/remove a line, cancel, delete and reception write and move stock in one transaction. INVOKER, no anon.
+-- ============================================================================
+-- Reserve: least(stock, asked) per model_code under FOR UPDATE; repeated codes are summed first.
+CREATE OR REPLACE FUNCTION public.reserve_inventory(p_lines jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_line record;
+  v_stock integer;
+  v_location text;
+  v_taken integer;
+  v_result jsonb := '[]'::jsonb;
+BEGIN
+  FOR v_line IN
+    SELECT l->>'model_code' AS model_code, sum((l->>'quantity')::integer)::integer AS quantity
+    FROM jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) AS l
+    WHERE btrim(coalesce(l->>'model_code', '')) <> ''
+    GROUP BY 1
+    ORDER BY 1
+  LOOP
+    -- least() skips NULLs: a missing quantity must reserve nothing, not the whole stock.
+    CONTINUE WHEN coalesce(v_line.quantity, 0) <= 0;
+
+    SELECT i.quantity, i.location INTO v_stock, v_location
+    FROM public.store_inventory i
+    WHERE i.model_code = v_line.model_code
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      v_result := v_result || jsonb_build_object('model_code', v_line.model_code, 'reserved', 0, 'location', NULL);
+      CONTINUE;
+    END IF;
+
+    v_taken := least(greatest(v_stock, 0), v_line.quantity);
+    IF v_taken > 0 THEN
+      UPDATE public.store_inventory SET quantity = quantity - v_taken WHERE model_code = v_line.model_code;
+    END IF;
+    v_result := v_result || jsonb_build_object('model_code', v_line.model_code, 'reserved', v_taken, 'location', v_location);
+  END LOOP;
+
+  RETURN v_result;
+END;
+$$;
+
+-- Release: adds back per model_code and creates a missing row, as cancelling always did.
+CREATE OR REPLACE FUNCTION public.release_inventory(p_lines jsonb)
+RETURNS integer
+LANGUAGE sql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  WITH incoming AS (
+    SELECT l->>'model_code' AS model_code, sum((l->>'quantity')::integer)::integer AS quantity
+    FROM jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) AS l
+    WHERE btrim(coalesce(l->>'model_code', '')) <> ''
+    GROUP BY 1
+  ),
+  upserted AS (
+    INSERT INTO public.store_inventory AS s (model_code, quantity)
+    SELECT model_code, quantity FROM incoming WHERE quantity > 0 ORDER BY model_code
+    ON CONFLICT (model_code) DO UPDATE SET quantity = s.quantity + EXCLUDED.quantity
+    RETURNING 1
+  )
+  SELECT count(*)::integer FROM upserted;
+$$;
+
+-- Reception delta (ADR-019): positive adds (creating the row), negative is clamped at 0 and reported.
+CREATE OR REPLACE FUNCTION public.adjust_inventory(p_model_code text, p_delta integer)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_stock integer;
+BEGIN
+  IF p_delta IS NULL OR p_delta = 0 OR btrim(coalesce(p_model_code, '')) = '' THEN
+    RETURN jsonb_build_object('quantity', NULL, 'clamped', false, 'missing', false);
+  END IF;
+
+  IF p_delta > 0 THEN
+    INSERT INTO public.store_inventory AS s (model_code, quantity)
+    VALUES (p_model_code, p_delta)
+    ON CONFLICT (model_code) DO UPDATE SET quantity = s.quantity + EXCLUDED.quantity
+    RETURNING s.quantity INTO v_stock;
+    RETURN jsonb_build_object('quantity', v_stock, 'clamped', false, 'missing', false);
+  END IF;
+
+  SELECT i.quantity INTO v_stock
+  FROM public.store_inventory i
+  WHERE i.model_code = p_model_code
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('quantity', NULL, 'clamped', false, 'missing', true);
+  END IF;
+
+  UPDATE public.store_inventory SET quantity = greatest(0, v_stock + p_delta) WHERE model_code = p_model_code;
+  RETURN jsonb_build_object('quantity', greatest(0, v_stock + p_delta), 'clamped', v_stock + p_delta < 0, 'missing', false);
+END;
+$$;
+
+-- What a cancel/delete gives back, read under the caller's order lock so a concurrent line change is seen.
+CREATE OR REPLACE FUNCTION public.order_restock_lines(p_order_id uuid)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  -- Mirrors computeRestoration() in src/lib/inventory.ts: in_stock + min(received, ordered) (ADR-019).
+  SELECT coalesce(jsonb_agg(jsonb_build_object('model_code', t.model_code, 'quantity', t.quantity) ORDER BY t.model_code), '[]'::jsonb)
+  FROM (
+    SELECT oi.model_code, sum(oi.quantity_in_stock + least(oi.quantity_received, oi.quantity_to_order))::integer AS quantity
+    FROM public.order_items oi
+    WHERE oi.order_id = p_order_id
+      AND oi.item_type <> 'separator'
+      AND btrim(coalesce(oi.model_code, '')) <> ''
+    GROUP BY oi.model_code
+  ) t
+  WHERE t.quantity > 0;
+$$;
+
+-- Cancel: status and restock in one transaction, only if the order is still in the status read.
+-- Returns the codes restocked; NULL = it already changed (retry, double click) and nothing moved.
+CREATE OR REPLACE FUNCTION public.cancel_order_restock(p_order_id uuid, p_expected_status text)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.orders SET status = 'cancelled'
+  WHERE id = p_order_id AND status = p_expected_status AND status <> 'cancelled';
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  RETURN public.release_inventory(public.order_restock_lines(p_order_id));
+END;
+$$;
+
+-- Delete: same guard; p_restock comes from deleteRestoresStock(). Items, cut plan and decisions go by CASCADE.
+CREATE OR REPLACE FUNCTION public.delete_order_restock(p_order_id uuid, p_expected_status text, p_restock boolean)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_lines jsonb := '[]'::jsonb;
+BEGIN
+  PERFORM 1 FROM public.orders WHERE id = p_order_id AND status = p_expected_status FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  IF p_restock THEN
+    v_lines := public.order_restock_lines(p_order_id);
+  END IF;
+  DELETE FROM public.orders WHERE id = p_order_id;
+  RETURN public.release_inventory(v_lines);
+END;
+$$;
+
+-- Remove a line: FOR SHARE keeps the order in the status read (it cannot turn delivered halfway).
+-- Gives back only what the line took from stock, read from the deleted row itself.
+CREATE OR REPLACE FUNCTION public.remove_order_item_restock(p_order_id uuid, p_item_id uuid, p_expected_status text)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_model_code text;
+  v_in_stock integer;
+BEGIN
+  PERFORM 1 FROM public.orders WHERE id = p_order_id AND status = p_expected_status FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  DELETE FROM public.order_items
+  WHERE id = p_item_id AND order_id = p_order_id
+  RETURNING model_code, quantity_in_stock INTO v_model_code, v_in_stock;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  RETURN public.release_inventory(jsonb_build_array(jsonb_build_object('model_code', v_model_code, 'quantity', v_in_stock)));
+END;
+$$;
+
+-- Add a line: the order lock keeps a concurrent cancel from missing it, so its stock always comes back.
+-- Errors: P0001 with message order_not_found | order_closed | order_delivered, and nothing is reserved.
+CREATE OR REPLACE FUNCTION public.add_order_item(p_order_id uuid, p_item jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_status text;
+  v_qty integer := (p_item->>'quantity_approved')::integer;
+  v_code text := coalesce(p_item->>'model_code', '');
+  v_reserved integer := 0;
+  v_sort integer;
+  v_row public.order_items;
+BEGIN
+  SELECT o.status INTO v_status FROM public.orders o WHERE o.id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'order_not_found';
+  END IF;
+  -- Mirrors isOrderClosed() / goodsInStore() in src/lib/inventory.ts: change them in pairs.
+  IF v_status IN ('completed', 'cancelled') THEN
+    RAISE EXCEPTION 'order_closed';
+  END IF;
+  IF v_status NOT IN ('ordered', 'received') THEN
+    RAISE EXCEPTION 'order_delivered';
+  END IF;
+
+  IF btrim(v_code) <> '' THEN
+    v_reserved := coalesce((public.reserve_inventory(
+      jsonb_build_array(jsonb_build_object('model_code', v_code, 'quantity', v_qty))
+    )->0->>'reserved')::integer, 0);
+  END IF;
+
+  SELECT coalesce(max(oi.sort_order), -1) + 1 INTO v_sort FROM public.order_items oi WHERE oi.order_id = p_order_id;
+
+  -- Same split as allocateLines() in src/lib/business-rules.ts: stock first, the rest is ordered from URREA.
+  INSERT INTO public.order_items (
+    order_id, sort_order, item_type, etm, model_code, description, brand,
+    quantity_approved, quantity_in_stock, quantity_to_order, quantity_received, urrea_status, unit_price
+  ) VALUES (
+    p_order_id, v_sort, 'product', coalesce(p_item->>'etm', ''), v_code, coalesce(p_item->>'description', ''),
+    coalesce(p_item->>'brand', ''), v_qty, v_reserved, v_qty - v_reserved, 0, 'pending', (p_item->>'unit_price')::numeric
+  )
+  RETURNING * INTO v_row;
+
+  RETURN to_jsonb(v_row);
+END;
+$$;
+
+-- Reception in one transaction (ADR-019): lines and their excess delta commit together, so a failed
+-- inventory write never leaves a received quantity whose excess a retry would read as delta 0.
+-- Errors: P0001 with message order_not_found | order_closed | duplicate_item | item_not_in_order |
+-- item_not_ordered (DETAIL = the line's tag), and nothing is written.
+CREATE OR REPLACE FUNCTION public.receive_order_items(p_order_id uuid, p_items jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_status text;
+  v_line record;
+  v_delta integer;
+  v_adjust jsonb;
+  v_updated integer := 0;
+  v_warnings jsonb := '[]'::jsonb;
+BEGIN
+  SELECT o.status INTO v_status FROM public.orders o WHERE o.id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'order_not_found';
+  END IF;
+  -- Mirrors isOrderClosed() in src/lib/inventory.ts; delivered passes on purpose (reception stays open).
+  IF v_status IN ('completed', 'cancelled') THEN
+    RAISE EXCEPTION 'order_closed';
+  END IF;
+
+  IF (SELECT count(DISTINCT e->>'id') <> count(*) FROM jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) AS e) THEN
+    RAISE EXCEPTION 'duplicate_item';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) AS e
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.order_items oi WHERE oi.id = (e->>'id')::uuid AND oi.order_id = p_order_id
+    )
+  ) THEN
+    RAISE EXCEPTION 'item_not_in_order';
+  END IF;
+
+  FOR v_line IN
+    SELECT oi.id, oi.model_code, oi.item_type, oi.quantity_to_order,
+           oi.quantity_received AS old_received,
+           (e->>'quantity_received')::integer AS new_received,
+           e->>'urrea_status' AS urrea_status,
+           coalesce(nullif(oi.etm, ''), nullif(oi.model_code, ''), oi.id::text) AS tag
+    FROM jsonb_array_elements(p_items) AS e
+    JOIN public.order_items oi ON oi.id = (e->>'id')::uuid AND oi.order_id = p_order_id
+    ORDER BY oi.model_code, oi.id
+    FOR UPDATE OF oi
+  LOOP
+    CONTINUE WHEN v_line.item_type = 'separator';
+    IF v_line.quantity_to_order <= 0 THEN
+      RAISE EXCEPTION 'item_not_ordered' USING DETAIL = v_line.tag;
+    END IF;
+
+    UPDATE public.order_items
+    SET quantity_received = v_line.new_received, urrea_status = v_line.urrea_status
+    WHERE id = v_line.id;
+
+    -- Mirrors receptionExcess() in src/lib/business-rules.ts: only the excess over what was ordered moves.
+    v_delta := greatest(0, v_line.new_received - v_line.quantity_to_order)
+             - greatest(0, v_line.old_received - v_line.quantity_to_order);
+    CONTINUE WHEN v_delta = 0 OR btrim(coalesce(v_line.model_code, '')) = '';
+
+    v_adjust := public.adjust_inventory(v_line.model_code, v_delta);
+    IF (v_adjust->>'missing')::boolean THEN
+      v_warnings := v_warnings || jsonb_build_object('tag', v_line.tag, 'model_code', v_line.model_code, 'kind', 'missing');
+      CONTINUE;
+    END IF;
+    IF (v_adjust->>'clamped')::boolean THEN
+      v_warnings := v_warnings || jsonb_build_object('tag', v_line.tag, 'model_code', v_line.model_code, 'kind', 'clamped');
+    END IF;
+    v_updated := v_updated + 1;
+  END LOOP;
+
+  RETURN jsonb_build_object('inventory_updated', v_updated, 'warnings', v_warnings);
+END;
+$$;
+
+-- authenticated only: PUBLIC and anon lose their default EXECUTE.
+REVOKE ALL ON FUNCTION public.reserve_inventory(jsonb) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.release_inventory(jsonb) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.adjust_inventory(text, integer) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.order_restock_lines(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.cancel_order_restock(uuid, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.delete_order_restock(uuid, text, boolean) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.remove_order_item_restock(uuid, uuid, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.add_order_item(uuid, jsonb) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.receive_order_items(uuid, jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.reserve_inventory(jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.release_inventory(jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.adjust_inventory(text, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.order_restock_lines(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_order_restock(uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_order_restock(uuid, text, boolean) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.remove_order_item_restock(uuid, uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.add_order_item(uuid, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.receive_order_items(uuid, jsonb) TO authenticated;
+
+-- ============================================================================
+-- Manual stock changes with a trail (#155 D, decision 7 of the plan): the assistant's counts and adjustments go
+-- through ONE function that states why, and a trigger turns that into an audit_events row. Orders keep moving
+-- stock exactly as before and leave no noise: the trigger acts only when the function raised the flag in its own
+-- transaction. BEHAVIOR CHANGE (a new trigger on store_inventory), so it is applied only with the owner's OK.
+-- ============================================================================
+
+-- Mode count: the physical stock becomes p_value ONLY if it still is p_expected (compare and set, one UPDATE),
+-- so an order created between the summary and the yes cannot be overwritten. Mode delta: adjust_inventory under
+-- its own lock (creates the row for a positive delta, clamps at 0 and says so).
+-- Errors: P0001 empty_code | reason_required | bad_mode | value_required | expected_required | negative_count.
+CREATE OR REPLACE FUNCTION public.change_store_stock(
+  p_model_code text,
+  p_mode text,
+  p_value integer,
+  p_expected integer,
+  p_reason text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_quantity integer;
+  v_adjust jsonb;
+  v_code text := btrim(p_model_code);
+BEGIN
+  IF btrim(coalesce(p_model_code, '')) = '' THEN
+    RAISE EXCEPTION 'empty_code';
+  END IF;
+  IF btrim(coalesce(p_reason, '')) = '' THEN
+    RAISE EXCEPTION 'reason_required';
+  END IF;
+  IF p_mode IS NULL OR p_mode NOT IN ('count', 'delta') THEN
+    RAISE EXCEPTION 'bad_mode';
+  END IF;
+  IF p_value IS NULL THEN
+    RAISE EXCEPTION 'value_required';
+  END IF;
+
+  -- Transaction-local: the audit trigger reads both and nothing outlives this call.
+  PERFORM set_config('app.stock_manual', 'on', true);
+  PERFORM set_config('app.stock_reason', btrim(p_reason), true);
+
+  IF p_mode = 'delta' THEN
+    v_adjust := public.adjust_inventory(v_code, p_value);
+    RETURN v_adjust;
+  END IF;
+
+  IF p_value < 0 THEN
+    RAISE EXCEPTION 'negative_count';
+  END IF;
+  IF p_expected IS NULL THEN
+    RAISE EXCEPTION 'expected_required';
+  END IF;
+
+  UPDATE public.store_inventory
+  SET quantity = p_value
+  WHERE model_code = v_code AND quantity = p_expected
+  RETURNING quantity INTO v_quantity;
+
+  IF NOT FOUND THEN
+    -- Either the row is gone or its quantity moved after the summary: the caller asks for the summary again.
+    RETURN jsonb_build_object(
+      'quantity', NULL,
+      'changed', false,
+      'missing', NOT EXISTS (SELECT 1 FROM public.store_inventory WHERE model_code = v_code)
+    );
+  END IF;
+  RETURN jsonb_build_object('quantity', v_quantity, 'changed', true, 'missing', false);
+END;
+$$;
+
+-- DEFINER: writes audit_events skipping its RLS and reads profiles as owner (same pattern as audit_payable).
+-- Separate INSERT statements per operation: OLD does not exist on an INSERT.
+CREATE OR REPLACE FUNCTION public.audit_store_stock()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_actor uuid := (SELECT auth.uid());
+  v_name text;
+  v_reason text := current_setting('app.stock_reason', true);
+BEGIN
+  IF coalesce(current_setting('app.stock_manual', true), '') <> 'on' THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF OLD.quantity IS NOT DISTINCT FROM NEW.quantity THEN
+      RETURN NEW;
+    END IF;
+    SELECT display_name INTO v_name FROM public.profiles WHERE id = v_actor;
+    INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+    VALUES ('inventory', NEW.id, 'quantity_changed', v_actor, v_name, jsonb_build_object(
+      'model_code', NEW.model_code, 'from', OLD.quantity, 'to', NEW.quantity, 'reason', v_reason
+    ));
+  ELSE
+    SELECT display_name INTO v_name FROM public.profiles WHERE id = v_actor;
+    INSERT INTO public.audit_events (entity_type, entity_id, action, actor_id, actor_name, data)
+    VALUES ('inventory', NEW.id, 'created', v_actor, v_name, jsonb_build_object(
+      'model_code', NEW.model_code, 'from', NULL, 'to', NEW.quantity, 'reason', v_reason
+    ));
+  END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.audit_store_stock() FROM PUBLIC;
+
+DROP TRIGGER IF EXISTS store_inventory_audit ON public.store_inventory;
+CREATE TRIGGER store_inventory_audit
+  AFTER INSERT OR UPDATE OF quantity ON public.store_inventory
+  FOR EACH ROW EXECUTE FUNCTION public.audit_store_stock();
+
+REVOKE ALL ON FUNCTION public.change_store_stock(text, text, integer, integer, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.change_store_stock(text, text, integer, integer, text) TO authenticated;

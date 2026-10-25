@@ -2,25 +2,10 @@
  *  the REP lives in l10n_mx_edi.document — account.payment's l10n_mx_edi_* compute false. */
 
 import { describe, test, expect } from 'vitest'
-import type { OdooCaller } from '@/lib/odoo/client'
-import { odooPaymentDetail, odooRepAudit } from '@/lib/mcp/tools/odoo/payments'
-import { odooQuery } from '@/lib/mcp/tools/odoo/accounting'
-import { ToolError } from '@/lib/mcp/shared'
-
-type Call = { model: string; method: string; payload: Record<string, unknown> }
-
-function fakeOdoo(script: Record<string, unknown[]>) {
-  const calls: Call[] = []
-  const pending = Object.fromEntries(Object.entries(script).map(([k, v]) => [k, [...v]]))
-  const odoo: OdooCaller = async (model, method, payload) => {
-    calls.push({ model, method, payload })
-    const key = `${model}.${method}`
-    const queue = pending[key]
-    if (!queue || queue.length === 0) throw new Error(`sin respuesta programada para ${key}`)
-    return queue.shift()
-  }
-  return { odoo, calls }
-}
+import { odooPaymentDetail, odooAuditPaymentComplements } from '@/lib/mcp/tools/odoo/payments'
+import { odooSearchRecords } from '@/lib/mcp/tools/odoo/accounting'
+import { ToolError } from '@/lib/mcp/core/errors'
+import { fakeOdoo } from '../helpers/fake-odoo'
 
 const PAY00068 = {
   id: 71,
@@ -61,10 +46,10 @@ const F00272 = { ...F00275, id: 433, name: 'F00272', amount_total: 1156.0 }
 describe('catálogo fase 6', () => {
   test('l10n_mx_edi.document es consultable y filtrable (campos almacenados)', async () => {
     const { odoo, calls } = fakeOdoo({ 'l10n_mx_edi.document.search_read': [[REP_DOC]] })
-    const result = await odooQuery(odoo, {
-      model: 'l10n_mx_edi.document',
-      domain: [['state', 'like', 'payment%'], ['sat_state', '=', 'valid']],
-      limit: 5,
+    const result = await odooSearchRecords(odoo, {
+      modelo: 'l10n_mx_edi.document',
+      filtros: [['state', 'like', 'payment%'], ['sat_state', '=', 'valid']],
+      limite: 5,
     })
     expect(result.count).toBe(1)
     expect(calls[0].payload.domain).toEqual([['state', 'like', 'payment%'], ['sat_state', '=', 'valid']])
@@ -72,10 +57,10 @@ describe('catálogo fase 6', () => {
 
   test('reconciled_invoice_ids se puede LEER pidiéndolo explícito', async () => {
     const { odoo } = fakeOdoo({ 'account.payment.search_read': [[PAY00068]] })
-    const result = await odooQuery(odoo, {
-      model: 'account.payment',
-      fields: ['name', 'reconciled_invoice_ids'],
-      limit: 1,
+    const result = await odooSearchRecords(odoo, {
+      modelo: 'account.payment',
+      campos: ['name', 'reconciled_invoice_ids'],
+      limite: 1,
     })
     expect(result.items[0].reconciled_invoice_ids).toEqual([436, 433])
   })
@@ -83,28 +68,28 @@ describe('catálogo fase 6', () => {
   test('candado: filtrar u ordenar por reconciled_invoice_ids se rechaza (Odoo daría 0 en silencio)', async () => {
     const { odoo } = fakeOdoo({})
     await expect(
-      odooQuery(odoo, { model: 'account.payment', domain: [['reconciled_invoice_ids', 'in', [436]]] }),
+      odooSearchRecords(odoo, { modelo: 'account.payment', filtros: [['reconciled_invoice_ids', 'in', [436]]] }),
     ).rejects.toThrow(/computado sin almacenar/)
     await expect(
-      odooQuery(odoo, { model: 'account.payment', order: 'reconciled_invoice_ids asc' }),
+      odooSearchRecords(odoo, { modelo: 'account.payment', orden: 'reconciled_invoice_ids asc' }),
     ).rejects.toThrow(/computado sin almacenar/)
   })
 
   test('la proyección por defecto NO incluye los readOnly (van solo bajo demanda)', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.payment.search_read': [[]] })
-    await odooQuery(odoo, { model: 'account.payment' })
+    await odooSearchRecords(odoo, { modelo: 'account.payment' })
     expect(calls[0].payload.fields).not.toContain('reconciled_invoice_ids')
   })
 
   test('los l10n_mx_edi_* del pago NO están en el catálogo (computan false, mentirían)', async () => {
     const { odoo } = fakeOdoo({})
     await expect(
-      odooQuery(odoo, { model: 'account.payment', fields: ['l10n_mx_edi_cfdi_state'] }),
+      odooSearchRecords(odoo, { modelo: 'account.payment', campos: ['l10n_mx_edi_cfdi_state'] }),
     ).rejects.toThrow(/no está en el catálogo/)
   })
 })
 
-describe('odoo_payment_detail', () => {
+describe('detalle de pago', () => {
   test('pago con REP timbrado: cruce completo en 3 llamadas', async () => {
     const { odoo, calls } = fakeOdoo({
       'account.payment.search_read': [[PAY00068]],
@@ -119,27 +104,24 @@ describe('odoo_payment_detail', () => {
     expect(calls[1].payload.domain).toEqual([['invoice_ids', 'in', [436, 433]], ['state', 'like', 'payment%']])
     expect(calls[2].payload.domain).toEqual([['id', 'in', [436, 433]]])
 
-    expect(result.encontrado).toBe(true)
-    if (result.encontrado) {
-      expect(result.pago).toMatchObject({ folio: 'PAY00068', cliente: 'Andritz', monto: 59868.07, tipo: 'cobro', estado: 'pagado' })
-      expect(result.complemento_pago).toEqual([
-        {
-          estado: 'timbrado',
-          estado_sat: 'vigente ante el SAT',
-          folio_fiscal: REP_DOC.attachment_uuid,
-          fecha: REP_DOC.datetime,
-          asiento: 'BNK1/2026/00346',
-          facturas_que_cubre: ['F00275', 'F00272'],
-          detalle: undefined,
-        },
-      ])
-      expect(result.facturas_que_paga[0]).toMatchObject({
-        folio: 'F00275',
-        saldo_pendiente: 0,
-        estado_pago: 'paid',
-        timbrado: { timbrada: true, estado_sat: 'vigente ante el SAT' },
-      })
-    }
+    expect(result.pago).toMatchObject({ folio: 'PAY00068', cliente: 'Andritz', monto: 59868.07, tipo: 'cobro', estado: 'pagado' })
+    expect(result.complemento_pago).toEqual([
+      {
+        estado: 'timbrado',
+        estado_sat: 'vigente ante el SAT',
+        folio_fiscal: REP_DOC.attachment_uuid,
+        fecha: REP_DOC.datetime,
+        asiento: 'BNK1/2026/00346',
+        facturas_que_cubre: ['F00275', 'F00272'],
+        detalle: undefined,
+      },
+    ])
+    expect(result.facturas_que_paga[0]).toMatchObject({
+      folio: 'F00275',
+      saldo_pendiente: 0,
+      estado_pago: 'paid',
+      timbrado: { timbrada: true, estado_sat: 'vigente ante el SAT' },
+    })
   })
 
   test('pago con facturas pero SIN REP → aviso explícito (el caso que motivó la issue)', async () => {
@@ -149,12 +131,10 @@ describe('odoo_payment_detail', () => {
       'account.move.search_read': [[F00275, F00272]],
     })
     const result = await odooPaymentDetail(odoo, { folio: 'PAY00068' })
-    if (result.encontrado) {
-      expect(result.complemento_pago).toEqual({
-        timbrado: false,
-        detalle: 'Sin REP: ningún complemento de pago cubre las facturas de este pago.',
-      })
-    }
+    expect(result.complemento_pago).toEqual({
+      timbrado: false,
+      detalle: 'Sin REP: ningún complemento de pago cubre las facturas de este pago.',
+    })
   })
 
   test('pago sin facturas conciliadas → 1 sola llamada, sin buscar REP', async () => {
@@ -163,27 +143,23 @@ describe('odoo_payment_detail', () => {
     })
     const result = await odooPaymentDetail(odoo, { folio: 'PAY00068' })
     expect(calls).toHaveLength(1)
-    if (result.encontrado) {
-      expect(result.complemento_pago).toMatchObject({ timbrado: false })
-      expect(result.facturas_que_paga).toEqual([])
-    }
+    expect(result.complemento_pago).toMatchObject({ timbrado: false })
+    expect(result.facturas_que_paga).toEqual([])
   })
 
-  test('folio parcial con varias coincidencias → lista para precisar', async () => {
+  test('folio parcial con varias coincidencias → error con la lista para precisar (#155)', async () => {
     const { odoo, calls } = fakeOdoo({
       'account.payment.search_read': [[
         { ...PAY00068, id: 1, name: 'PAY00010' },
         { ...PAY00068, id: 2, name: 'PAY00011' },
       ]],
     })
-    const result = await odooPaymentDetail(odoo, { folio: 'PAY000' })
-    expect(result.encontrado).toBe(false)
-    if (!result.encontrado) expect(result.coincidencias).toEqual(['PAY00010', 'PAY00011'])
+    await expect(odooPaymentDetail(odoo, { folio: 'PAY000' })).rejects.toThrow(/Hay 2 folios de pago que coinciden con "PAY000" \(PAY00010, PAY00011\)/)
     expect(calls).toHaveLength(1)
   })
 })
 
-describe('odoo_rep_audit', () => {
+describe('odoo_audit_payment_complements', () => {
   const pago = (over: Record<string, unknown>) => ({ ...PAY00068, ...over })
 
   test('clasifica: en regla / sin REP / REP con problema', async () => {
@@ -202,7 +178,7 @@ describe('odoo_rep_audit', () => {
       'account.move.search_read': [[{ id: 500, l10n_mx_edi_payment_policy: 'PPD' }]],
     })
 
-    const result = await odooRepAudit(odoo, { date_from: '2026-08-01', date_to: '2026-08-31' })
+    const result = await odooAuditPaymentComplements(odoo, { desde: '2026-08-01', hasta: '2026-08-31' })
 
     expect(calls).toHaveLength(3)
     expect(calls[2].payload.domain).toEqual([['id', 'in', [500]]])
@@ -245,7 +221,7 @@ describe('odoo_rep_audit', () => {
         { id: 700, l10n_mx_edi_payment_policy: 'PPD' },
       ]],
     })
-    const result = await odooRepAudit(odoo, { date_from: '2026-08-01' })
+    const result = await odooAuditPaymentComplements(odoo, { desde: '2026-08-01' })
     expect(result.en_regla).toBe(0)
     expect(result.sin_rep).toHaveLength(1)
   })
@@ -264,7 +240,7 @@ describe('odoo_rep_audit', () => {
         { id: 802, l10n_mx_edi_payment_policy: 'PPD' },
       ]],
     })
-    const result = await odooRepAudit(odoo, {})
+    const result = await odooAuditPaymentComplements(odoo, {})
     expect(calls).toHaveLength(3)
     expect(result.no_requiere_rep).toBe(1)
     expect(result.sin_rep).toEqual([
@@ -280,7 +256,7 @@ describe('odoo_rep_audit', () => {
         REP_DOC, // payment_sent/valid, 2026-08-13
       ]],
     })
-    const result = await odooRepAudit(odoo, {})
+    const result = await odooAuditPaymentComplements(odoo, {})
     expect(result.en_regla).toBe(1)
     expect(result.rep_con_problema).toEqual([])
   })
@@ -290,7 +266,7 @@ describe('odoo_rep_audit', () => {
       'account.payment.search_read': [[pago({})]],
       'l10n_mx_edi.document.search_read': [[{ ...REP_DOC, state: 'payment_sent_pue', sat_state: 'skip' }]],
     })
-    const result = await odooRepAudit(odoo, {})
+    const result = await odooAuditPaymentComplements(odoo, {})
     expect(result.en_regla).toBe(1)
   })
 
@@ -303,14 +279,14 @@ describe('odoo_rep_audit', () => {
       'l10n_mx_edi.document.search_read': [docs],
       'account.move.search_read': [[{ id: 436, l10n_mx_edi_payment_policy: 'PPD' }]],
     })
-    const result = await odooRepAudit(odoo, {})
+    const result = await odooAuditPaymentComplements(odoo, {})
     expect(result.sin_rep).toHaveLength(1)
     expect(result.nota).toMatch(/máximo de documentos REP \(200\)/)
   })
 
   test('sin pagos en el rango: no busca documentos (1 llamada) y regresa vacío', async () => {
     const { odoo, calls } = fakeOdoo({ 'account.payment.search_read': [[]] })
-    const result = await odooRepAudit(odoo, {})
+    const result = await odooAuditPaymentComplements(odoo, {})
     expect(calls).toHaveLength(1)
     expect(result.pagos_revisados).toBe(0)
     expect(result.en_regla).toBe(0)
@@ -318,6 +294,6 @@ describe('odoo_rep_audit', () => {
 
   test('fecha inválida → ToolError accionable', async () => {
     const { odoo } = fakeOdoo({})
-    await expect(odooRepAudit(odoo, { date_from: '12/08/2026' })).rejects.toThrow(ToolError)
+    await expect(odooAuditPaymentComplements(odoo, { desde: '12/08/2026' })).rejects.toThrow(ToolError)
   })
 })

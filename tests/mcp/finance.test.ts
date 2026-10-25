@@ -2,7 +2,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { createMockSupabase, filterValue, type CallRecord } from '../helpers/supabase-mock'
-import { type Db } from '@/lib/mcp/shared'
+import type { Db } from '@/lib/mcp/core/db'
 import { getMonthClosing, type IncomeDeps } from '@/lib/mcp/tools/finance'
 import { OdooError } from '@/lib/odoo/client'
 import { todayInMexico } from '@/lib/format'
@@ -56,6 +56,25 @@ describe('getMonthClosing', () => {
     expect(result.ingresos).toMatchObject({ cobrado: 0, por_cobrar_total: 0, por_cobrar_al_corriente: 0, notas_credito_sin_aplicar: 0, truncado: false })
     expect(result.ingresos_no_disponibles).toBeNull()
     expect(result.cierre.real).toBe(-400)
+  })
+
+  test('los dólares no entran al cierre: van aparte y sin convertir (2026-10-20)', async () => {
+    const client = createMockSupabase({
+      responses: {
+        payables: payables(
+          [payable('pending', 300, `${MONTH}-20`), { ...payable('pending', 40, `${MONTH}-21`), id: 'usd-p', currency: 'USD' }],
+          [payable('paid', 1000, `${MONTH}-05`, `${MONTH}-05`), { ...payable('paid', 100, `${MONTH}-06`, `${MONTH}-06`), id: 'usd', currency: 'USD' }],
+        ),
+      },
+    })
+    const result = await getMonthClosing(asDb(client), {}, noOdoo)
+    expect(result.moneda).toBe('MXN')
+    expect(result.egresos).toMatchObject({
+      pagado: 1000,
+      pendiente_del_mes: 300,
+      en_otras_monedas_sin_convertir: { USD: { pagado: 100, pendiente_del_mes: 40, vencido_de_meses_anteriores: 0 } },
+    })
+    expect(result.cierre).toMatchObject({ real: -1000, proyectado: -1300 })
   })
 
   test('mes inválido → error claro', async () => {

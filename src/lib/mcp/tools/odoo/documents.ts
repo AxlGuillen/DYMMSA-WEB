@@ -1,8 +1,9 @@
 /** Odoo phase 5 — document detail + CFDI stamping (ADR-025): folio → id, lines by numeric FK (traversal stays banned in the primitives). */
 
 import type { OdooCaller } from '@/lib/odoo/client'
+import { escapeLike } from '@/lib/odoo/domains'
 import { htmlToText, idsOf, normalizeRecords } from '@/lib/odoo/normalize'
-import { ToolError } from '../../shared'
+import { ToolError } from '@/lib/mcp/core/errors'
 import { linkDiagnosis } from './links'
 
 const LINES_LIMIT = 80
@@ -38,38 +39,51 @@ export function timbrado(header: Record<string, unknown>) {
   }
 }
 
-/** Exact (upper-cased) or unique partial folio match; several hits return the list to disambiguate. */
+export const DOCUMENT_TYPES = ['factura', 'venta', 'pago'] as const
+export type DocumentType = (typeof DOCUMENT_TYPES)[number]
+
+const DOCUMENT_LABEL: Record<DocumentType, { what: string; none: string }> = {
+  factura: { what: 'factura o nota de crédito', none: 'ninguna factura o nota de crédito' },
+  venta: { what: 'venta', none: 'ninguna venta' },
+  pago: { what: 'pago', none: 'ningún pago' },
+}
+
+/** The folio's prefix picks the model (#155): S… sale or quotation, PAY… payment, the rest account.move. */
+export function documentTypeOf(folio: string): DocumentType {
+  const name = folio.trim().toUpperCase()
+  if (name.startsWith('PAY')) return 'pago'
+  if (/^S\d/.test(name)) return 'venta'
+  return 'factura'
+}
+
+/** Exact (upper-cased) or unique partial folio match; none or several are errors that say what to fix (#155). */
 export async function findByFolio(
   odoo: OdooCaller,
+  type: DocumentType,
   model: string,
   folio: string,
   fields: string[],
-): Promise<
-  | { found: Record<string, unknown> }
-  | { found: null; mensaje: string; coincidencias: unknown[] }
-> {
+): Promise<Record<string, unknown>> {
   const query = folio.trim().toUpperCase()
-  if (!query) throw new ToolError('Indica el folio del documento (p. ej. F00167 o S00247)')
+  if (!query) throw new ToolError('Indica el folio del documento (p. ej. F00167, S00247 o PAY00068)')
 
   const matches = normalizeRecords(
     await odoo(model, 'search_read', {
-      domain: [['name', 'ilike', query]],
+      domain: [['name', 'ilike', escapeLike(query)]],
       fields,
       limit: 5,
       order: 'name asc',
     }),
   )
   const exact = matches.find((m) => m.name === query)
-  if (exact) return { found: exact }
-  if (matches.length === 1) return { found: matches[0] }
+  if (exact) return exact
+  if (matches.length === 1) return matches[0]
+  const label = DOCUMENT_LABEL[type]
   if (matches.length === 0) {
-    return { found: null, mensaje: `Ningún documento coincide con "${query}"`, coincidencias: [] }
+    // The prefix may have picked the wrong model: say how to force it.
+    throw new ToolError(`No hay ${label.none} con el folio "${query}" en Odoo. Revisa el folio completo (p. ej. F00167); si es de otro tipo, pásalo con tipo: factura | venta | pago.`)
   }
-  return {
-    found: null,
-    mensaje: `Hay ${matches.length} folios que coinciden — precisa cuál`,
-    coincidencias: matches.map((m) => m.name),
-  }
+  throw new ToolError(`Hay ${matches.length} folios de ${label.what} que coinciden con "${query}" (${matches.map((m) => m.name).join(', ')}): pásame el folio completo.`)
 }
 
 /** x2many fields arrive as id arrays; the model only needs how many. */
@@ -84,11 +98,7 @@ const INVOICE_FIELDS = [
 ]
 
 export async function odooInvoiceDetail(odoo: OdooCaller, input: { folio: string }) {
-  const result = await findByFolio(odoo, 'account.move', input.folio, INVOICE_FIELDS)
-  if (!result.found) {
-    return { encontrado: false as const, mensaje: result.mensaje, coincidencias: result.coincidencias }
-  }
-  const header = result.found
+  const header = await findByFolio(odoo, 'factura', 'account.move', input.folio, INVOICE_FIELDS)
 
   const lines = normalizeRecords(
     await odoo('account.move.line', 'search_read', {
@@ -99,9 +109,9 @@ export async function odooInvoiceDetail(odoo: OdooCaller, input: { folio: string
   )
 
   return {
-    encontrado: true as const,
     factura: {
       folio: header.name,
+      documento: header.move_type === 'out_refund' ? 'nota de crédito' : 'factura',
       cliente: header.partner_id,
       emitida: header.invoice_date,
       vence: header.invoice_date_due,
@@ -140,11 +150,7 @@ const SALE_FIELDS = [
 ]
 
 export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string }) {
-  const result = await findByFolio(odoo, 'sale.order', input.folio, SALE_FIELDS)
-  if (!result.found) {
-    return { encontrado: false as const, mensaje: result.mensaje, coincidencias: result.coincidencias }
-  }
-  const header = result.found
+  const header = await findByFolio(odoo, 'venta', 'sale.order', input.folio, SALE_FIELDS)
 
   const lines = normalizeRecords(
     await odoo('sale.order.line', 'search_read', {
@@ -177,7 +183,6 @@ export async function odooSaleDetail(odoo: OdooCaller, input: { folio: string })
     : []
 
   return {
-    encontrado: true as const,
     venta: {
       folio: header.name,
       cliente: header.partner_id,

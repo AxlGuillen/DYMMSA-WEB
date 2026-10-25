@@ -1,31 +1,16 @@
-/** Odoo block, phases 3 and 4 (#65, ADR-025): Odoo warehouse inventory, staff
- *  directory and fleet. Shapes captured from the real instance. */
+/** Odoo block, phases 3 and 4 (#65, ADR-025): Odoo warehouse inventory; the staff directory and
+ *  the fleet are read with odoo_search_records since #155. Shapes captured from the real instance. */
 
 import { describe, test, expect } from 'vitest'
-import type { OdooCaller } from '@/lib/odoo/client'
-import { odooStockCheck, odooEmployeeDirectory, odooFleetStatus } from '@/lib/mcp/tools/odoo/operations'
-import { odooQuery } from '@/lib/mcp/tools/odoo/accounting'
-
-type Call = { model: string; method: string; payload: Record<string, unknown> }
-
-function fakeOdoo(script: Record<string, unknown[]>) {
-  const calls: Call[] = []
-  const pending = Object.fromEntries(Object.entries(script).map(([k, v]) => [k, [...v]]))
-  const odoo: OdooCaller = async (model, method, payload) => {
-    calls.push({ model, method, payload })
-    const key = `${model}.${method}`
-    const queue = pending[key]
-    if (!queue || queue.length === 0) throw new Error(`sin respuesta programada para ${key}`)
-    return queue.shift()
-  }
-  return { odoo, calls }
-}
+import { odooSearchStock } from '@/lib/mcp/tools/odoo/operations'
+import { odooSearchRecords } from '@/lib/mcp/tools/odoo/accounting'
+import { fakeOdoo } from '../helpers/fake-odoo'
 
 describe('catálogo fases 3-4', () => {
   test('la nómina queda fuera por diseño: hr.employee no expone campos sensibles', async () => {
     const { odoo } = fakeOdoo({})
     for (const field of ['wage', 'contract_id', 'birthday']) {
-      await expect(odooQuery(odoo, { model: 'hr.employee', fields: [field] })).rejects.toThrow(
+      await expect(odooSearchRecords(odoo, { modelo: 'hr.employee', campos: [field] })).rejects.toThrow(
         /no está en el catálogo/,
       )
     }
@@ -34,12 +19,37 @@ describe('catálogo fases 3-4', () => {
   test('qty_available NO es consultable (computado no-almacenado: Odoo revienta al filtrar)', async () => {
     const { odoo } = fakeOdoo({})
     await expect(
-      odooQuery(odoo, { model: 'product.product', domain: [['qty_available', '>', 0]] }),
+      odooSearchRecords(odoo, { modelo: 'product.product', filtros: [['qty_available', '>', 0]] }),
     ).rejects.toThrow(/No se puede filtrar/)
   })
 })
 
-describe('odoo_stock_check', () => {
+// The retired odoo_employee_directory / odoo_fleet_status were one primitive call each (#155, ADR-041 §12).
+describe('directorio y flotilla con odoo_search_records', () => {
+  test('el correo de trabajo de una persona y la camioneta que tiene asignada', async () => {
+    const { odoo, calls } = fakeOdoo({
+      'hr.employee.search_read': [[
+        { id: 1, name: 'Diego Baltazar Esquivel', job_title: false, department_id: [1, 'Administration'], work_email: 'x@y.com', work_phone: false },
+      ]],
+      'fleet.vehicle.search_read': [[
+        { id: 4, name: 'Nissan/Frontier/NC-6802-A', license_plate: 'NC-6802-A', driver_id: [14, 'Diego Baltazar Esquivel'], odometer: 0, odometer_unit: 'kilometers', model_id: [11, 'Nissan/Frontier'], state_id: [1, 'Incompleto'] },
+      ]],
+    })
+    const people = await odooSearchRecords(odoo, { modelo: 'hr.employee', filtros: [['name', 'ilike', 'Diego']] })
+    expect(people.items[0]).toMatchObject({ name: 'Diego Baltazar Esquivel', work_email: 'x@y.com', job_title: null, department_id: 'Administration' })
+
+    const cars = await odooSearchRecords(odoo, { modelo: 'fleet.vehicle', filtros: [['driver_id', 'ilike', 'Diego']] })
+    expect(cars.items[0]).toMatchObject({ license_plate: 'NC-6802-A', driver_id: 'Diego Baltazar Esquivel', model_id: 'Nissan/Frontier' })
+    expect(calls.map((c) => c.model)).toEqual(['hr.employee', 'fleet.vehicle'])
+  })
+
+  test('la bitácora de servicios de la flotilla también es del catálogo', async () => {
+    const { odoo } = fakeOdoo({ 'fleet.vehicle.log.services.search_read': [[]] })
+    await expect(odooSearchRecords(odoo, { modelo: 'fleet.vehicle.log.services', orden: 'date desc' })).resolves.toMatchObject({ count: 0, items: [] })
+  })
+})
+
+describe('odoo_search_stock', () => {
   test('1 llamada: agrupa quants por producto (todas las ubicaciones) y ordena por existencia', async () => {
     const { odoo, calls } = fakeOdoo({
       'stock.quant.read_group': [[
@@ -67,7 +77,7 @@ describe('odoo_stock_check', () => {
       ]],
     })
 
-    const result = await odooStockCheck(odoo, { producto: 'punta' })
+    const result = await odooSearchStock(odoo, { producto: 'punta' })
 
     expect(calls).toHaveLength(1)
     expect(calls[0].payload.domain).toEqual([['product_id', 'ilike', 'punta']])
@@ -85,7 +95,7 @@ describe('odoo_stock_check', () => {
 
   test('sin coincidencias → mensaje claro', async () => {
     const { odoo } = fakeOdoo({ 'stock.quant.read_group': [[]] })
-    const result = await odooStockCheck(odoo, { producto: 'inexistente' })
+    const result = await odooSearchStock(odoo, { producto: 'inexistente' })
     expect(result.coincidencias).toBe(0)
     expect(result.mensaje).toContain('inexistente')
   })
@@ -99,65 +109,9 @@ describe('odoo_stock_check', () => {
       __domain: [],
     }))
     const { odoo } = fakeOdoo({ 'stock.quant.read_group': [[...groups]] })
-    const result = await odooStockCheck(odoo, { producto: 'producto' })
+    const result = await odooSearchStock(odoo, { producto: 'producto' })
     expect(result.existencias).toHaveLength(20)
     expect(result.nota).toMatch(/20.*de 25/)
   })
 })
 
-describe('odoo_employee_directory', () => {
-  test('directorio laboral normalizado (false → null en puesto/teléfono vacíos)', async () => {
-    const { odoo } = fakeOdoo({
-      'hr.employee.search_read': [[
-        {
-          id: 1,
-          name: 'Diego Baltazar Esquivel',
-          job_title: false,
-          department_id: [1, 'Administration'],
-          work_email: 'x@y.com',
-          work_phone: false,
-        },
-      ]],
-    })
-    const result = await odooEmployeeDirectory(odoo)
-    expect(result.empleados[0]).toEqual({
-      nombre: 'Diego Baltazar Esquivel',
-      puesto: null,
-      departamento: 'Administration',
-      correo: 'x@y.com',
-      telefono: null,
-    })
-  })
-})
-
-describe('odoo_fleet_status', () => {
-  test('vehículos + bitácora; con bitácora vacía lo dice en vez de callar', async () => {
-    const { odoo, calls } = fakeOdoo({
-      'fleet.vehicle.search_read': [[
-        {
-          id: 4,
-          name: 'Nissan/Frontier/NC-6802-A',
-          license_plate: 'NC-6802-A',
-          driver_id: [14, 'José Francisco Baltazar Cervantes'],
-          odometer: 0.0,
-          odometer_unit: 'kilometers',
-          model_id: [11, 'Nissan/Frontier'],
-          state_id: [1, 'Incompleto'],
-        },
-      ]],
-      'fleet.vehicle.log.services.search_read': [[]],
-    })
-
-    const result = await odooFleetStatus(odoo)
-
-    expect(calls).toHaveLength(2)
-    expect(result.vehiculos[0]).toMatchObject({
-      vehiculo: 'Nissan/Frontier',
-      placas: 'NC-6802-A',
-      conductor: 'José Francisco Baltazar Cervantes',
-      odometro: '0 kilometers',
-    })
-    expect(result.ultimos_servicios).toEqual([])
-    expect(result.nota).toMatch(/bitácora.*vacía/)
-  })
-})

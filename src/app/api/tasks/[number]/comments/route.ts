@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, badRequest } from '@/lib/api-helpers'
-import { fetchGitHub, mapComment, buildIssueBody, handleGitHubError, type GitHubComment } from '@/lib/github'
+import { handleGitHubError } from '@/lib/github'
+import { postTaskComment } from '@/lib/tasks-store'
 
 // POST comments — prepends "Reportado por: X"; every comment is created by the repo token.
 export async function POST(
@@ -19,13 +20,7 @@ export async function POST(
     if (!Number.isInteger(n) || n < 1) return badRequest('Número de tarea inválido')
 
     const { body } = (await request.json()) as { body?: string }
-    if (!body?.trim()) return badRequest('El comentario no puede estar vacío')
-
-    const created = await fetchGitHub<GitHubComment>(`/issues/${n}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ body: buildIssueBody(body, user.email ?? 'DYMMSA') }),
-    })
-    return NextResponse.json(mapComment(created), { status: 201 })
+    return NextResponse.json(await postTaskComment(n, body ?? '', user.email ?? 'DYMMSA'), { status: 201 })
   } catch (e) {
     return handleGitHubError(e)
   }

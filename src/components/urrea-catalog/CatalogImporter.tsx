@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Upload, FileSpreadsheet, AlertTriangle } from '@/components/icons'
+import { ImportErrorAlert } from '@/components/ImportErrorAlert'
 import { useImportUrreaCatalog, useUrreaCatalogStats } from '@/hooks/useUrreaCatalog'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -36,11 +37,15 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
   const [file, setFile] = useState<File | null>(null)
   const [mode, setMode] = useState<'upsert' | 'replace'>('upsert')
   const [confirmReplace, setConfirmReplace] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
   const importMutation = useImportUrreaCatalog()
   const { data: stats } = useUrreaCatalogStats()
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) setFile(acceptedFiles[0])
+    if (acceptedFiles.length > 0) {
+      setFile(acceptedFiles[0])
+      setImportError(null)
+    }
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -65,6 +70,7 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
   const handleImport = async () => {
     if (!file) return
     setConfirmReplace(false)
+    setImportError(null)
     const formData = new FormData()
     formData.append('file', file)
     formData.append('mode', mode)
@@ -75,9 +81,9 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
       })
       handleClose()
     } catch (error) {
-      toast.error('Error al importar', {
-        description: error instanceof Error ? error.message : 'Error desconocido',
-      })
+      // The row list can be long: it stays in the dialog, the toast only signals it.
+      setImportError(error instanceof Error ? error.message : 'Error desconocido')
+      toast.error('Error al importar', { description: 'El detalle está en la ventana de importación.' })
     }
   }
 
@@ -85,6 +91,7 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
     setFile(null)
     setMode('upsert')
     setConfirmReplace(false)
+    setImportError(null)
     onOpenChange(false)
   }
 
@@ -134,7 +141,8 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
                     Actualizar o agregar
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Agrega productos nuevos y actualiza los existentes (por código y marca).
+                    Agrega productos nuevos y actualiza los existentes (por código y marca). Si el
+                    archivo no trae la columna std o descripcion, la guardada no se toca.
                   </p>
                 </div>
               </div>
@@ -152,6 +160,8 @@ export function CatalogImporter({ open, onOpenChange }: CatalogImporterProps) {
               </div>
             </RadioGroup>
           </div>
+
+          <ImportErrorAlert message={importError} />
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={handleClose}>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth, badRequest, serverError } from '@/lib/api-helpers'
-import { normalizeBrandTag } from '@/lib/business-rules'
+import { requireAuth, apiError, serverError } from '@/lib/api-helpers'
+import { createBrand } from '@/lib/suppliers-store'
 import type { Brand } from '@/types/database'
 
 type BrandRow = Brand & { supplier_brands: { count: number }[] | null }
@@ -43,24 +43,8 @@ export async function POST(request: NextRequest) {
     if ('error' in auth) return auth.error
 
     const body = (await request.json()) as { name?: unknown }
-    const name = typeof body.name === 'string' ? normalizeBrandTag(body.name) : ''
-    if (!name) return badRequest('El nombre de la marca es obligatorio')
-
-    const { data, error } = await supabase
-      .from('brands')
-      .insert({ name })
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === '23505') return badRequest('La marca ya existe')
-      console.error('Error creating brand:', error)
-      return serverError('Error al crear la marca')
-    }
-
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json(await createBrand(supabase, body.name), { status: 201 })
   } catch (error) {
-    console.error('Brand create error:', error)
-    return serverError('Error al crear la marca')
+    return apiError(error, 'Error al crear la marca', 'Brand create error:')
   }
 }

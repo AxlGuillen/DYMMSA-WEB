@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { DomainError, type DomainErrorKind } from '@/lib/domain-error'
 import { normalizeEntryTimes, type ISODate } from '@/lib/timesheet'
 import {
   buildPayrollView,
@@ -31,9 +32,9 @@ import type {
 } from '@/types/database'
 
 /** A rule the user broke (→ 400 / ToolError); anything else is a real failure. */
-export class PayrollError extends Error {
-  constructor(message: string) {
-    super(message)
+export class PayrollError extends DomainError {
+  constructor(message: string, kind: DomainErrorKind = 'invalid') {
+    super(message, kind)
     this.name = 'PayrollError'
   }
 }
@@ -93,7 +94,15 @@ export function assertPeriodStart(start: unknown): asserts start is ISODate {
   if (!isIsoDate(start) || !isPeriodStart(start)) throw new PayrollError('El corte debe empezar en sábado (YYYY-MM-DD)')
 }
 
-export async function loadPayrollView(db: SupabaseClient, start: ISODate): Promise<PayrollView> {
+export interface PayrollInputs {
+  employees: PayrollEmployee[]
+  days: PayrollDay[]
+  period: PayrollPeriod | null
+  areas: Map<string, ProfileArea>
+}
+
+/** What a cut is built from, so a caller can ask "and with this day changed?" through buildPayrollView (#155 D). */
+export async function loadPayrollInputs(db: SupabaseClient, start: ISODate): Promise<PayrollInputs> {
   assertPeriodStart(start)
   const dates = periodDates(start)
   const [employees, days, period, areas] = await Promise.all([
@@ -102,6 +111,11 @@ export async function loadPayrollView(db: SupabaseClient, start: ISODate): Promi
     loadPeriodRow(db, start),
     loadProfileAreas(db),
   ])
+  return { employees, days, period, areas }
+}
+
+export async function loadPayrollView(db: SupabaseClient, start: ISODate): Promise<PayrollView> {
+  const { employees, days, period, areas } = await loadPayrollInputs(db, start)
   return buildPayrollView(start, employees, days, period, areas)
 }
 
@@ -193,6 +207,24 @@ export async function saveDays(
   return { saved: rows.length, skipped }
 }
 
+/**
+ * One day as the admin types it (PUT /api/payroll/days and save_payroll_hours.corregir): overwrites whatever is there
+ * and confirms it. An empty day (0 worked, 0 missed, no note) deletes the row, like the empty cell.
+ */
+export async function saveTypedDay(db: SupabaseClient, day: DayInput): Promise<SaveDaysResult & { deleted: boolean }> {
+  if (day.worked_minutes === 0 && (day.missed_minutes ?? 0) === 0 && !day.note?.trim()) {
+    const { error } = await db.from('payroll_days').delete().eq('employee_id', day.employee_id).eq('work_date', day.work_date)
+    if (error) {
+      if (error.code === '23514') throw new PayrollError(error.message)
+      console.error('Error deleting payroll day:', error)
+      throw new PayrollError('Error al borrar el día', 'failed')
+    }
+    return { saved: 0, skipped: [], deleted: true }
+  }
+  const result = await saveDays(db, [day], { source: 'manual', status: 'confirmed', overwrite: true })
+  return { ...result, deleted: false }
+}
+
 export interface PrefillResult extends SaveDaysResult {
   /** Punches without a clock-out: they add nothing, so the admin must know. */
   open: number
@@ -263,16 +295,14 @@ export async function prefillFromHours(db: SupabaseClient, start: ISODate): Prom
   return { ...result, open, linked: linked.length, officeSaturdays: officeSaturdays.size }
 }
 
-export async function confirmDrafts(db: SupabaseClient, start: ISODate): Promise<number> {
+/** `ids` limits it to the drafts the admin was shown (save_payroll_period): a draft that arrives later is not confirmed unseen. */
+export async function confirmDrafts(db: SupabaseClient, start: ISODate, ids?: readonly string[]): Promise<number> {
   assertPeriodStart(start)
   const dates = periodDates(start)
-  const { data, error } = await db
-    .from('payroll_days')
-    .update({ status: 'confirmed' })
-    .eq('status', 'draft')
-    .gte('work_date', dates[0])
-    .lte('work_date', dates[6])
-    .select('id')
+  if (ids && ids.length === 0) return 0
+  let query = db.from('payroll_days').update({ status: 'confirmed' }).eq('status', 'draft').gte('work_date', dates[0]).lte('work_date', dates[6])
+  if (ids) query = query.in('id', [...ids])
+  const { data, error } = await query.select('id')
   if (error) {
     if (error.code === '23514') throw new PayrollError(error.message)
     throw new Error(`payroll_days confirm: ${error.message}`)
@@ -280,7 +310,7 @@ export async function confirmDrafts(db: SupabaseClient, start: ISODate): Promise
   return (data ?? []).length
 }
 
-/** Closing freezes the cut (the trigger enforces it); a draft left behind would be lost hours. */
+/** One DB transaction each (#157): closing refuses drafts (lost hours) and snapshots shift and area, reopening clears it. */
 export async function setPeriodClosed(
   db: SupabaseClient,
   start: ISODate,
@@ -288,33 +318,21 @@ export async function setPeriodClosed(
   actorName: string | null,
 ): Promise<PayrollPeriod> {
   assertPeriodStart(start)
-  const now = new Date().toISOString()
-  if (closed) {
-    const dates = periodDates(start)
-    const { count, error } = await db
-      .from('payroll_days')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'draft')
-      .gte('work_date', dates[0])
-      .lte('work_date', dates[6])
-    if (error) throw new Error(`payroll_days count: ${error.message}`)
-    if ((count ?? 0) > 0) throw new PayrollError(`Hay ${count} días en borrador: confírmalos o bórralos antes de cerrar`)
-  }
-  if (!closed) {
-    // Never closed = nothing to reopen: a "reopened" stamp would record something that did not happen.
-    const current = await loadPeriodRow(db, start)
-    if (current?.status !== 'closed') {
-      return current ?? { start_date: start, status: 'open', closed_at: null, closed_by_name: null, reopened_at: null, reopened_by_name: null }
+  const { data, error } = await db.rpc(closed ? 'close_payroll_period' : 'reopen_payroll_period', {
+    p_start: start,
+    p_actor_name: actorName,
+  })
+  if (error) {
+    if (error.message === 'drafts_pending') {
+      throw new PayrollError(`Hay ${error.details} días en borrador: confírmalos o bórralos antes de cerrar`)
     }
+    if (error.code === '23514') throw new PayrollError(error.message)
+    throw new Error(`payroll_periods ${closed ? 'close' : 'reopen'}: ${error.message}`)
   }
-  const stamp = closed
-    ? { status: 'closed', closed_at: now, closed_by_name: actorName }
-    : { status: 'open', reopened_at: now, reopened_by_name: actorName }
-  const { data, error } = await db
-    .from('payroll_periods')
-    .upsert({ start_date: start, ...stamp }, { onConflict: 'start_date' })
-    .select('*')
-    .single()
-  if (error || !data) throw new Error(`payroll_periods upsert: ${error?.message ?? 'sin datos'}`)
-  return data as PayrollPeriod
+  if (data) return data as PayrollPeriod
+  // Closing always returns the cut: no row is a failure (→ 500), never a fake "open" answered as success.
+  if (closed) throw new Error('payroll_periods close: la función no devolvió el corte')
+  // Never closed = nothing to reopen: a "reopened" stamp would record something that did not happen.
+  const current = await loadPeriodRow(db, start)
+  return current ?? { start_date: start, status: 'open', closed_at: null, closed_by_name: null, reopened_at: null, reopened_by_name: null }
 }

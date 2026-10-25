@@ -51,11 +51,7 @@ const PAYMENT_FIELDS = [
 const REP_DOC_FIELDS = ['move_id', 'invoice_ids', 'state', 'sat_state', 'attachment_uuid', 'datetime', 'message']
 
 export async function odooPaymentDetail(odoo: OdooCaller, input: { folio: string }) {
-  const result = await findByFolio(odoo, 'account.payment', input.folio, PAYMENT_FIELDS)
-  if (!result.found) {
-    return { encontrado: false as const, mensaje: result.mensaje, coincidencias: result.coincidencias }
-  }
-  const payment = result.found
+  const payment = await findByFolio(odoo, 'pago', 'account.payment', input.folio, PAYMENT_FIELDS)
   const invoiceIds = invoiceIdsOf(payment)
 
   // 2 more serialized calls: the REPs touching its invoices + the invoices themselves.
@@ -85,7 +81,6 @@ export async function odooPaymentDetail(odoo: OdooCaller, input: { folio: string
   const invoiceName = new Map(invoices.map((inv) => [inv.id as number, inv.name]))
 
   return {
-    encontrado: true as const,
     pago: {
       folio: payment.name,
       cliente: payment.partner_id,
@@ -124,20 +119,20 @@ export async function odooPaymentDetail(odoo: OdooCaller, input: { folio: string
   }
 }
 
-export interface RepAuditInput {
-  date_from?: string
-  date_to?: string
+export interface AuditPaymentComplementsInput {
+  desde?: string
+  hasta?: string
 }
 
 const AUDIT_LIMIT = 50
 
 /** REP docs are fetched without a date filter (the REP arrives later); the PUE/PPD call is lazy — 100% PUE needs no REP. */
-export async function odooRepAudit(odoo: OdooCaller, input: RepAuditInput = {}) {
-  assertDateRange(input.date_from, input.date_to)
+export async function odooAuditPaymentComplements(odoo: OdooCaller, input: AuditPaymentComplementsInput = {}) {
+  assertDateRange(input.desde, input.hasta)
   const today = todayIso()
   // Default sweep: the last ~30 days.
-  const from = input.date_from ?? daysAgo(30, today)
-  const to = input.date_to ?? today
+  const from = input.desde ?? daysAgo(30, today)
+  const to = input.hasta ?? today
 
   const payments = normalizeRecords(
     await odoo('account.payment', 'search_read', {

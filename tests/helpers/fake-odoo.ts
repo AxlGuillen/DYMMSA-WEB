@@ -3,9 +3,9 @@
 import { assertReadCall, serializeWritePayload, type OdooCaller, type OdooRawWriter } from '@/lib/odoo/client'
 import { assertWriteAllowed } from '@/lib/odoo/write-catalog'
 import { createOdooWriter, type OdooWriter, type WriteLogEntry } from '@/lib/odoo/writer'
-import { issueAdminProof, type AdminProof } from '@/lib/odoo/write-guard'
+import { issueAdminProof, type AdminProof } from '@/lib/auth/admin-proof'
 import * as previewTokens from '@/lib/odoo/preview-token'
-import * as writeGuard from '@/lib/odoo/write-guard'
+import * as writeGuard from '@/lib/auth/admin-proof'
 import type { PreviewGrant, QuotationKeyKind } from '@/lib/odoo/preview-token'
 
 export type OdooCall = { model: string; method: string; payload: Record<string, unknown> }
@@ -45,6 +45,7 @@ export type RawWriteCall = OdooCall & { remainingMs: number }
 const DEFAULT_WRITE_RESULTS: Readonly<Record<string, unknown>> = {
   'sale.order.write': true,
   'sale.order.action_confirm': true,
+  'product.product.write': true,
   'sale.advance.payment.inv.create_invoices': true,
 }
 

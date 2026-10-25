@@ -22,7 +22,7 @@ import {
 import { isOdooWriteConfigured, odooWriteEnv } from '@/lib/odoo/env'
 import type { ProductCreateVals, SaleLineCommand } from '@/lib/odoo/write-catalog'
 import { createOdooWriter, odooWriter, ownedSaleLines, trailNote, type OdooWriter } from '@/lib/odoo/writer'
-import { ADMIN_ONLY_MESSAGE, ADMIN_PROOF_TTL_MS, issueAdminProof, type AdminProof } from '@/lib/odoo/write-guard'
+import { ADMIN_ONLY_MESSAGE, ADMIN_PROOF_TTL_MS, issueAdminProof, type AdminProof } from '@/lib/auth/admin-proof'
 import {
   PREVIEW_CHANGED_MESSAGE,
   PREVIEW_EXPIRED_MESSAGE,
@@ -33,6 +33,7 @@ import {
   type QuotationKeyKind,
 } from '@/lib/odoo/preview-token'
 import { fakeRawWriter, fakeWriter, testAdminProof, testPreviewGrant, throwingWriter } from '../helpers/fake-odoo'
+import { MCP_MAX_DURATION_S } from '@/lib/mcp/core/http'
 
 const WRITE_KEY = 'write-key-0123456789abcdef'
 const ENV = { url: 'https://odoo.test', apiKey: WRITE_KEY, db: null }
@@ -95,7 +96,7 @@ const recordTimeout = (seen: number[]) => (ms: number) => {
 
 type GrantFor = (kind: QuotationKeyKind) => PreviewGrant
 
-/** Every facade operation with valid arguments, to prove a rule holds for all six. */
+/** Every facade operation with valid arguments, to prove a rule holds for all seven. */
 function everyOperation(
   writer: OdooWriter,
   proof: AdminProof,
@@ -108,6 +109,7 @@ function everyOperation(
     ['confirmSale', () => writer.confirmSale(proof, grantFor('confirmar'), 912, dl)],
     ['appendSaleTrail', () => writer.appendSaleTrail(proof, 912, '', 'Confirmada', dl)],
     ['createProducts', () => writer.createProducts(proof, [{ name: 'ZZTEST144 X PRUEBA', list_price: 1, type: 'consu', sale_ok: true }], dl)],
+    ['assignSatKey', () => writer.assignSatKey(proof, [16971], 5432, dl)],
     ['createDraftInvoice', () => writer.createDraftInvoice(proof, 912, dl)],
   ]
 }
@@ -120,12 +122,12 @@ afterEach(() => {
 })
 
 describe('fachada del escritor (#144)', () => {
-  test('el escritor expone exactamente seis operaciones', () => {
-    const six = ['appendSaleTrail', 'confirmSale', 'createDraftInvoice', 'createProducts', 'createQuotation', 'updateQuotation']
-    expect(Object.keys(odooWriter).sort()).toEqual(six)
+  test('el escritor expone exactamente siete operaciones', () => {
+    const seven = ['appendSaleTrail', 'assignSatKey', 'confirmSale', 'createDraftInvoice', 'createProducts', 'createQuotation', 'updateQuotation']
+    expect(Object.keys(odooWriter).sort()).toEqual(seven)
     expect(Object.isFrozen(odooWriter)).toBe(true)
-    expect(Object.keys(fakeWriter().writer).sort()).toEqual(six)
-    expect(Object.keys(throwingWriter().writer).sort()).toEqual(six)
+    expect(Object.keys(fakeWriter().writer).sort()).toEqual(seven)
+    expect(Object.keys(throwingWriter().writer).sort()).toEqual(seven)
   })
 
   test('sin prueba de administrador vigente no escribe (falsa, vencida)', async () => {
@@ -451,6 +453,22 @@ describe('fachada del escritor (#144)', () => {
     expect(error.retry).toBe('products')
   })
 
+  test('assignSatKey manda solo los ids y unspsc_code_id, sin contexto; un resultado incierto pide repetir el clic (#154)', async () => {
+    const { writer, calls, logs } = fakeWriter({ 'product.product.write': [true, new OdooUncertainWriteError('product.product.write', 'sat-keys', 504)] })
+    await writer.assignSatKey(testAdminProof(), [16971, 32300], 5432, fixedDeadline())
+    expect(calls.map(({ model, method, payload }) => ({ model, method, payload }))).toEqual([
+      { model: 'product.product', method: 'write', payload: { ids: [16971, 32300], vals: { unspsc_code_id: 5432 } } },
+    ])
+    expect(logs).toEqual([{ op: 'product.product.write', ids: [16971, 32300], actor: 'admin-1' }])
+    const error = await writer.assignSatKey(testAdminProof(), [16971], 5432, fixedDeadline()).catch((e) => e)
+    expect(error).toBeInstanceOf(OdooUncertainWriteError)
+    expect(error.message).toMatch(/Repite el mismo clic: los productos que ya tengan su clave SAT salen como ya asignados/)
+    // More than the catalog takes is refused like production would.
+    await expect(
+      writer.assignSatKey(testAdminProof(), Array.from({ length: 41 }, (_, i) => i + 1), 5432, fixedDeadline()),
+    ).rejects.toThrow(OdooError)
+  })
+
   test('el catálogo real valida lo que arma la fachada: un producto de servicio no pasa', async () => {
     const { writer, calls } = fakeWriter()
     const service = { name: 'Servicio', list_price: 1, type: 'service', sale_ok: true } as unknown as ProductCreateVals
@@ -749,14 +767,13 @@ describe('llave de escritura (#144)', () => {
     }
   })
 
-  test('el presupuesto deja margen bajo el maxDuration de la ruta del MCP', () => {
+  test('el presupuesto deja margen bajo el maxDuration de las rutas del MCP', () => {
     // Auth and the live-admin read run before the tool starts the clock: the budget is smaller.
-    const route = readFileSync(join(process.cwd(), 'src/app/api/[transport]/route.ts'), 'utf8')
-    const segment = /export const maxDuration = (\d+)/.exec(route)
-    const handler = /maxDuration: (\d+)/.exec(route)
-    expect(segment).not.toBeNull()
-    expect(handler?.[1]).toBe(segment?.[1])
-    expect(REQUEST_BUDGET_MS + PRE_TOOL_HEADROOM_MS).toBeLessThanOrEqual(Number(segment?.[1]) * 1000)
+    for (const file of ['src/app/api/[transport]/route.ts', 'src/app/api/odoo/[transport]/route.ts']) {
+      const segment = /export const maxDuration = (\d+)/.exec(readFileSync(join(process.cwd(), file), 'utf8'))
+      expect(Number(segment?.[1]), file).toBe(MCP_MAX_DURATION_S)
+    }
+    expect(REQUEST_BUDGET_MS + PRE_TOOL_HEADROOM_MS).toBeLessThanOrEqual(MCP_MAX_DURATION_S * 1000)
 
     let now = 0
     const dl = startDeadline(undefined, () => now)
@@ -775,7 +792,7 @@ describe('llave de escritura (#144)', () => {
 
     vi.resetModules()
     const writerModule = await import('@/lib/odoo/writer')
-    const guard = await import('@/lib/odoo/write-guard')
+    const guard = await import('@/lib/auth/admin-proof')
     const tokens = await import('@/lib/odoo/preview-token')
     const deadline = await import('@/lib/odoo/deadline')
     const proof = guard.issueAdminProof({ userId: 'admin-1', displayName: 'Ana Admin' })
@@ -805,7 +822,7 @@ describe('llave de escritura (#144)', () => {
     vi.resetModules()
     const client = await import('@/lib/odoo/client')
     const writerModule = await import('@/lib/odoo/writer')
-    const guard = await import('@/lib/odoo/write-guard')
+    const guard = await import('@/lib/auth/admin-proof')
     const tokens = await import('@/lib/odoo/preview-token')
     const deadline = await import('@/lib/odoo/deadline')
 
@@ -842,7 +859,7 @@ describe('helpers de prueba (#144)', () => {
     for (const [name, run] of everyOperation(writer, testAdminProof(), fixedDeadline())) {
       await expect(run(), name).rejects.toThrow(/no se debía escribir/)
     }
-    expect(attempts).toHaveLength(6)
+    expect(attempts).toHaveLength(7)
   })
 
   test('fakeRawWriter aplica el catálogo real', async () => {

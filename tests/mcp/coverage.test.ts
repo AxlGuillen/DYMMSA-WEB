@@ -6,6 +6,7 @@
 import { describe, test, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
+import { TOOL_MANIFEST } from '@/lib/mcp/catalog'
 
 const API_ROOT = join(process.cwd(), 'src/app/api')
 
@@ -25,10 +26,11 @@ function getRoutes(dir: string, out: string[] = []): string[] {
 /** Tool that covers the route, or "fuera: <why>" when the assistant must not need it. */
 const COVERAGE: Record<string, string> = {
   '[transport]': 'fuera: es el propio endpoint MCP',
+  'odoo/[transport]': 'fuera: es el endpoint MCP del conector Odoo DYMMSA (#155 B1)',
   'approve/[token]': 'fuera: página pública sin sesión',
   brands: 'list_suppliers (marcas por proveedor)',
-  clients: 'odoo_overdue_invoices (sin cliente: cartera por cliente)',
-  'clients/[id]': 'odoo_overdue_invoices (con cliente: su estado de cuenta)',
+  clients: 'odoo_list_receivables (cartera por cliente; conector Odoo DYMMSA desde #155 B3)',
+  'clients/[id]': 'odoo_get_customer (su estado de cuenta; conector Odoo DYMMSA)',
   'finance/income': 'get_month_closing',
   'excused-days': 'get_week_hours (días justificados de la semana)',
   health: 'fuera: diagnóstico del servidor',
@@ -46,8 +48,8 @@ const COVERAGE: Record<string, string> = {
   'payables/overview': 'get_payables_overview',
   products: 'search_products',
   'products/next-dymmsa-code': 'fuera: consecutivo interno del alta de productos',
-  profile: 'get_profiles (sin persona = el propio)',
-  profiles: 'get_profiles',
+  profile: 'list_profiles (sin persona = el propio)',
+  profiles: 'list_profiles',
   quotations: 'list_quotations',
   'quotations/[id]': 'get_quotation',
   'quotations/[id]/cut-candidates': 'fuera: siembra de UI para el corte rápido',
@@ -73,5 +75,14 @@ describe('cobertura del MCP sobre las rutas GET', () => {
   test('el mapa no arrastra rutas que ya no existen', () => {
     const stale = Object.keys(COVERAGE).filter((r) => !routes.includes(r))
     expect(stale, `Entradas de COVERAGE sin ruta: ${stale.join(', ')}`).toEqual([])
+  })
+
+  test('cada tool que cubre una ruta existe en alguno de los dos conectores (#155: un renombre no deja nombres viejos)', () => {
+    const names = new Set(TOOL_MANIFEST.map((t) => t.name))
+    const missing = Object.values(COVERAGE)
+      .filter((v) => !v.startsWith('fuera:'))
+      .map((v) => v.split(' ')[0])
+      .filter((name) => !names.has(name))
+    expect(missing, `Tools de COVERAGE que no existen: ${missing.join(', ')}`).toEqual([])
   })
 })

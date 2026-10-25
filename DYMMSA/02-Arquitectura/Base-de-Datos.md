@@ -46,6 +46,8 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `updated_at` | timestamptz | Sí | `now()` | | |
 | `created_by` | uuid | Sí | — | FK → `auth.users.id` | |
 
+**Reglas que la BD no impone (viven en `src/lib/products-store.ts`, #157):** `price` ≥ 0 (no hay CHECK; las rutas responden 400 a un negativo, en el alta, la edición y el import), y `dymmsa_description` nunca guarda una curada cuando el producto tiene descripción oficial por su `(model_code, brand)` — `assertCuratedAllowed()` la rechaza en `POST`/`PATCH /api/products` (ADR-013). El import por Excel sigue las reglas del auto-learn: solo celdas con valor actualizan una fila existente, `brand='URREA'` solo con `model_code`, y nunca escribe `is_sold` ni la curada.
+
 ---
 
 ## Tabla: `store_inventory`
@@ -61,6 +63,25 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 | `quantity` | integer | No | `0` | `>= 0` | Stock disponible |
 | `location` | text | Sí | — | | Ubicación física (gaveta), texto libre. Se conserva aunque `quantity=0` |
 | `updated_at` | timestamptz | Sí | `now()` | | |
+
+### Funciones de stock atómico (#157, migración `atomic_order_stock`)
+
+Las órdenes **nunca** leen la cantidad, calculan y escriben un absoluto: mueven `quantity` con estas funciones, que bloquean la fila. Todas son `SECURITY INVOKER` (la RLS `FOR ALL TO authenticated` de `store_inventory`/`orders`/`order_items` aplica al que llama), con `search_path = ''`, y `EXECUTE` solo para `authenticated` (se revoca de `PUBLIC` y `anon`). Las llama `src/lib/inventory.ts` / `src/lib/orders-store.ts`. **Orden de bloqueo en todas:** primero la fila de la orden, después `store_inventory` por `model_code` (así dos operaciones simultáneas no se interbloquean).
+
+| Función | Devuelve | Qué garantiza |
+|---|---|---|
+| `reserve_inventory(p_lines jsonb)` | `jsonb` `[{model_code, reserved, location}]` | Aparta `least(quantity, pedido)` por `model_code` bajo `FOR UPDATE`. Suma los códigos repetidos y bloquea en orden de código (la segunda orden espera y aparta de lo que quedó). Sin fila → `reserved: 0`, no la crea. La gaveta sirve de snapshot para `order_items.location` |
+| `release_inventory(p_lines jsonb)` | `integer` (códigos tocados) | Devuelve sumando (`INSERT … ON CONFLICT (model_code) DO UPDATE SET quantity = quantity + …`); crea la fila si falta. Ignora códigos vacíos y cantidades ≤ 0. La usan crear la orden (desde cotización o manual) para deshacer un apartado si fallan los ítems |
+| `adjust_inventory(p_model_code text, p_delta integer)` | `jsonb` `{quantity, clamped, missing}` | Delta del excedente (ADR-019): positivo suma y crea la fila; negativo resta con tope en 0 (`clamped`) o avisa que no hay fila (`missing`). La llama `receive_order_items` |
+| `change_store_stock(p_model_code text, p_mode text, p_value integer, p_expected integer, p_reason text)` | `jsonb` `{quantity, changed, clamped, missing}` | **Pendiente de aplicar (#155 D).** INVOKER, solo `authenticated`. Único camino del MCP para cambiar una cantidad: `count` = compare-and-set contra `p_expected` (si ya no coincide, no escribe); `delta` pasa por `adjust_inventory`. Pone la bandera `app.stock_manual` (+ `app.stock_reason`) para que el trigger `store_inventory_audit` deje un evento en `audit_events`. Errores P0001: `empty_code`, `reason_required`, `bad_mode`, `value_required`, `expected_required`, `negative_count` |
+| `order_restock_lines(p_order_id uuid)` | `jsonb` `[{model_code, quantity}]` | STABLE. Lo que devuelve cancelar/eliminar: `in_stock + least(recibido, pedido)` por `model_code`, solo productos — espejo de `computeRestoration()` |
+| `cancel_order_restock(p_order_id uuid, p_expected_status text)` | `integer` o `NULL` | `status → 'cancelled'` **solo si** la orden sigue en `p_expected_status` y, en la misma transacción y ya con la orden bloqueada, lee sus líneas (`order_restock_lines`) y las devuelve. `NULL` = ya cambió (reintento, otro clic): no devuelve nada |
+| `delete_order_restock(p_order_id uuid, p_expected_status text, p_restock boolean)` | `integer` o `NULL` | Bloquea la orden en el estado leído, lee las líneas si `p_restock` (= `deleteRestoresStock()`), borra la orden (ítems, corte y decisiones por CASCADE) y devuelve |
+| `remove_order_item_restock(p_order_id uuid, p_item_id uuid, p_expected_status text)` | `integer` o `NULL` | Bloquea la orden `FOR SHARE` en el estado leído, borra la línea (acotada a la orden) y devuelve su `quantity_in_stock`, leído de la fila que borra |
+| `add_order_item(p_order_id uuid, p_item jsonb)` | `jsonb` (la fila insertada) | Agregar una línea en una transacción: bloquea la orden `FOR UPDATE`, exige que siga en tienda (`ordered`/`received`), aparta con `reserve_inventory`, reparte `in_stock = apartado` y `to_order = cantidad − apartado` (espejo de `allocateLines()`), toma `sort_order = max + 1` bajo el mismo bloqueo e inserta. Así un cancelar simultáneo o ve la línea y devuelve su stock, o el alta falla. Errores `P0001`: `order_not_found`, `order_closed`, `order_delivered` |
+| `receive_order_items(p_order_id uuid, p_items jsonb)` | `jsonb` `{inventory_updated, warnings: [{tag, model_code, kind}]}` | La recepción entera en una transacción: bloquea la orden (rechaza `completed`/`cancelled`), valida que cada línea sea de la orden, no esté repetida y tenga pedido a URREA, escribe `quantity_received`/`urrea_status` y aplica el delta del excedente contra lo persistido (espejo de `receptionExcess()`), en orden de código. Si algo falla no queda nada escrito. Errores `P0001`: `order_not_found`, `order_closed`, `duplicate_item`, `item_not_in_order`, `item_not_ordered` (DETAIL = la etiqueta de la línea); `orders-store.ts` los traduce |
+
+Cuándo se cancela, borra con devolución o cambia de estado (`goodsInStore`, `deleteRestoresStock`, `canChangeOrderStatus`) sigue siendo regla del código. Las fórmulas de qué devolver y del excedente viven en JS (`computeRestoration`, `receptionExcess`) y la BD las repite dentro de la transacción, con un comentario que las liga.
 
 ---
 
@@ -84,7 +105,17 @@ urrea_catalog    (independiente y aislada — sin relaciones aún, módulo URREA
 RPC: `urrea_catalog_brand_counts() → (brand, count)` (filtro del catálogo; `security invoker`).
 RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true`).
 
-> ⚠️ La resolución de Descripción DYMMSA (`fetchCatalogDescriptionMap`) aún cruza **solo por `code`**; migrar a `(code, brand)` es la issue #27.
+La resolución de la Descripción DYMMSA (`fetchCatalogDescriptionMap`) cruza por `(code, brand)` con `catalogKey()` (ADR-013).
+
+### Función `replace_urrea_catalog` (#157, migración `replace_urrea_catalog`)
+
+`replace_urrea_catalog(p_rows jsonb) → integer` (filas insertadas). Es el import en modo **Reemplazar**: bloquea la tabla en modo `EXCLUSIVE` (las lecturas siguen viendo el catálogo viejo hasta el commit; dos reemplazos o una edición simultánea esperan su turno), borra todo (`DELETE … WHERE true`, por `pg_safeupdate`) e inserta las filas en **una** transacción: si algo falla, el catálogo queda como estaba. Antes, el route borraba y luego insertaba en dos llamadas, y un insert fallido dejaba el catálogo vacío.
+
+- `SECURITY INVOKER` (aplica la RLS de arriba al que llama), `search_path = ''`, `EXECUTE` solo para `authenticated` (se revoca de `PUBLIC` y `anon`).
+- Las filas llegan ya validadas y normalizadas por `parseCatalogSheet()` (`src/lib/urrea-catalog-store.ts`): código vacío, `(code, brand)` repetido o `std` que no es entero > 0 → 400 que nombra las filas, sin llamar a la función. La función normaliza otra vez (`upper(btrim())`, marca vacía → `URREA`, descripción vacía → null) para que una llamada directa no rompa el invariante.
+- Errores: `P0001` `empty_catalog` (lista vacía: nunca vacía el catálogo) y `empty_code`; `23505` por un `(code, brand)` repetido; `23514` por un `std` ≤ 0. `importCatalog()` los traduce a 400; cualquier otro, a 500 «quedó como estaba».
+- El modo **Actualizar** sigue siendo un solo `upsert` (`onConflict: code,brand`), que ya era atómico; la validación del archivo evita el «ON CONFLICT DO UPDATE command cannot affect row a second time» de un repetido. Solo manda las columnas que el archivo trae: sin columna `std`, PostgREST no toca el STD guardado y una fila nueva toma el `DEFAULT 1` (review PR #169, ADR-018).
+- Patrón general (función INVOKER para lo atómico, store compartido, aplicar antes del merge): [[04-Decisiones-Tecnicas/ADR-042-Escrituras-Atomicas-y-Stores]].
 
 ---
 
@@ -101,7 +132,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `customer_name` | text | No | — | | Nombre del cliente |
 | `status` | text | No | `'draft'` | CHECK | Ver estados abajo |
 | `approval_token` | uuid | Sí | `gen_random_uuid()` | UNIQUE | Token para link público |
-| `approved_at` | timestamptz | Sí | — | | Fecha/hora de aprobación (cliente finaliza o staff marca `approved`) |
+| `approved_at` | timestamptz | Sí | — | | Fecha/hora de la **primera** aprobación (cliente finaliza o staff marca `approved`); una vez sellada nunca cambia: ni al re-aprobar ni si el cliente rechaza después (#157, 2026-10-24) |
 | `total_amount` | numeric | No | `0` | `>= 0` | Total en MXN |
 | `notes` | text | Sí | — | | Notas internas |
 | `original_file_url` | text | Sí | — | | URL del Excel original del cliente |
@@ -123,7 +154,7 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 |---------|------|----------|---------|-----------|-------------|
 | `id` | uuid | No | `gen_random_uuid()` | PK | |
 | `quotation_id` | uuid | No | — | FK → `quotations.id` | |
-| `item_type` | text | No | `'product'` | | `product` o `separator` |
+| `item_type` | text | No | `'product'` | CHECK `NOT VALID` | `product` o `separator` (`quotation_items_item_type_check`, #157) |
 | `section_label` | text | Sí | — | | Etiqueta del separador |
 | `separator_color` | text | Sí | — | | Override del color de sección (issue #73); NULL = automático; CHECK solo en separadores |
 | `sort_order` | integer | No | `0` | | Orden de visualización |
@@ -138,8 +169,19 @@ RLS: `Authenticated users can manage urrea_catalog` (ALL, `authenticated`, `true
 | `is_approved` | boolean | Sí | — | | null=pendiente, true=aprobado, false=rechazado |
 | `is_sold` | boolean | Sí | — | | Snapshot de `etm_products.is_sold`. null=sin definir, true=lo vendemos, false=no lo vendemos |
 | `notes` | text | Sí | — | | |
-| `delivery_time` | text | Sí | `'immediate'` | | Ver valores en [[Glosario]] |
+| `delivery_time` | text | Sí | `'immediate'` | CHECK `NOT VALID` | Los 6 valores de [[Glosario]]; NULL en separadores (`quotation_items_delivery_time_check`, #157) |
 | `created_at` | timestamptz | Sí | `now()` | | |
+
+**CHECK `NOT VALID` (#157, decisión 2026-10-24):** los de `delivery_time` e `item_type` validan toda fila **nueva o actualizada**, no la historia (`pg_constraint.convalidated = false`). Al 2026-10-24 ninguna fila de la nube los viola, así que un `VALIDATE CONSTRAINT` posterior pasaría. A propósito **no** hay CHECK ni NOT NULL de `quantity` para productos: 16 líneas históricas sin cantidad en 4 cotizaciones convertidas se quedan como están; la cantidad se valida en el server (`quotation-validation`).
+
+### Funciones de cotizaciones (#157, migración `atomic_quotation_writes`)
+
+Las dos bloquean primero la fila de la cotización (`FOR UPDATE`), así que la edición y la aprobación pública se serializan. `SECURITY INVOKER`, `search_path = ''`, errores de regla como P0001 con llaves cortas que traduce `src/lib/quotations-store.ts` / `src/lib/approval-store.ts`.
+
+| Función | EXECUTE | Qué hace |
+|---|---|---|
+| `update_quotation(p_quotation_id uuid, p_header jsonb, p_items jsonb) → jsonb` | `authenticated` (sin `anon`) | Edición en una transacción: `name`/`customer_name`/`total_amount` del encabezado; cada línea de `p_items` con `id` de esta cotización se actualiza **en su lugar** (conserva el id), las que no vienen se borran y las demás se insertan con id nuevo; `sort_order` = posición. En `sent_for_approval` el `is_approved` de una línea existente se queda el de la BD (lo decide el cliente). Separadores → `is_approved` NULL. Devuelve `{ updated, inserted, deleted }`. Errores: `quotation_not_found`, `quotation_not_editable`, `duplicate_item` |
+| `submit_quotation_approval(p_token uuid, p_approved_ids jsonb, p_finalize boolean) → jsonb` | solo `service_role` (se revoca de `PUBLIC`, `anon` y `authenticated`) | La respuesta del cliente desde `/approve/[token]`, todo o nada: cada id debe ser un producto aprobable (`is_sold` distinto de `false`) de esa cotización, si no → `stale_items` sin escribir. Aprobados = true, resto NULL (avance) o false (enviar); al enviar, status `approved`/`rejected` y `approved_at = coalesce(approved_at, now())` solo si aprueba. Devuelve `{ quotation_id, finalized, status, approved_count }`. Errores: `quotation_not_found`, `quotation_processed`, `stale_items` |
 
 ---
 
@@ -235,7 +277,7 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `value` | jsonb | No | — | | |
 | `updated_at` | timestamptz | No | `now()` | trigger | |
 
-**Keys actuales:** `purchase_threshold_money` (default 100 MXN) · `purchase_threshold_pct` (default 0.8).
+**Keys actuales:** `purchase_threshold_money` (default 100 MXN) · `purchase_threshold_pct` (default 0.8) · `cut_margin_mm` (default 20, **0 válido**; margen por corte del módulo de corte, `cut-plan.ts`).
 
 ---
 
@@ -269,15 +311,16 @@ La escritura es **replace-all** vía `PUT /api/orders/[id]/purchase-decisions` (
 | `supplier_id` | uuid | No | — | FK → `suppliers` **sin cascade** | Borrar proveedor con facturas se bloquea (23503 → 400) |
 | `concept` | text | No | — | CHECK no vacío | |
 | `amount` | numeric | No | — | CHECK > 0 | |
+| `currency` | text | No | `'MXN'` | CHECK `MXN·USD` (`payables_currency_check`) | Moneda de la factura (2026-10-20). **Nunca se convierte**: el cierre del mes suma solo MXN (ADR-027 §7) |
 | `invoice_date` | date | No | — | | |
 | `due_date` | date | No | — | | Pre-llenada en UI: `invoice_date + payment_terms_days`; editable |
 | `status` | text | No | `'pending'` | CHECK `pending·paid·cancelled` | |
-| `paid_at` | date | Sí | — | | Fecha REAL de pago; →paid default hoy, →pending se limpia |
+| `paid_at` | date | Sí | — | | Fecha REAL de pago; →paid default hoy, →pending se limpia. Solo una pagada lleva fecha: la API rechaza (400) un `paid_at` cuyo estado resultante no es `paid` (#157) |
 | `notes` | text | Sí | — | | |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
 Índice: `idx_payables_status_due_date (status, due_date)`.
-Trigger `payables_audit` (AFTER INSERT/UPDATE/DELETE) → `audit_payable()` escribe en `audit_events` (issue #100, ADR-028).
+Trigger `payables_audit` (AFTER INSERT/UPDATE/DELETE) → `audit_payable()` escribe en `audit_events` (issue #100, ADR-028). Desde #157 también audita **monto y moneda** (`amount_changed`).
 
 ---
 
@@ -289,16 +332,16 @@ Trigger `payables_audit` (AFTER INSERT/UPDATE/DELETE) → `audit_payable()` escr
 | Columna | Tipo | Nullable | Default | Constraint | Descripción |
 |---------|------|----------|---------|-----------|-------------|
 | `id` | bigint | No | identity | PK | |
-| `entity_type` | text | No | — | | `'payable'` hoy |
+| `entity_type` | text | No | — | | `'payable'`; `'inventory'` con la migración `manual_stock_audit` (#155 D, aplicada el 2026-10-25, versión 20261025081026: acciones `created` y `quantity_changed`, `data { model_code, from, to, reason }`) |
 | `entity_id` | uuid | No | — | | Sin FK a propósito: el evento sobrevive al borrado de la entidad |
-| `action` | text | No | — | | `created` · `status_changed` · `paid_at_changed` · `deleted` |
+| `action` | text | No | — | sin CHECK | `created` · `status_changed` · `paid_at_changed` · `amount_changed` (#157: `{ from, to }` con `amount` y `currency`) · `deleted` |
 | `actor_id` | uuid | Sí | — | **sin FK** (review PR #106) | `auth.uid()` del que hizo el cambio; NULL con service role. Sin FK: la bitácora nunca falla la escritura que registra |
 | `actor_name` | text | Sí | — | | **Snapshot** del `display_name` de ese día |
-| `data` | jsonb | No | `'{}'` | | `{ from, to }` en cambios; snapshot de la fila en created/deleted |
+| `data` | jsonb | No | `'{}'` | | `{ from, to }` en cambios; snapshot de la fila en created (`concept, amount, currency, supplier_id, status`) y deleted (lo mismo + `paid_at`). `currency` entra desde #157 |
 | `created_at` | timestamptz | No | `now()` | | |
 
 Índice: `idx_audit_events_entity (entity_type, entity_id, created_at DESC)`.
-RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRANT solo SELECT, sin `anon`). Función `audit_payable()` SECURITY DEFINER con `search_path = ''`, `REVOKE EXECUTE FROM PUBLIC`.
+RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRANT solo SELECT, sin `anon`). Función `audit_payable()` SECURITY DEFINER con `search_path = ''`, `REVOKE EXECUTE FROM PUBLIC`. **Un evento por tipo de cambio** (#157): un UPDATE que cambia estado y monto deja `status_changed` **y** `amount_changed`; concepto, fechas, proveedor y notas siguen sin auditarse.
 
 ---
 
@@ -379,10 +422,10 @@ RLS: SELECT `is_admin()`; **sin policy de escritura** para `authenticated` (GRAN
 | `nss` | text | Sí | — | CHECK `^[0-9]{11}$` | Número de Seguridad Social (Mi perfil, #122). Lo editan la persona y el admin; el dígito verificador se valida en la API |
 | `avatar_path` | text | Sí | — | CHECK `profiles_avatar_own_folder` (empieza con `<id>/`) | Ruta de la foto en el bucket `avatars`; NULL = avatar de iniciales |
 | `area` | text | No | `'office'` | CHECK `office·workshop` | Oficina o taller (2026-10-05): agrupa el selector de Mi semana y el Resumen del equipo. Solo el admin |
-| `is_owner` | boolean | No | `false` | índice único parcial `profiles_single_owner` (a lo más uno) | Dueño del negocio: corona en Equipo (2026-10-01). Lo protege el trigger de campos de admin |
+| `is_owner` | boolean | No | `false` | índice único parcial `profiles_single_owner` (a lo más uno) | Dueño del negocio: corona en Equipo (2026-10-01). **Sin ruta de escritura:** con sesión nadie lo cambia, tampoco el admin (#157); solo SQL / service role |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
-RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **o fila propia** (#122). Como la RLS no restringe columnas, el trigger `profiles_guard_admin_fields` → `guard_profile_admin_fields()` rechaza con 42501 los cambios a `role`, `clock_employee_id` y `shift` si quien edita no es admin (sin `auth.uid()` —service role, SQL directo— pasa). Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
+RLS: SELECT fila propia `id = auth.uid()` o `is_admin()`; UPDATE `is_admin()` **o fila propia** (#122). Como la RLS no restringe columnas, el trigger `profiles_guard_admin_fields` → `guard_profile_admin_fields()` rechaza con 42501 los cambios a `role`, `clock_employee_id`, `shift` y `area` si quien edita no es admin, y **cualquier cambio de `is_owner` con `auth.uid()`, admin incluido** (#157); sin `auth.uid()` —service role, SQL directo— pasa. El trigger `profiles_guard_last_admin` (`BEFORE UPDATE OF role OR DELETE`) → `guard_last_admin()` (INVOKER, `search_path = ''`) rechaza con **23514** «Debe quedar al menos un administrador» degradar o **borrar la fila** del último admin (también si se borra su usuario de Auth, por la cascada), **para todos** (también SQL); un candado consultivo serializa dos degradaciones simultáneas (#157; la ruta lo dice antes con el mismo texto). Función `is_admin()` (sql STABLE, SECURITY DEFINER, `search_path = ''`). GRANT solo a `authenticated`/`service_role` (sin `anon`).
 
 **Storage `avatars`** (#122): bucket público, 2 MB, JPEG/PNG/WebP. Policies en `storage.objects`: SELECT/INSERT/DELETE solo cuando la primera carpeta de la ruta es el `auth.uid()` de quien llama. La de SELECT existe porque borrar (`remove`) la necesita, **no** porque las fotos sean privadas: el bucket es público y la app pinta la foto de los demás por URL. Lo que se protege es la ruta (`avatar_path` solo la leen su dueño y el admin) y que nadie suba ni borre en carpeta ajena.
 
@@ -492,6 +535,8 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `note` | text | Sí | — | | |
 | `source` | text | No | `'manual'` | CHECK `sheet`/`hours`/`manual` | Hoja (MCP), checador o captura |
 | `status` | text | No | `'draft'` | CHECK `draft`/`confirmed` | Solo `confirmed` suma |
+| `shift_snapshot` | text | Sí | — | CHECK `full_time`/`part_time` (`payroll_days_shift_snapshot_check`) | Jornada del empleado **al cerrar el corte** (#157). NULL = corte abierto: cuenta la jornada viva |
+| `area_snapshot` | text | Sí | — | CHECK `office`/`workshop` (`payroll_days_area_snapshot_check`) | Área (la de `payrollArea()`: perfil ligado, si no taller) **al cerrar el corte** (#157). NULL = la viva |
 | `created_at` / `updated_at` | timestamptz | No | `now()` | trigger `moddatetime` | |
 
 **`payroll_periods`** — sin fila = corte abierto.
@@ -504,6 +549,12 @@ RLS: SELECT e INSERT `is_admin()`. La escribe la RPC **`import_time_entries(p_en
 | `reopened_at` / `reopened_by_name` | timestamptz / text | Sí | — | | Snapshot de quién reabrió |
 
 RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll_days_guard_closed` → `guard_closed_payroll_period()` (INVOKER, `search_path=''`): INSERT/UPDATE/DELETE de un día cuyo corte está `closed` → 23514, también con service_role. El multiplicador de fin de semana no se guarda (sale de la fecha en `src/lib/payroll.ts`).
+
+**Cerrar y reabrir (#157)** — dos funciones INVOKER (`search_path = ''`, EXECUTE `authenticated`/`service_role`, sin `PUBLIC`/`anon`; la RLS `is_admin()` sigue decidiendo), que llama `setPeriodClosed()`:
+- `close_payroll_period(p_start date, p_actor_name text) → jsonb`: bloquea la fila del corte con un upsert que siempre la devuelve (la crea abierta si no existía; dos cierres simultáneos esperan uno al otro, review PR #171), exige cero borradores (P0001 `drafts_pending`, DETAIL = el conteo), escribe `shift_snapshot`/`area_snapshot` de cada día del corte **y después** pasa el corte a `closed` con su sello — en ese orden y en una transacción, porque el trigger de arriba rechaza escribir un día de un corte ya cerrado. Un corte ya cerrado se devuelve tal cual: conserva el primer sello y su snapshot.
+- `reopen_payroll_period(p_start date, p_actor_name text) → jsonb | null`: pasa el corte a `open` con `reopened_*` y **después** limpia el snapshot de sus días; `null` = no estaba cerrado (no sella nada).
+
+Los totales (`buildPayrollView()` → `dayRules()`) usan el snapshot cuando existe y los valores vivos (`payroll_employees.shift`, `payrollArea()`) si no: cambiar la jornada o el área ya no mueve un corte cerrado.
 
 ---
 
@@ -533,11 +584,13 @@ RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll
 | `20260930234735` | `profiles_display_name_length` | CHECK de 1–80 caracteres en `display_name` (mismo límite que la ruta) + `handle_new_user` recorta y topa a 80. Review PR #126 |
 | `20261001224650` | `owner_and_excused_days` | `profiles.is_owner` (único parcial) protegido por el trigger de campos de admin + tabla `excused_days` con RLS (lee el equipo/la persona, escribe el admin) + Diego marcado como dueño. Ajustes del 2026-10-01 |
 | `20261005165214` | `profile_hourly_rate` | `profiles.hourly_rate` (default 52, CHECK > 0) y `profiles.area` (office·workshop, default office), protegidas por el trigger de campos de admin, cuyo mensaje ahora nombra área, dueño y tarifa. Ajustes del 2026-10-05 |
+| `20261021040129` | `payables_currency` | `payables.currency` (`MXN`·`USD`, default MXN) para facturas que se pagan en dólares; nunca se convierte (meeting 2026-10-20) |
 | `add_approved_at_to_quotations` | (2026-07-07) | Columna `approved_at timestamptz` (nullable) en `quotations` — fecha/hora de aprobación |
 | `add_dymmsa_description` | (2026-07-08) | Columna `dymmsa_description text` (nullable) en `etm_products` (master curada) y `quotation_items` (snapshot resuelto) + normalización defensiva de `urrea_catalog.code` |
 | `drop_price_from_urrea_catalog` | (2026-07-08) | Elimina la columna `price` de `urrea_catalog` — no se usa (la Descripción DYMMSA solo requiere `description` y `std`). Tabla vacía al momento |
 | `add_brand_to_urrea_catalog` | (2026-07-14) | Columna `brand text NOT NULL DEFAULT 'URREA'` en `urrea_catalog`; `UNIQUE(code)` → `UNIQUE(code, brand)`; índice `idx_urrea_catalog_brand`. Backfill de filas existentes a `'URREA'` |
 | `urrea_catalog_brand_counts_fn` | (2026-07-14) | RPC `urrea_catalog_brand_counts()` — conteo por marca para el filtro del catálogo (`security invoker`) |
+| `20261024165024` (archivo `20261024180000`) | `replace_urrea_catalog` | Función `replace_urrea_catalog(p_rows jsonb) → integer` (#157): el import en modo Reemplazar borra e inserta en una transacción. INVOKER, `search_path = ''`, sin `anon`. Sin cambios de datos. Aplicada el 2026-10-24 **antes** del merge (aditiva; ver `supabase/migrations-log.md`) |
 | `create_purchase_planner_tables` | (2026-07-15) | Tablas `order_purchase_decisions` (decisión mayoreo/menudeo por orden a nivel grupo, con snapshots para staleness y CHECK de cobertura) y `app_settings` (key-value jsonb para umbrales). RLS + policy authenticated. ADR-018 |
 | `allow_received_to_exceed_ordered` | (2026-07-16) | DROP `check_received_not_exceed_ordered` en `order_items`: lo recibido puede superar lo pedido (recepción con excedente → inventario, por delta). Se conserva `>= 0`. ADR-019 |
 | `create_suppliers_module` | (2026-07-16) | Tablas `suppliers`, `brands` (sembrada con las marcas existentes) y `supplier_brands` (M2M; brand_id sin cascade → borrar marca en uso se bloquea). RLS + policies. Issue #21 |
@@ -545,3 +598,7 @@ RLS: `FOR ALL` con `is_admin()` en las tres; GRANTs sin `anon`. Trigger `payroll
 | `add_finance_payables` | (2026-09-02) | Columna `payment_terms_days` en `suppliers` y tabla `payables` (facturas por pagar: FK a suppliers sin cascade, concept/amount/fechas, status pending·paid·cancelled, `paid_at` fecha real). Índice (status, due_date), RLS + policy. Issue #84 |
 | `20261001052530` | `add_payroll` | Nómina (#123): `payroll_employees`, `payroll_days`, `payroll_periods`, trigger del corte cerrado y RLS solo admin |
 | `20261007035652` | `profile_pay_admin_only` | `profiles.hourly_rate` → tabla `profile_pay` (solo admin); el trigger de campos de admin deja de nombrar la tarifa (review PR #137) |
+| `20261024090750` (archivo `20261023170000`) | `atomic_order_stock` | Nueve funciones de stock atómico para las órdenes (#157): `reserve_inventory`, `release_inventory`, `adjust_inventory`, `order_restock_lines`, `cancel_order_restock`, `delete_order_restock`, `remove_order_item_restock`, `add_order_item`, `receive_order_items`. Sin cambios de datos. Aplicada el 2026-10-24 antes del merge (ver `supabase/migrations-log.md`) |
+| `20261024155153` (archivo `20261024120000`) | `atomic_quotation_writes` | #157: funciones `update_quotation` y `submit_quotation_approval` (ver arriba) y CHECK `NOT VALID` de `delivery_time` e `item_type` en `quotation_items`. Aditiva: no toca datos. Se aplica **antes** del deploy del código que la llama |
+| `20261024165733` (archivo `20261024200000`) | `guards_audit_payroll_freeze` | #157 «El resto»: `audit_payable()` audita monto/moneda (`amount_changed`) y guarda `currency`; `guard_profile_admin_fields()` congela `is_owner` para cualquier sesión; trigger nuevo `profiles_guard_last_admin`; `payroll_days.shift_snapshot`/`area_snapshot` + `close_payroll_period()`/`reopen_payroll_period()`. Ver `supabase/migrations-log.md` |
+| `20261025081026` (archivo `20261025120000`) | `manual_stock_audit` | #155 D, aplicada el 2026-10-25 con el OK del usuario. **Aditivo:** `change_store_stock`. **Cambia comportamiento:** `audit_store_stock()` (DEFINER) y el trigger `store_inventory_audit` escriben `audit_events` (`entity_type 'inventory'`) en cada cambio de `quantity` hecho por `change_store_stock` |

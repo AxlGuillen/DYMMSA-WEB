@@ -3,10 +3,11 @@
  * diff of an edit, what confirming does and whether a sale can be invoiced. No Odoo calls here.
  */
 
-import { fold } from '@/lib/mcp/shared'
+import { fold } from '@/lib/text'
 import type { DomainTriple } from './catalog'
 import { OdooError } from './client'
 import { escapeLike } from './domains'
+import type { SatSuggestion } from './sat-keys'
 import { ETM_CODE_LIST, PRODUCT_NAME_MAX, type SaleLineCommand, type SaleLineUpdate, type SaleLineVals } from './write-catalog'
 
 /** A requested line after zod (quotationLine in src/lib/mcp/tools/odoo/quotations.ts). */
@@ -18,6 +19,8 @@ export interface LineRequest {
   readonly marca?: string
   readonly descripcion?: string
   readonly clave_sat?: string
+  /** Free text the SAT key is searched by instead of the description (#154). */
+  readonly categoria_sat?: string
   readonly cantidad?: number
   readonly precio?: number
   readonly descuento?: number
@@ -26,14 +29,15 @@ export interface LineRequest {
 }
 
 export type LineKind = 'producto' | 'nota' | 'seccion'
-export type QuotationMode = 'crear' | 'editar' | 'revisar' | 'confirmar'
+/** Confirming is not a mode: odoo_confirm_quotation takes only the folio and the review key (#155 B2b). */
+export const QUOTATION_MODES = ['crear', 'editar', 'revisar'] as const
+export type QuotationMode = (typeof QUOTATION_MODES)[number]
 
 export interface ModeInput {
   readonly cliente?: string
   readonly folio?: string
   readonly lineas?: readonly LineRequest[]
   readonly vigencia?: string
-  readonly confirmar?: boolean
 }
 
 const VALIDITY_NEEDS_LINES =
@@ -58,28 +62,18 @@ export function quotationMode(input: ModeInput): QuotationMode {
   if (hasClient && hasFolio) {
     throw new OdooError('Manda el cliente (para crear) o el folio (para una cotización que ya existe), no los dos.')
   }
-  // Review and confirm never write validity_date: a vigencia there would be signed and ignored.
-  const hasValidity = present(input.vigencia)
-  if (input.confirmar) {
-    if (!hasFolio || hasLines) {
-      throw new OdooError(
-        'Confirmar exige el folio y ninguna línea: guarda antes los cambios y confirma con la clave de una revisión (solo el folio).',
-      )
-    }
-    if (hasValidity) throw new OdooError(VALIDITY_NEEDS_LINES)
-    return 'confirmar'
-  }
-  if (hasFolio && !hasLines && hasValidity) throw new OdooError(VALIDITY_NEEDS_LINES)
+  // A review never writes validity_date: a vigencia there would be signed and ignored.
+  if (hasFolio && !hasLines && present(input.vigencia)) throw new OdooError(VALIDITY_NEEDS_LINES)
   if (hasFolio) return hasLines ? 'editar' : 'revisar'
   if (hasClient) {
     if (!hasLines) throw new OdooError('Para crear una cotización manda el cliente y sus líneas.')
     return 'crear'
   }
-  throw new OdooError('Indica el cliente y las líneas (para crear) o el folio (para revisar, editar o confirmar).')
+  throw new OdooError('Indica el cliente y las líneas (para crear) o el folio (para revisar o editar).')
 }
 
 const PRODUCT_FIELDS = [
-  'producto_id', 'codigo', 'etm', 'marca', 'descripcion', 'clave_sat', 'cantidad', 'precio', 'descuento',
+  'producto_id', 'codigo', 'etm', 'marca', 'descripcion', 'clave_sat', 'categoria_sat', 'cantidad', 'precio', 'descuento',
 ] as const satisfies readonly (keyof LineRequest)[]
 
 function has(line: LineRequest, field: keyof LineRequest): boolean {
@@ -538,7 +532,7 @@ export function confirmEffects(
   return { bienes, servicios, facturables, texto: texto.charAt(0).toUpperCase() + texto.slice(1) }
 }
 
-/** New products in the shape odoo_save_product takes: what the products authorization signs. */
+/** New products in the shape odoo_save_product takes: what the products authorization signs, keys aside (#154). */
 export interface ProductForCreation {
   readonly codigo: string
   readonly descripcion: string
@@ -557,7 +551,27 @@ export interface NewProductView {
   readonly precio: number
   readonly clave_sat: string | null
   readonly nombre_en_odoo: string
+  /** What the line asked the SAT key to be searched by (#154). */
+  readonly categoria_sat: string | null
+  /** The only suggestion with every word of categoria_sat: preselected, still the admin's click. */
+  readonly clave_sat_propuesta: string | null
+  readonly sugerencias_sat: readonly SatSuggestion[]
 }
+
+/** An existing product of the lines without a SAT key: the view's button can give it one (#154). */
+export interface ProductWithoutSat {
+  readonly producto_id: number
+  readonly nombre: string
+  readonly lineas: readonly number[]
+  /** The one the chat gave for it, offered in the view. */
+  readonly clave_sat: string | null
+  readonly categoria_sat: string | null
+  readonly clave_sat_propuesta: string | null
+  readonly sugerencias_sat: readonly SatSuggestion[]
+}
+
+/** Existing products the products authorization may key in one preview. */
+export const MAX_SAT_ASSIGN = MAX_NEW_PRODUCTS
 
 export interface PreviewProduct {
   readonly id: number
@@ -777,6 +791,9 @@ export function planQuotationLines(input: PlanInput): LinePlan {
       precio: price,
       clave_sat: claveSat ?? null,
       nombre_en_odoo: nombre,
+      categoria_sat: present(line.categoria_sat) ? clean(line.categoria_sat) : null,
+      clave_sat_propuesta: null,
+      sugerencias_sat: [],
     })
   }
 
@@ -877,6 +894,33 @@ export function currentPreviewLines(
   })
 }
 
+/**
+ * Existing products the quotation sells without a SAT key, once each; the line that names one may bring
+ * its clave_sat or categoria_sat. Review mode passes no requests: its lines are Odoo's.
+ */
+export function productsWithoutSat(lineas: readonly PreviewLine[], requests: readonly LineRequest[] = []): ProductWithoutSat[] {
+  const byId = new Map<number, { nombre: string; lineas: number[]; clave: string | null; categoria: string | null }>()
+  for (const line of lineas) {
+    if (line.tipo !== 'producto' || line.estado !== 'existe' || !line.producto || line.producto.clave_sat || line.n === null) continue
+    const request: LineRequest | undefined = requests[line.n - 1]
+    const categoria = request?.categoria_sat
+    const entry = byId.get(line.producto.id) ?? { nombre: line.producto.nombre, lineas: [], clave: null, categoria: null }
+    entry.lineas.push(line.n)
+    entry.clave ??= request?.clave_sat ?? null
+    entry.categoria ??= present(categoria) ? clean(categoria) : null
+    byId.set(line.producto.id, entry)
+  }
+  return [...byId.entries()].slice(0, MAX_SAT_ASSIGN).map(([id, entry]) => ({
+    producto_id: id,
+    nombre: entry.nombre,
+    lineas: entry.lineas,
+    clave_sat: entry.clave,
+    categoria_sat: entry.categoria,
+    clave_sat_propuesta: null,
+    sugerencias_sat: [],
+  }))
+}
+
 /** quotationLine's own limits (quotations.ts builds its zod schema from these). */
 export const LINE_QTY_MAX = 100_000
 export const LINE_PRICE_MAX = 10_000_000
@@ -938,7 +982,7 @@ export const SALE_STATE_LABEL: Readonly<Record<string, string>> = Object.freeze(
   cancel: 'cancelada',
 })
 
-const PICKING_STATE_LABEL: Readonly<Record<string, string>> = Object.freeze({
+export const PICKING_STATE_LABEL: Readonly<Record<string, string>> = Object.freeze({
   draft: 'Borrador',
   waiting: 'Esperando otra operación',
   confirmed: 'En espera',
@@ -991,7 +1035,7 @@ export function invoiceReadiness(
   invoices: readonly ReadinessInvoice[] = [],
 ): InvoiceReadiness {
   if (sale.state === 'draft' || sale.state === 'sent') {
-    return refuse(`La ${sale.name} sigue como cotización: primero confírmala (con tu sí, odoo_save_quotation con confirmar).`)
+    return refuse(`La ${sale.name} sigue como cotización: primero confírmala (vista previa con el folio y, con tu sí, odoo_confirm_quotation).`)
   }
   if (sale.state === 'cancel') return refuse(`La ${sale.name} está cancelada.`)
   if (sale.state !== 'sale') return refuse(`La ${sale.name} no es una venta confirmada (${sale.state}).`)

@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:mcp-snapshot": "vitest run tests/mcp/snapshot.test.ts -u",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "verify": "bun run check && bun run test:integration && bun run test:e2e",

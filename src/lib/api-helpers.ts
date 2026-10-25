@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import type { createClient } from '@/lib/supabase/server'
+import { DomainError } from '@/lib/domain-error'
 import type { Profile } from '@/types/database'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
@@ -47,9 +48,8 @@ export async function requireAdmin(
   return { user: auth.user, profile: auth.profile }
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** Query/path ids are validated before they reach a filter; a non-uuid is "no filter", never an error. */
-export const isUuid = (value: string) => UUID_RE.test(value)
+// One definition, in text.ts (#157); re-exported so route imports stay put.
+export { isUuid } from './text'
 
 export const unauthorized = (msg = 'No autorizado') =>
   NextResponse.json({ message: msg }, { status: 401 })
@@ -65,3 +65,10 @@ export const forbidden = (msg = 'Acción no permitida') =>
 
 export const serverError = (msg = 'Error interno') =>
   NextResponse.json({ message: msg }, { status: 500 })
+
+/** A store's DomainError answers its own status and message (#155 C1); anything else is logged and is a 500. */
+export function apiError(error: unknown, fallback = 'Error interno', log = 'API error:'): NextResponse {
+  if (error instanceof DomainError) return NextResponse.json(error.body, { status: error.status })
+  console.error(log, error)
+  return serverError(fallback)
+}
