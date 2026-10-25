@@ -1,7 +1,7 @@
 /**
  * Write net (#155 C5): every POST/PATCH/PUT/DELETE handler of the app is either written by an MCP tool or left out on
  * purpose, with the reason. A new write route without a decision fails here instead of being forgotten; the reads over
- * POST, the cache refreshes and the public route are classified apart. Phase D turns its "Fase D" entries into tools.
+ * POST, the cache refreshes and the public route are classified apart. Phase D (#155) turned every pending entry into a tool or a reason.
  */
 
 import { describe, test, expect } from 'vitest'
@@ -36,7 +36,7 @@ function writeHandlers(dir: string, out: string[] = []): string[] {
  * - `lectura`: a POST that only reads; the read tool that answers the same, or why none.
  * - `cache`: purges a cache, writes no data.
  * - `publica`: the public route, answered by the customer and never by the assistant.
- * - `fuera`: left to the app on purpose, or pending (`Fase D`: the next PR turns it into a tool).
+ * - `fuera`: left to the app on purpose, with the reason.
  */
 type Decision =
   | { tool: string | readonly string[] }

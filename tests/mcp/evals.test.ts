@@ -50,13 +50,8 @@ describe('evaluación manual (R12)', () => {
 
   test('el guion no cita tools que ya no existen (un renombre no deja nombres viejos)', () => {
     const names = new Set(TOOLS.map((t) => t.name))
-    // Phase D's names are announced on purpose, in the tasks that need them.
-    const PHASE_D = new Set([
-      'save_quotation', 'save_order', 'save_order_reception', 'save_app_settings', 'save_purchase_decisions', 'save_cut_plan',
-      'save_product', 'save_urrea_catalog_item', 'save_profile', 'save_payroll_period',
-    ])
     const cited = [...GUION.matchAll(/`((?:get|list|search|save|delete|preview|odoo)_[a-z_]+)[`(]/g)].map((m) => m[1])
-    const stale = [...new Set(cited)].filter((name) => !names.has(name) && !PHASE_D.has(name))
+    const stale = [...new Set(cited)].filter((name) => !names.has(name))
     expect(stale).toEqual([])
   })
 })

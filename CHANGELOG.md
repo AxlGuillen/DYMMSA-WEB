@@ -6,6 +6,26 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 ## 2026-10-24
 
 ### Nuevo
+- [admin] **El asistente ahora también trabaja con cotizaciones, órdenes e
+  inventario.** Puede crear y editar una cotización (línea por línea o de
+  golpe), cambiarle el estado y darte el link de aprobación; generar la orden
+  de una cotización aprobada, cancelarla, cambiar precios y entregas, y
+  registrar lo que llegó de URREA. Siempre te muestra primero qué cambia (cuánto
+  sale de la tienda, qué se pide a URREA, qué vuelve al inventario) y solo
+  escribe cuando le das tu sí.
+- [admin] **También puede contar el inventario.** Si le dices «conté 12 del
+  6954», guarda lo contado menos lo que las órdenes abiertas todavía tienen
+  apartado en tienda, y te muestra la cuenta. Cada cambio de cantidad queda
+  anotado con quién lo hizo y el motivo.
+- [admin] **Catálogos, compra y ajustes desde el asistente.** Editar un producto
+  del catálogo ETM o una línea del catálogo URREA (te avisa cuántas decisiones
+  de compra quedan desactualizadas), decidir mayoreo o menudeo en una orden,
+  agregar o quitar piezas de la lista de corte, cambiar los umbrales y el
+  margen de corte, dar de alta marcas nuevas con el proveedor y editar tu
+  perfil o el de alguien del equipo (nunca el rol ni la tarifa).
+- [admin] **Nómina: confirmar y cerrar el corte desde el asistente.** Confirma
+  los borradores (te los lista todos antes), cierra o reabre el corte y corrige
+  un día ya capturado; siempre con tu sí.
 - [admin] **El asistente ahora pide tu sí en dos pasos para lo delicado.** Al
   borrar un registro, cambiar el monto o las fechas de una factura ya pagada,
   cambiar el título o la descripción de una tarea, o hacer la factura en

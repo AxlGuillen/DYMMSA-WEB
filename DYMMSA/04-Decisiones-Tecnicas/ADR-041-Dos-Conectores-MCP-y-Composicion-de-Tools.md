@@ -401,6 +401,73 @@ Reconectar «DYMMSA-WEB» en claude.ai (web, escritorio, móvil) y Claude Code, 
 - **A Odoo le quedan 129 caracteres de `tools/list` y 26 de instrucciones.** No se tocó ningún tope.
 - **A DYMMSA-WEB le quedan 348 caracteres de instrucciones**: el mapa por módulo crece con cada tool de D; el riesgo real sigue siendo ese tope.
 
+## PR D: escrituras por entidad (2026-10-24)
+
+Cumple la Fase D: diez tools nuevas, tres ampliaciones y el cierre de la red de cobertura. DYMMSA-WEB pasa de 34 a **44 tools**. Todas las nuevas son `adminOnly` y siguen el checklist de dos fases del C4; todas leen y escriben por el **mismo store que la ruta** (ADR-042), así que la regla vive una sola vez.
+
+| Tool | Hints | Confirmación | Qué cubre |
+|---|---|---|---|
+| `save_app_settings` | E(1,1) | siempre | los tres ajustes, con `restablecer` |
+| `save_product` | E(1,0) | dos fases + directa | alta, edición, `se_vende`, ADR-013; identidad y marca piden el sí |
+| `save_urrea_catalog_item` | E(1,1) | dos fases + directa | alta, std, descripción oficial, renombrar; solo la descripción es directa |
+| `save_profile` | E(1,1) | dos fases + directa | nombre y NSS propios directos; checador, jornada y área piden el sí; nunca rol ni tarifa |
+| `save_payroll_period` | E(1,1) | siempre | `confirmar_borradores` (ata la clave al conjunto de borradores), `cerrar` (bloquea con borradores) y `reabrir` |
+| `save_quotation` | E(1,0) | dos fases + directa | crear, editar por línea, agregar, estado; una intención por llamada |
+| `save_purchase_decisions` | E(1,1) | siempre | solo viaja la elección; el servidor arma el set completo |
+| `save_cut_plan` | E(1,0) | dos fases + directa | agregar directo; quitar y reemplazar piden el sí |
+| `save_order` | E(1,0) | dos fases + directa | crear, estado, `odoo_id`, líneas; solo `odoo_id` y entrega son directos |
+| `save_order_reception` | E(1,1) | siempre | ADR-019 con el resumen del excedente y del total de entrega |
+
+**Ampliadas:** `save_inventory_item` con `cantidad_contada` y `ajuste` (la gaveta sola sigue directa; pasa a `adminOnly` porque ahora toca cantidades), `save_payroll_hours.corregir` (con sí) y `save_supplier.crear_marcas`.
+
+### Decisiones de producto aprobadas
+1. **`save_quotation`: una intención por llamada** (líneas o estado, nunca los dos; el error dice que son dos llamadas).
+2. **Una orden manual** (sin cotización) se crea con `save_order` sin `cotizacion`: `cliente` + `productos`. Su huella lleva el conteo de órdenes del cliente, así que una clave usada no puede crear una segunda.
+3. **Las ediciones desde el chat alimentan el auto-learn** por el mismo store que la app (`updateQuotation` devuelve `auto_learn`, que el resumen cuenta).
+4. **Cambiar el precio de una línea ya aprobada no la regresa a pendiente**; el resumen lo avisa.
+5. **`link_aprobacion`** sale en `get_quotation` solo para un admin y solo mientras esté en revisión.
+6. **«Conté 12»:** lo guardado es 12 menos lo que las órdenes abiertas (`ordered`/`received`) aún tienen en tienda, por código: `heldByOpenOrders` suma `computeRestoration` (en stock + min(recibido, pedido)) de esas líneas. Es lo que dicta la regla existente de cancelar/eliminar; el resumen desglosa el cálculo y bloquea si el resultado fuera negativo. Se deriva, no se inventa una regla nueva.
+7. **Auditoría de cantidades:** migración `20261025120000_manual_stock_audit` (ver abajo), **escrita y no aplicada**.
+8. **No se cambia el rol por chat y la tarifa por hora nunca viaja por el MCP.**
+
+### Objetos SQL (migración `20261025120000_manual_stock_audit`, pendiente de aplicar)
+- **Aditivo:** `public.change_store_stock(p_model_code text, p_mode text, p_value integer, p_expected integer, p_reason text) returns jsonb`. INVOKER, `search_path=''`, `REVOKE … FROM PUBLIC, anon`, `GRANT EXECUTE` a `authenticated`. Modo `count` = compare-and-set contra `p_expected`; modo `delta` pasa por `adjust_inventory` (clamp en 0 y fila nueva). Errores P0001: `empty_code`, `reason_required`, `bad_mode`, `value_required`, `expected_required`, `negative_count`.
+- **Cambia comportamiento:** `public.audit_store_stock()` (DEFINER, `REVOKE EXECUTE FROM PUBLIC`) y el trigger `store_inventory_audit` (`AFTER INSERT OR UPDATE OF quantity ON store_inventory`). Escribe `audit_events` (`entity_type 'inventory'`, acciones `created` y `quantity_changed`, `data { model_code, from, to, reason }`) **solo** cuando la función puso la bandera `app.stock_manual` en la transacción; la pantalla de inventario, las órdenes y la recepción siguen sin dejar evento (sería ruido: cada orden mueve stock).
+- Las dos funciones se compilaron como `pg_temp` contra la nube (`execute_sql`); nada se aplicó. `tests/integration/inventory-audit.integration.test.ts` las cubre y **no se pudo correr localmente (Docker apagado)**: corre en CI al tocar `supabase/**`.
+
+### Decisiones que la especificación no cubría
+- `save_payroll_period` es E(1,1): desde #157 cerrar y reabrir son idempotentes.
+- `save_inventory_item` y `save_profile` son `adminOnly` (el plan solo lo decía de las nuevas); el NSS sale enmascarado.
+- La bitácora solo anota los cambios que pasan por `change_store_stock`.
+- Las altas de inventario normalizan el código a mayúsculas; `save_product` guarda la marca en mayúsculas y, con código y sin marca, pone URREA.
+- El impacto de `save_urrea_catalog_item` cuenta solo órdenes en `ordered`/`received`.
+- `save_cut_plan` no expone `linea_origen`; `save_quotation` no trae color de sección ni `se_vende` ni descripción DYMMSA al crear (se piden en `cambios` después).
+- `save_quotation` no deja usar `aprobacion` en revisión (la BD conserva lo que decidió el cliente).
+- `resolvePerson` prefiere el nombre exacto; `resolveSupplier` no cambió.
+- **`POST brands`** se cubre con `save_supplier.crear_marcas: true` (§13): crea solo las marcas de `agregar_marcas`, normalizadas, con el supplier resuelto antes de crear nada (sin huérfanas); sin la bandera la marca nueva sigue siendo error. Renombrar (`PATCH brands/[id]`) queda en la app.
+- Un fallo a la mitad de las escrituras atómicas de `save_order` (editar, quitar, agregar) dice qué ya quedó hecho y pide volver a pedir el resumen.
+- **ADR-033:** reabierto: ninguna tool cerraba cortes; ahora `save_payroll_period` lo hace, siempre con sí. **ADR-015:** la excepción «cantidades solo-lectura» queda cerrada: las cantidades se escriben con sí, motivo y rastro.
+
+### Medidas (en el cable, admin; topes: 45 tools, 53,000, 19,000, 6,000)
+| Commit | Tools | `tools/list` |
+|---|---|---|
+| inicio de D (C cerrado) | 34 | 37,318 |
+| Ajustes | 35 | 38,484 |
+| Productos ETM | 36 | 40,020 |
+| Catálogo URREA | 37 | 41,517 |
+| Equipo y perfil | 38 | 42,812 |
+| Nómina | 39 | 44,588 |
+| Cotizaciones | 40 | 47,545 |
+| Compra y corte | 42 | 49,629 |
+| Inventario | 42 | 49,909 |
+| Órdenes | 44 | 52,959 |
+| `crear_marcas` | 44 | **52,993** |
+
+Final: DYMMSA-WEB admin 44 tools, `tools/list` 52,993 de 53,000, descripciones 15,968 de 19,000 e instrucciones 5,905 de 6,000; member 25 tools, 22,799, 6,945 y 4,711. Odoo sin cambios (15 tools, 21,325 y 2,974). **No se subió ningún tope.** Para caber se recortaron descripciones y campos: `claveField` quedó en «Clave del resumen», todo entero lleva `.max()` (sin él el JSON Schema escribe `9007199254740991`), `save_quotation` pasó de 4,388 a 3,062 caracteres (agregar entró a `lineas` con `despues_de`) y `save_cut_plan` de 1,830 a 1,567. **La app queda a 7 caracteres del tope: la siguiente tool obliga a recortar otra o a subir el tope en su PR.**
+
+### Despliegue
+`MCP_PREVIEW_SECRET` no existe aún en Vercel: hasta que se ponga (y se redespliegue), las escrituras de dos fases responden que no están disponibles y las directas siguen. La migración de auditoría se aplica **después** del deploy; sin ella `save_inventory_item` con cantidades falla con el error de la función ausente (la gaveta sola no se afecta).
+
 ## Consecuencias
 
 - **Reconexión.** El admin agrega «Odoo DYMMSA» en claude.ai y en Claude Code, y vuelve a dar los permisos por tool de las renombradas. Las rutinas que citan nombres viejos se actualizan.
