@@ -95,8 +95,8 @@ describe('el corte, de la hoja al cierre', () => {
         { empleado: 'juan', fecha: '2026-09-26', horas: 5 },
       ],
     })
-    expect(saved.guardados).toBe(3)
-    expect(saved.cortes.map((c) => c.inicio)).toEqual(['2026-09-19', '2026-09-26'])
+    expect(saved.horas.guardados).toBe(3)
+    expect(saved.horas.cortes.map((c) => c.inicio)).toEqual(['2026-09-19', '2026-09-26'])
 
     let view = await readJson<PayrollView>(await periodRoute.GET(makeRequest(), start))
     expect(view.drafts).toBe(2)
@@ -120,7 +120,7 @@ describe('el corte, de la hoja al cierre', () => {
     expect((await putDay({ employee_id: id, work_date: '2026-09-21', worked_minutes: 60 })).status).toBe(400)
     expect((await putDay({ employee_id: id, work_date: '2026-09-21', worked_minutes: 0 })).status).toBe(400)
     const again = await savePayrollHours(admin, { dias: [{ empleado: 'juan', fecha: '2026-09-22', horas: 8 }] })
-    expect(again).toMatchObject({ guardados: 0, omitidos: [{ fecha: '2026-09-22', motivo: 'el corte está cerrado' }] })
+    expect(again.horas).toMatchObject({ guardados: 0, omitidos: [{ fecha: '2026-09-22', motivo: 'el corte está cerrado' }] })
     await expect(sql(`UPDATE public.payroll_days SET worked_minutes = 1 WHERE work_date = '2026-09-21'`)).rejects.toThrow(/está cerrado/)
     await expect(sql(`DELETE FROM public.payroll_days WHERE work_date = '2026-09-19'`)).rejects.toThrow(/está cerrado/)
     // The following cut is still open.
