@@ -427,10 +427,10 @@ Cumple la Fase D: diez tools nuevas, tres ampliaciones y el cierre de la red de 
 4. **Cambiar el precio de una línea ya aprobada no la regresa a pendiente**; el resumen lo avisa.
 5. **`link_aprobacion`** sale en `get_quotation` solo para un admin y solo mientras esté en revisión.
 6. **«Conté 12»:** lo guardado es 12 menos lo que las órdenes abiertas (`ordered`/`received`) aún tienen en tienda, por código: `heldByOpenOrders` suma `computeRestoration` (en stock + min(recibido, pedido)) de esas líneas. Es lo que dicta la regla existente de cancelar/eliminar; el resumen desglosa el cálculo y bloquea si el resultado fuera negativo. Se deriva, no se inventa una regla nueva.
-7. **Auditoría de cantidades:** migración `20261025120000_manual_stock_audit` (ver abajo), **escrita y no aplicada**.
+7. **Auditoría de cantidades:** migración `20261025120000_manual_stock_audit` (ver abajo), **aplicada el 2026-10-25 con el OK del usuario** (versión 20261025081026).
 8. **No se cambia el rol por chat y la tarifa por hora nunca viaja por el MCP.**
 
-### Objetos SQL (migración `20261025120000_manual_stock_audit`, pendiente de aplicar)
+### Objetos SQL (migración `20261025120000_manual_stock_audit`, aplicada el 2026-10-25)
 - **Aditivo:** `public.change_store_stock(p_model_code text, p_mode text, p_value integer, p_expected integer, p_reason text) returns jsonb`. INVOKER, `search_path=''`, `REVOKE … FROM PUBLIC, anon`, `GRANT EXECUTE` a `authenticated`. Modo `count` = compare-and-set contra `p_expected`; modo `delta` pasa por `adjust_inventory` (clamp en 0 y fila nueva). Errores P0001: `empty_code`, `reason_required`, `bad_mode`, `value_required`, `expected_required`, `negative_count`.
 - **Cambia comportamiento:** `public.audit_store_stock()` (DEFINER, `REVOKE EXECUTE FROM PUBLIC`) y el trigger `store_inventory_audit` (`AFTER INSERT OR UPDATE OF quantity ON store_inventory`). Escribe `audit_events` (`entity_type 'inventory'`, acciones `created` y `quantity_changed`, `data { model_code, from, to, reason }`) **solo** cuando la función puso la bandera `app.stock_manual` en la transacción; la pantalla de inventario, las órdenes y la recepción siguen sin dejar evento (sería ruido: cada orden mueve stock).
 - Las dos funciones se compilaron como `pg_temp` contra la nube (`execute_sql`); nada se aplicó. `tests/integration/inventory-audit.integration.test.ts` las cubre y **no se pudo correr localmente (Docker apagado)**: corre en CI al tocar `supabase/**`.
