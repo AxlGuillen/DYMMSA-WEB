@@ -141,8 +141,39 @@ export async function createProduct(db: SupabaseClient, value: EtmProductUpdate)
   return data as EtmProduct
 }
 
+/**
+ * ADR-013 for an edit of an existing product: a resent stored value is not an edit (ProductForm resends it when the
+ * catalog wins), as in auto-learn; anything else must pass assertCuratedAllowed. Changing only model_code/brand into
+ * a match keeps the curated text too: harmless, reads prefer the official one.
+ */
+export async function applyCuratedGuard(db: SupabaseClient, product: EtmProduct, updates: EtmProductUpdate): Promise<EtmProductUpdate> {
+  const text = updates.dymmsa_description
+  if (!text) return updates
+  if (product.dymmsa_description && text === product.dymmsa_description.trim()) {
+    const rest = { ...updates }
+    delete rest.dymmsa_description
+    return rest
+  }
+  await assertCuratedAllowed(db, { model_code: updates.model_code ?? product.model_code, brand: updates.brand ?? product.brand }, text)
+  return updates
+}
+
+/** The consecutive for an internal code (ADR-002): DYMMSA-N, one past the highest taken. */
+export async function nextDymmsaCode(db: SupabaseClient): Promise<number> {
+  const { data, error } = await db.from('etm_products').select('etm').like('etm', 'DYMMSA-%')
+  if (error) {
+    console.error('Error reading DYMMSA codes:', error)
+    throw new ProductError('Error al leer los códigos DYMMSA', 'failed')
+  }
+  const maxNum = (data ?? []).reduce((max, row: { etm: string }) => {
+    const match = row.etm.match(/^DYMMSA-(\d+)$/)
+    return match ? Math.max(max, parseInt(match[1], 10)) : max
+  }, 0)
+  return maxNum + 1
+}
+
 export async function updateProduct(db: SupabaseClient, id: string, value: EtmProductUpdate): Promise<EtmProduct> {
-  const updates = { ...value }
+  let updates = { ...value }
 
   if (updates.dymmsa_description) {
     const { data: current, error } = await db.from('etm_products').select('*').eq('id', id).maybeSingle()
@@ -153,18 +184,8 @@ export async function updateProduct(db: SupabaseClient, id: string, value: EtmPr
     if (!current) throw new ProductError('Producto no encontrado', 'not_found')
     const product = current as EtmProduct
 
-    // A resent stored value is not an edit (ProductForm resends it when the catalog wins), as in auto-learn.
-    // Changing only model_code/brand into a match keeps it too: harmless, reads prefer the official one.
-    if (product.dymmsa_description && updates.dymmsa_description === product.dymmsa_description.trim()) {
-      delete updates.dymmsa_description
-      if (Object.keys(updates).length === 0) return product
-    } else {
-      await assertCuratedAllowed(
-        db,
-        { model_code: updates.model_code ?? product.model_code, brand: updates.brand ?? product.brand },
-        updates.dymmsa_description,
-      )
-    }
+    updates = await applyCuratedGuard(db, product, updates)
+    if (Object.keys(updates).length === 0) return product
   }
 
   // updated_at comes from the update_etm_products_updated_at trigger.

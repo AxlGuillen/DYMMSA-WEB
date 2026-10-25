@@ -1,8 +1,9 @@
-# tools/list (admin): 35 tools, 38484 caracteres en el cable · descripciones 12399 · instrucciones 5679
+# tools/list (admin): 36 tools, 40020 caracteres en el cable · descripciones 12853 · instrucciones 5701
   3477  save_payroll_hours
   2956  preview_time_report
   1788  delete_record
   1749  save_payable
+  1536  save_product
   1443  save_task
   1406  save_time_entries
   1311  save_supplier

@@ -34,3 +34,15 @@ export function approvalToken(value: boolean | null | undefined): 'pendiente' | 
 export function soldToken(value: boolean | null | undefined): 'sin_definir' | 'si' | 'no' {
   return value === true ? 'si' : value === false ? 'no' : 'sin_definir'
 }
+
+/** The tokens a tool takes for is_sold / is_approved (booleans and null do not fit a TokenMap, whose keys are strings). */
+export const SOLD_TOKENS = ['sin_definir', 'si', 'no'] as const
+export const APPROVAL_TOKENS = ['pendiente', 'aprobada', 'rechazada'] as const
+
+/** Back to the DB value: null = undefined / pending, undefined = not a token. */
+export function soldFromToken(token: string): boolean | null | undefined {
+  return token === 'si' ? true : token === 'no' ? false : token === 'sin_definir' ? null : undefined
+}
+export function approvalFromToken(token: string): boolean | null | undefined {
+  return token === 'aprobada' ? true : token === 'rechazada' ? false : token === 'pendiente' ? null : undefined
+}

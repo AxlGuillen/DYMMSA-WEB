@@ -103,8 +103,8 @@ const COVERAGE: Record<string, Decision> = {
   'POST inventory/import': { fuera: 'carga masiva por Excel: se hace en la app' },
 
   // Catálogos
-  'POST products': { fuera: `${PHASE_D}save_product` },
-  'PATCH products/[id]': { fuera: `${PHASE_D}save_product` },
+  'POST products': { tool: 'save_product' },
+  'PATCH products/[id]': { tool: 'save_product' },
   'DELETE products/[id]': { fuera: 'borrar productos queda en la app (decisión 4 de ADR-041)' },
   'POST products/import': { fuera: 'carga masiva por Excel: se hace en la app' },
   'POST urrea-catalog': { fuera: `${PHASE_D}save_urrea_catalog_item` },

@@ -12,6 +12,7 @@ import { getPurchasePlanTool } from './orders/get-purchase-plan'
 import { searchInventoryTool } from './inventory/search-inventory'
 import { saveInventoryItemTool } from './inventory/save-inventory-item'
 import { searchProductsTool } from './catalogs/search-products'
+import { saveProductTool } from './catalogs/save-product'
 import { searchUrreaCatalogTool } from './catalogs/search-urrea-catalog'
 import { listSuppliersTool } from './suppliers/list-suppliers'
 import { saveSupplierTool } from './suppliers/save-supplier'
@@ -49,6 +50,7 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   searchInventoryTool,
   saveInventoryItemTool,
   searchProductsTool,
+  saveProductTool,
   searchUrreaCatalogTool,
   listSuppliersTool,
   saveSupplierTool,

@@ -420,6 +420,76 @@
     }
   },
   {
+    "name": "save_product",
+    "title": "Guardar producto ETM",
+    "description": "Alta o cambio de un producto del catálogo ETM: precio, se_vende, descripciones, código, marca o ETM. Con `crear: true` lo da de alta (`etm: \"nuevo\"` toma el siguiente DYMMSA-N). Úsala para \"el 1180234 no lo vendemos\" o \"en realidad es SURTEK\". Directo, salvo `nuevo_etm`, `codigo_modelo` o `marca` (mueven el cruce con el catálogo URREA): esos piden el sí con la clave. La descripción oficial del catálogo nunca se copia como curada. No borra ni importa.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "etm": {
+          "type": "string",
+          "description": "ETM exacto o ref; con `crear`, el ETM nuevo o \"nuevo\""
+        },
+        "crear": {
+          "description": "Alta; sin él un ETM desconocido es error",
+          "type": "boolean",
+          "const": true
+        },
+        "nuevo_etm": {
+          "description": "Renombra el ETM",
+          "type": "string"
+        },
+        "descripcion": {
+          "type": "string"
+        },
+        "descripcion_es": {
+          "type": "string"
+        },
+        "descripcion_dymmsa": {
+          "description": "Curada; texto vacío la borra",
+          "type": "string"
+        },
+        "codigo_modelo": {
+          "type": "string"
+        },
+        "marca": {
+          "description": "Se guarda en mayúsculas",
+          "type": "string"
+        },
+        "precio": {
+          "type": "number",
+          "minimum": 0
+        },
+        "se_vende": {
+          "type": "string",
+          "enum": [
+            "sin_definir",
+            "si",
+            "no"
+          ]
+        },
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "etm"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
     "name": "search_urrea_catalog",
     "title": "Consultar catálogo URREA",
     "description": "Consulta el catálogo oficial URREA por código (exacto, todas las marcas) o por descripción (parcial, paginada). Devuelve código, marca, descripción oficial y std (unidades por paquete).",
