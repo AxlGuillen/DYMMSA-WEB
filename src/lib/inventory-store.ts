@@ -15,7 +15,7 @@ export class InventoryError extends DomainError {
 export type InventoryRow = Pick<StoreInventory, 'model_code' | 'quantity' | 'location'>
 
 /** Escaped-wildcard ilike = exact but case-insensitive: rows are stored trimmed, not uppercased. */
-const exactPattern = (modelCode: string) => modelCode.replace(/[\\%_]/g, (c) => `\\${c}`)
+export const exactPattern = (modelCode: string) => modelCode.replace(/[\\%_]/g, (c) => `\\${c}`)
 
 /** The rows whose code is `modelCode` ignoring case: 0 = not inventoried, 2+ = a case collision that should not exist. */
 export async function findInventoryRows(db: SupabaseClient, modelCode: string): Promise<InventoryRow[]> {

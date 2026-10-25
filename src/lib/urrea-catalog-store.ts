@@ -3,6 +3,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { catalogKey, normalizeCatalogBrand, normalizeCatalogCode } from '@/lib/business-rules'
+import { exactPattern } from '@/lib/inventory-store'
 import { DomainError, type DomainErrorKind } from '@/lib/domain-error'
 import {
   cellText,
@@ -173,7 +174,7 @@ export async function countLinesToOrder(db: SupabaseClient, key: { code: string;
   const { data, error } = await db
     .from('order_items')
     .select('order_id, model_code, brand, orders!inner(status)')
-    .ilike('model_code', code.replace(/%/g, '_'))
+    .ilike('model_code', exactPattern(code))
     .eq('item_type', 'product')
     .gt('quantity_to_order', 0)
     .in('orders.status', [...PLANNING_STATUSES])

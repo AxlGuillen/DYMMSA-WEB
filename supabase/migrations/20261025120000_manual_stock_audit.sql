@@ -24,6 +24,7 @@ AS $$
 DECLARE
   v_quantity integer;
   v_adjust jsonb;
+  v_code text := btrim(p_model_code);
 BEGIN
   IF btrim(coalesce(p_model_code, '')) = '' THEN
     RAISE EXCEPTION 'empty_code';
@@ -43,7 +44,7 @@ BEGIN
   PERFORM set_config('app.stock_reason', btrim(p_reason), true);
 
   IF p_mode = 'delta' THEN
-    v_adjust := public.adjust_inventory(p_model_code, p_value);
+    v_adjust := public.adjust_inventory(v_code, p_value);
     RETURN v_adjust;
   END IF;
 
@@ -56,7 +57,7 @@ BEGIN
 
   UPDATE public.store_inventory
   SET quantity = p_value
-  WHERE model_code = p_model_code AND quantity = p_expected
+  WHERE model_code = v_code AND quantity = p_expected
   RETURNING quantity INTO v_quantity;
 
   IF NOT FOUND THEN
@@ -64,7 +65,7 @@ BEGIN
     RETURN jsonb_build_object(
       'quantity', NULL,
       'changed', false,
-      'missing', NOT EXISTS (SELECT 1 FROM public.store_inventory WHERE model_code = p_model_code)
+      'missing', NOT EXISTS (SELECT 1 FROM public.store_inventory WHERE model_code = v_code)
     );
   END IF;
   RETURN jsonb_build_object('quantity', v_quantity, 'changed', true, 'missing', false);

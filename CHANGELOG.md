@@ -16,7 +16,8 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 - [admin] **También puede contar el inventario.** Si le dices «conté 12 del
   6954», guarda lo contado menos lo que las órdenes abiertas todavía tienen
   apartado en tienda, y te muestra la cuenta. Cada cambio de cantidad queda
-  anotado con quién lo hizo y el motivo.
+  anotado con quién lo hizo y el motivo (por ahora ese registro se consulta en
+  la base de datos; la app todavía no tiene pantalla para verlo).
 - [admin] **Catálogos, compra y ajustes desde el asistente.** Editar un producto
   del catálogo ETM o una línea del catálogo URREA (te avisa cuántas decisiones
   de compra quedan desactualizadas), decidir mayoreo o menudeo en una orden,
@@ -40,6 +41,9 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   productos, inventario y catálogo se siguen borrando solo en la app.
 
 ### Mejorado
+- **La ubicación (gaveta) de un producto se cambia desde Inventario.** El asistente
+  ya no la cambia para quien no es administrador, porque ahora esa misma
+  herramienta también cuenta y ajusta cantidades.
 - [admin] **Nombres nuevos en las herramientas del asistente.** Reconecta el conector
   «DYMMSA-WEB» en Claude para verlos: registrar, corregir, pagar o cancelar una
   factura es ahora una sola herramienta (antes eran tres), igual que crear y

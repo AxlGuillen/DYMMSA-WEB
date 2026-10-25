@@ -332,10 +332,12 @@ async function planLines(db: Db, orderId: string, input: SaveOrderInput): Promis
 
   if (additions.length > 0 && !goodsInStore(order.status)) throw new ToolError('No se pueden agregar productos a una orden entregada: el material ya salió con el cliente.')
   // Added lines draw from the stock as it will be after the removals gave theirs back.
-  const pool = await stockOf(db, additions.map((p) => p.codigo))
+  const addedCodes = new Set(additions.map((p) => p.codigo))
+  const pool = await stockOf(db, [...addedCodes])
   for (const id of removals) {
     const item = items.find((i) => i.id === id)
-    if (item && isProductItem(item) && pool.has(item.model_code)) pool.set(item.model_code, (pool.get(item.model_code) ?? 0) + item.quantity_in_stock)
+    // A code without an inventory row still gets its stock back: release_inventory creates the row.
+    if (item && isProductItem(item) && addedCodes.has(item.model_code)) pool.set(item.model_code, (pool.get(item.model_code) ?? 0) + item.quantity_in_stock)
   }
   const added = allocationRows(additions.map((p) => ({ etm: p.etm, code: p.codigo, quantity: p.cantidad, price: p.precio })), pool)
   added.forEach((row, i) => {

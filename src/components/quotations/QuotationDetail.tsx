@@ -428,7 +428,6 @@ function SortableDetailRow({
   )
 }
 
-
 const isMissingData     = (item: QuotationItemRow) => isProductRow(item) && !item.description && !item.model_code
 const isMissingQuantity = (item: QuotationItemRow) => isProductRow(item) && !isMissingData(item) && item.quantity == null
 

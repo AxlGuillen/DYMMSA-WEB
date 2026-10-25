@@ -257,6 +257,16 @@ describe('save_order: odoo_id y líneas', () => {
     expect(state.db.rpcParams('add_order_item')[0]).toMatchObject({ p_order_id: ORDER_ID, p_item: { etm: 'ETM-A', model_code: '6954', quantity_approved: 5, unit_price: 100 } })
   })
 
+  test('quitar y volver a agregar un código sin fila de inventario: la vista previa cuenta lo que devuelve la línea quitada', async () => {
+    state.db = world({ inventory: {} })
+    const result = await call('save_order', {
+      orden: 'ORD-12',
+      cambios: [{ linea: 2, quitar: true }],
+      productos: [{ etm: 'ETM-B', codigo: 'C1', cantidad: 5, precio: 100 }],
+    })
+    expect(parse(textOf(result)).cambios['linea nueva 1'].ahora).toMatch(/en stock 4, por pedir 1/)
+  })
+
   test('errores: dos intenciones, línea que no existe, ETM que no es el de la línea, sección, línea repetida, orden cerrada', async () => {
     state.db = world()
     expect(textOf(await call('save_order', { orden: 'ORD-12', estado: 'entregada', odoo_id: 'X' }))).toMatch(/Una intención por llamada/)

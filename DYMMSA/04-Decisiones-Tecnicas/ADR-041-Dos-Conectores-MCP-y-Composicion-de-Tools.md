@@ -437,7 +437,8 @@ Cumple la Fase D: diez tools nuevas, tres ampliaciones y el cierre de la red de 
 
 ### Decisiones que la especificación no cubría
 - `save_payroll_period` es E(1,1): desde #157 cerrar y reabrir son idempotentes.
-- `save_inventory_item` y `save_profile` son `adminOnly` (el plan solo lo decía de las nuevas); el NSS sale enmascarado.
+- `save_inventory_item` y `save_profile` son `adminOnly` (el plan solo lo decía de las nuevas); el NSS sale enmascarado. En `save_inventory_item` `adminOnly` es solo convención del manifiesto: la RLS de `store_inventory` deja escribir a cualquier `authenticated` (en la app un member ya edita inventario), así que no hay barrera detrás. Un member pierde la gaveta por el asistente; el CHANGELOG lo dice sin `[admin]`.
+- Los eventos `entity_type = 'inventory'` de `audit_events` se escriben pero ninguna pantalla ni ruta los lee todavía (`describeAuditEvent` solo conoce facturas): seguimiento aparte.
 - La bitácora solo anota los cambios que pasan por `change_store_stock`.
 - Las altas de inventario normalizan el código a mayúsculas; `save_product` guarda la marca en mayúsculas y, con código y sin marca, pone URREA.
 - El impacto de `save_urrea_catalog_item` cuenta solo órdenes en `ordered`/`received`.
