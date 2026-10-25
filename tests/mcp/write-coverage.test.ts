@@ -114,7 +114,7 @@ const COVERAGE: Record<string, Decision> = {
   'POST suppliers': { tool: 'save_supplier' },
   'PATCH suppliers/[id]': { tool: 'save_supplier' },
   'DELETE suppliers/[id]': { tool: DELETE_RECORD },
-  'POST brands': { fuera: 'pendiente de decidir: save_supplier.crear_marcas (ADR-041 §13) no está en el plan de las fases C ni D' },
+  'POST brands': { tool: 'save_supplier' },
   'PATCH brands/[id]': { fuera: 'renombrar marcas queda en la app (Auditoría DYMMSA-WEB, resolución 6)' },
   'DELETE brands/[id]': { tool: DELETE_RECORD },
 

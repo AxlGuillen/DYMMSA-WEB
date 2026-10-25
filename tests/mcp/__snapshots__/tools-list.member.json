@@ -455,12 +455,12 @@
   {
     "name": "save_supplier",
     "title": "Guardar proveedor",
-    "description": "Da de alta un proveedor de menudeo, o edita uno existente si mandas proveedor (su nombre o parte): contacto, días de crédito (null = contado) y marcas que surte con agregar_marcas / quitar_marcas (deben existir en el catálogo de marcas). Un texto vacío borra ese dato. ESCRIBE: confirma los datos antes. No borra proveedores.",
+    "description": "Da de alta un proveedor de menudeo, o edita uno existente si mandas proveedor (su nombre o parte): contacto, días de crédito (null = contado) y marcas con agregar_marcas / quitar_marcas; una marca nueva solo se da de alta con crear_marcas: true. Un texto vacío borra ese dato. No borra proveedores.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "proveedor": {
-          "description": "Proveedor a editar (nombre o parte); omítelo para dar de alta",
+          "description": "A editar (nombre o parte); omitido = alta",
           "type": "string"
         },
         "nombre": {
@@ -507,6 +507,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "crear_marcas": {
+          "description": "Crea las marcas que no existan",
+          "type": "boolean"
         }
       },
       "$schema": "http://json-schema.org/draft-07/schema#",
