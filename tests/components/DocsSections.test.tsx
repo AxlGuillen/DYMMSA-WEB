@@ -13,7 +13,7 @@ describe('AssistantSection', () => {
     member.unmount()
     render(<AssistantSection tools={TOOL_MANIFEST} />)
     const always = TOOL_MANIFEST.filter((t) => t.confirm === 'two_phase' && !t.direct).map((t) => t.name)
-    expect(always).toEqual(['save_purchase_decisions', 'save_payroll_period', 'save_app_settings', 'delete_record', 'odoo_create_draft_invoice'])
+    expect(always).toEqual(['save_order_reception', 'save_purchase_decisions', 'save_payroll_period', 'save_app_settings', 'delete_record', 'odoo_create_draft_invoice'])
     expect(screen.getAllByText('pide tu si', { selector: 'span' })).toHaveLength(always.length)
     expect(screen.getByText(/borrar un registro o facturar en Odoo/)).toBeTruthy()
   })

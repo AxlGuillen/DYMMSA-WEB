@@ -152,9 +152,9 @@ function lineChanges(original: readonly QuotationItemRow[], final: readonly Quot
 
 // ── the quotation as the store reads it ──────────────────────────────────────
 
-type StoredQuotation = Quotation & { quotation_items: QuotationItem[] }
+export type StoredQuotation = Quotation & { quotation_items: QuotationItem[] }
 
-async function loadQuotation(db: Db, id: string): Promise<StoredQuotation> {
+export async function loadQuotation(db: Db, id: string): Promise<StoredQuotation> {
   const { data, error } = await db
     .from('quotations')
     .select('*, quotation_items(*)')

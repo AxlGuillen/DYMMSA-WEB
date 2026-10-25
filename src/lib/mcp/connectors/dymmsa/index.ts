@@ -7,6 +7,8 @@ import { getQuotationTool } from './quotations/get-quotation'
 import { saveQuotationTool } from './quotations/save-quotation'
 import { listOrdersTool } from './orders/list-orders'
 import { getOrderTool } from './orders/get-order'
+import { saveOrderTool } from './orders/save-order'
+import { saveOrderReceptionTool } from './orders/save-order-reception'
 import { getCutPlanTool } from './orders/get-cut-plan'
 import { saveMaterialPresentationTool } from './orders/save-material-presentation'
 import { saveCutPlanTool } from './orders/save-cut-plan'
@@ -51,6 +53,8 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   saveQuotationTool,
   listOrdersTool,
   getOrderTool,
+  saveOrderTool,
+  saveOrderReceptionTool,
   getCutPlanTool,
   saveCutPlanTool,
   saveMaterialPresentationTool,

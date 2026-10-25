@@ -45,9 +45,7 @@ type Decision =
   | { publica: string }
   | { fuera: string }
 
-
 const DELETE_RECORD = 'delete_record'
-const PHASE_D = 'Fase D: '
 
 const COVERAGE: Record<string, Decision> = {
   // MCP endpoints
@@ -75,19 +73,19 @@ const COVERAGE: Record<string, Decision> = {
   'PATCH quotations/[id]/update': { tool: 'save_quotation' },
   'PATCH quotations/[id]/status': { tool: 'save_quotation' },
   'POST quotations/[id]/send-for-approval': { tool: 'save_quotation' },
-  'POST quotations/[id]/create-order': { fuera: `${PHASE_D}save_order (crear desde cotización)` },
+  'POST quotations/[id]/create-order': { tool: 'save_order' },
   'DELETE quotations/[id]': { fuera: 'borrar cotizaciones queda en la app (decisión 4 de ADR-041)' },
 
   // Órdenes
-  'POST orders/create': { fuera: `${PHASE_D}save_order (orden manual)` },
-  'PATCH orders/[id]': { fuera: `${PHASE_D}save_order (encabezado de la orden)` },
-  'PATCH orders/[id]/status': { fuera: `${PHASE_D}save_order (estado)` },
-  'POST orders/[id]/cancel': { fuera: `${PHASE_D}save_order (estado cancelada, restaura stock)` },
+  'POST orders/create': { tool: 'save_order' },
+  'PATCH orders/[id]': { tool: 'save_order' },
+  'PATCH orders/[id]/status': { tool: 'save_order' },
+  'POST orders/[id]/cancel': { tool: 'save_order' },
   'DELETE orders/[id]': { fuera: 'borrar órdenes queda en la app (decisión 4 de ADR-041)' },
-  'POST orders/[id]/items': { fuera: `${PHASE_D}save_order (cambios: agregar línea)` },
-  'PATCH orders/[id]/items/[itemId]': { fuera: `${PHASE_D}save_order (cambios por línea)` },
-  'DELETE orders/[id]/items/[itemId]': { fuera: `${PHASE_D}save_order (cambios: quitar línea)` },
-  'POST orders/[id]/confirm-reception': { fuera: `${PHASE_D}save_order_reception` },
+  'POST orders/[id]/items': { tool: 'save_order' },
+  'PATCH orders/[id]/items/[itemId]': { tool: 'save_order' },
+  'DELETE orders/[id]/items/[itemId]': { tool: 'save_order' },
+  'POST orders/[id]/confirm-reception': { tool: 'save_order_reception' },
   'POST orders/auto-learn': { fuera: 'aprendizaje interno que la app dispara al guardar; no es una acción del usuario' },
 
   // Compra y corte

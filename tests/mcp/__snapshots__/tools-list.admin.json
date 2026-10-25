@@ -366,6 +366,211 @@
     }
   },
   {
+    "name": "save_order",
+    "title": "Guardar orden",
+    "description": "Crea o edita una orden. Crear: `cotizacion` aprobada (descuenta stock) o `cliente` con `productos` (manual). Editar con `orden`, una intención por llamada: `estado` (cancelar devuelve stock, sin deshacer), `odoo_id` (vacío lo quita) o `cambios` (numeración de get_order) y/o `productos` a agregar. Pide el sí con la clave y muestra el stock que mueve; odoo_id y solo entrega son directos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "description": "Nombre, cliente o ref; omitida = crear",
+          "type": "string"
+        },
+        "cotizacion": {
+          "type": "string"
+        },
+        "cliente": {
+          "type": "string"
+        },
+        "productos": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "etm": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cantidad": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99999
+              },
+              "precio": {
+                "type": "number",
+                "minimum": 0
+              },
+              "codigo": {
+                "type": "string"
+              },
+              "marca": {
+                "type": "string"
+              },
+              "descripcion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "etm",
+              "cantidad",
+              "precio"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "estado": {
+          "type": "string",
+          "enum": [
+            "pedida",
+            "recibida",
+            "entregada",
+            "completada",
+            "cancelada"
+          ]
+        },
+        "odoo_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cambios": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "linea": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9999
+              },
+              "etm": {
+                "description": "ETM esperado en esa línea",
+                "type": "string"
+              },
+              "precio": {
+                "type": "number",
+                "minimum": 0
+              },
+              "entrega": {
+                "type": "string",
+                "enum": [
+                  "inmediata",
+                  "2_3_dias",
+                  "3_5_dias",
+                  "1_semana",
+                  "2_semanas",
+                  "indefinida"
+                ]
+              },
+              "quitar": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "linea"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_order_reception",
+    "title": "Registrar recepción",
+    "description": "Registra lo recibido de URREA en una orden: por línea, `codigo` (o `linea` si se repite) y `recibido` total. Recibir lo pedido la marca surtida; el excedente entra al inventario. Pide el sí con la clave y muestra el excedente y el total de entrega.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orden": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre, cliente o ref"
+        },
+        "lineas": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string"
+              },
+              "linea": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9999
+              },
+              "recibido": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999
+              },
+              "estado": {
+                "type": "string",
+                "enum": [
+                  "pendiente",
+                  "surtido",
+                  "no_surtido"
+                ]
+              }
+            },
+            "required": [
+              "recibido"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "clave": {
+          "description": "Clave del resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "orden",
+        "lineas"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
     "name": "get_cut_plan",
     "title": "Lista de corte de una orden",
     "description": "Piezas de tubo y placa que se mandan a hacer para una orden (módulo de corte), agrupadas por diámetro/espesor con la necesidad neta (largo + margen por corte, en mm) y, por cada presentación del proveedor ya capturada, cuántas barras u hojas se necesitan. Úsala para \"¿cuánto tubo necesito para la orden de X?\". Acepta nombre, cliente o ref de la orden.",

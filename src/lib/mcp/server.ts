@@ -28,7 +28,7 @@ export function serverInstructions(role: McpRole): string {
 
 - Panorama: get_business_summary (conteos por estado y salud del inventario).
 - Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió)${admin ? '; escribe save_quotation (crear, editar por línea, estado)' : ''}.
-- Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escribe ${admin ? 'save_cut_plan y ' : ''}save_material_presentation, la barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo, recomendación y decisiones${admin ? '; escribe save_purchase_decisions' : ''}).
+- Órdenes: list_orders, get_order${admin ? ' (escribe save_order y save_order_reception)' : ''}; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escribe ${admin ? 'save_cut_plan y ' : ''}save_material_presentation, la barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo, recomendación y decisiones${admin ? '; escribe save_purchase_decisions' : ''}).
 - Inventario de la TIENDA: search_inventory${admin ? '; escribe save_inventory_item (gaveta, conteo físico, ajustes)' : ''}.
 - Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA)${admin ? '; escriben save_product y save_urrea_catalog_item' : ''}.
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte); escritura save_supplier (alta o edición, nunca borra).
