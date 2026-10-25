@@ -94,6 +94,14 @@ corte listas, sin duplicar lo que la oficina ya checa.
 - **Leer Horas en vivo desde Nómina.** Una corrección posterior cambiaría un pago ya hecho.
 - **Guardar horas ya multiplicadas.** Cambiar la tarifa de fin de semana exigiría reescribir datos.
 - **Que la tool confirme o cierre.** Un 3.5 mal leído es dinero: el paso humano es obligatorio.
+  **Reabierta el 2026-10-24 (#155 D, [[ADR-041-Dos-Conectores-MCP-y-Composicion-de-Tools]] decisión 13):** el paso humano
+  sigue siendo obligatorio, pero ahora vive en la confirmación en dos fases y no en la pantalla. `save_payroll_period`
+  (`confirmar_borradores`, `cerrar`, `reabrir`) siempre devuelve primero el resumen: al confirmar lista **cada día** que
+  pasa a ser horas pagables (empleado, fecha, horas, origen) y el total antes → después, y la `clave` se ata a ese
+  conjunto exacto de borradores (id, horas, nota, `updated_at`): uno nuevo o cambiado anula la clave, y el commit
+  confirma solo los ids que se mostraron. `save_payroll_hours` gana `corregir` (un día, también confirmado, queda
+  manual y confirmado; `horas: 0` sin nota lo borra, como la celda vacía), con el mismo patrón. `dias` y
+  `traer_de_horas` siguen siendo borradores directos. Sin cambio: horas, nunca montos; no crea empleados.
 - **Bloquear el corte cerrado solo en la ruta.** El MCP y PostgREST no pasan por ella.
 
 ## Pendiente

@@ -142,8 +142,8 @@ const COVERAGE: Record<string, Decision> = {
   // Nómina
   'PUT payroll/days': { tool: 'save_payroll_hours' },
   'POST payroll/periods/[start]/prefill': { tool: 'save_payroll_hours' },
-  'POST payroll/periods/[start]/confirm': { fuera: `${PHASE_D}save_payroll_period (confirmar_borradores)` },
-  'PATCH payroll/periods/[start]': { fuera: `${PHASE_D}save_payroll_period (cerrar y reabrir)` },
+  'POST payroll/periods/[start]/confirm': { tool: 'save_payroll_period' },
+  'PATCH payroll/periods/[start]': { tool: 'save_payroll_period' },
   'POST payroll/employees': { tool: 'save_payroll_employee' },
   'PATCH payroll/employees/[id]': { tool: 'save_payroll_employee' },
 

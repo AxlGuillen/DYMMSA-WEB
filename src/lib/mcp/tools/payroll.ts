@@ -27,7 +27,7 @@ import type { PayrollEmployee, Profile } from '@/types/database'
 
 const NO_ACCESS = 'Sin empleados visibles: Nómina solo la ve un administrador, y los empleados se dan de alta con save_payroll_employee (o en la app, Nómina → Empleados).'
 
-const SOURCE_LABELS = { sheet: 'hoja', hours: 'checador', manual: 'manual' } as const
+export const SOURCE_LABELS = { sheet: 'hoja', hours: 'checador', manual: 'manual' } as const
 
 function totals(t: HoursBreakdown) {
   return {
@@ -79,7 +79,7 @@ export async function getPayrollPeriod(db: Db, input: { fecha?: string } = {}) {
   }
 }
 
-function resolveEmployee(employees: readonly PayrollEmployee[], name: string): PayrollEmployee {
+export function resolveEmployee(employees: readonly PayrollEmployee[], name: string): PayrollEmployee {
   const query = fold(name)
   if (!query) throw new ToolError('Indica el nombre del empleado')
   // An exact name wins: "Juan" must not be ambiguous because "Juan Carlos" exists.

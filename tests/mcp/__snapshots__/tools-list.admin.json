@@ -1489,8 +1489,8 @@
   },
   {
     "name": "save_payroll_hours",
-    "title": "Cargar horas de nómina (borrador)",
-    "description": "Guarda horas trabajadas por empleado y día como BORRADOR — típicamente lo leído de la hoja semanal de asistencia del taller. Úsala solo cuando un administrador lo pida y después de mostrarle lo que leíste y recibir su confirmación. `horas` es el total trabajado ese día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado (lo que pasa de 5 h) y el triple de domingo los calcula la app, no los multipliques. Nunca pisa un día ya confirmado, capturado a mano o traído del checador, ni toca un corte cerrado: esos vuelven en `omitidos` con el motivo. No confirma, no cierra cortes y no crea empleados. Con `traer_de_horas: true` (sin `dias`) copia al corte que contiene `fecha` (default el actual) las horas checadas de la oficina y su sábado pagado (8 h, 4 a medio tiempo), como el botón \"Traer de Horas\". CÓMO LEER LA HOJA (interprétala antes de guardar nada): 1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que el encabezado \"Semana del … – …\" se lea bien, y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; pasa cada día con su fecha real (una misma hoja cae en dos cortes: lunes a viernes en uno, sábado y domingo en el siguiente — la tool los reparte sola por fecha). 2. Una fila por trabajador. Lunes a viernes: la marca \"°\" con guion = asistió su jornada normal (8 h); una hora de la tarde (19:00, 21:00) = salió tarde, y las extras de ese día son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra; una hora de la mañana (8:05) con HRS EXT vacío = llegó tarde: el día va normal (8 h) con nota \"Entrada 8:05\". Día tachado o vacío = no trabajó: no lo mandes. Sábado: la marca \"°\" = 5 h; si trabajó más, manda el total. Domingo: manda las horas que trabajó. 3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras de junto al nombre; si no cuadra, o si aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar — no lo adivines ni lo guardes. 4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta). 5. Antes de llamar la tool, muestra una tabla con lo que leíste (empleado × día, horas) y marca lo dudoso; guarda solo tras la confirmación. Un número mal leído es dinero. Los nombres deben coincidir con los empleados dados de alta en Nómina; si uno no existe, la tool lo dice.",
+    "title": "Cargar o corregir horas de nómina",
+    "description": "Guarda horas por empleado y día —típicamente la hoja semanal del taller— como BORRADOR, directo. `horas` es el total del día (jornada + extras: 8 + 3.5 = 11.5); el doble de sábado (lo que pasa de 5 h) y el triple de domingo los calcula la app. Nunca pisa un día confirmado, capturado a mano o traído del checador, ni un corte cerrado: vuelven en `omitidos` con el motivo. Con `traer_de_horas: true` (sin `dias`) copia al corte de `fecha` (default el actual) las horas checadas de la oficina y su sábado pagado, como el botón \"Traer de Horas\". Con `corregir` (solo) cambia UN día ya capturado, también uno confirmado, y lo deja confirmado y manual; `horas: 0` sin nota lo borra; pide el sí con la clave. Confirmar y cerrar el corte es save_payroll_period; no crea empleados. CÓMO LEER LA HOJA (interprétala antes de guardar nada): 1. El escaneo puede venir de cabeza o en espejo: enderézalo hasta que el encabezado \"Semana del … – …\" se lea bien, y toma de ahí las fechas. La hoja va de LUNES a DOMINGO; pasa cada día con su fecha real (una misma hoja cae en dos cortes: lunes a viernes en uno, sábado y domingo en el siguiente — la tool los reparte sola por fecha). 2. Una fila por trabajador. Lunes a viernes: la marca \"°\" con guion = asistió su jornada normal (8 h); una hora de la tarde (19:00, 21:00) = salió tarde, y las extras de ese día son las anotadas junto al nombre (+3.5, +2.5…): horas = 8 + extra; una hora de la mañana (8:05) con HRS EXT vacío = llegó tarde: el día va normal (8 h) con nota \"Entrada 8:05\". Día tachado o vacío = no trabajó: no lo mandes. Sábado: la marca \"°\" = 5 h; si trabajó más, manda el total. Domingo: manda las horas que trabajó. 3. El total encerrado en círculo en HRS EXT debe cuadrar con la suma de las extras de junto al nombre; si no cuadra, o si aparece otro número encima del círculo, PREGUNTA qué significa antes de guardar — no lo adivines ni lo guardes. 4. HRS NO TRABAJADAS va en horas_no_trabajadas del día que corresponda (solo se registra, no descuenta). 5. Antes de llamar la tool, muestra una tabla con lo que leíste (empleado × día, horas) y marca lo dudoso; guarda solo tras la confirmación. Un número mal leído es dinero. Los nombres deben coincidir con los empleados dados de alta en Nómina; si uno no existe, la tool lo dice.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1544,6 +1544,48 @@
         "fecha": {
           "type": "string",
           "format": "date"
+        },
+        "corregir": {
+          "description": "Corrige UN día; va solo, sin `dias`",
+          "type": "object",
+          "properties": {
+            "empleado": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Nombre (o parte); también uno dado de baja"
+            },
+            "fecha": {
+              "type": "string",
+              "format": "date"
+            },
+            "horas": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 24,
+              "description": "Total del día; 0 sin nota lo borra"
+            },
+            "horas_no_trabajadas": {
+              "description": "Omitida = las que tenía",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 24
+            },
+            "nota": {
+              "description": "Omitida = la que tenía; texto vacío la borra",
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "empleado",
+            "fecha",
+            "horas"
+          ],
+          "additionalProperties": false
+        },
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
         }
       },
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1598,6 +1640,47 @@
           "type": "boolean"
         }
       },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "save_payroll_period",
+    "title": "Confirmar o cerrar corte de nómina",
+    "description": "Confirma los borradores, cierra o reabre el corte de nómina (sábado→viernes) que contiene `fecha` (default el actual). Úsala para \"confirma los borradores\" o \"cierra el corte\". Siempre pide el sí con la clave: el resumen lista cada día que pasa a ser horas pagables y la clave queda atada a ese conjunto exacto. Cerrar exige cero borradores; reabrir descongela un corte posiblemente pagado. Son horas, nunca montos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "accion": {
+          "type": "string",
+          "enum": [
+            "confirmar_borradores",
+            "cerrar",
+            "reabrir"
+          ]
+        },
+        "fecha": {
+          "description": "Cualquier día del corte (default hoy)",
+          "type": "string",
+          "format": "date"
+        },
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accion"
+      ],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false
     },

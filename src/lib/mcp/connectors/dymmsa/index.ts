@@ -33,6 +33,7 @@ import { saveProfileTool } from './profiles/save-profile'
 import { getPayrollPeriodTool } from './payroll/get-payroll-period'
 import { savePayrollHoursTool } from './payroll/save-payroll-hours'
 import { savePayrollEmployeeTool } from './payroll/save-payroll-employee'
+import { savePayrollPeriodTool } from './payroll/save-payroll-period'
 import { listTasksTool } from './tasks/list-tasks'
 import { getTaskTool } from './tasks/get-task'
 import { saveTaskTool } from './tasks/save-task'
@@ -73,6 +74,7 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   getPayrollPeriodTool,
   savePayrollHoursTool,
   savePayrollEmployeeTool,
+  savePayrollPeriodTool,
   listTasksTool,
   getTaskTool,
   saveTaskTool,
