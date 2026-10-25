@@ -107,8 +107,8 @@ const COVERAGE: Record<string, Decision> = {
   'PATCH products/[id]': { tool: 'save_product' },
   'DELETE products/[id]': { fuera: 'borrar productos queda en la app (decisión 4 de ADR-041)' },
   'POST products/import': { fuera: 'carga masiva por Excel: se hace en la app' },
-  'POST urrea-catalog': { fuera: `${PHASE_D}save_urrea_catalog_item` },
-  'PATCH urrea-catalog/[id]': { fuera: `${PHASE_D}save_urrea_catalog_item` },
+  'POST urrea-catalog': { tool: 'save_urrea_catalog_item' },
+  'PATCH urrea-catalog/[id]': { tool: 'save_urrea_catalog_item' },
   'DELETE urrea-catalog/[id]': { fuera: 'borrar del catálogo queda en la app (decisión 4 de ADR-041)' },
   'POST urrea-catalog/import': { fuera: 'carga masiva por Excel: se hace en la app' },
 

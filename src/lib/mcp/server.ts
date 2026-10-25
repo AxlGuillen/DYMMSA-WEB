@@ -30,7 +30,7 @@ export function serverInstructions(role: McpRole): string {
 - Cotizaciones: list_quotations, get_quotation (incluye la orden en que se convirtió).
 - Órdenes: list_orders, get_order; por orden: get_cut_plan (lista de corte: cuánto tubo/placa pedir; escritura save_material_presentation para registrar una barra u hoja del proveedor) y get_purchase_plan (mayoreo vs menudeo con recomendación y decisiones guardadas).
 - Inventario de la TIENDA: search_inventory; escritura save_inventory_item (solo la gaveta, nunca cantidades).
-- Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA)${admin ? '; escribe save_product' : ''}.
+- Catálogos: search_products (ETM), search_urrea_catalog (oficial URREA)${admin ? '; escriben save_product y save_urrea_catalog_item' : ''}.
 - Proveedores de menudeo: list_suppliers (contacto, plazo de pago, marcas que surte); escritura save_supplier (alta o edición, nunca borra).
 - Finanzas de la app: list_payables, get_payable (detalle), get_payables_overview ("¿qué debo esta semana?"), get_month_closing (cierre del mes: egresos de aquí + ingresos leídos de Odoo). Escritura save_payable (registrar, corregir, pagar con fecha real, regresar a pendiente o cancelar).
 - Tareas del equipo: list_tasks, get_task; escritura save_task (crear, comentar, priorizar, cerrar o reabrir).

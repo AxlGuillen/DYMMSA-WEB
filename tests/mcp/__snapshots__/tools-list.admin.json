@@ -530,6 +530,65 @@
     }
   },
   {
+    "name": "save_urrea_catalog_item",
+    "title": "Guardar artículo del catálogo URREA",
+    "description": "Alta o cambio de una fila del catálogo URREA (identidad = código + marca): descripción oficial, std (piezas por paquete) o identidad. Con `crear: true` la da de alta. Úsala para \"el 6954 ahora viene en paquete de 12\". Solo cambiar la descripción es directo; alta, std o identidad piden el sí con la clave y dicen cuántas decisiones de compra guardadas quedan desactualizadas. No borra ni importa archivos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "codigo": {
+          "type": "string",
+          "description": "Código URREA (se guarda en mayúsculas)"
+        },
+        "marca": {
+          "description": "Default URREA; obligatoria si el código está en varias marcas",
+          "type": "string"
+        },
+        "crear": {
+          "description": "Alta; sin él un código desconocido es error",
+          "type": "boolean",
+          "const": true
+        },
+        "descripcion": {
+          "description": "Oficial; texto vacío la borra",
+          "type": "string"
+        },
+        "std": {
+          "description": "Piezas por paquete",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "nuevo_codigo": {
+          "description": "Cambia el código",
+          "type": "string"
+        },
+        "nueva_marca": {
+          "description": "Cambia la marca",
+          "type": "string"
+        },
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "codigo"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
     "name": "list_suppliers",
     "title": "Proveedores de menudeo",
     "description": "Proveedores locales con contacto, plazo de pago (días de crédito; \"Contado\" si no hay) y las marcas que surten. Filtra por texto (nombre/teléfono/email) o por marca. Úsala para \"¿quién me surte SURTEK?\" o \"¿qué plazo da Perfiles?\".",
