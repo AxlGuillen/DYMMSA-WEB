@@ -68,7 +68,7 @@ const COVERAGE: Record<string, Decision> = {
   'POST clients/refresh': { cache: 'purga la caché de cartera de Odoo; las tools de Odoo leen directo' },
 
   // Ajustes
-  'PATCH settings': { fuera: `${PHASE_D}save_app_settings (umbrales del planificador y margen de corte)` },
+  'PATCH settings': { tool: 'save_app_settings' },
 
   // Cotizaciones
   'POST quotations/save': { fuera: `${PHASE_D}save_quotation (crear)` },

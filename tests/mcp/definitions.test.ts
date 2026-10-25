@@ -115,6 +115,7 @@ describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (nam
  */
 const WRITE_HINTS: Record<string, string> = {
   delete_record: 'E(1,1)',
+  save_app_settings: 'E(1,1)',
   save_material_presentation: 'E(0,1)',
   // Phase D adds quantities (a delta adjustment) and flips this to E(1,0).
   save_inventory_item: 'E(1,1)',

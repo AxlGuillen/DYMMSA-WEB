@@ -1583,6 +1583,52 @@
     }
   },
   {
+    "name": "save_app_settings",
+    "title": "Guardar configuración",
+    "description": "Cambia los umbrales del planificador de compra (dinero parado en MXN, % parado) y el margen por corte en mm; `restablecer: true` vuelve a los valores de fábrica. Úsala para \"sube el umbral a $150\" o \"corta sin margen\". Cambia las recomendaciones de TODAS las órdenes. Dos fases siempre. Nunca acepta otras llaves.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "umbral_dinero_parado_mxn": {
+          "description": "MXN, mayor a 0",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "umbral_pct_parado": {
+          "description": "Fracción: 0.8 = 80 %",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "margen_por_corte_mm": {
+          "description": "mm por corte; 0 vale",
+          "type": "number",
+          "minimum": 0
+        },
+        "restablecer": {
+          "description": "Valores de fábrica; no va con valores",
+          "type": "boolean",
+          "const": true
+        },
+        "clave": {
+          "description": "Clave del resumen (fase 1); sin ella solo se muestra el resumen",
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
     "name": "delete_record",
     "title": "Borrar un registro",
     "description": "El único borrado: `tipo` = proveedor, marca, medida (de material), factura (pendiente o cancelada), checada o dia_justificado. Dos fases siempre: la primera dice qué se pierde (una checada importada vuelve con el re-import) o qué lo bloquea (un proveedor con facturas, una marca en uso, una factura pagada). Úsala para \"borra la factura que registré dos veces\". Nunca borra cotizaciones, órdenes, productos, inventario ni catálogo.",

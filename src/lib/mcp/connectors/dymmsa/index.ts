@@ -34,6 +34,7 @@ import { listTasksTool } from './tasks/list-tasks'
 import { getTaskTool } from './tasks/get-task'
 import { saveTaskTool } from './tasks/save-task'
 import { getAppSettingsTool } from './settings/get-app-settings'
+import { saveAppSettingsTool } from './settings/save-app-settings'
 import { deleteRecordTool } from './records/delete-record'
 
 export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
@@ -70,5 +71,6 @@ export const DYMMSA_TOOLS: readonly ToolDefinition[] = [
   getTaskTool,
   saveTaskTool,
   getAppSettingsTool,
+  saveAppSettingsTool,
   deleteRecordTool,
 ]
