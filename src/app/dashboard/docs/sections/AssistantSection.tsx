@@ -12,7 +12,12 @@ function ToolRow({ tool }: { tool: ToolManifestEntry }) {
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">escribe</span>
         )}
         {tool.confirm === 'two_phase' && (
-          <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-900/50 dark:text-sky-300" title="Primero te muestra el resumen y solo escribe con tu si">pide tu si</span>
+          <span
+            className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-900/50 dark:text-sky-300"
+            title={tool.direct ? 'Lo sencillo lo hace directo; lo delicado te lo muestra primero y solo escribe con tu si' : 'Primero te muestra el resumen y solo escribe con tu si'}
+          >
+            {tool.direct ? 'puede pedir tu si' : 'pide tu si'}
+          </span>
         )}
       </span>
       <span className="text-muted-foreground">&ldquo;{tool.example}&rdquo;</span>
@@ -58,7 +63,10 @@ export function AssistantSection({ tools }: { tools: readonly ToolManifestEntry[
         <li>Para agregar {odooName}: en Claude, <strong>Configuracion &rarr; Conectores &rarr; Agregar conector personalizado</strong>; nombre {odooName} y como URL la misma de {dymmsa} cambiando <code>{MCP_PATH}</code> por <code>{ODOO_MCP_PATH}</code>. Se inicia sesion con la misma cuenta.</li>
         <li>Cuando se publican capacidades nuevas hay que <strong>reconectar</strong> el conector para que aparezcan.</li>
         <li>Antes de cualquier accion que escriba, el asistente te dice que va a hacer y espera tu confirmacion; si un nombre coincide con varias cosas, pregunta cual.</li>
-        <li>Lo delicado (borrar un registro, cambiar las cifras de una factura ya pagada, facturar en Odoo) va en <strong>dos pasos</strong>: primero te muestra un resumen de lo que cambia y solo escribe cuando le das tu si. Esas acciones llevan la etiqueta <em>pide tu si</em>.</li>
+        <li>Lo delicado (por ejemplo, cambiar las cifras de una factura ya pagada o reescribir una tarea) va en <strong>dos pasos</strong>: primero te muestra un resumen de lo que cambia y solo escribe cuando le das tu si. Las acciones que a veces lo piden llevan la etiqueta <em>puede pedir tu si</em>; lo sencillo (registrar una factura, comentar una tarea) lo hace directo.</li>
+        {tools.some((t) => t.confirm === 'two_phase' && !t.direct) && (
+          <li>Las que siempre piden tu si llevan la etiqueta <em>pide tu si</em>: borrar un registro o facturar en Odoo, por ejemplo.</li>
+        )}
       </List>
 
       <Sub>{dymmsa}: lo que consulta por modulo</Sub>

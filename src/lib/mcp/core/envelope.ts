@@ -27,7 +27,7 @@ export function versionOf(updatedAt: string, lineIds: readonly string[]): string
   return hashOf({ ids: lineIds, updated_at: updatedAt }).slice(0, 12)
 }
 
-export const LIST_KEYS =['total', 'pagina', 'por_pagina', 'hay_mas', 'nota'] as const
+export const LIST_KEYS = ['total', 'pagina', 'por_pagina', 'hay_mas', 'nota'] as const
 type ListKey = (typeof LIST_KEYS)[number]
 
 export interface Page {
@@ -73,7 +73,7 @@ export function pageResult<K extends string, T>(key: Exclude<K, ListKey>, items:
   } & { [P in K]: T[] }
 }
 
-export const RECORD_KEYS =['ref', 'avisos', 'nota'] as const
+export const RECORD_KEYS = ['ref', 'avisos', 'nota'] as const
 type RecordKey = (typeof RECORD_KEYS)[number]
 
 export interface RecordDetails {

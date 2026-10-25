@@ -89,7 +89,7 @@ export type ToolDefinition<S extends z.ZodRawShape = z.ZodRawShape, O extends To
   (
     | { kind: 'read'; hints: ReadHints; confirm?: never }
     // 'two_phase' is only reachable through defineTool's second overload (plan/commit), which builds the handler.
-    | { kind: 'write'; hints: WriteHints; confirm?: 'none' | 'two_phase' }
+    | { kind: 'write'; hints: WriteHints; confirm?: 'none' | 'two_phase'; direct?: true }
   )
 
 /** What phase 1 shows and phase 2 acts on (#155 C4): plan() reads and decides, it never writes. */
@@ -146,6 +146,8 @@ export function defineTool(definition: ToolDefinition | TwoPhaseDefinition<z.Zod
   const spec = { plan, commit, direct: direct === true } as TwoPhaseSpec
   return {
     ...rest,
+    // Kept on the definition: the docs badge says «puede pedir tu si» for these, not «pide tu si».
+    ...(direct ? { direct: true as const } : {}),
     input: { ...input, clave: claveField },
     handler: (raw: unknown, ctx: McpContext) => runTwoPhase(rest.name, spec, raw as TwoPhaseInput, ctx),
   } as ToolDefinition

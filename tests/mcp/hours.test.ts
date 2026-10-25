@@ -279,7 +279,7 @@ describe('save_time_entries (#132)', () => {
       const client = importClient()
       const clave = await keyFor(client, input)
       vi.stubEnv('MCP_PREVIEW_SECRET', '')
-      await expect(saveTimeEntries(asDb(client), 'u-axl', { ...input, clave })).rejects.toThrow(/no está disponible/)
+      await expect(saveTimeEntries(asDb(client), 'u-axl', { ...input, clave })).rejects.toThrow(/todavía no está activada/)
       expect(client._rpcCalls).toEqual([])
     })
   })
@@ -426,7 +426,7 @@ describe('preview_time_report (ADR-036)', () => {
     vi.stubEnv('MCP_PREVIEW_SECRET', '')
     const without = await previewTimeReport(asDb(client()), 'u-axl', { filas: NGTECO_WEEK })
     expect(without).toMatchObject({ cuadra: true, clave: null, vence: null })
-    expect(without.siguiente_paso).toMatch(/no está disponible/)
+    expect(without.siguiente_paso).toMatch(/todavía no está activada/)
   })
 
   test('lo que no cuadra se marca por persona y en problemas, para que la vista no deje guardar', async () => {

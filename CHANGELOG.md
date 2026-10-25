@@ -32,7 +32,12 @@ Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
   solo esa revisión permite guardarlo; si el servidor no tiene activada la
   confirmación en dos pasos, el botón queda apagado y lo dice.
 - **En la documentación del asistente** aparece la etiqueta «pide tu si» en lo que
-  espera tu confirmación.
+  siempre espera tu confirmación y «puede pedir tu si» en lo que a veces la pide
+  (registrar una factura o comentar una tarea se guarda directo).
+- [admin] **Mientras el servidor no tenga activada la confirmación en dos pasos**,
+  el asistente no puede facturar en Odoo ni revisar el reporte del checador, y lo
+  dice: «La confirmación en dos pasos todavía no está activada en el servidor…
+  avisa a quien administra la plataforma».
 
 ### Corregido
 - **Importar el catálogo URREA ya no lo puede dejar vacío.** Antes, si al

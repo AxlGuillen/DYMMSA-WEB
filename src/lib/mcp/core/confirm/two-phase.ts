@@ -38,8 +38,10 @@ export async function runTwoPhase(tool: string, spec: TwoPhaseSpec, raw: TwoPhas
   const signed = key ? verifyPreviewKey(key, scope) : null
   const plan = await spec.plan(args, ctx)
 
+  // Nothing to write in either phase (also when the world caught up after the summary): no fingerprint to compare.
+  if (plan.sinCambios) return writeResult('sin_cambios', plan.entity.key, plan.entity.value, { avisos: plan.avisos, nota: plan.nota })
+
   if (!signed) {
-    if (plan.sinCambios) return writeResult('sin_cambios', plan.entity.key, plan.entity.value, { avisos: plan.avisos, nota: plan.nota })
     const blocked = (plan.bloqueos?.length ?? 0) > 0
     // Low risk (the tool says so per call): it writes now, with no key. Blocks are always shown first.
     if (plan.directo && !blocked) return spec.commit(args, ctx, plan)

@@ -19,7 +19,7 @@ const MIN_SECRET_LENGTH = 32
 const TOOL_PURPOSE = 'tool'
 
 export const CONFIRM_UNAVAILABLE_MESSAGE =
-  'La confirmación en dos pasos no está disponible en este servidor (falta MCP_PREVIEW_SECRET): no escribí nada.'
+  'La confirmación en dos pasos todavía no está activada en el servidor (falta la variable MCP_PREVIEW_SECRET), así que no puedo mostrarte el resumen ni escribir. No escribí nada; avisa a quien administra la plataforma.'
 export const KEY_INVALID_MESSAGE = 'La clave no es válida: pide el resumen de nuevo. No escribí nada.'
 export const KEY_OTHER_USER_MESSAGE = 'Esa clave es del resumen de otro usuario: pide el tuyo. No escribí nada.'
 export const KEY_CHANGED_ARGS_MESSAGE = 'Los datos son distintos a los del resumen: pide el resumen de nuevo. No escribí nada.'

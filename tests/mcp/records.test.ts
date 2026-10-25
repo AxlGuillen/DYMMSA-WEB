@@ -230,7 +230,7 @@ describe('delete_record: quién y cuándo', () => {
     await withAdmin(async (mcp) => {
       const result = await mcp.call('delete_record', { tipo: 'factura', referencia: 'Tornillería' })
       expect(result.isError).toBe(true)
-      expect(textOf(result)).toMatch(/no está disponible/)
+      expect(textOf(result)).toMatch(/todavía no está activada/)
     })
     expect(state.db._calls).toEqual([])
   })

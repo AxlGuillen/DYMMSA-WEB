@@ -14,6 +14,7 @@ import { getAppSettingsTool } from '@/lib/mcp/connectors/dymmsa/settings/get-app
 import { authAs, connectMcp, textOf } from './harness'
 import { TEST_PREVIEW_SECRET } from '../helpers/preview-secret'
 import { PHASE_ONE_NOTE } from '@/lib/mcp/core/confirm/two-phase'
+import { CONFIRM_UNAVAILABLE_MESSAGE } from '@/lib/mcp/core/confirm/preview-key'
 
 /** What the fake store holds: the fingerprint of the write, and what each commit did. */
 const world = { version: 1, plans: 0, commits: [] as string[], blocked: [] as string[], nothingToDo: false }
@@ -231,7 +232,7 @@ describe('sin secreto o con bloqueos', () => {
         vi.stubEnv('MCP_PREVIEW_SECRET', secret)
         const result = await mcp.call('prueba_a', { nombre: 'uno' })
         expect(result.isError, secret).toBe(true)
-        expect(textOf(result)).toBe('La confirmación en dos pasos no está disponible en este servidor (falta MCP_PREVIEW_SECRET): no escribí nada.')
+        expect(textOf(result)).toBe(CONFIRM_UNAVAILABLE_MESSAGE)
       }
       expect(world.plans).toBe(0)
       expect(world.commits).toEqual([])
@@ -286,6 +287,22 @@ describe('sin secreto o con bloqueos', () => {
     }
   })
 
+  test('con clave vigente pero sin nada que hacer en la fase 2: sin_cambios, no escribe ni acusa "cambió"', async () => {
+    const mcp = await connect([twoPhaseTool('prueba_a')])
+    try {
+      const clave = parse(textOf(await mcp.call('prueba_a', { nombre: 'uno' }))).clave
+      // Someone else did the same write and the huella moved: with nothing left to write there is nothing to compare.
+      world.nothingToDo = true
+      world.version = 2
+      const result = await mcp.call('prueba_a', { nombre: 'uno', clave })
+      expect(result.isError, textOf(result)).toBeFalsy()
+      expect(parse(textOf(result))).toMatchObject({ accion: 'sin_cambios', escrito: false })
+      expect(world.commits).toEqual([])
+    } finally {
+      await mcp.close()
+    }
+  })
+
   test('una herramienta que declara `direct` escribe de inmediato lo de bajo riesgo, aun sin secreto; lo demás pide el sí', async () => {
     const mixed = defineTool({
       connector: 'dymmsa',
@@ -323,7 +340,7 @@ describe('sin secreto o con bloqueos', () => {
       // Sensitive: it fails closed until the secret exists.
       const sensitive = await mcp.call('prueba_mixta', { nombre: 'dos', delicado: true })
       expect(sensitive.isError).toBe(true)
-      expect(textOf(sensitive)).toMatch(/no está disponible/)
+      expect(textOf(sensitive)).toMatch(/todavía no está activada/)
       expect(world.commits).toEqual(['admin-1:uno'])
 
       // With the secret it asks for the yes, and a block is always shown first, even on a low-risk call.

@@ -19,6 +19,7 @@ export function manifestEntryOf(tool: ToolDefinition): ToolManifestEntry {
     ...(tool.docs.limits ? { limits: tool.docs.limits } : {}),
     ...(tool.adminOnly ? { adminOnly: true as const } : {}),
     ...(tool.confirm === 'two_phase' ? { confirm: 'two_phase' as const } : {}),
+    ...(tool.kind === 'write' && tool.confirm === 'two_phase' && tool.direct ? { direct: true as const } : {}),
   }
 }
 

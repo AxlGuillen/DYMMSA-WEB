@@ -31,6 +31,23 @@ describe('evaluación manual (R12)', () => {
     expect(missing, `Tools que el guion no nombra: ${missing.join(', ')}`).toEqual([])
   })
 
+  test('CLAUDE.md no cita como vigente una tool que ya no existe (un renombre no deja el nombre viejo en la tabla de reglas)', () => {
+    const claude = readFileSync(join(process.cwd(), 'CLAUDE.md'), 'utf8')
+    const names = new Set(TOOLS.map((t) => t.name))
+    const RETIRED = [
+      'create_task', 'update_task', 'set_inventory_location', 'mark_payable_paid', 'create_payable', 'update_payable',
+      'record_payroll_hours', 'get_profiles', 'get_quotation_stats', 'get_inventory_stats', 'get_order_by_quotation',
+      'odoo_employee_directory', 'odoo_fleet_status',
+    ]
+    // A retired name may appear as history («antes eran…», «quitó…», «de create_task»), never as the current one.
+    const history = (at: number) => /antes|quitó|fusionó|renombr|retir|\bde `|\(de /.test(claude.slice(Math.max(0, at - 140), at + 60))
+    const current = (name: string) => [...claude.matchAll(new RegExp('`' + name + '`', 'g'))].filter((m) => !history(m.index ?? 0))
+    for (const name of RETIRED) {
+      expect(names.has(name), `${name} volvió a existir: sácalo de RETIRED`).toBe(false)
+      expect(current(name).length, `CLAUDE.md cita \`${name}\` como vigente`).toBe(0)
+    }
+  })
+
   test('el guion no cita tools que ya no existen (un renombre no deja nombres viejos)', () => {
     const names = new Set(TOOLS.map((t) => t.name))
     // Phase D's names are announced on purpose, in the tasks that need them.

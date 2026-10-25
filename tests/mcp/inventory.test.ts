@@ -6,6 +6,7 @@ import { ToolError } from '@/lib/mcp/core/errors'
 import type { CallRecord } from '../helpers/supabase-mock'
 import { searchInventory, getInventoryStats, planSaveInventoryItem, commitSaveInventoryItem } from '@/lib/mcp/tools/inventory'
 import type { Db } from '@/lib/mcp/core/db'
+import { InventoryError, setInventoryLocation } from '@/lib/inventory-store'
 
 const asDb = (c: ReturnType<typeof createMockSupabase>) => c as unknown as Db
 
@@ -79,7 +80,7 @@ describe('save_inventory_item (issue #72, #155 C6): solo la gaveta', () => {
 
     // The update payload carries ONLY location — quantities are untouchable.
     expect(c.updatePayload('store_inventory')).toEqual({ location: 'Gaveta B3' })
-    expect(filterValue(c.callsTo('store_inventory', 'update')[0], 'model_code', 'ilike')).toBe('6954')
+    expect(filterValue(c.callsTo('store_inventory', 'update')[0], 'model_code', 'eq')).toBe('6954')
     expect(result).toMatchObject({ accion: 'actualizado', escrito: true, productos: [{ codigo: '6954', cantidad: 12, ubicacion: 'Gaveta B3' }] })
     expect(result.cambios).toEqual({ 'ubicacion 6954': { antes: null, ahora: 'Gaveta B3' } })
   })
@@ -118,11 +119,27 @@ describe('save_inventory_item (issue #72, #155 C6): solo la gaveta', () => {
     await expect(save(client([row('6954', 1, null)]), [{ codigo: '6954', ubicacion: 'A' }, { codigo: '6954 ', ubicacion: 'B' }])).rejects.toThrow(/aparece dos veces/)
   })
 
+  test('setInventoryLocation revisa antes de escribir: una colisión por mayúsculas es conflicto y no toca ninguna fila', async () => {
+    const clash = client([row('abc', 1, 'A1'), row('ABC', 2, 'A1')])
+    const error = await setInventoryLocation(asDb(clash), 'abc', 'B2').catch((e) => e)
+    expect(error).toBeInstanceOf(InventoryError)
+    expect(error).toMatchObject({ kind: 'conflict' })
+    expect(clash.callsTo('store_inventory', 'update')).toEqual([])
+
+    const missing = client([])
+    await expect(setInventoryLocation(asDb(missing), 'NOEXISTE', 'B2')).rejects.toMatchObject({ kind: 'not_found' })
+    expect(missing.callsTo('store_inventory', 'update')).toEqual([])
+
+    const one = client([row('abc', 3, 'A1')], () => ({ data: [row('abc', 3, 'B2')], error: null }))
+    await expect(setInventoryLocation(asDb(one), 'ABC', 'B2')).resolves.toMatchObject({ model_code: 'abc', location: 'B2' })
+    expect(hasFilter(one.callsTo('store_inventory', 'update')[0], 'model_code', 'eq')).toBe(true)
+  })
+
   test('varios productos: uno por uno; si falla el segundo dice qué sí quedó guardado', async () => {
     let calls = 0
     const c = client([row('A1', 1, null), row('B2', 2, null)], (rec) => {
       calls += 1
-      const code = String(filterValue(rec, 'model_code', 'ilike'))
+      const code = String(filterValue(rec, 'model_code', 'eq'))
       return calls === 1 ? { data: [row(code, 1, 'G-1')], error: null } : { data: null, error: { message: 'boom' } }
     })
     const error = await save(c, [{ codigo: 'A1', ubicacion: 'G-1' }, { codigo: 'B2', ubicacion: 'G-2' }]).catch((e) => e)

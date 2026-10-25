@@ -24,6 +24,8 @@ export interface ToolManifestEntry {
   adminOnly?: true
   /** Writes only the user's yes (two phases with a key): the docs say so (#155 C4). */
   confirm?: 'two_phase'
+  /** With `confirm`: the usual call writes without a key, only the delicate ones ask (the badge says «puede pedir»). */
+  direct?: true
 }
 
 export type McpRole = 'admin' | 'member'

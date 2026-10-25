@@ -68,6 +68,13 @@ describe.each(ALL_TOOLS.map((t) => [t.name, t] as const))('definición %s', (nam
     expect(Boolean(tool.output), 'una vista lee el structuredContent: declara su output; sin vista, el outputSchema solo gasta presupuesto').toBe(Boolean(tool.view))
   })
 
+  test('REGLA (ADR-041 §5): una tool de dos fases no declara output ni view (la fase 1 y la 2 responden formas distintas)', () => {
+    if (tool.confirm === 'two_phase') {
+      expect(tool.output).toBeUndefined()
+      expect(tool.view).toBeUndefined()
+    }
+  })
+
   test('REGLA (ADR-040): toda escritura de Odoo es de administrador', () => {
     if (tool.connector === 'odoo' && tool.kind === 'write') expect(tool.adminOnly).toBe(true)
   })
