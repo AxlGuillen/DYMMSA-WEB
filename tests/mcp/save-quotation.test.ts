@@ -37,12 +37,13 @@ interface World {
   approvedAt?: string | null
   /** urrea_catalog rows: the official descriptions. */
   official?: { code: string; brand: string; description: string }[]
+  twinsError?: boolean
 }
 
 /** Quotation tables with the update_quotation fake of #157, plus what the tool reads around them. */
 const NEW_ID = '44444444-4444-4444-8444-444444444444'
 
-function world({ status = 'draft', lines, catalog = [], order = null, approvedAt = null, official = [] }: World = {}) {
+function world({ status = 'draft', lines, catalog = [], order = null, approvedAt = null, official = [], twinsError = false }: World = {}) {
   const base = lines ?? [section('Tornillería'), product(1), product(2), product(3, { unit_price: 350 })]
   let clock = 0
   let updatedAt = '2026-10-01T10:00:00Z'
@@ -54,7 +55,7 @@ function world({ status = 'draft', lines, catalog = [], order = null, approvedAt
     lines: base,
     responses: {
       'quotations.select': (rec: CallRecord) => {
-        if (rec.columns === 'id') return { data: twins, error: null }
+        if (rec.columns === 'id') return twinsError ? { data: null, error: { code: 'XX000', message: 'boom' } } : { data: twins, error: null }
         const or = rec.filters.find((f) => f.method === 'or')
         if (or) return { data: [{ id: Q_ID, name: fake.quotation.name, customer_name: fake.quotation.customer_name, status: fake.quotation.status }], error: null }
         const id = filterValue(rec, 'id')
@@ -310,6 +311,13 @@ describe('save_quotation: aprobación, avisos y auto-aprendizaje', () => {
 })
 
 describe('save_quotation: crear', () => {
+  test('si falla la lectura de cotizaciones con el mismo nombre, es error y no una clave que luego parezca «cambió»', async () => {
+    state.db = world({ catalog: [CATALOG('1180234')], twinsError: true }).client
+    const result = await call({ nombre: 'COT-X', cliente: 'GE', lineas: [{ etm: '1180234', cantidad: 1 }] })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toMatch(/No pude revisar si ya existe una cotización/)
+  })
+
   test('eval 2: prellena del catálogo, avisa los ETM que no están y «nuevo»; la fase 1 no escribe; con la clave crea y aprende', async () => {
     const w = world({ catalog: [CATALOG('1180234'), CATALOG('DYMMSA-7')] })
     state.db = w.client

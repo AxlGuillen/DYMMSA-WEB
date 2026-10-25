@@ -274,6 +274,8 @@ async function planCreate(db: Db, input: SaveQuotationInput): Promise<WritePlan<
   if (learn) avisos.push(learn)
 
   const twins = await db.from('quotations').select('id').eq('name', name).eq('customer_name', customer).limit(5)
+  // A transient read error must not reach the fingerprint: it would read as "the quotation changed".
+  if (twins.error) throw new ToolError('No pude revisar si ya existe una cotización con ese nombre. Intenta de nuevo.')
   const sameName = (twins.data ?? []) as { id: string }[]
   if (sameName.length > 0) avisos.push(`Ya hay ${sameName.length === 1 ? 'una cotización' : `${sameName.length} cotizaciones`} con ese nombre y ese cliente: esta sería otra.`)
 

@@ -1,4 +1,4 @@
-/** Store inventory writes the MCP shares with the app (#155 C6): today only the drawer; quantities arrive with phase D. */
+/** Store inventory writes the MCP shares with the app (#155 C6): the drawer plus counts and adjustments through change_store_stock (phase D). */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DomainError, type DomainErrorKind } from '@/lib/domain-error'
