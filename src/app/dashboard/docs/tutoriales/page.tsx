@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import { Play } from '@/components/icons'
 import { DocsTabs } from '@/components/docs/DocsTabs'
 import { TutorialList } from '@/components/tutorials/TutorialList'
+import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/api-helpers'
-import { publishedTutorials, TUTORIALS } from '@/lib/tutorials'
+import { publishedDeliveries, publishedModules, TUTORIALS } from '@/lib/tutorials'
 
 export const metadata: Metadata = {
   title: 'Tutoriales',
@@ -14,7 +15,9 @@ export const metadata: Metadata = {
 export default async function TutorialsPage() {
   const auth = await requireRole(await createClient())
   const isAdmin = !('error' in auth) && auth.profile?.role === 'admin'
-  const tutorials = publishedTutorials(TUTORIALS, isAdmin)
+  const modules = publishedModules(TUTORIALS, isAdmin)
+  // Decided on the server: a member's page never carries the deliveries (ADR-038).
+  const deliveries = publishedDeliveries(TUTORIALS, isAdmin)
 
   return (
     <div className="docs-page-bg -mx-4 -my-8 px-4 py-8">
@@ -32,10 +35,21 @@ export default async function TutorialsPage() {
             </p>
           </div>
         </div>
-        {tutorials.length === 0 ? (
-          <p className="text-muted-foreground">Pronto habrá videos aquí.</p>
-        ) : (
-          <TutorialList tutorials={tutorials} />
+        {modules.length === 0 && deliveries.length === 0 && <p className="text-muted-foreground">Pronto habrá videos aquí.</p>}
+        {modules.length > 0 && <TutorialList tutorials={modules} />}
+        {deliveries.length > 0 && (
+          <section aria-labelledby="entregas-semanales" className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <h2 id="entregas-semanales" className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight">
+                Entregas semanales
+                <Badge variant="secondary">Solo administradores</Badge>
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Un resumen en video de lo que cambió cada semana en la plataforma, de la más reciente a la más antigua.
+              </p>
+            </div>
+            <TutorialList tutorials={deliveries} label="Entregas semanales" />
+          </section>
         )}
       </div>
     </div>

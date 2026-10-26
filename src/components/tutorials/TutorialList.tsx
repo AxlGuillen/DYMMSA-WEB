@@ -7,9 +7,9 @@ import { TutorialDialog } from './TutorialDialog'
 import { coverUrl, isPublished, type Tutorial } from '@/lib/tutorials'
 
 /** The Tutoriales tab: every video in order; a card opens the shared player, its link goes to the docs section. */
-export function TutorialList({ tutorials }: { tutorials: readonly Tutorial[] }) {
+export function TutorialList({ tutorials, label = 'Tutoriales' }: { tutorials: readonly Tutorial[]; label?: string }) {
   return (
-    <ol aria-label="Tutoriales" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <ol aria-label={label} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {tutorials.filter(isPublished).map((tutorial) => (
         <li key={tutorial.slug} className="flex flex-col overflow-hidden rounded-xl border bg-card">
           <TutorialDialog tutorials={[tutorial]}>
@@ -33,12 +33,14 @@ export function TutorialList({ tutorials }: { tutorials: readonly Tutorial[] }) 
             <p className="font-medium leading-snug">{tutorial.title}</p>
             {tutorial.duration && <p className="text-xs text-muted-foreground tabular-nums">{tutorial.duration}</p>}
             <p className="text-sm text-muted-foreground">{tutorial.description}</p>
-            <Link
-              href={`/dashboard/docs#${tutorial.docs}`}
-              className="mt-auto pt-2 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Leer en la documentación →
-            </Link>
+            {tutorial.docs && (
+              <Link
+                href={`/dashboard/docs#${tutorial.docs}`}
+                className="mt-auto pt-2 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Leer en la documentación →
+              </Link>
+            )}
           </div>
         </li>
       ))}

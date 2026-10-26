@@ -21,9 +21,15 @@ export interface Tutorial {
   duration?: string
   /** Screens whose "Vista guiada" gets a "Ver tutorial" next to it. */
   tours: readonly TourId[]
-  docs: DocsAnchor
+  /** The Documentación section it belongs to; a weekly delivery has none. */
+  docs?: DocsAnchor
   /** Tutoriales tab: admins only. Documentación: never. A screen: that screen's own access. */
   adminOnly?: true
+  /**
+   * `entrega`: the weekly delivery video (what changed that week). Always admin-only, tied to no screen
+   * nor docs section, and listed apart in the Tutoriales tab, newest first: its `order` is its week number.
+   */
+  kind?: 'entrega'
 }
 
 /** A video not uploaded yet: never shown anywhere. */
@@ -59,7 +65,39 @@ export const TUTORIALS: readonly Tutorial[] = [
     tours: ['cut-planner'],
     docs: 'corte',
   },
+  {
+    slug: 'entrega-semana-41',
+    order: 41,
+    kind: 'entrega',
+    adminOnly: true,
+    youtubeId: '7NFOmJw0abc',
+    title: 'Entrega semana 41 · 5 al 9 de octubre',
+    description: 'Resumen del equipo en Horas, el sábado por área en Nómina, el asistente en la rutina de los viernes y varios ajustes.',
+    tours: [],
+  },
+  {
+    slug: 'entrega-semana-42',
+    order: 42,
+    kind: 'entrega',
+    adminOnly: true,
+    youtubeId: 'jGJQ4j-6e_U',
+    title: 'Entrega semana 42 · 12 al 17 de octubre',
+    description: 'Tutoriales en video, la nueva sección Clientes con su estado de cuenta, la recepción más rápida y los arreglos de Cotizaciones.',
+    tours: [],
+  },
+  {
+    slug: 'entrega-semana-43',
+    order: 43,
+    kind: 'entrega',
+    adminOnly: true,
+    youtubeId: 'T3OFluiU4cI',
+    title: 'Entrega semana 43 · 19 al 25 de octubre',
+    description: 'El asistente ahora escribe, dos conectores (DYMMSA-WEB y Odoo), inventario y órdenes más seguros, e importaciones y facturas en dólares.',
+    tours: [],
+  },
 ]
+
+export const isDelivery = (tutorial: Tutorial): boolean => tutorial.kind === 'entrega'
 
 export function isPublished(tutorial: Tutorial): boolean {
   return tutorial.youtubeId !== PENDING_ID && YOUTUBE_ID_PATTERN.test(tutorial.youtubeId)
@@ -69,6 +107,14 @@ export function isPublished(tutorial: Tutorial): boolean {
 export function publishedTutorials(list: readonly Tutorial[], isAdmin: boolean): Tutorial[] {
   return list.filter((t) => isPublished(t) && (isAdmin || !t.adminOnly)).sort((a, b) => a.order - b.order)
 }
+
+/** The module tutorials the Tutoriales tab lists for everyone, in order. */
+export const publishedModules = (list: readonly Tutorial[], isAdmin: boolean): Tutorial[] =>
+  publishedTutorials(list, isAdmin).filter((t) => !isDelivery(t))
+
+/** The weekly deliveries, newest first. Only an admin gets them, whatever the entry says: a member gets none. */
+export const publishedDeliveries = (list: readonly Tutorial[], isAdmin: boolean): Tutorial[] =>
+  isAdmin ? publishedTutorials(list, true).filter(isDelivery).sort((a, b) => b.order - a.order) : []
 
 export const tutorialsForTour = (tour: TourId, list: readonly Tutorial[] = TUTORIALS) =>
   publishedTutorials(list, true).filter((t) => t.tours.includes(tour))

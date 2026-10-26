@@ -6,8 +6,12 @@ import { TourButton } from '@/components/tours/TourButton'
 import { TutorialButton } from '@/components/tutorials/TutorialButton'
 import { TutorialList } from '@/components/tutorials/TutorialList'
 import { DocsTabs } from '@/components/docs/DocsTabs'
+import TutorialsPage from '@/app/dashboard/docs/tutoriales/page'
 import { TUTORIALS, type Tutorial } from '@/lib/tutorials'
 
+const session = vi.hoisted(() => ({ role: 'admin' as 'admin' | 'member' }))
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({})) }))
+vi.mock('@/lib/api-helpers', () => ({ requireRole: vi.fn(async () => ({ profile: { role: session.role } })) }))
 vi.mock('driver.js', () => ({ driver: vi.fn(() => ({ drive: vi.fn() })) }))
 vi.mock('driver.js/dist/driver.css', () => ({}))
 vi.mock('next/image', () => ({
@@ -79,9 +83,46 @@ describe('pestaña Tutoriales', () => {
     expect(within(screen.getByRole('dialog')).getByRole('heading', { name: TUTORIALS[0].title })).toBeInTheDocument()
   })
 
+  test('una entrega semanal no liga a la documentación, ni en la tarjeta ni dentro del reproductor', () => {
+    const delivery = TUTORIALS.find((t) => t.kind === 'entrega')!
+    render(<TutorialList tutorials={[delivery]} label="Entregas semanales" />)
+    const items = within(screen.getByRole('list', { name: 'Entregas semanales' })).getAllByRole('listitem')
+    expect(items).toHaveLength(1)
+    expect(within(items[0]).queryByRole('link')).not.toBeInTheDocument()
+    fireEvent.click(within(items[0]).getByRole('button', { name: `Ver ${delivery.title}` }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: delivery.title })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: /Leer en la documentación/ })).not.toBeInTheDocument()
+  })
+
   test('las pestañas de Documentación marcan la actual', () => {
     render(<DocsTabs active="tutoriales" />)
     expect(screen.getByRole('link', { name: /Tutoriales/ })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: /Documentación/ })).toHaveAttribute('href', '/dashboard/docs')
+  })
+})
+
+describe('página Tutoriales: entregas semanales', () => {
+  test('un administrador las ve en su apartado, de la más reciente a la más antigua, aparte de los tutoriales', async () => {
+    session.role = 'admin'
+    render(await TutorialsPage())
+    expect(within(screen.getByRole('list', { name: 'Tutoriales' })).getAllByRole('listitem')).toHaveLength(3)
+    const section = screen.getByRole('region', { name: /Entregas semanales/ })
+    expect(within(section).getByText('Solo administradores')).toBeInTheDocument()
+    const items = within(within(section).getByRole('list', { name: 'Entregas semanales' })).getAllByRole('listitem')
+    expect(items.map((li) => within(li).getByText(/^Entrega semana \d+/).textContent)).toEqual([
+      'Entrega semana 43 · 19 al 25 de octubre',
+      'Entrega semana 42 · 12 al 17 de octubre',
+      'Entrega semana 41 · 5 al 9 de octubre',
+    ])
+  })
+
+  test('un miembro ve los tutoriales y ningún rastro del apartado', async () => {
+    session.role = 'member'
+    render(await TutorialsPage())
+    expect(within(screen.getByRole('list', { name: 'Tutoriales' })).getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.queryByRole('region', { name: /Entregas semanales/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Entrega semana/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Solo administradores')).not.toBeInTheDocument()
   })
 })
