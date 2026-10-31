@@ -49,6 +49,12 @@ En Minuto Dulce (v0.4.0) ya resolvimos lo mismo para celular con Shorts 9:16. Se
 
 **Review del PR #142:** Documentación no filtra por rol, así que `tutorialsForDocs` excluye siempre los `adminOnly` (un video de admin solo sale en su pantalla y en la pestaña para admins). El mapa `TOURS`/`TourId` se mudó a `src/lib/tours/registry.ts` para que `lib/tutorials` no dependa de un componente; `TutorialDialog`/`TutorialList` filtran con `isPublished` (un error del catálogo esconde el video en vez de tumbar la pantalla).
 
+**Actualización 2026-10-25, entregas semanales:** se suben a YouTube los videos resumen de cada semana (41, 42 y 43) y se quieren a la mano de quien administra.
+- Entran al mismo catálogo con `kind: 'entrega'`: siempre `adminOnly`, sin pantalla (`tours: []`) y sin sección de Documentación (`docs` es opcional); su `order` es el número de semana, así que no choca con los de módulo (1 a 3).
+- La pestaña los pinta aparte, bajo un encabezado «Entregas semanales» con la etiqueta «Solo administradores», de la más reciente a la más antigua. `publishedDeliveries` devuelve `[]` a quien no es admin, aunque a una entrada le falte `adminOnly`, y la página lo decide en el servidor, así que el HTML de un miembro no los trae.
+- No salen en el `TourButton` ni en Documentación (`tours` vacío y sin `docs`), y sus tarjetas no ligan a la documentación.
+- Una entrega nueva es una fila en el catálogo.
+
 ## Alternativas descartadas
 
 - **La IFrame API de YouTube:** sería una dependencia y un script de terceros desde que carga la pantalla.
@@ -63,7 +69,9 @@ En Minuto Dulce (v0.4.0) ya resolvimos lo mismo para celular con Shorts 9:16. Se
   - **la sección de docs de cada video existe y muestra su botón**, y lo mismo para cada sección de `DOCS_ANCHORS` aunque aún no tenga video;
   - la asignación decidida;
   - lo pendiente, lo de admin y las URLs.
+- `tests/lib/tutorials.test.ts` (entregas, 2026-10-25): las tres con su id; todas `adminOnly`, sin pantalla ni docs y con `slug` = `entrega-semana-<order>`; en orden descendente y solo para un administrador; nunca en una pantalla ni en Documentación.
 - `tests/components/tutorials.test.tsx`:
+  - la tarjeta y el reproductor de una entrega no ligan a la documentación; la página muestra el apartado a un administrador y ni rastro a un miembro;
   - "Ver tutorial" solo donde hay video;
   - el iframe solo tras el play;
   - el selector con dos videos;

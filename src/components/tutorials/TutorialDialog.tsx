@@ -62,7 +62,7 @@ function TutorialPanel({ tutorials, showDocsLink }: { tutorials: readonly Tutori
         </div>
       )}
       <VideoFacade key={selected.slug} tutorial={selected} />
-      {showDocsLink && (
+      {showDocsLink && selected.docs && (
         <Link href={`/dashboard/docs#${selected.docs}`} className="inline-block text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           Leer en la documentación →
         </Link>

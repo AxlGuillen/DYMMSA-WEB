@@ -3,6 +3,15 @@
 Registro de mejoras y correcciones del sistema DYMMSA, en orden cronológico
 (lo más reciente primero).
 
+## 2026-10-25
+
+### Nuevo
+- [admin] **Las entregas semanales, en Tutoriales.** En Documentación → Tutoriales
+  hay un apartado nuevo, «Entregas semanales», solo para administradores, con el
+  video resumen de cada semana: de la más reciente a la más antigua. Ya están las
+  de las semanas 41, 42 y 43. No salen en ninguna pantalla ni en la
+  documentación, y un miembro del equipo no las ve.
+
 ## 2026-10-24
 
 ### Nuevo

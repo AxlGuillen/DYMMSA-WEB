@@ -7,7 +7,10 @@ import {
   coverUrl,
   DOCS_ANCHORS,
   embedUrl,
+  isDelivery,
   PENDING_ID,
+  publishedDeliveries,
+  publishedModules,
   publishedTutorials,
   TUTORIALS,
   tutorialsForDocs,
@@ -46,9 +49,10 @@ describe('catálogo de tutoriales', () => {
     expect(new Set(TUTORIALS.map((t) => t.order)).size).toBe(TUTORIALS.length)
   })
 
-  test('ANTI-DRIFT: la sección de documentación de cada video existe y muestra su botón dentro de ella', () => {
-    for (const t of TUTORIALS) {
-      const section = sectionSource(t.docs)
+  test('ANTI-DRIFT: la sección de documentación de cada video de módulo existe y muestra su botón dentro de ella', () => {
+    for (const t of TUTORIALS.filter((t) => !isDelivery(t))) {
+      expect(t.docs, `${t.slug} necesita su sección de documentación`).toBeDefined()
+      const section = sectionSource(t.docs!)
       expect(section, `${t.slug} → #${t.docs} no existe o está repetida`).not.toBeNull()
       expect(section, `${t.slug}: el botón no está en la sección #${t.docs}`).toContain(`tutorialsForDocs('${t.docs}')`)
     }
@@ -66,8 +70,8 @@ describe('catálogo de tutoriales', () => {
     expect(TUTORIALS.filter((t) => t.tours.includes('approval')).map((t) => t.slug)).toEqual([])
   })
 
-  test('cada video aparece en al menos una pantalla y los tres de Órdenes van donde se decidió', () => {
-    for (const t of TUTORIALS) expect(t.tours.length, t.slug).toBeGreaterThan(0)
+  test('cada video de módulo aparece en al menos una pantalla y los tres de Órdenes van donde se decidió', () => {
+    for (const t of TUTORIALS.filter((t) => !isDelivery(t))) expect(t.tours.length, t.slug).toBeGreaterThan(0)
     expect(tutorialsForTour('orders-list').map((t) => t.youtubeId)).toEqual(['_q6XfG344kI'])
     expect(tutorialsForTour('order-detail').map((t) => t.youtubeId)).toEqual(['_q6XfG344kI'])
     expect(tutorialsForTour('purchase-planner').map((t) => t.youtubeId)).toEqual(['WJuGV0D8fDg'])
@@ -76,6 +80,48 @@ describe('catálogo de tutoriales', () => {
     expect(tutorialsForDocs('compra').map((t) => t.slug)).toEqual(['ordenes-2-planificar-compra'])
     expect(tutorialsForDocs('cotizar')).toEqual([])
     expect(tutorialsForDocs('cotizaciones')).toEqual([])
+  })
+})
+
+describe('entregas semanales', () => {
+  const deliveries = TUTORIALS.filter(isDelivery)
+
+  test('están las entregas 41, 42 y 43 con su video', () => {
+    expect(deliveries.map((t) => [t.slug, t.youtubeId])).toEqual([
+      ['entrega-semana-41', '7NFOmJw0abc'],
+      ['entrega-semana-42', 'jGJQ4j-6e_U'],
+      ['entrega-semana-43', 'T3OFluiU4cI'],
+    ])
+  })
+
+  test('REGLA: toda entrega es solo para administradores, sin pantalla ni sección de documentación, y su orden es su semana', () => {
+    for (const t of deliveries) {
+      expect(t.adminOnly, `${t.slug} debe ser adminOnly`).toBe(true)
+      expect(t.tours, `${t.slug} no va en ninguna pantalla`).toEqual([])
+      expect(t.docs, `${t.slug} no tiene sección de documentación`).toBeUndefined()
+      expect(t.slug).toBe(`entrega-semana-${t.order}`)
+    }
+  })
+
+  test('de la más reciente a la más antigua, y solo para un administrador', () => {
+    expect(publishedDeliveries(TUTORIALS, true).map((t) => t.order)).toEqual([43, 42, 41])
+    expect(publishedDeliveries(TUTORIALS, false)).toEqual([])
+    expect(publishedModules(TUTORIALS, true).some(isDelivery)).toBe(false)
+    expect(publishedModules(TUTORIALS, false).map((t) => t.order)).toEqual([1, 2, 3])
+  })
+
+  test('nunca salen en una pantalla ni en Documentación', () => {
+    const ids = new Set(deliveries.map((t) => t.slug))
+    for (const anchor of DOCS_ANCHORS) expect(tutorialsForDocs(anchor).filter((t) => ids.has(t.slug))).toEqual([])
+    for (const tour of ['orders-list', 'order-detail', 'purchase-planner', 'cut-planner', 'inventory', 'customers'] as const) {
+      expect(tutorialsForTour(tour).filter((t) => ids.has(t.slug)), tour).toEqual([])
+    }
+  })
+
+  test('un miembro no recibe una entrega aunque a su entrada le falte adminOnly', () => {
+    const slip = video({ slug: 'entrega-semana-99', order: 99, kind: 'entrega', docs: undefined })
+    expect(publishedDeliveries([slip], false)).toEqual([])
+    expect(publishedDeliveries([slip], true).map((t) => t.slug)).toEqual(['entrega-semana-99'])
   })
 })
 
