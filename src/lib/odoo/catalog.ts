@@ -125,9 +125,31 @@ export function allowedFields(model: string, requested?: string[]): string[] {
 /** Simplified Odoo domain: only [field, operator, value] triples, implicit AND. */
 export type DomainTriple = [string, string, unknown]
 
+// `any`/`not any` take a nested domain that would skip the field checks below; child_of/parent_of walk hierarchies.
+const SCALAR_OPERATORS = new Set(['=', '!=', '>', '>=', '<', '<=', 'like', 'not like', 'ilike', 'not ilike', '=like', '=ilike'])
+const LIST_OPERATORS = new Set(['in', 'not in'])
+const isScalar = (v: unknown) => v === null || ['string', 'number', 'boolean'].includes(typeof v)
+
+function assertOperatorAndValue(model: string, field: string, operator: unknown, value: unknown): void {
+  const op = typeof operator === 'string' ? operator : ''
+  const valid = LIST_OPERATORS.has(op)
+    ? Array.isArray(value) && value.every(isScalar)
+    : SCALAR_OPERATORS.has(op) && isScalar(value)
+  if (!valid) {
+    throw new OdooError(
+      `No se puede filtrar ${model} por "${field}" con ese operador o valor: usa ${[...SCALAR_OPERATORS, ...LIST_OPERATORS].join(', ')} con valores simples (listas solo con in / not in).`,
+    )
+  }
+}
+
 export function assertDomainAllowed(model: string, domain: DomainTriple[]): void {
   const entry = catalogEntry(model)
-  for (const [field] of domain) {
+  for (const triple of domain) {
+    if (!Array.isArray(triple) || triple.length !== 3 || typeof triple[0] !== 'string') {
+      throw new OdooError(`Filtro inválido en ${model}: cada filtro es una tripleta [campo, operador, valor].`)
+    }
+    const [field, operator, value] = triple
+    assertOperatorAndValue(model, field, operator, value)
     // Traversal ("partner_id.vat") is banned: filtering by a hidden field is an inference oracle (PR #66).
     if (field.includes('.')) {
       throw new OdooError(

@@ -44,6 +44,42 @@ describe('odoo_search_records', () => {
     ).rejects.toThrow(/traversal por relación/)
   })
 
+  test('operador any con dominio anidado → rechazado: saltaría la whitelist de campos', async () => {
+    const { odoo, calls } = fakeOdoo({})
+    for (const filtros of [
+      [['partner_id', 'any', [['vat', 'ilike', 'AHY']]]],
+      [['partner_id', 'not any', [['vat', '=', false]]]],
+      [['partner_id', 'child_of', 1]],
+      [['payment_state', '=?', 'paid']],
+      [['payment_state', 'IN', ['paid']]],
+    ] as [string, string, unknown][][]) {
+      await expect(odooSearchRecords(odoo, { modelo: 'account.move', filtros })).rejects.toThrow(/operador o valor/)
+    }
+    expect(calls).toHaveLength(0)
+  })
+
+  test('valores anidados u objetos → rechazados; listas simples con in siguen pasando', async () => {
+    const { odoo } = fakeOdoo({ 'account.move.search_read': [[INVOICE_RAW]] })
+    for (const filtros of [
+      [['partner_id', '=', [['vat', '=', 'X']]]],
+      [['partner_id', 'in', [[1, 2]]]],
+      [['partner_id', 'in', 7]],
+      [['payment_state', '=', { a: 1 }]],
+    ] as [string, string, unknown][][]) {
+      await expect(odooSearchRecords(odoo, { modelo: 'account.move', filtros })).rejects.toThrow(/operador o valor/)
+    }
+    await expect(
+      odooSearchRecords(odoo, { modelo: 'account.move', filtros: [['payment_state', 'in', ['paid', 'not_paid']], ['amount_total', '>=', 0]] }),
+    ).resolves.toMatchObject({ count: 1 })
+  })
+
+  test('una tripleta mal formada se rechaza', async () => {
+    const { odoo } = fakeOdoo({})
+    await expect(
+      odooSearchRecords(odoo, { modelo: 'account.move', filtros: [['payment_state', '=']] as unknown as [string, string, unknown][] }),
+    ).rejects.toThrow(/tripleta/)
+  })
+
   test('order multi-columna: valida TODAS las columnas, no solo la primera (PR #66)', async () => {
     const { odoo } = fakeOdoo({ 'account.move.search_read': [[INVOICE_RAW]] })
     await expect(
