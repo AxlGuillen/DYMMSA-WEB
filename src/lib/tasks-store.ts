@@ -3,6 +3,7 @@
 import { DomainError, type DomainErrorKind } from '@/lib/domain-error'
 import {
   buildIssueBody,
+  neutralizeMentions,
   extractReporter,
   fetchGitHub,
   isTaskPriority,
@@ -38,7 +39,7 @@ export interface NewTask {
 }
 
 export async function createTask(input: NewTask, reporter: string): Promise<Task> {
-  const title = input.title.trim()
+  const title = neutralizeMentions(input.title.trim())
   if (!title) throw new TaskError('El título es obligatorio')
   const issue = await fetchGitHub<GitHubIssue>('/issues', {
     method: 'POST',
@@ -85,7 +86,7 @@ export async function patchTask(n: number, changes: TaskChanges, fallbackReporte
   const patch: Record<string, unknown> = {}
   if (changes.title !== undefined) {
     if (!changes.title.trim()) throw new TaskError('El título no puede estar vacío')
-    patch.title = changes.title.trim()
+    patch.title = neutralizeMentions(changes.title.trim())
   }
   if (changes.state !== undefined) {
     patch.state = changes.state

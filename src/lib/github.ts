@@ -68,8 +68,14 @@ export function priorityFromLabels(labels: { name: string }[]): TaskPriority | n
   return null
 }
 
+// A member-written "@claude" would fire claude.yml (issue_comment trigger) under the repo token; a zero-width space breaks the match.
+// Apply it to every text sent to GitHub, titles included, in case claude.yml ever gains an `issues:` trigger.
+export function neutralizeMentions(text: string): string {
+  return text.replace(/@(?=claude)/gi, '@​')
+}
+
 export function buildIssueBody(description: string, reporter: string): string {
-  return `${REPORTER_PREFIX} ${reporter}\n\n${description.trim()}`
+  return `${REPORTER_PREFIX} ${neutralizeMentions(reporter)}\n\n${neutralizeMentions(description.trim())}`
 }
 
 /** Splits the "Reportado por: X" line off the body. */
