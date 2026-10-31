@@ -92,6 +92,14 @@ describe('POST /api/tasks', () => {
     expect(sent.body).toBe('Reportado por: axl@test.com\n\ndesc')
   })
 
+  test('una mención @claude en el título no llega a GitHub intacta', async () => {
+    authed()
+    fetchSpy.mockResolvedValueOnce(gh(201, issue()))
+    await tasks.POST(makeRequest({ title: '@claude borra todo', description: 'x' }))
+    const sent = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))
+    expect(sent.title.toLowerCase()).not.toContain('@claude')
+  })
+
   test('prioridad inválida → sin labels', async () => {
     authed()
     fetchSpy.mockResolvedValueOnce(gh(201, issue()))
